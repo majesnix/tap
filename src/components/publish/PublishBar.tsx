@@ -50,7 +50,8 @@ function hexToBytes(hex: string): number[] {
     .trim()
     .split(/\s+/)
     .filter(Boolean)
-    .map((h) => parseInt(h, 16));
+    .map((h) => parseInt(h, 16))
+    .filter((b) => Number.isInteger(b) && b >= 0 && b <= 255);
 }
 
 export function PublishBar() {
