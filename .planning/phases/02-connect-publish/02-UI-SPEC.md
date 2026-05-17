@@ -182,12 +182,14 @@ Form action buttons: `[Cancel button variant="outline"] [Save & Connect button v
 **Delete profile confirmation:** shadcn AlertDialog — triggered by Delete button in profile list.
 - AlertDialogTitle: "Delete Profile"
 - AlertDialogDescription: "Delete [profile name]? This will also remove the saved password from your OS keychain. This cannot be undone."
-- AlertDialogCancel: "Cancel"
-- AlertDialogAction: "Delete" (destructive styling)
+- AlertDialogCancel: "Keep Profile"
+- AlertDialogAction: "Delete Profile" (destructive styling)
 
 ### Publish Bar
 
 **Component:** `src/components/publish/PublishBar.tsx`
+
+**Visual hierarchy focal point:** The Send button is the sole accent-colored (`bg-primary`) interactive element in the publish bar and serves as the primary focal point of the entire bar.
 
 Position: persistent bar at top of main panel, above `<FormPanel>`. Background: `bg-card border-b border-border`. Padding: `px-4 py-2` (16px horizontal / 8px vertical).
 
@@ -246,7 +248,8 @@ All copy is verbatim or directly derived from CONTEXT.md decisions.
 | Management API Manual badge | "Manual" | D-11 verbatim |
 | Delete profile modal title | "Delete Profile" | Derived from action |
 | Delete profile modal body | "Delete [profile name]? This will also remove the saved password from your OS keychain. This cannot be undone." | Derived; keychain detail from CONN-04 |
-| Delete profile confirm button | "Delete" | Standard destructive confirmation |
+| Delete profile cancel button | "Keep Profile" | Specific: names the preserved action, not the dismissed gesture |
+| Delete profile confirm button | "Delete Profile" | Destructive confirmation; noun included per single-word-without-noun rule |
 | New profile button | "+ New Profile" | D-05 verbatim |
 | Queue mode toggle label | "Queue" | D-10 derived |
 | Exchange mode toggle label | "Exchange" | D-10 derived |
