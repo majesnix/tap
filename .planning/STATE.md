@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 02-04 complete
-last_updated: "2026-05-17T21:20:00Z"
+stopped_at: Plan 02-GAP complete
+last_updated: "2026-05-17T21:12:29Z"
 progress:
   total_phases: 3
-  completed_phases: 2
-  total_plans: 10
-  completed_plans: 10
-  percent: 100
+  completed_phases: 1
+  total_plans: 12
+  completed_plans: 11
+  percent: 92
 ---
 
 # Project State: Proto Sender
@@ -39,13 +39,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 02-02 (Connection Test + Activation — Slice 2): COMPLETE — commits f5860cd, f5d2c9b
 - Plan 02-03 (PublishBar — Live Queue/Exchange Picker — Slice 3): COMPLETE — commits c49c8f2, 740e67f, 91fe919
 - Plan 02-04 (Publish Message — Slice 4): COMPLETE — commits 8729375, b6b3ff6
+- Plan 02-GAP (UAT Gap Fix — Test Connection + Edit Mode): COMPLETE — commits ef4d928, da68a62, 3f8fd65, 504fd63, 822dbd8, c25906c
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 10
-- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04
+- Plans completed: 11
+- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP
 - Phases completed: 2/3
 
 ## Accumulated Context
@@ -95,10 +96,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - vi.hoisted() required for toastMock — plain const at module scope fails Vitest hoisting
 - buildPublishArgs exported as pure function for testable PUBL-01/PUBL-02 routing logic
 - load_profile_with_password changed to pub(crate) for use from publish.rs
+- handleTestOnly does NOT call setActiveProfile/setConnectionStatus (profile saved but not activated)
+- handleRetest DOES update global connectionStatus (re-test is authoritative for active profile)
+- Blank-password guard in handleSave (frontend) required because Rust save_profile always writes to keychain unconditionally
+- ConnectionProfile type uses snake_case (management_port/management_ssl), not camelCase
 
 ### Active TODOs
 
-- Phase 02 complete — all 4 slices (connect-publish) done; ready for Phase 03
+- Phase 02 complete — all 4 slices + UAT gap fix done; ready for Phase 03
 
 ### Blockers
 
@@ -112,6 +117,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-17 (plan 02-04 complete)
-Stopped at: Plan 02-04 complete
+Last updated: 2026-05-17 (plan 02-GAP complete)
+Stopped at: Plan 02-GAP complete
 Next action: Phase 03 — next phase planning
