@@ -8,9 +8,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listProfiles, activateProfile } from "@/lib/ipc";
+import { listProfiles, activateProfile, testConnection } from "@/lib/ipc";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { ProfileManagementModal } from "@/components/connection/ProfileManagementModal";
+import { ConnectionTestResult } from "@/components/connection/ConnectionTestResult";
 
 const STATUS_DOT_CLASS: Record<string, string> = {
   connected: "bg-emerald-500",
@@ -28,6 +29,9 @@ export function ConnectionSection() {
   const { profiles, activeProfileName, connectionStatus, setProfiles, setActiveProfile, setConnectionStatus } =
     useConnectionStore();
   const [dialogOpen, setDialogOpen] = useState(false);
+  type TestState = "idle" | "testing" | "success" | "error";
+  const [testState, setTestState] = useState<TestState>("idle");
+  const [testError, setTestError] = useState<string | null>(null);
 
   useEffect(() => {
     listProfiles()
@@ -45,6 +49,22 @@ export function ConnectionSection() {
       setConnectionStatus("connected");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
+      setConnectionStatus("error", message);
+    }
+  };
+
+  const handleRetest = async () => {
+    if (!activeProfileName) return;
+    setTestState("testing");
+    setTestError(null);
+    try {
+      await testConnection(activeProfileName);
+      setTestState("success");
+      setConnectionStatus("connected");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setTestState("error");
+      setTestError(message);
       setConnectionStatus("error", message);
     }
   };
@@ -96,6 +116,18 @@ export function ConnectionSection() {
           <Settings className="w-4 h-4" />
         </Button>
       </div>
+      <div className="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRetest}
+          disabled={!activeProfileName || testState === "testing"}
+          className="text-xs"
+        >
+          Re-test
+        </Button>
+      </div>
+      <ConnectionTestResult state={testState} errorMessage={testError} />
       <ProfileManagementModal open={dialogOpen} onClose={() => setDialogOpen(false)} />
     </div>
   );
