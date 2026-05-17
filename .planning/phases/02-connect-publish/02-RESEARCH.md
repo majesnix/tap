@@ -660,22 +660,25 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **keyring-core Linux store initialization**
    - What we know: `keyring-core` requires calling `set_default_store()` at startup on ALL platforms. Crates confirmed: `apple-native-keyring-store = "1.0.0"` (macOS), `windows-native-keyring-store = "1.0.0"` (Windows), `dbus-secret-service-keyring-store = "1.0.0"` (Linux). [VERIFIED: cargo search 2026-05-17]
    - What's unclear: Exact function signature for registering each platform store (likely `set_default_store(Store::new()?)` or similar — verify in crate README during Wave 0).
    - Recommendation: Add explicit store init block using `#[cfg(target_os)]` conditional compilation in `lib.rs` `run()` function before `tauri::Builder` setup.
+   - RESOLVED: Use `#[cfg(target_os = "...")]` conditional compilation blocks in `lib.rs` `run()` before `tauri::Builder` setup, calling `set_default_store(Store::new()?)` for each platform. The Recommendation above is the resolution.
 
 2. **Sonner vs Legacy Toast**
    - What we know: CONTEXT D-13/D-14 says "existing Toaster infrastructure" but no toaster is currently installed. `sonner` is the current shadcn recommendation.
    - What's unclear: Whether user expects the Radix-based legacy `toast` or Sonner.
    - Recommendation: Install `sonner` (shadcn recommends it); it satisfies D-13/D-14 intent. `npx shadcn add sonner`.
+   - RESOLVED: Install `sonner` via `npx shadcn add sonner`. Satisfies D-13/D-14. The legacy `toast` component is deprecated.
 
 3. **reqwest error: connection refused vs timeout**
    - What we know: `reqwest::Error::is_connect()` returns true for connection-refused errors.
    - What's unclear: How to distinguish "port closed" from "plugin not installed" when Management port is 15672 but AMQP connects fine.
    - Recommendation: Treat any `is_connect() = true` as "management unavailable" → manual fallback. Treat 401 as credential error. Treat 404 as plugin-not-enabled → manual fallback.
+   - RESOLVED: Treat `is_connect() = true` as "management unavailable" (fallback to manual input). Treat HTTP 401 as credential error (surface to user). Treat HTTP 404 as plugin-not-enabled (fallback to manual input).
 
 ---
 

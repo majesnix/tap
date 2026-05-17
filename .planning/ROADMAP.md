@@ -99,6 +99,12 @@
 **Wave 4** *(blocked on Wave 3 completion)*
 - [ ] 02-04-PLAN.md — Publish message: publish_message lapin command, handleSend wired, Sonner toasts (success + error), Toaster mounted
 
+**Cross-cutting constraints:**
+- Passwords NEVER in store, IPC response, frontend state, or logs — OS keychain (keyring crate) only
+- `tauri::async_runtime::spawn` for all async Rust — never bare `tokio::spawn`
+- `load_profile_with_password` is `pub(crate)` — internal only, not exposed via IPC
+- 401 from Management API surfaces as auth error — NOT silent fallback to Manual mode
+
 ---
 
 ### Phase 3: Full Feature Set
