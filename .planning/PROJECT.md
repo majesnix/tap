@@ -12,14 +12,12 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 
 ### Validated
 
-(None yet — ship to validate)
+- [x] Load `.proto` files via file picker at runtime, with import resolution from the filesystem — Validated in Phase 01: proto-parsing-form
+- [x] Parse all proto features: nested messages, repeated fields, enums, oneof fields — Validated in Phase 01: proto-parsing-form
+- [x] Generate a type-aware dynamic form from the parsed proto schema — Validated in Phase 01: proto-parsing-form
+- [x] Type-check field values before send (string, int32/64, float, bool, bytes, enum) — Validated in Phase 01: proto-parsing-form
 
 ### Active
-
-- [ ] Load `.proto` files via file picker at runtime, with import resolution from the filesystem
-- [ ] Parse all proto features: nested messages, repeated fields, enums, oneof fields
-- [ ] Generate a type-aware dynamic form from the parsed proto schema
-- [ ] Type-check field values before send (string, int32/64, float, bool, bytes, enum)
 - [ ] Connect to RabbitMQ with saved named connection profiles (host, port, vhost, user, password)
 - [ ] Fetch live queue list and exchange list from RabbitMQ (via management API or AMQP)
 - [ ] Publish to a selected queue (direct) or exchange + routing key
@@ -76,4 +74,9 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
-*Last updated: 2026-05-17 after initialization*
+## Current State
+
+Phase 01 (proto-parsing-form) complete — dynamic form with all 6 field kinds, live debounced hex encoding. Phase 02 (RabbitMQ connection UI) is next.
+
+---
+*Last updated: 2026-05-17 after Phase 01 completion*
