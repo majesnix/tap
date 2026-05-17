@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Pencil } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -54,7 +55,7 @@ type TestState = "idle" | "testing" | "success" | "error";
 
 export function ProfileManagementModal({ open, onClose }: ProfileManagementModalProps) {
   const { profiles, setProfiles, setActiveProfile, setConnectionStatus } = useConnectionStore();
-  const [formMode, setFormMode] = useState<"list" | "create">("list");
+  const [formMode, setFormMode] = useState<"list" | "create" | "edit">("list");
   const [formValues, setFormValues] = useState<ProfileFormValues>(DEFAULT_FORM_VALUES);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -67,6 +68,23 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     setTestState("idle");
     setTestError(null);
     setFormMode("create");
+  };
+
+  const handleShowEditForm = (profile: ConnectionProfile) => {
+    setFormValues({
+      name: profile.name,
+      host: profile.host,
+      port: String(profile.port),
+      vhost: profile.vhost,
+      username: profile.username,
+      password: "",             // intentionally blank — user must re-enter to change
+      managementPort: String(profile.management_port ?? 15672),
+      managementSsl: profile.management_ssl ?? false,
+    });
+    setError(null);
+    setTestState("idle");
+    setTestError(null);
+    setFormMode("edit");
   };
 
   const handleCancel = () => {
@@ -154,6 +172,12 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
       setError("Host is required.");
       return;
     }
+    if (formMode === "edit" && formValues.password.trim() === "") {
+      setError(
+        "Password is required to save changes. Enter the current password to keep it, or a new password to change it."
+      );
+      return;
+    }
 
     try {
       // Step 1: persist profile + keychain password
@@ -214,14 +238,24 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   className="flex items-center justify-between rounded-md border px-3 py-2"
                 >
                   <span className="text-sm font-medium">{profile.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteTarget(profile.name)}
-                    aria-label={`Delete profile ${profile.name}`}
-                  >
-                    Delete
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleShowEditForm(profile)}
+                      aria-label={`Edit profile ${profile.name}`}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setDeleteTarget(profile.name)}
+                      aria-label={`Delete profile ${profile.name}`}
+                    >
+                      Delete
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -238,15 +272,20 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
             </Button>
           )}
 
-          {/* Inline new profile form */}
-          {formMode === "create" && (
+          {/* Inline profile form (create or edit) */}
+          {(formMode === "create" || formMode === "edit") && (
             <div className="flex flex-col gap-3">
+              <p className="text-sm font-semibold text-foreground">
+                {formMode === "edit" ? "Edit Profile" : "New Profile"}
+              </p>
               <div className="flex flex-col gap-1">
                 <label className="text-sm font-semibold">Profile Name</label>
                 <Input
                   placeholder="e.g. Local RabbitMQ"
                   value={formValues.name}
                   onChange={(e) => handleFieldChange("name", e.target.value)}
+                  readOnly={formMode === "edit"}
+                  className={formMode === "edit" ? "opacity-60 cursor-not-allowed" : ""}
                 />
               </div>
               <div className="flex flex-col gap-1">
@@ -285,7 +324,11 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                 <label className="text-sm font-semibold">Password</label>
                 <Input
                   type="password"
-                  placeholder="••••••••"
+                  placeholder={
+                    formMode === "edit"
+                      ? "Enter password to update; leave blank to keep current"
+                      : "••••••••"
+                  }
                   value={formValues.password}
                   onChange={(e) => handleFieldChange("password", e.target.value)}
                 />
