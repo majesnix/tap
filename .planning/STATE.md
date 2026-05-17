@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 01-03 COMPLETE
-last_updated: "2026-05-17T16:00:00Z"
+stopped_at: Plan 01-04 COMPLETE
+last_updated: "2026-05-17T14:52:00Z"
 progress:
   total_phases: 3
   completed_phases: 0
   total_plans: 5
-  completed_plans: 3
-  percent: 60
+  completed_plans: 4
+  percent: 80
 ---
 
 # Project State: Proto Sender
@@ -18,7 +18,7 @@ progress:
 ## Current Phase
 
 Phase 1 — Proto Parsing + Form
-Status: Executing Phase 01 — Plan 3 of 5 complete
+Status: Executing Phase 01 — Plan 4 of 5 complete
 
 ## Project Reference
 
@@ -32,13 +32,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 01-01 (Walking Skeleton): COMPLETE — commits 875defd, 96393ae, 878339e
 - Plan 01-02 (ScalarField Full Implementation): COMPLETE — commits caff256, f5fda9f
 - Plan 01-03 (NestedMessageField + RepeatedField): COMPLETE — commits a7c0614, 783a5bf
+- Plan 01-04 (EnumField + OneofField): COMPLETE — commits d4d8acf, 16405ff, 908f55b, fd0c914, 9e7dd5a
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 2
-- Requirements delivered: FORM-01 (partial), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03
+- Plans completed: 4
+- Requirements delivered: FORM-01 (partial), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04
 - Phases completed: 0/3
 
 ## Accumulated Context
@@ -59,10 +60,13 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Single Controller pattern (not two Controllers) for input + error display in ScalarField
 - mode: onBlur on useForm — required for blur-triggered per-field validation
 - 64-bit int fields (int64/uint64/sint64/sfixed64/fixed64) use type="text" with regex (JS precision)
+- Used path prop (not fieldPath) — ProtoFormRenderer dispatch is frozen and uses path
+- Mocked shadcn Select with native <select> in tests — Radix UI portal/pointer events incompatible with jsdom
+- useMemo with empty deps for branchNames — branches array is stable per field schema lifetime
+- buildDefaultValues enum default: values[0].number (integer, not name string); oneof: first branch name
 
 ### Active TODOs
 
-- Plan 01-04: EnumField, OneofField, WellKnownTypeField
 - Plan 01-05: Integration + send flow
 
 ### Blockers
@@ -77,6 +81,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-17 (plan 01-03 complete)
-Stopped at: Plan 01-03 COMPLETE
-Next action: Execute plan 01-04 (EnumField, OneofField, WellKnownTypeField)
+Last updated: 2026-05-17 (plan 01-04 complete)
+Stopped at: Plan 01-04 COMPLETE
+Next action: Execute plan 01-05 (Integration + send flow)

@@ -24,8 +24,8 @@
 - [ ] **FORM-01**: Form renders scalar fields (string, int32, int64, uint32, uint64, sint32, sint64, float, double, bool) with appropriate input types and constraints
 - [ ] **FORM-02**: Form renders nested message fields as expandable inline sub-forms
 - [ ] **FORM-03**: Form renders repeated fields as a list with add/remove item controls, including repeated nested messages
-- [ ] **FORM-04**: Form renders enum fields as dropdowns showing value names (not raw integer values)
-- [ ] **FORM-05**: Form renders oneof fields as a radio group; selecting a branch clears all sibling branches (correct proto wire semantics)
+- [x] **FORM-04**: Form renders enum fields as dropdowns showing value names (not raw integer values)
+- [x] **FORM-05**: Form renders oneof fields as a radio group; selecting a branch clears all sibling branches (correct proto wire semantics)
 
 ### Form Editor — Quality
 
@@ -94,8 +94,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FORM-01 | Phase 1 | Pending |
 | FORM-02 | Phase 1 | Pending |
 | FORM-03 | Phase 1 | Pending |
-| FORM-04 | Phase 1 | Pending |
-| FORM-05 | Phase 1 | Pending |
+| FORM-04 | Phase 1 | Complete |
+| FORM-05 | Phase 1 | Complete |
 | FORM-06 | Phase 1 | Pending |
 | FORM-07 | Phase 1 | Pending |
 | FORM-08 | Phase 1 | Pending |
