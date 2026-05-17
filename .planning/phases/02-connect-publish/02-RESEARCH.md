@@ -135,11 +135,10 @@ url = "2"
 dbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-# keyring-core uses Apple Keychain Services automatically — no extra crate needed
-# (macOS native store is bundled in keyring-core)
+apple-native-keyring-store = "1"   # [VERIFIED: cargo search 2026-05-17]
 
 [target.'cfg(target_os = "windows")'.dependencies]
-# keyring-core uses Windows Credential Manager automatically — no extra crate needed
+windows-native-keyring-store = "1"  # [VERIFIED: cargo search 2026-05-17]
 ```
 
 **Version verification:** [VERIFIED: cargo search 2026-05-17]
@@ -285,7 +284,7 @@ const KEYRING_SERVICE: &str = "dev.protosender.app";
 
 // Call once at app startup in lib.rs (before any Entry operations)
 // On Linux: register dbus_secret_service_keyring_store::Store
-// On macOS/Windows: keyring-core selects native store automatically
+// On macOS/Windows: register apple_native_keyring_store::Store or windows_native_keyring_store::Store
 
 fn store_password(profile_name: &str, password: &str) -> Result<(), AppError> {
     let entry = Entry::new(KEYRING_SERVICE, profile_name)
@@ -589,7 +588,7 @@ use keyring_core::Entry;
 
 // On app startup — call this once (see keyring-core README for store init)
 // Linux: set_default_store(dbus_secret_service_keyring_store::Store::new()?);
-// macOS/Windows: keyring-core selects native automatically
+// macOS/Windows: set_default_store() also required — use platform store crate
 
 let entry = Entry::new("dev.protosender.app", profile_name)?;
 entry.set_password(&password)?;
@@ -653,7 +652,7 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
 | A1 | `keyring-core` requires explicit `set_default_store()` call at Tauri startup for Linux | Standard Stack, Code Examples | If auto-selected on Linux, startup call is unnecessary but harmless |
-| A2 | `keyring-core` 1.x macOS/Windows — native store selected without extra crate dep | Standard Stack | May require additional crates on these platforms (low risk; well-documented in keyring-core README) |
+| A2 | `keyring-core` 1.x macOS/Windows require `apple-native-keyring-store = "1"` and `windows-native-keyring-store = "1"` respectively | Standard Stack | [VERIFIED: cargo search 2026-05-17 — both crates exist at 1.0.0] |
 | A3 | Service name `"dev.protosender.app"` is the right naming convention | Code Examples | Any consistent stable string works; changing it later orphans saved passwords |
 | A4 | Sonner (not legacy `toast`) should be used for D-13/D-14 toasts | Standard Stack, Don't Hand-Roll | Legacy toast still installable; either works for v1 |
 | A5 | `BasicProperties::with_content_type()` is a builder method returning `Self` | Code Examples | May be a non-chaining setter; check docs.rs/amq-protocol-types if compile fails |
@@ -664,9 +663,9 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
 ## Open Questions
 
 1. **keyring-core Linux store initialization**
-   - What we know: `keyring-core` requires calling `set_default_store()` at startup on Linux; macOS/Windows may auto-select native stores.
-   - What's unclear: Whether `set_default_store()` is needed on macOS/Windows or just Linux, and the exact startup call location in `lib.rs`.
-   - Recommendation: Read `keyring-core` README during Wave 0 task; add explicit store init in `lib.rs` `run()` function.
+   - What we know: `keyring-core` requires calling `set_default_store()` at startup on ALL platforms. Crates confirmed: `apple-native-keyring-store = "1.0.0"` (macOS), `windows-native-keyring-store = "1.0.0"` (Windows), `dbus-secret-service-keyring-store = "1.0.0"` (Linux). [VERIFIED: cargo search 2026-05-17]
+   - What's unclear: Exact function signature for registering each platform store (likely `set_default_store(Store::new()?)` or similar — verify in crate README during Wave 0).
+   - Recommendation: Add explicit store init block using `#[cfg(target_os)]` conditional compilation in `lib.rs` `run()` function before `tauri::Builder` setup.
 
 2. **Sonner vs Legacy Toast**
    - What we know: CONTEXT D-13/D-14 says "existing Toaster infrastructure" but no toaster is currently installed. `sonner` is the current shadcn recommendation.
