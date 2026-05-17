@@ -446,7 +446,7 @@ export function OneofField({ fieldPath, branches, branchNames, depth }) {
         unregister(`${fieldPath}.${name}`);
       }
     });
-  }, [selected]);
+  }, [selected, fieldPath, unregister, branchNames]);
 
   return (
     <div>
