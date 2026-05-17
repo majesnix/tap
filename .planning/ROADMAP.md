@@ -85,7 +85,19 @@
 4. Passwords never appear in any config file, log output, or application state visible to the frontend.
 5. When the Management API is unreachable, the queue/exchange picker falls back gracefully to a manual text input with a visible status indicator.
 
-**Plans:** TBD
+**Plans:** 4 plans
+
+**Wave 1** — Profile save + keychain (no connection test yet)
+- [ ] 02-01-PLAN.md — Profile management: keyring-core + tauri-plugin-store, save/list/delete commands, ConnectionSection sidebar, ProfileManagementModal
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 02-02-PLAN.md — Connection test + activation: lapin ephemeral connect, test_connection + activate_profile commands, ConnectionTestResult inline display, status dot activation
+
+**Wave 3** *(blocked on Wave 2 completion)*
+- [ ] 02-03-PLAN.md — Queue/exchange listing + PublishBar: reqwest + Management API, fetch_queues/fetch_exchanges, PublishBar with Live/Manual badge + mode toggle
+
+**Wave 4** *(blocked on Wave 3 completion)*
+- [ ] 02-04-PLAN.md — Publish message: publish_message lapin command, handleSend wired, Sonner toasts (success + error), Toaster mounted
 
 ---
 
@@ -119,7 +131,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Proto Parsing + Form | 6/6 | Complete   | 2026-05-17 |
-| 2. Connect + Publish | 0/? | Not started | — |
+| 2. Connect + Publish | 0/4 | In progress | — |
 | 3. Full Feature Set | 0/? | Not started | — |
 
 ---
@@ -141,7 +153,6 @@
 | FORM-09 | Phase 1 |
 | CONN-01 | Phase 2 |
 | CONN-02 | Phase 2 |
-| CONN-03 | Phase 2 |
 | CONN-03 | Phase 2 |
 | CONN-04 | Phase 2 |
 | PUBL-01 | Phase 2 |
