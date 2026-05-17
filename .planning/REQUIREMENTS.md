@@ -15,7 +15,7 @@
 ### Proto Loading
 
 - [ ] **PROT-01**: User can open a `.proto` file via a file picker dialog at runtime (no pre-compilation step)
-- [ ] **PROT-02**: User can configure include paths (equivalent to `protoc -I`) so relative imports resolve correctly across project directory trees
+- [x] **PROT-02**: User can configure include paths (equivalent to `protoc -I`) so relative imports resolve correctly across project directory trees
 - [ ] **PROT-03**: Tool renders WellKnownTypes (google.protobuf.Timestamp, Duration, Any, etc.) with purpose-built form controls (e.g. datetime picker for Timestamp)
 - [ ] **PROT-04**: User can have multiple `.proto` files open simultaneously and switch between message types within one session
 
@@ -32,7 +32,7 @@
 - [ ] **FORM-06**: App validates field values before send and surfaces errors inline (e.g. out-of-range int32, invalid enum, missing required field in proto2)
 - [ ] **FORM-07**: Form pre-populates sensible zero-value defaults on load (0 for numerics, empty string, first enum value)
 - [ ] **FORM-08**: App caps nested message expansion at 5 levels deep and shows a collapse placeholder below that, preventing infinite rendering of recursive types
-- [ ] **FORM-09**: WellKnownType fields use purpose-built controls rather than raw field editors (datetime picker for Timestamp, human-readable string for Duration)
+- [x] **FORM-09**: WellKnownType fields use purpose-built controls rather than raw field editors (datetime picker for Timestamp, human-readable string for Duration)
 
 ### Publishing
 
@@ -88,7 +88,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONN-03 | Phase 2 | Pending |
 | CONN-04 | Phase 2 | Pending |
 | PROT-01 | Phase 1 | Pending |
-| PROT-02 | Phase 1 | Pending |
+| PROT-02 | Phase 1 | Complete |
 | PROT-03 | Phase 3 | Pending |
 | PROT-04 | Phase 3 | Pending |
 | FORM-01 | Phase 1 | Pending |
@@ -99,7 +99,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FORM-06 | Phase 1 | Pending |
 | FORM-07 | Phase 1 | Pending |
 | FORM-08 | Phase 1 | Pending |
-| FORM-09 | Phase 1 | Pending |
+| FORM-09 | Phase 1 | Complete |
 | PUBL-01 | Phase 2 | Pending |
 | PUBL-02 | Phase 2 | Pending |
 | PUBL-03 | Phase 2 | Pending |

@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 01-04 COMPLETE
-last_updated: "2026-05-17T14:52:00Z"
+stopped_at: Plan 01-05 COMPLETE
+last_updated: "2026-05-17T15:02:43.253Z"
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 5
-  completed_plans: 4
-  percent: 80
+  completed_plans: 5
+  percent: 100
 ---
 
 # Project State: Proto Sender
@@ -18,7 +18,7 @@ progress:
 ## Current Phase
 
 Phase 1 — Proto Parsing + Form
-Status: Executing Phase 01 — Plan 4 of 5 complete
+Status: Phase 01 COMPLETE — all 5 plans done
 
 ## Project Reference
 
@@ -33,19 +33,24 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 01-02 (ScalarField Full Implementation): COMPLETE — commits caff256, f5fda9f
 - Plan 01-03 (NestedMessageField + RepeatedField): COMPLETE — commits a7c0614, 783a5bf
 - Plan 01-04 (EnumField + OneofField): COMPLETE — commits d4d8acf, 16405ff, 908f55b, fd0c914, 9e7dd5a
+- Plan 01-05 (WellKnownTypeField + Include Path Persistence): COMPLETE — commits 60ee94e, ff7a8e3
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 4
-- Requirements delivered: FORM-01 (partial), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04
-- Phases completed: 0/3
+- Plans completed: 5
+- Requirements delivered: FORM-01 (partial), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05
+- Phases completed: 1/3
 
 ## Accumulated Context
 
 ### Key Decisions Logged
 
+- WellKnownTypeField prop kept as 'path' (not 'fieldPath') — ProtoFormRenderer dispatch is frozen
+- Duration validation triggers on blur — mode: onBlur in both form and test wrapper
+- load() without options — StoreOptions.defaults required when passing options, defaults suffice
+- Include path key uses INCLUDE_PATH_KEY_PREFIX constant for DRY pattern
 - Stack confirmed: protox + prost-reflect (Rust), lapin (AMQP), react-hook-form + zod + shadcn/ui (React)
 - Import resolution: explicit include-path list (not auto-detect from file location)
 - oneof rendering: radio group with conditional branch visibility
@@ -67,7 +72,7 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ### Active TODOs
 
-- Plan 01-05: Integration + send flow
+- Phase 01 complete — ready for Phase 02 (RabbitMQ connection UI)
 
 ### Blockers
 
@@ -81,6 +86,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-17 (plan 01-04 complete)
-Stopped at: Plan 01-04 COMPLETE
-Next action: Execute plan 01-05 (Integration + send flow)
+Last updated: 2026-05-17 (plan 01-05 complete)
+Stopped at: Plan 01-05 COMPLETE
+Next action: Phase 02 — RabbitMQ connection UI
