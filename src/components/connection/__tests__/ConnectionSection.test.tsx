@@ -66,7 +66,7 @@ describe("ConnectionSection", () => {
 
   it("shows profile dropdown when profiles exist", async () => {
     useConnectionStore.setState({
-      profiles: [{ name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false }],
+      profiles: [{ name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false }],
       activeProfileName: "Local RabbitMQ",
       connectionStatus: "disconnected",
       connectionError: null,
@@ -90,7 +90,7 @@ describe("ConnectionSection", () => {
   it("saves profile and updates dropdown on Save & Connect", async () => {
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "save_profile") return Promise.resolve(undefined);
-      if (cmd === "list_profiles") return Promise.resolve([{ name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false }]);
+      if (cmd === "list_profiles") return Promise.resolve([{ name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false }]);
       return Promise.resolve(undefined);
     });
 
@@ -119,7 +119,7 @@ describe("ConnectionSection", () => {
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "save_profile") return Promise.resolve(undefined);
       if (cmd === "test_connection") return Promise.resolve(undefined);
-      if (cmd === "list_profiles") return Promise.resolve([{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false }]);
+      if (cmd === "list_profiles") return Promise.resolve([{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false }]);
       return Promise.resolve(undefined);
     });
 
@@ -164,8 +164,8 @@ describe("ConnectionSection", () => {
     // Seed profiles so the dropdown renders
     useConnectionStore.setState({
       profiles: [
-        { name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false },
-        { name: "Staging", host: "staging.internal", port: 5672, vhost: "/", username: "admin", managementPort: 15672, management_ssl: false },
+        { name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false },
+        { name: "Staging", host: "staging.internal", port: 5672, vhost: "/", username: "admin", management_port: 15672, management_ssl: false },
       ],
       activeProfileName: "Local",
       connectionStatus: "disconnected",
@@ -177,8 +177,8 @@ describe("ConnectionSection", () => {
 
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "list_profiles") return Promise.resolve([
-        { name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false },
-        { name: "Staging", host: "staging.internal", port: 5672, vhost: "/", username: "admin", managementPort: 15672, management_ssl: false },
+        { name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false },
+        { name: "Staging", host: "staging.internal", port: 5672, vhost: "/", username: "admin", management_port: 15672, management_ssl: false },
       ]);
       if (cmd === "activate_profile") return Promise.resolve(undefined);
       return Promise.resolve(undefined);

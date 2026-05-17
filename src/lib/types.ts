@@ -71,7 +71,7 @@ export interface ConnectionProfile {
   port: number;        // default 5672
   vhost: string;       // default "/"
   username: string;
-  managementPort: number; // default 15672
+  management_port: number; // default 15672
   management_ssl: boolean; // default false — set true to use HTTPS for Management API
 }
 

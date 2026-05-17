@@ -91,7 +91,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
       port: Number(formValues.port) || 5672,
       vhost: formValues.vhost.trim() || "/",
       username: formValues.username.trim(),
-      managementPort: Number(formValues.managementPort) || 15672,
+      management_port: Number(formValues.managementPort) || 15672,
       management_ssl: formValues.managementSsl,
     };
 
