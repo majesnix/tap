@@ -12,6 +12,7 @@ function renderField(schema: FieldSchema) {
   const Wrapper = () => {
     const methods = useForm({
       defaultValues: { [schema.name]: schema.default_value },
+      mode: "onBlur",
     });
     return (
       <FormProvider {...methods}>
@@ -201,8 +202,8 @@ test("bytes field renders text input with bytes badge", () => {
     default_value: "",
   });
   expect(screen.getByRole("textbox")).toBeInTheDocument();
-  // Bytes badge annotation must be present (case-insensitive match)
-  expect(screen.getByText(/bytes/i)).toBeInTheDocument();
+  // The "bytes (base64)" badge annotation must be present
+  expect(screen.getByText("bytes (base64)")).toBeInTheDocument();
 });
 
 // ─── Inline validation errors ────────────────────────────────────────────────

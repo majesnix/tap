@@ -32,7 +32,24 @@ function buildDefaultValues(
 
     switch (field.kind.type) {
       case "scalar":
-        defaults[field.name] = "";
+        // FORM-07: use default_value from schema when available; fall back to
+        // sensible zero-values by scalar type (string → "", bool → false, number → 0)
+        if (field.default_value !== undefined && field.default_value !== null) {
+          defaults[field.name] = field.default_value;
+        } else {
+          const sk = field.kind.scalar;
+          if (sk === "bool") {
+            defaults[field.name] = false;
+          } else if (
+            ["int64", "uint64", "sint64", "fixed64", "sfixed64"].includes(sk)
+          ) {
+            defaults[field.name] = "0";
+          } else if (sk === "string" || sk === "bytes") {
+            defaults[field.name] = "";
+          } else {
+            defaults[field.name] = 0;
+          }
+        }
         break;
       case "enum":
         defaults[field.name] =
@@ -62,6 +79,7 @@ export function ProtoFormRenderer({
 }: ProtoFormRendererProps) {
   const methods = useForm({
     defaultValues: buildDefaultValues(message),
+    mode: "onBlur",
   });
 
   const watchedValues = useWatch({ control: methods.control });
