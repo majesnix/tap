@@ -11,7 +11,7 @@
 ## Phases
 
 - [x] **Phase 1: Proto Parsing + Form** — Load a `.proto` file, fill out a dynamic form, and see the binary-encoded result — no network required (completed 2026-05-17)
-- [ ] **Phase 2: Connect + Publish** — Connect to RabbitMQ via saved profiles and actually send encoded messages
+- [x] **Phase 2: Connect + Publish** — Connect to RabbitMQ via saved profiles and actually send encoded messages (completed 2026-05-17)
 - [ ] **Phase 3: Full Feature Set** — Message history, advanced properties, WellKnownType controls, multi-file support, live queue listing
 
 ---
@@ -85,7 +85,7 @@
 4. Passwords never appear in any config file, log output, or application state visible to the frontend.
 5. When the Management API is unreachable, the queue/exchange picker falls back gracefully to a manual text input with a visible status indicator.
 
-**Plans:** 3/4 plans executed
+**Plans:** 4/4 plans complete
 
 **Wave 1** — Profile save + keychain (no connection test yet)
 - [x] 02-01-PLAN.md — Profile management: keyring-core + tauri-plugin-store, save/list/delete commands, ConnectionSection sidebar, ProfileManagementModal
@@ -97,7 +97,7 @@
 - [x] 02-03-PLAN.md — Queue/exchange listing + PublishBar: reqwest + Management API, fetch_queues/fetch_exchanges, PublishBar with Live/Manual badge + mode toggle
 
 **Wave 4** *(blocked on Wave 3 completion)*
-- [ ] 02-04-PLAN.md — Publish message: publish_message lapin command, handleSend wired, Sonner toasts (success + error), Toaster mounted
+- [x] 02-04-PLAN.md — Publish message: publish_message lapin command, handleSend wired, Sonner toasts (success + error), Toaster mounted
 
 **Cross-cutting constraints:**
 - Passwords NEVER in store, IPC response, frontend state, or logs — OS keychain (keyring crate) only
@@ -137,7 +137,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Proto Parsing + Form | 6/6 | Complete   | 2026-05-17 |
-| 2. Connect + Publish | 3/4 | In Progress|  |
+| 2. Connect + Publish | 4/4 | Complete   | 2026-05-17 |
 | 3. Full Feature Set | 0/? | Not started | — |
 
 ---
