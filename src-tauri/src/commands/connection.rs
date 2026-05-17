@@ -84,7 +84,9 @@ pub async fn save_profile(
     }
 
     // 4. Persist non-secret fields (no password in JSON)
-    store.set(PROFILES_STORE_KEY, serde_json::to_value(&profiles).unwrap());
+    let profiles_value = serde_json::to_value(&profiles)
+        .map_err(|e| AppError::StoreError(e.to_string()))?;
+    store.set(PROFILES_STORE_KEY, profiles_value);
     store
         .save()
         .map_err(|e| AppError::StoreError(e.to_string()))?;
@@ -122,7 +124,9 @@ pub async fn delete_profile(app: AppHandle, profile_name: String) -> Result<(), 
 
     profiles.retain(|p| p.name != profile_name);
 
-    store.set(PROFILES_STORE_KEY, serde_json::to_value(&profiles).unwrap());
+    let profiles_value = serde_json::to_value(&profiles)
+        .map_err(|e| AppError::StoreError(e.to_string()))?;
+    store.set(PROFILES_STORE_KEY, profiles_value);
     store
         .save()
         .map_err(|e| AppError::StoreError(e.to_string()))?;
@@ -213,9 +217,10 @@ pub async fn fetch_queues(
         &profile.vhost,
         percent_encoding::NON_ALPHANUMERIC,
     );
+    let scheme = if profile.management_ssl { "https" } else { "http" };
     let url = format!(
-        "http://{}:{}/api/queues/{}",
-        profile.host, profile.management_port, encoded_vhost
+        "{}://{}:{}/api/queues/{}",
+        scheme, profile.host, profile.management_port, encoded_vhost
     );
 
     let client = Client::new();
@@ -263,9 +268,10 @@ pub async fn fetch_exchanges(
         &profile.vhost,
         percent_encoding::NON_ALPHANUMERIC,
     );
+    let scheme = if profile.management_ssl { "https" } else { "http" };
     let url = format!(
-        "http://{}:{}/api/exchanges/{}",
-        profile.host, profile.management_port, encoded_vhost
+        "{}://{}:{}/api/exchanges/{}",
+        scheme, profile.host, profile.management_port, encoded_vhost
     );
 
     let client = Client::new();
