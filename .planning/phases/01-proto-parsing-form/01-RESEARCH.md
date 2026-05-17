@@ -759,22 +759,25 @@ This approach avoids the complexity of generating full nested zod schemas while 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **fixed32 / sfixed32 / fixed64 / sfixed64 in Phase 1**
    - What we know: FORM-01 lists `sint32/sint64` but not `fixed/sfixed` variants. REQUIREMENTS.md FORM-01 says "string, int32, int64, uint32, uint64, sint32, sint64, float, double, bool" — omitting fixed types.
    - What's unclear: fixed32/sfixed32/fixed64/sfixed64 appear in real proto files. They map to `Value::U32`, `Value::I32`, `Value::U64`, `Value::I64` respectively (same underlying type as int variants, just different wire format). The renderer would be identical.
    - Recommendation: Render fixed/sfixed variants identically to their int/uint counterparts — same input, same validation. Include in FORM-01 scope implicitly. Planner should confirm before locking task scope.
+   - RESOLVED: `fixed32`/`sfixed32`/`fixed64`/`sfixed64` variants render identically to their `int32`/`uint32` counterparts — included in `ScalarKind` in the plan. The Rust encoder handles all four via the same `Value::I32`/`Value::U32`/`Value::I64`/`Value::U64` arms (with different wire-type packing handled transparently by prost).
 
 2. **int64/uint64 precision: string or BigInt?**
    - What we know: JS Number loses precision above 2^53. The recommended approach is to send as strings.
    - What's unclear: Should the UI show a plain text input or a BigInt-aware number input?
    - Recommendation: Plain text input (`<Input type="text">`) with regex validation `^-?\d+$` (or `^\d+$` for uint64). Rust parses as i64/u64. No BigInt library needed.
+   - RESOLVED: `int64`/`uint64` fields use plain `<input type="text">` with regex validation (`/^-?\d+$/` for int64, `/^\d+$/` for uint64) — no BigInt library added in Phase 1. The Rust encoder's `str::parse::<i64>()` arm handles the string-to-integer conversion.
 
 3. **bytes field in Phase 1**
    - What we know: REQUIREMENTS.md marks `bytes` as FORM-V2-01 (Phase 2). However, the proto `Kind::Bytes` will appear in real proto files.
    - What's unclear: Should Phase 1 render a disabled placeholder for bytes fields?
    - Recommendation: Render bytes as a plain text input with badge "bytes (base64)" and accept base64-encoded input. Send as raw bytes decoded in Rust. This avoids blocking while keeping v2 enhancements deferred (the v2 UX adds a UTF-8 helper button). Planner should confirm.
+   - RESOLVED: `bytes` fields render as a disabled base64 `<input type="text">` with a `bytes (base64)` badge annotation — the input accepts base64-encoded text, which the Rust encoder decodes with `base64_decode_or_empty()`. The v2 UX improvement (UTF-8 helper button, hex view toggle) is deferred per FORM-V2-01 as confirmed.
 
 ---
 

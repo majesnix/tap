@@ -41,7 +41,23 @@
 3. Filling out the form and clicking "Encode" produces a hex or binary preview of the protobuf wire bytes that changes when field values change.
 4. Recursive message types do not crash or infinitely expand the form — the renderer stops at 5 levels deep and shows a collapse indicator.
 
-**Plans:** TBD
+**Plans:** 5 plans in 2 waves
+
+**Wave 1** — Foundation (must complete before Wave 2 begins)
+- [ ] 01-01-PLAN.md — Walking Skeleton: scaffold, full Rust backend (parse_proto + encode_message + extractor for all kinds), app layout, file open flow, string scalar + hex preview
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 01-02-PLAN.md — Scalar field coverage: all 16 scalar kinds, zod validation, zero-value defaults
+- [ ] 01-03-PLAN.md — Nested + Repeated + Depth cap: NestedMessageField (collapsible, depth), RepeatedField (useFieldArray add/remove), DepthCapPlaceholder at 5 levels
+- [ ] 01-04-PLAN.md — Enum + Oneof: EnumField (Select, name/number split), OneofField (RadioGroup, conditional mount, unregister)
+- [ ] 01-05-PLAN.md — WellKnownType controls + include path persistence: WellKnownTypeField (Timestamp/Duration/fallback), FileSection + IncludePathDialog with tauri-plugin-store persistence
+
+**Cross-cutting constraints:**
+- All Tauri IPC commands use `tauri::async_runtime::spawn` — never bare `tokio::spawn`
+- `FieldKind` discriminated union in `src-tauri/src/schema/types.rs` and `src/lib/types.ts` must stay in sync
+- Recursive depth cap (5 levels) enforced via `depth` prop threaded through all form components
+- zod pinned to `^3.24.2` — do not upgrade to v4
+
 **UI hint:** yes
 
 ---
@@ -99,7 +115,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Proto Parsing + Form | 0/? | Not started | — |
+| 1. Proto Parsing + Form | 0/5 | Not started | — |
 | 2. Connect + Publish | 0/? | Not started | — |
 | 3. Full Feature Set | 0/? | Not started | — |
 
