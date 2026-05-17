@@ -72,6 +72,7 @@ export interface ConnectionProfile {
   vhost: string;       // default "/"
   username: string;
   managementPort: number; // default 15672
+  management_ssl: boolean; // default false — set true to use HTTPS for Management API
 }
 
 export type ConnectionStatus = "connected" | "error" | "disconnected";

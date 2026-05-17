@@ -77,7 +77,7 @@ describe("PublishBar", () => {
 
   it("shows Live badge and queue dropdown when Management API returns queues", async () => {
     useConnectionStore.setState({
-      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }],
+      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false }],
       activeProfileName: "Local",
       connectionStatus: "connected",
       connectionError: null,
@@ -95,7 +95,7 @@ describe("PublishBar", () => {
 
   it("shows Manual badge and text input when Management API unavailable", async () => {
     useConnectionStore.setState({
-      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }],
+      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false }],
       activeProfileName: "Local",
       connectionStatus: "connected",
       connectionError: null,
@@ -121,7 +121,7 @@ describe("PublishBar", () => {
     });
 
     useConnectionStore.setState({
-      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }],
+      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672, management_ssl: false }],
       activeProfileName: "Local",
       connectionStatus: "connected",
       connectionError: null,

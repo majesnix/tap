@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { saveProfile, listProfiles, deleteProfile, testConnection } from "@/lib/ipc";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { ConnectionTestResult } from "@/components/connection/ConnectionTestResult";
@@ -30,6 +31,7 @@ interface ProfileFormValues {
   username: string;
   password: string;
   managementPort: string;
+  managementSsl: boolean;
 }
 
 const DEFAULT_FORM_VALUES: ProfileFormValues = {
@@ -40,6 +42,7 @@ const DEFAULT_FORM_VALUES: ProfileFormValues = {
   username: "",
   password: "",
   managementPort: "15672",
+  managementSsl: false,
 };
 
 interface ProfileManagementModalProps {
@@ -89,6 +92,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
       vhost: formValues.vhost.trim() || "/",
       username: formValues.username.trim(),
       managementPort: Number(formValues.managementPort) || 15672,
+      management_ssl: formValues.managementSsl,
     };
 
     if (!profile.name) {
@@ -242,6 +246,18 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   value={formValues.managementPort}
                   onChange={(e) => handleFieldChange("managementPort", e.target.value)}
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="management-ssl"
+                  checked={formValues.managementSsl}
+                  onCheckedChange={(checked) =>
+                    setFormValues((prev) => ({ ...prev, managementSsl: checked === true }))
+                  }
+                />
+                <label htmlFor="management-ssl" className="text-sm font-semibold cursor-pointer">
+                  Management API SSL (HTTPS)
+                </label>
               </div>
 
               {error && (
