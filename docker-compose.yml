@@ -1,0 +1,44 @@
+# Starts RabbitMQ 4 with Management Plugin for local Proto Sender testing.
+# Pre-creates test queues and exchanges so you can publish immediately.
+#
+# Usage:
+#   docker compose up -d          # start in background
+#   docker compose logs -f        # tail logs
+#   docker compose down           # stop (data persists)
+#   docker compose down -v        # stop and wipe all data
+#
+# Connection profile to enter in Proto Sender:
+#   Name:            Local Dev
+#   Host:            localhost
+#   AMQP Port:       5672
+#   Vhost:           /
+#   Username:        dev
+#   Password:        dev
+#   Management Port: 15672
+#   Management SSL:  off
+#
+# Management UI: http://localhost:15672  (dev / dev)
+
+services:
+  rabbitmq:
+    image: rabbitmq:4-management
+    container_name: proto-sender-rabbitmq
+    ports:
+      - "5672:5672"     # AMQP — app connection
+      - "15672:15672"   # Management API + UI
+    environment:
+      RABBITMQ_DEFAULT_USER: dev
+      RABBITMQ_DEFAULT_PASS: dev
+    volumes:
+      - ./docker/rabbitmq.conf:/etc/rabbitmq/conf.d/99-local.conf:ro
+      - ./docker/definitions.json:/etc/rabbitmq/definitions.json:ro
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  rabbitmq_data:

@@ -1,0 +1,57 @@
+{
+  "vhosts": [{ "name": "/" }],
+  "queues": [
+    {
+      "name": "test-queue",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+    {
+      "name": "proto-test",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "test-direct",
+      "vhost": "/",
+      "type": "direct",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "test-fanout",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "bindings": [
+    {
+      "source": "test-direct",
+      "vhost": "/",
+      "destination": "test-queue",
+      "destination_type": "queue",
+      "routing_key": "proto.test",
+      "arguments": {}
+    },
+    {
+      "source": "test-fanout",
+      "vhost": "/",
+      "destination": "proto-test",
+      "destination_type": "queue",
+      "routing_key": "",
+      "arguments": {}
+    }
+  ]
+}
