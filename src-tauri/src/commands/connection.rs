@@ -31,7 +31,7 @@ struct ExchangeApiInfo {
 
 /// Helper: load profile from store and retrieve password from keychain.
 /// Returns (profile, password) — password is cleartext, use immediately.
-fn load_profile_with_password(
+pub(crate) fn load_profile_with_password(
     app: &AppHandle,
     profile_name: &str,
 ) -> Result<(crate::profiles::ConnectionProfile, String), AppError> {

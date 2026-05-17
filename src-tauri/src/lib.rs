@@ -45,6 +45,7 @@ pub fn run() {
             commands::connection::activate_profile,
             commands::connection::fetch_queues,
             commands::connection::fetch_exchanges,
+            commands::publish::publish_message,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
