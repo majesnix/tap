@@ -87,14 +87,16 @@ Exceptions:
 
 Source: Sidebar.tsx established pattern (`text-xs`, `text-sm`, `text-lg font-semibold`, `font-medium`).
 
+Weights: exactly 2 — 400 regular and 600 semibold. The "medium" (500) weight is dropped; the Label role is elevated to semibold given its higher visual priority over Body copy.
+
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Display | 18px (`text-lg`) | 600 semibold (`font-semibold`) | 1.2 | Section headings: "Proto Sender" app title, modal titles |
-| Body | 14px (`text-sm`) | 400 regular | 1.5 | Form field labels, dropdown options, profile list items |
-| Label | 14px (`text-sm`) | 500 medium (`font-medium`) | 1.4 | Form section labels, publish bar labels ("Queue", "Exchange", "Routing Key") |
+| Label | 14px (`text-sm`) | 600 semibold (`font-semibold`) | 1.4 | Form section labels, publish bar labels ("Queue", "Exchange", "Routing Key") |
+| Body | 14px (`text-sm`) | 400 regular | 1.5 | Form field values, dropdown options, profile list items |
 | Hint | 12px (`text-xs`) | 400 regular | 1.4 | Muted helper text: "Add connection", "Connect to a RabbitMQ profile to send.", status messages |
 
-Font: Geist Variable (variable font — renders 400/500/600 without separate files).
+Font: Geist Variable (variable font — renders 400/600 without separate files).
 
 ---
 
@@ -135,11 +137,11 @@ These use Tailwind color utilities directly — they are NOT accent. The neutral
 **Component:** `src/components/sidebar/ConnectionSection.tsx`
 
 Layout (vertical stack, `flex flex-col gap-2`, inside `p-4`):
-1. Section label: `text-sm font-medium` — "Connection"
+1. Section label: `text-sm font-semibold` — "Connection"
 2. If no profiles saved: muted hint `text-xs text-muted-foreground` — "Add connection" (link/button style, matches "Load a .proto file to get started" pattern)
 3. If profiles exist:
    - shadcn Select dropdown (same structure as Message Type selector): profile name as value
-   - Row below dropdown: `flex items-center gap-2` — [status dot 8×8px circle] [status text `text-xs text-muted-foreground`] [Manage button with gear icon, `variant="ghost"` `size="icon"`]
+   - Row below dropdown: `flex items-center gap-2` — [status dot 8×8px circle] [status text `text-xs text-muted-foreground`] [Manage button with gear icon, `variant="ghost"` `size="icon"` `aria-label="Manage connection profiles"`]
 
 Status dot: `w-2 h-2 rounded-full` with color class from status indicator table above.
 
@@ -168,6 +170,8 @@ Layout:
 | Password | password (masked) | — | "••••••••" |
 | Management API Port | number | 15672 | "15672" |
 
+**Form field labels** use `text-sm font-semibold` (Label role — 600 semibold).
+
 **Connection test result row (D-06):** below the 6 fields, `flex items-center gap-2 text-sm`:
 - Loading: `<Loader2 className="animate-spin w-4 h-4" />` + "Testing connection…"
 - Success: `<CheckCircle2 className="text-emerald-500 w-4 h-4" />` + "Connected" (`text-emerald-500`)
@@ -185,7 +189,7 @@ Form action buttons: `[Cancel button variant="outline"] [Save & Connect button v
 
 **Component:** `src/components/publish/PublishBar.tsx`
 
-Position: persistent bar at top of main panel, above `<FormPanel>`. Background: `bg-card border-b border-border`. Padding: `px-4 py-3` (16px/12px).
+Position: persistent bar at top of main panel, above `<FormPanel>`. Background: `bg-card border-b border-border`. Padding: `px-4 py-2` (16px horizontal / 8px vertical).
 
 Layout: `flex items-center gap-4 flex-wrap`:
 
@@ -193,6 +197,7 @@ Layout: `flex items-center gap-4 flex-wrap`:
    - Two RadioGroupItem values: "queue" | "exchange"
    - Default: "queue" (D-10 specifics)
    - Visual: each item rendered as a Button-styled label (`variant="outline"`, active state uses `bg-primary text-primary-foreground`)
+   - Toggle labels use `text-sm font-semibold` (Label role)
 
 2. **Target picker (D-09, D-11, D-03-PUBL):**
    - Queue mode: shadcn Select showing fetched queue names OR plain Input if Management API unavailable
@@ -200,7 +205,7 @@ Layout: `flex items-center gap-4 flex-wrap`:
    - Management API badge (D-11): `<Badge variant="outline" className="text-xs gap-1">` with status dot + "Live" or "Manual" text
    - Badge placement: to the right of the picker, `flex items-center gap-2`
 
-3. **Routing key (D-10 — Exchange mode only):** shadcn Input, `placeholder="Routing key"`, `w-48`. Hidden when Queue mode active.
+3. **Routing key (D-10 — Exchange mode only):** shadcn Input, `placeholder="Routing key"`, `w-48`. Hidden when Queue mode active. Label: `text-sm font-semibold` (Label role).
 
 4. **Send button (D-12):**
    - Enabled: `<Button variant="default">Send</Button>`
