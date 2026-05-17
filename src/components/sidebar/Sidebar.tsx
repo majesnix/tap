@@ -1,7 +1,5 @@
 import { useProtoStore } from "@/stores/useProtoStore";
-import { parseProto } from "@/lib/ipc";
-import { open } from "@tauri-apps/plugin-dialog";
-import { Button } from "@/components/ui/button";
+import { FileSection } from "@/components/sidebar/FileSection";
 import {
   Select,
   SelectContent,
@@ -12,32 +10,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 
 export function Sidebar() {
-  const { schema, activeFilePath, selectedMessageType, setFile, setSelectedType } =
-    useProtoStore();
-
-  const handleOpenFile = async () => {
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: "Proto files", extensions: ["proto"] }],
-    });
-
-    if (!selected || typeof selected !== "string") return;
-
-    try {
-      // Use file directory as default include path
-      const pathParts = selected.split("/");
-      pathParts.pop();
-      const dir = pathParts.join("/") || "/";
-      const result = await parseProto(selected, [dir]);
-      setFile(selected, result);
-    } catch (err) {
-      console.error("Failed to parse proto:", err);
-    }
-  };
-
-  const fileName = activeFilePath
-    ? activeFilePath.split("/").pop() ?? activeFilePath
-    : null;
+  const { schema, selectedMessageType, setSelectedType } = useProtoStore();
 
   return (
     <div className="flex flex-col h-full p-4 gap-4">
@@ -50,17 +23,7 @@ export function Sidebar() {
 
       <Separator />
 
-      <div className="flex flex-col gap-3">
-        <Button onClick={handleOpenFile} variant="outline" className="w-full">
-          Open .proto File
-        </Button>
-
-        {fileName && (
-          <p className="text-xs text-muted-foreground truncate" title={activeFilePath ?? ""}>
-            {fileName}
-          </p>
-        )}
-      </div>
+      <FileSection />
 
       {schema && schema.messages.length > 0 && (
         <>
