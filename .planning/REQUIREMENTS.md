@@ -7,10 +7,10 @@
 
 ### Connection Management
 
-- [ ] **CONN-01**: User can create and save named connection profiles (host, port, vhost, username, password, management API port)
+- [x] **CONN-01**: User can create and save named connection profiles (host, port, vhost, username, password, management API port)
 - [ ] **CONN-02**: User can switch between saved connection profiles with a single click
 - [ ] **CONN-03**: App tests connection reachability and credential validity when the user saves a profile
-- [ ] **CONN-04**: Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux libsecret) — never in plain config files
+- [x] **CONN-04**: Passwords are stored in the OS keychain (macOS Keychain, Windows Credential Manager, Linux libsecret) — never in plain config files
 
 ### Proto Loading
 
@@ -83,10 +83,10 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONN-01 | Phase 2 | Pending |
+| CONN-01 | Phase 2 | Complete |
 | CONN-02 | Phase 2 | Pending |
 | CONN-03 | Phase 2 | Pending |
-| CONN-04 | Phase 2 | Pending |
+| CONN-04 | Phase 2 | Complete |
 | PROT-01 | Phase 1 | Pending |
 | PROT-02 | Phase 1 | Complete |
 | PROT-03 | Phase 3 | Pending |

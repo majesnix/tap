@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
-status: planning
-stopped_at: Phase 2 planned — ready to execute
-last_updated: "2026-05-17T19:00:00.000Z"
+status: executing
+stopped_at: Plan 02-01 complete
+last_updated: "2026-05-17T20:52:00.000Z"
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 10
-  completed_plans: 6
-  percent: 60
+  completed_plans: 7
+  percent: 70
 ---
 
 # Project State: Proto Sender
@@ -18,14 +18,14 @@ progress:
 ## Current Phase
 
 Phase 2 — Connect + Publish
-Status: Ready to execute
+Status: Executing Phase 02
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-17)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 01 — proto-parsing-form
+**Current focus:** Phase 02 — connect-publish
 
 ## Phase History
 
@@ -35,13 +35,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 01-04 (EnumField + OneofField): COMPLETE — commits d4d8acf, 16405ff, 908f55b, fd0c914, 9e7dd5a
 - Plan 01-05 (WellKnownTypeField + Include Path Persistence): COMPLETE — commits 60ee94e, ff7a8e3
 - Plan 01-06 (FormPanel Debounce Fix): COMPLETE — commits e230aff, 2e9bd3f
+- Plan 02-01 (Connection Profiles — Slice 1): COMPLETE — commits 7253b00, b00613b, b3b608c
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 6
-- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06
+- Plans completed: 7
+- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01
 - Phases completed: 1/3
 
 ## Accumulated Context
@@ -74,10 +75,13 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - encodeMessage in useEffect([debouncedValues]) not in handleValuesChange — separation of form capture vs IPC dispatch
 - fireEvent.change over userEvent.type under vi.useFakeTimers — userEvent.type hangs in Vitest 4.x fake timer environment
 - vi.clearAllMocks() required in beforeEach to isolate mock call counts across tests
+- apple-native-keyring-store requires features=["keychain"] on macOS (no default features on macOS)
+- keyring-core 1.x: Store::new() returns Arc<CredentialStore>; set_default_store takes Arc (not Store::default())
+- keyring-core 1.x: delete_credential() method (not delete_password() from older keyring v3 API)
 
 ### Active TODOs
 
-- Phase 01 complete — ready for Phase 02 (RabbitMQ connection UI)
+- Plan 02-01 (slice 1) complete — ready for plan 02-02 (AMQP connection test + queue/exchange listing)
 
 ### Blockers
 
@@ -91,6 +95,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-17 (plan 01-06 complete)
-Stopped at: Phase 2 UI-SPEC approved
-Next action: Phase 02 — RabbitMQ connection UI (Phase 01 fully complete)
+Last updated: 2026-05-17 (plan 02-01 complete)
+Stopped at: Plan 02-01 complete
+Next action: Phase 02 — Plan 02-02 (AMQP connection test, queue/exchange listing)
