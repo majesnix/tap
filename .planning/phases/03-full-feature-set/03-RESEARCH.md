@@ -670,6 +670,33 @@ export async function publishMessage(
 
 ---
 
+## Security Domain
+
+> `security_enforcement` key absent from `.planning/config.json` — treated as enabled per role spec.
+
+### Applicable ASVS Categories
+
+| ASVS Category | Applies | Standard Control |
+|---------------|---------|-----------------|
+| V2 Authentication | no | Unchanged from Phase 2 — no auth additions |
+| V3 Session Management | no | No sessions; ephemeral AMQP connections (local dev tool) |
+| V4 Access Control | no | Local dev tool; no multi-user model |
+| V5 Input Validation | yes | Validate AMQP property bounds on frontend before IPC: header key length, TTL range, delivery mode enum |
+| V6 Cryptography | no | No crypto added in Phase 3 |
+
+### Known Threat Patterns for This Phase
+
+| Pattern | STRIDE | Standard Mitigation |
+|---------|--------|---------------------|
+| Oversize header key/value crashes `ShortString` | DoS | Frontend validates `key.len() <= 255` and `value.len() <= 65535` before `invoke()`; Rust side will panic on truncation otherwise |
+| Untrusted `history.json` `fieldValues` replayed into RHF | Tampering | Treat as untrusted on replay; `form.reset()` silently ignores unknown keys — safe by default; do not `eval()` or JSON-inject into DOM |
+| Negative or non-numeric TTL input | Tampering | Frontend input constrains to positive integer (`type="number" min="0" max="4294967295"`); TypeScript `Option<u32>` in IPC rejects out-of-range values at deserialization |
+| Cleartext password leak via toast / `errorMessage` in history entry | Information Disclosure | `AppError` strings must never include the AMQP URI or password (verified in Phase 2); resend error paths must reuse the same `AppError` enum — do not add raw `format!("{}", err)` strings that could expose connection details |
+
+[CITED: Phase 2 security patterns from CLAUDE.md and existing `publish.rs` — passwords are cleared from memory after use, never logged, `load_profile_with_password` is `pub(crate)` only]
+
+---
+
 ## Sources
 
 ### Primary (HIGH confidence)
@@ -701,6 +728,7 @@ export async function publishMessage(
 - Architecture: HIGH — patterns locked in CONTEXT.md + UI-SPEC; code examples verified from existing files
 - Lapin API specifics: MEDIUM-HIGH — confirmed via `amq-protocol-types` docs.rs pages; no live compile test
 - Pitfalls: HIGH (Pitfall 1 lapin TTL, Pitfall 3 payload capture) / MEDIUM (Pitfalls 2, 4, 5, 6 — reasoned from code review and spec)
+- Security domain: HIGH — Phase 3 introduces no new auth/crypto; threat patterns derived from existing Phase 2 security constraints
 
 **Research date:** 2026-05-18
 **Valid until:** 2026-06-18 (stable stack; lapin and tauri-plugin-store are not fast-moving)
