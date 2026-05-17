@@ -21,7 +21,7 @@
 
 ### Form Editor — Field Types
 
-- [ ] **FORM-01**: Form renders scalar fields (string, int32, int64, uint32, uint64, sint32, sint64, float, double, bool) with appropriate input types and constraints
+- [x] **FORM-01**: Form renders scalar fields (string, int32, int64, uint32, uint64, sint32, sint64, float, double, bool) with appropriate input types and constraints
 - [ ] **FORM-02**: Form renders nested message fields as expandable inline sub-forms
 - [ ] **FORM-03**: Form renders repeated fields as a list with add/remove item controls, including repeated nested messages
 - [x] **FORM-04**: Form renders enum fields as dropdowns showing value names (not raw integer values)
@@ -91,7 +91,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PROT-02 | Phase 1 | Complete |
 | PROT-03 | Phase 3 | Pending |
 | PROT-04 | Phase 3 | Pending |
-| FORM-01 | Phase 1 | Pending |
+| FORM-01 | Phase 1 | Complete |
 | FORM-02 | Phase 1 | Pending |
 | FORM-03 | Phase 1 | Pending |
 | FORM-04 | Phase 1 | Complete |
