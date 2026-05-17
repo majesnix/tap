@@ -1,9 +1,9 @@
 ---
-status: diagnosed
+status: resolved
 phase: 02-connect-publish
 source: [02-VERIFICATION.md]
 started: 2026-05-17T23:40:00Z
-updated: 2026-05-17T23:50:00Z
+updated: 2026-05-18T00:14:00Z
 ---
 
 ## Current Test
@@ -48,9 +48,11 @@ blocked: 0
 ## Gaps
 
 ### Gap 1: Test Connection button missing in edit mode
-status: failed
+status: resolved
 description: "Test Connection" button is hidden in edit mode (formMode === "edit"). User expects to be able to test the connection from an existing profile's edit view.
+resolved_by: plan 02-GAP
 
 ### Gap 2: Modal overflow — no scroll for multiple profiles
-status: failed
+status: resolved
 description: ProfileManagementModal does not scroll when there are many saved profiles, causing content to overflow off-screen.
+resolved_by: plan 02-GAP2
