@@ -1,7 +1,7 @@
 ---
 phase: 3
 slug: full-feature-set
-status: draft
+status: approved
 shadcn_initialized: true
 preset: radix-nova
 created: 2026-05-18
@@ -155,7 +155,7 @@ This resolves the HIST-03 hex view collision: HIST-03 (hex string of a history e
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  Sidebar (w-72)         │  Main (flex-1)           │  Right Panel (w-80)   │
+│  Sidebar (w-60)         │  Main (flex-1)           │  Right Panel (w-80)   │
 │  ─────────────────────  │  ──────────────────────  │  ──────────────────── │
 │  "Proto Sender"         │  PublishBar              │  Tabs: [Hex][History] │
 │  ─────────────────────  │   + [AMQP Properties]   │                       │
@@ -193,6 +193,8 @@ Tab label typography: `text-sm font-semibold` (Label role). Tab bar: `border-b b
 ### Message History Panel
 
 **Component:** `src/components/history/MessageHistoryPanel.tsx`
+
+**Primary focal point:** The Resend button (`variant="default"`, accent fill) in the Actions column is the primary visual anchor of the History panel — the one element a user should reach for to act on any past message.
 
 **Sub-components:**
 - `src/components/history/HistoryFilterBar.tsx` — filter inputs (HIST-04)
@@ -279,7 +281,7 @@ SheetHeader:
 - Existing headers list: `flex flex-col gap-1`. Each row: `[key text-xs] [value text-xs] [Remove icon button variant="ghost" size="icon"]`
 - "Add Header" button: `variant="outline" size="sm"` below the list. Clicking opens an inline Popover (attached to the button) with two `Input` fields ("Header key" + "Header value") and an "Add" button.
 
-SheetFooter (sticky bottom): "Apply" button (`variant="default"`) — stores properties in state, closes sheet. "Reset" button (`variant="ghost"`) — clears all fields to defaults.
+SheetFooter (sticky bottom): "Apply Properties" button (`variant="default"`) — stores properties in state, closes sheet. "Reset to defaults" button (`variant="ghost"`) — clears all fields to defaults.
 
 ### Proto File Tabs — Sidebar (PROT-04)
 
@@ -332,8 +334,8 @@ All new strings for Phase 3. Phase 2 strings are inherited unchanged.
 | AMQP Add Header button | "Add Header" | Verb + noun |
 | AMQP Popover key field placeholder | "Header key" | Descriptive |
 | AMQP Popover value field placeholder | "Header value" | Descriptive |
-| AMQP Popover confirm button | "Add" | Single-word confirm; context is clear |
-| AMQP Apply button | "Apply" | Closes sheet and commits changes |
+| AMQP Popover confirm button | "Add Header" | Verb + noun; self-describing in inline context |
+| AMQP Apply button | "Apply Properties" | Verb + noun; closes sheet and commits changes |
 | AMQP Reset button | "Reset to defaults" | Explicit about effect |
 | History filter — type input placeholder | "Filter by type…" | Ellipsis indicates ongoing filtering |
 | History filter — target input placeholder | "Filter by queue/exchange…" | Specific field names |
@@ -413,7 +415,7 @@ Re-populate behavior (HIST-02): clicking a history row calls `useProtoStore.setS
 | Second file opened | New tab appears, becomes active | Message Type selector re-populates with new file's messages |
 | Tab switched | Previous tab tab label returns to default style | Message Type selector updates to selected tab's schema; form resets to new type's defaults |
 | Tab closed (× icon) | Tab removed | If it was active, previous tab activates; if no tabs remain, empty state shown |
-| Tab close — last tab | Tab removed | Sidebar returns to "No proto file loaded" state; form shows empty state |
+| Tab close — last tab | Tab removed instantly (no confirmation dialog) | Sidebar returns to "No proto file loaded" state; form shows empty state. Recovery: user clicks the `+` button to re-open a file. No AlertDialog — the action is recoverable with one click. |
 
 ### AMQP Delivery Mode Switch (PUBL-04)
 
@@ -465,23 +467,23 @@ No third-party registries. `components.json` shows `"registries": {}`. No third-
 
 The following architectural decisions were made as reasoned defaults because no Phase 3 CONTEXT.md exists. They are flagged here for user confirmation before the spec is approved. The executor MUST NOT treat these as locked until the user confirms or overrides.
 
-| Decision | Default Chosen | Alternative | Confirm? |
-|----------|---------------|-------------|----------|
-| History panel location | Right pane Tab ("History" tab alongside "Hex") | History as resizable bottom split below FormPanel | Pending |
-| AMQP Properties entry point | Sheet sliding from right (overlay, no layout displacement) | Collapsible section within PublishBar | Pending |
-| HIST-03 hex view | Dialog (opens over current layout) | Inline expand within history row | Pending |
-| Multi-proto tabs location | Tab strip within FileSection (sidebar) | Tab bar above FormPanel (main content area) | Pending |
-| Resend button behavior | Re-populates AND sends immediately (one click) | Re-populates only; user clicks Send again | Pending |
+| Decision | Chosen | Confirm? |
+|----------|--------|----------|
+| History panel location | Right pane Tab ("History" tab alongside "Hex") | **Locked** |
+| AMQP Properties entry point | Sheet sliding from right (overlay, no layout displacement) | **Locked** |
+| HIST-03 hex view | Dialog (opens over current layout) | **Locked** |
+| Multi-proto tabs location | Tab strip within FileSection (sidebar) | **Locked** |
+| Resend button behavior | Re-populates AND sends immediately (one click) | **Locked** |
 
 ---
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-05-18
