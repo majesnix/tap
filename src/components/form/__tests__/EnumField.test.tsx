@@ -1,3 +1,4 @@
+import React from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { FormProvider, useForm } from "react-hook-form";
@@ -7,72 +8,78 @@ import type { FieldSchema } from "@/lib/types";
 /**
  * Mock shadcn Select with a native HTML <select> so JSDOM handles events correctly.
  * The critical contract: options display names, selected value is stored as a number.
+ *
+ * Radix UI Select relies on pointer events and portals that JSDOM doesn't fully support.
+ * This mock preserves the API surface (Select + trigger + content + items) while using
+ * native HTML elements for testability.
  */
-vi.mock("@/components/ui/select", () => {
-  const React = require("react");
 
-  // Context to pass onValueChange through the component tree
-  const SelectCtx = React.createContext<{
-    value?: string;
-    onValueChange?: (v: string) => void;
-  }>({});
+interface SelectContextValue {
+  value?: string;
+  onValueChange?: (v: string) => void;
+}
 
-  function Select({ value, onValueChange, children }: {
-    value?: string;
-    onValueChange?: (v: string) => void;
-    children?: React.ReactNode;
-  }) {
-    return (
-      <SelectCtx.Provider value={{ value, onValueChange }}>
-        {children}
-      </SelectCtx.Provider>
-    );
-  }
+const SelectCtx = React.createContext<SelectContextValue>({});
 
-  function SelectTrigger({ children }: { children?: React.ReactNode }) {
-    const ctx = React.useContext(SelectCtx);
-    // Render a button that identifies the trigger (native <select> is the actual combobox)
-    return <button data-testid="select-trigger" aria-label="select trigger">{ctx.value}</button>;
-  }
+function MockSelect({
+  value,
+  onValueChange,
+  children,
+}: {
+  value?: string;
+  onValueChange?: (v: string) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <SelectCtx.Provider value={{ value, onValueChange }}>
+      {children}
+    </SelectCtx.Provider>
+  );
+}
 
-  function SelectContent({ children }: { children?: React.ReactNode }) {
-    const ctx = React.useContext(SelectCtx);
-    // Render a native select with the items as options
-    const collectOptions = (nodes: React.ReactNode): { value: string; label: string }[] => {
-      const opts: { value: string; label: string }[] = [];
-      React.Children.forEach(nodes, (child: React.ReactElement) => {
-        if (child?.props?.value !== undefined && typeof child.props.children === "string") {
-          opts.push({ value: child.props.value, label: child.props.children });
-        }
-      });
-      return opts;
-    };
-    const options = collectOptions(children);
-    return (
-      <select
-        data-testid="native-select"
-        value={ctx.value}
-        onChange={(e) => ctx.onValueChange?.(e.target.value)}
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    );
-  }
+function MockSelectTrigger({ children: _children }: { children?: React.ReactNode }) {
+  return <button data-testid="select-trigger" aria-label="select trigger" />;
+}
 
-  function SelectItem({ value, children }: { value: string; children: React.ReactNode }) {
-    return <option value={value}>{children}</option>;
-  }
+function MockSelectContent({ children }: { children?: React.ReactNode }) {
+  const ctx = React.useContext(SelectCtx);
+  const options: { value: string; label: React.ReactNode }[] = [];
+  React.Children.forEach(children, (child) => {
+    const el = child as React.ReactElement<{ value: string; children: React.ReactNode }>;
+    if (el?.props?.value !== undefined) {
+      options.push({ value: el.props.value, label: el.props.children });
+    }
+  });
+  return (
+    <select
+      data-testid="native-select"
+      value={ctx.value}
+      onChange={(e) => ctx.onValueChange?.(e.target.value)}
+    >
+      {options.map((opt) => (
+        <option key={opt.value} value={opt.value}>
+          {opt.label}
+        </option>
+      ))}
+    </select>
+  );
+}
 
-  function SelectValue() {
-    return null;
-  }
+function MockSelectItem({ value, children }: { value: string; children: React.ReactNode }) {
+  return <option value={value}>{children}</option>;
+}
 
-  return { Select, SelectTrigger, SelectContent, SelectItem, SelectValue };
-});
+function MockSelectValue() {
+  return null;
+}
+
+vi.mock("@/components/ui/select", () => ({
+  Select: MockSelect,
+  SelectTrigger: MockSelectTrigger,
+  SelectContent: MockSelectContent,
+  SelectItem: MockSelectItem,
+  SelectValue: MockSelectValue,
+}));
 
 const statusField: FieldSchema = {
   name: "status",
@@ -111,7 +118,7 @@ test("shows enum value names (not numbers) as options", () => {
   expect(screen.getByText("PENDING")).toBeInTheDocument();
   expect(screen.getByText("ACTIVE")).toBeInTheDocument();
   expect(screen.getByText("INACTIVE")).toBeInTheDocument();
-  // Numbers must NOT appear as standalone options
+  // Numbers must NOT appear as standalone option labels
   expect(screen.queryByRole("option", { name: "0" })).not.toBeInTheDocument();
 });
 

@@ -40,7 +40,7 @@ function renderOneof() {
           field={oneofField}
           path="payment"
           depth={0}
-          renderBranchField={(f, branchPath) => (
+          renderBranchField={(_f, branchPath) => (
             <input key={branchPath} data-testid={branchPath} />
           )}
         />
