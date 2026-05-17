@@ -215,4 +215,128 @@ describe("ProfileManagementModal", () => {
       expect(setConnectionStatus).toHaveBeenCalledWith("connected");
     });
   });
+
+  describe("edit mode", () => {
+    const mockProfiles = [
+      {
+        name: "Profile A",
+        host: "host-a.local",
+        port: 5672,
+        vhost: "/",
+        username: "user-a",
+        management_port: 15672,
+        management_ssl: false,
+      },
+      {
+        name: "Profile B",
+        host: "host-b.local",
+        port: 5673,
+        vhost: "/vhost-b",
+        username: "user-b",
+        management_port: 15673,
+        management_ssl: true,
+      },
+    ];
+
+    beforeEach(() => {
+      useConnectionStore.setState({
+        profiles: mockProfiles,
+        activeProfileName: null,
+        connectionStatus: "disconnected",
+        connectionError: null,
+        managementStatus: "unknown",
+        queues: [],
+        exchanges: [],
+      });
+      mockInvoke.mockImplementation((cmd: string) => {
+        if (cmd === "list_profiles") return Promise.resolve(mockProfiles);
+        return Promise.resolve(undefined);
+      });
+    });
+
+    it("edit button appears for each profile row", async () => {
+      renderModal();
+      await waitFor(() => screen.getByText("Profile A"));
+      const editButtons = screen.getAllByRole("button", { name: /edit profile/i });
+      expect(editButtons).toHaveLength(2);
+    });
+
+    it("clicking Edit pre-populates form fields from the selected profile", async () => {
+      renderModal();
+      await waitFor(() => screen.getByText("Profile A"));
+      const editButton = screen.getByRole("button", { name: /edit profile profile a/i });
+      fireEvent.click(editButton);
+
+      await waitFor(() => {
+        // Name field should be pre-populated
+        const nameInput = screen.getByDisplayValue("Profile A");
+        expect(nameInput).toBeInTheDocument();
+        // Host field should be pre-populated
+        expect(screen.getByDisplayValue("host-a.local")).toBeInTheDocument();
+        // Username field should be pre-populated
+        expect(screen.getByDisplayValue("user-a")).toBeInTheDocument();
+        // Password field should be empty
+        const passwordInput = screen.getByPlaceholderText(/enter password to update/i);
+        expect(passwordInput).toHaveValue("");
+      });
+    });
+
+    it("Profile Name field is read-only in edit mode", async () => {
+      renderModal();
+      await waitFor(() => screen.getByText("Profile A"));
+      fireEvent.click(screen.getByRole("button", { name: /edit profile profile a/i }));
+
+      await waitFor(() => {
+        const nameInput = screen.getByDisplayValue("Profile A");
+        expect(nameInput).toHaveAttribute("readOnly");
+      });
+    });
+
+    it("save in edit mode with password calls saveProfile with updated values", async () => {
+      mockInvoke.mockImplementation((cmd: string) => {
+        if (cmd === "save_profile") return Promise.resolve(undefined);
+        if (cmd === "test_connection") return Promise.resolve(undefined);
+        if (cmd === "list_profiles") return Promise.resolve(mockProfiles);
+        return Promise.resolve(undefined);
+      });
+
+      renderModal();
+      await waitFor(() => screen.getByText("Profile A"));
+      fireEvent.click(screen.getByRole("button", { name: /edit profile profile a/i }));
+
+      await waitFor(() => screen.getByDisplayValue("host-a.local"));
+      fireEvent.change(screen.getByDisplayValue("host-a.local"), {
+        target: { value: "new-host.local" },
+      });
+      fireEvent.change(screen.getByPlaceholderText(/enter password to update/i), {
+        target: { value: "mypassword" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith("save_profile", expect.objectContaining({
+          profile: expect.objectContaining({ host: "new-host.local" }),
+          password: "mypassword",
+        }));
+      });
+    });
+
+    it("blank password in edit mode blocks save and shows inline error", async () => {
+      renderModal();
+      await waitFor(() => screen.getByText("Profile A"));
+      fireEvent.click(screen.getByRole("button", { name: /edit profile profile a/i }));
+
+      await waitFor(() => screen.getByDisplayValue("host-a.local"));
+      fireEvent.change(screen.getByDisplayValue("host-a.local"), {
+        target: { value: "new-host.local" },
+      });
+      // Leave password blank
+      fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+
+      await waitFor(() => {
+        expect(screen.getByText(/password is required/i)).toBeInTheDocument();
+      });
+      expect(mockInvoke).not.toHaveBeenCalledWith("save_profile", expect.anything());
+    });
+  });
 });
