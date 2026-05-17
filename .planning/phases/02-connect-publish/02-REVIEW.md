@@ -1,411 +1,175 @@
 ---
 phase: 02-connect-publish
-reviewed: 2026-05-17T12:00:00Z
+reviewed: 2026-05-17T00:00:00Z
 depth: standard
-files_reviewed: 23
+files_reviewed: 2
 files_reviewed_list:
-  - package.json
-  - src-tauri/Cargo.toml
-  - src-tauri/src/commands/connection.rs
-  - src-tauri/src/commands/mod.rs
-  - src-tauri/src/commands/publish.rs
-  - src-tauri/src/error.rs
-  - src-tauri/src/lib.rs
-  - src-tauri/src/profiles/mod.rs
-  - src/App.tsx
-  - src/components/connection/__tests__/ConnectionSection.test.tsx
-  - src/components/connection/__tests__/ProfileManagementModal.test.tsx
-  - src/components/connection/ConnectionTestResult.tsx
   - src/components/connection/ProfileManagementModal.tsx
-  - src/components/layout/AppLayout.tsx
-  - src/components/publish/__tests__/PublishBar.test.tsx
-  - src/components/publish/PublishBar.tsx
-  - src/components/sidebar/ConnectionSection.tsx
-  - src/components/sidebar/Sidebar.tsx
-  - src/components/ui/alert-dialog.tsx
-  - src/components/ui/sonner.tsx
-  - src/components/ui/tooltip.tsx
-  - src/lib/ipc.ts
-  - src/lib/types.ts
-  - src/stores/useConnectionStore.ts
+  - src/components/connection/__tests__/ProfileManagementModal.test.tsx
 findings:
-  critical: 3
-  warning: 6
-  info: 0
-  total: 9
+  critical: 0
+  warning: 3
+  info: 3
+  total: 6
 status: issues_found
 ---
 
-# Phase 02: Code Review Report
+# Phase 02: Code Review Report — UAT Gap Closure (Scroll Layout Fix)
 
-**Reviewed:** 2026-05-17T12:00:00Z
+**Reviewed:** 2026-05-17
 **Depth:** standard
-**Files Reviewed:** 23
+**Files Reviewed:** 2
 **Status:** issues_found
 
 ## Summary
 
-This phase implements RabbitMQ connection profiles (AMQP + Management API), a profile management modal, a publish bar with queue/exchange selection, and Zustand-based connection state. The overall architecture is sound: password-to-keychain separation is correctly implemented, AMQP URI components are percent-encoded (including username), and the Management API correctly supports HTTPS via `management_ssl`. The 401-vs-unavailability discrimination logic is well-designed.
+This is a targeted CSS/layout fix that adds `max-h-[85vh] flex flex-col overflow-hidden` to `DialogContent` and wraps the modal body in a `flex-1 min-h-0 overflow-y-auto` scroll container. The fix is mechanically correct: `src/lib/utils.ts` confirms `cn()` is backed by `tailwind-merge`, so the base `DialogContent` class of `display: grid` (dialog.tsx:64) is correctly overridden to `display: flex`. The three-class combination (`flex flex-col` on the container, `flex-1 min-h-0` on the child, `overflow-y-auto` on the child) is the canonical pattern for a constrained-height flex-scroll region and will scroll as intended.
 
-Three blockers require fixes before this ships: deleting the active profile leaves dangling state that causes subsequent operations to fail with misleading errors; `hexToBytes` silently corrupts partial-parse hex tokens rather than rejecting them; and `handleTestOnly` in the create form has an unhandled rejection on `listProfiles`. Six warnings cover a race condition with stale management UI state on profile switch, misleading `drop(password)` security comment, missing username validation, publisher-confirm semantics mismatch, fragile error string coupling, and a missing test reset field.
-
----
-
-## Critical Issues (BLOCKER)
-
-### CR-01: Deleting the Active Profile Leaves Dangling `activeProfileName` in Store
-
-**File:** `src/components/connection/ProfileManagementModal.tsx:210-222`
-
-**Issue:** `handleDeleteConfirm` calls `deleteProfile(deleteTarget)` then updates `profiles` in the store via `setProfiles(updated)`. It never checks whether `deleteTarget === activeProfileName` and never calls `setActiveProfile(null)` or `setConnectionStatus("disconnected")`.
-
-After deleting the active profile:
-1. `ConnectionSection` still renders the deleted profile name as the selected dropdown value.
-2. The Re-test button calls `testConnection(activeProfileName)` — the Rust backend returns `AppError::ProfileNotFound`, which the frontend surfaces as a misleading "Profile not found" rather than "profile was deleted".
-3. `PublishBar` re-fetches on the next render and calls `fetchQueues(activeProfileName)` — same failure.
-4. Any subsequent `handleRetest` or publish attempt fails nondeterministically until the user manually picks a different profile.
-
-```typescript
-// Current — does not clear active profile
-const handleDeleteConfirm = async () => {
-  if (!deleteTarget) return;
-  try {
-    await deleteProfile(deleteTarget);
-    const updated = await listProfiles();
-    setProfiles(updated);
-  } catch (err: unknown) { ... }
-  finally { setDeleteTarget(null); }
-};
-```
-
-**Fix:** Read `activeProfileName` from the store and clear state when the active profile is deleted:
-
-```typescript
-const { profiles, setProfiles, setActiveProfile, setConnectionStatus, activeProfileName } =
-  useConnectionStore();
-
-const handleDeleteConfirm = async () => {
-  if (!deleteTarget) return;
-  try {
-    await deleteProfile(deleteTarget);
-    const updated = await listProfiles();
-    setProfiles(updated);
-    // Clear active profile state if the deleted profile was active
-    if (deleteTarget === activeProfileName) {
-      setActiveProfile(null);
-      setConnectionStatus("disconnected");
-    }
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    setError(message);
-  } finally {
-    setDeleteTarget(null);
-  }
-};
-```
-
----
-
-### CR-02: `hexToBytes` Silently Corrupts Payload on Partial-Parse Hex Tokens
-
-**File:** `src/components/publish/PublishBar.tsx:47-54`
-
-**Issue:** Each hex token is parsed with `parseInt(h, 16)`. The existing `.filter((b) => Number.isInteger(b) && b >= 0 && b <= 255)` correctly removes full `NaN` results, but `parseInt` stops at the first non-hex character and returns the partial value. For example, `parseInt("0g", 16)` returns `0`, not `NaN`. Any malformed hex token (e.g., from a display glitch or encoding bug in `hexPreview`) silently becomes byte `0x00` and passes the filter unchanged.
-
-```typescript
-function hexToBytes(hex: string): number[] {
-  return hex
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((h) => parseInt(h, 16))           // "0g" → 0; "1z" → 1 — silently wrong
-    .filter((b) => Number.isInteger(b) && b >= 0 && b <= 255);
-}
-```
-
-This is a data-corruption bug: the payload sent to the broker will contain wrong bytes with no error raised. For a tool whose core value is sending exactly the encoded protobuf bytes, silent corruption is a correctness failure.
-
-**Fix:** Reject any token that does not parse as a complete two-character hex value:
-
-```typescript
-function hexToBytes(hex: string): number[] {
-  const tokens = hex.trim().split(/\s+/).filter(Boolean);
-  return tokens.map((h) => {
-    if (!/^[0-9a-fA-F]{1,2}$/.test(h)) {
-      throw new Error(`Invalid hex token: "${h}"`);
-    }
-    return parseInt(h, 16);
-  });
-}
-```
-
-Wrap the call in `handleSend` with an early error toast:
-
-```typescript
-let payload: number[];
-try {
-  payload = hexToBytes(hexPreview);
-} catch (e: unknown) {
-  toast.error(`Payload error: ${e instanceof Error ? e.message : String(e)}`);
-  return;
-}
-```
-
----
-
-### CR-03: `handleTestOnly` Has an Unhandled Rejection on `listProfiles`
-
-**File:** `src/components/connection/ProfileManagementModal.tsx:133-136`
-
-**Issue:** In `handleTestOnly`, after `saveProfile` succeeds, `listProfiles()` is awaited outside any try-catch:
-
-```typescript
-try {
-  await saveProfile(profile, formValues.password);
-} catch (err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  setError(message);
-  return;
-}
-
-// NO try-catch around this:
-const updated = await listProfiles();
-setProfiles(updated);
-
-setTestState("testing");
-try {
-  await testConnection(profile.name);
-  ...
-}
-```
-
-If `listProfiles()` rejects (e.g., the store is locked, the Tauri IPC layer errors, or the app is shutting down), the rejection propagates as an unhandled promise rejection. The component does not surface an error to the user; the UI silently stops responding (test spinner never appears, no error message shown). In the test environment this is caught as an unhandled promise rejection warning that can mask test failures.
-
-**Fix:** Wrap `listProfiles()` in the same try-catch or in its own:
-
-```typescript
-try {
-  await saveProfile(profile, formValues.password);
-  const updated = await listProfiles();
-  setProfiles(updated);
-} catch (err: unknown) {
-  const message = err instanceof Error ? err.message : String(err);
-  setError(message);
-  return;
-}
-```
+Three warnings are raised: action buttons are trapped inside the scroll wrapper making them unreachable without scrolling on small viewports; the scroll container lacks `tabIndex={0}` so keyboard users cannot scroll to non-focusable error/status content; and the absolutely-positioned close button will visually overlap scrolled content. Three info items flag test brittleness, a misplaced test case, and a magic number.
 
 ---
 
 ## Warnings
 
-### WR-01: Stale Management UI State Not Cleared on Profile Switch
+### WR-01: Action Buttons Are Inside the Scroll Wrapper — Unreachable Without Scrolling on Small Viewports
 
-**File:** `src/components/sidebar/ConnectionSection.tsx:44-54`
+**File:** `src/components/connection/ProfileManagementModal.tsx:270-380`
 
-**Issue:** `handleProfileChange` calls `setActiveProfile(name)` and `setConnectionStatus("disconnected")` but does not reset `managementStatus`, `managementAuthError`, `queues`, or `exchanges`. The `PublishBar` `useEffect` watches `activeProfileName` and will re-fetch for the new profile, but until that async fetch resolves, the previous profile's data remains in the store and is rendered.
+**Issue:** The "+ New Profile" button (line 270-274) and the Cancel / Test Connection / Save & Connect row (lines 364-380) are children of the scroll container. On a viewport where the form body is taller than `85vh`, these buttons scroll off the bottom of the visible area. Before this fix the modal simply overflowed the viewport and all buttons were reachable via page scroll; now the modal is height-capped and the buttons can be hidden. A user who fills in all fields and cannot see the Save button will be blocked.
 
-Concretely: if the previous profile produced a 401 `managementAuthError`, the destructive red badge from profile A remains visible while the user is working with profile B. If the previous profile had `managementStatus: "live"` with a populated queue list, the wrong queue dropdown appears for the new profile until the fetch completes.
+**Fix:** Move the action button rows out of the scroll wrapper into sibling `div`s that are direct children of `DialogContent`. Both live at the same flex level and sit below the scroll region, always visible:
 
-**Fix:** Reset management state synchronously in `handleProfileChange` before the `activateProfile` call:
+```tsx
+<DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
+  <DialogHeader>
+    <DialogTitle>Connection Profiles</DialogTitle>
+  </DialogHeader>
 
-```typescript
-const handleProfileChange = async (name: string) => {
-  setActiveProfile(name);
-  setConnectionStatus("disconnected");
-  setManagementStatus("unknown");
-  setManagementAuthError(null);
-  setQueues([]);
-  setExchanges([]);
-  try {
-    await activateProfile(name);
-    setConnectionStatus("connected");
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    setConnectionStatus("error", message);
-  }
-};
-```
+  {/* Scrollable body — field rows only, no buttons */}
+  <div className="flex-1 min-h-0 overflow-y-auto" data-testid="profile-modal-scroll">
+    {/* profile list rows */}
+    {/* form field groups */}
+    {/* error message <p> */}
+    {/* ConnectionTestResult */}
+  </div>
 
-This requires adding `setManagementStatus`, `setManagementAuthError`, `setQueues`, `setExchanges` to the destructured store values in `ConnectionSection`.
-
----
-
-### WR-02: Race Condition in `PublishBar` Fetch Effect — Stale Response Can Overwrite New Profile's State
-
-**File:** `src/components/publish/PublishBar.tsx:81-121`
-
-**Issue:** The `useEffect` that fetches queues/exchanges has no cancellation guard. If the user switches profiles rapidly — profile A fetch takes 3 seconds, profile B fetch takes 1 second — profile B's fetch resolves first and populates the store correctly, then profile A's stale response resolves and overwrites the store with profile A's queues. The user sees the wrong queue list.
-
-**Fix:** Add an `isCancelled` flag:
-
-```typescript
-useEffect(() => {
-  if (!activeProfileName) return;
-  let cancelled = false;
-
-  const fetchTargets = async () => {
-    try {
-      if (mode === "queue") {
-        const qs = await fetchQueues(activeProfileName);
-        if (cancelled) return;
-        setManagementAuthError(null);
-        setQueues(qs);
-        setManagementStatus("live");
-      } else {
-        const exs = await fetchExchanges(activeProfileName);
-        if (cancelled) return;
-        setManagementAuthError(null);
-        setExchanges(exs);
-        setManagementStatus("live");
-      }
-    } catch (err: unknown) {
-      if (cancelled) return;
-      const errMsg = err instanceof Error ? err.message : String(err);
-      if (errMsg.includes("authentication failed")) {
-        setManagementAuthError(errMsg);
-      } else {
-        setManagementAuthError(null);
-        setManagementStatus("manual");
-      }
-    }
-  };
-
-  fetchTargets();
-  return () => { cancelled = true; };
-}, [activeProfileName, mode]);
+  {/* Always-visible footer */}
+  {formMode === "list" && (
+    <div className="pt-2 border-t">
+      <Button variant="outline" onClick={handleShowNewForm} className="w-full">
+        + New Profile
+      </Button>
+    </div>
+  )}
+  {(formMode === "create" || formMode === "edit") && (
+    <div className="flex justify-end gap-2 pt-2 border-t">
+      <Button variant="outline" onClick={handleCancel}>Cancel</Button>
+      {formMode === "create" && (
+        <Button variant="outline" onClick={handleTestOnly} disabled={testState === "testing"}>
+          Test Connection
+        </Button>
+      )}
+      <Button onClick={handleSave} disabled={testState === "testing"}>
+        Save &amp; Connect
+      </Button>
+    </div>
+  )}
+</DialogContent>
 ```
 
 ---
 
-### WR-03: `drop(password)` Is Misleading — URI Retains the Cleartext Password
+### WR-02: Scroll Container Is Not Keyboard-Scrollable — Non-Focusable Status Content Unreachable
 
-**File:** `src-tauri/src/commands/publish.rs:38-39`
+**File:** `src/components/connection/ProfileManagementModal.tsx:232`
 
-**Issue:** After building `uri` from `password`, the code calls `drop(password)` with the comment "password is no longer needed — drop it". This implies sensitive material has been removed, but `uri` still contains the cleartext password encoded in its bytes. The password lives in `uri` for the full duration of the async function — up to 10 seconds for the timeout. Any future code path that logs `uri` or logs error context derived from `uri` (e.g., if `lapin` includes the URI in its `Display` impl for connection errors) would leak the password.
+**Issue:** The scroll wrapper has no `tabIndex={0}`:
 
-**Fix:** Remove the `drop(password)` call and replace the misleading comment with an accurate one:
+```tsx
+<div className="flex-1 min-h-0 overflow-y-auto" data-testid="profile-modal-scroll">
+```
 
-```rust
-// uri contains the cleartext password — do NOT log uri or errors that may include it.
-// uri is dropped naturally at function end.
-let conn = tokio::time::timeout(
-    Duration::from_secs(10),
-    Connection::connect(&uri, ConnectionProperties::default()),
-)
+Focusable inputs (text fields, buttons) auto-scroll into view when tabbed to, so typical Tab-key navigation works. However, the validation error `<p>` (lines 358-360) and the `<ConnectionTestResult>` component (line 362) are non-focusable. If these elements render below the visible fold — for example, on a short display or after the error appears mid-form — keyboard-only users cannot reach them via arrow keys or Page Down because those keys only scroll a focused scroll container. This fails WCAG 2.1 SC 2.1.1 (Keyboard).
+
+**Fix:** Make the region focusable and label it:
+
+```tsx
+<div
+  className="flex-1 min-h-0 overflow-y-auto"
+  data-testid="profile-modal-scroll"
+  tabIndex={0}
+  role="region"
+  aria-label="Profile form"
+>
+```
+
+`tabIndex={0}` inserts the container into the Tab order so keyboard users can focus it and scroll with arrow keys / Page Down / Page Up. The `role="region"` + `aria-label` pair satisfies the ARIA requirement that landmark regions are named.
+
+---
+
+### WR-03: Absolutely-Positioned Close Button Overlaps Scrolled Content
+
+**File:** `src/components/ui/dialog.tsx:74` (close button) / `src/components/connection/ProfileManagementModal.tsx:227` (overflow-hidden container)
+
+**Issue:** `DialogContent` renders a close button with `className="absolute top-2 right-2"` (dialog.tsx:74). Now that `DialogContent` has `overflow-hidden`, content that scrolls upward passes behind this button in the top-right corner — the profile name row at position zero, or the form header, slides directly under the X button with no visual separation. The `overflow-hidden` clips the scroll region so nothing protrudes outside the dialog boundary, but content within that boundary can still underlap the absolute-positioned button.
+
+**Fix:** Add `pr-8` (or equivalent right padding) to the scroll container so the rightmost 2rem of each row is clear of the button:
+
+```tsx
+<div
+  className="flex-1 min-h-0 overflow-y-auto pr-8"
+  data-testid="profile-modal-scroll"
+>
+```
+
+Alternatively, add `pr-8` to the `DialogHeader` and any full-width rows inside the scroll container.
+
+---
+
+## Info
+
+### IN-01: Scroll Layout Tests Verify Class Strings, Not Scroll Behaviour
+
+**File:** `src/components/connection/__tests__/ProfileManagementModal.test.tsx:343-363`
+
+**Issue:** The two `describe("scroll layout")` tests at lines 343-363 assert that specific Tailwind class strings are present on DOM nodes (`toHaveClass("max-h-[85vh]")`, `toHaveClass("overflow-y-auto")`, etc.). JSDOM does not compute layout, so these tests cannot detect whether scrolling actually works, whether the flex container collapses, or whether the action buttons are inaccessible. They will pass even if the layout is broken. They also fail on harmless refactors (e.g., renaming a class to a CSS variable-based utility). These tests are a class-presence regression guard only — they do not validate the fix's stated goal.
+
+The authoritative verification requires Playwright measuring rendered scroll height or manual UAT on a viewport shorter than the form content. Retain the tests as deletion guards but do not treat them as evidence that scroll works.
+
+**Suggestion:** Add an explanatory comment:
+
+```ts
+// Guards that layout classes are present. Does NOT verify scroll behaviour — use Playwright E2E for that.
+it("DialogContent has max-h-[85vh] flex flex-col overflow-hidden classes", async () => {
 ```
 
 ---
 
-### WR-04: Missing Username Validation in Profile Form
+### IN-02: "Save & Connect" Integration Test Is Nested in the Wrong `describe` Block
 
-**File:** `src/components/connection/ProfileManagementModal.tsx:116-123`
+**File:** `src/components/connection/__tests__/ProfileManagementModal.test.tsx:181`
 
-**Issue:** `handleSave` and `handleTestOnly` validate that `profile.name` and `profile.host` are non-empty, but `profile.username` is never validated. An empty username produces an AMQP URI of the form `amqp://:password@host:5672/%2F`. `lapin` will either reject the URI immediately or send an empty username to the broker, producing a cryptic AMQP 403 or 530 error (not found/access refused) rather than a clear "username is required" message.
+**Issue:** The test `"Save & Connect button continues to save, test, and activate as before"` (lines 181-216) is nested inside `describe("handleTestOnly")`. It exercises `handleSave`, not `handleTestOnly`. Future developers looking for `handleSave` coverage will not find this test in the expected location, and the `handleTestOnly` block appears to contain unrelated coverage.
 
-**Fix:** Add username validation alongside the existing checks in both `handleSave` and `handleTestOnly`:
+**Fix:** Move the test into its own `describe("handleSave")` block.
 
-```typescript
-if (!profile.username) {
-  setError("Username is required.");
-  return;
-}
+---
+
+### IN-03: `85vh` Is a Magic Number Without Explanation
+
+**File:** `src/components/connection/ProfileManagementModal.tsx:227`
+
+**Issue:** The value `85vh` in `max-h-[85vh]` is used without a comment explaining why `85vh` was chosen rather than `80vh`, `90vh`, or `100vh`. Per the project coding-style rule on magic numbers, meaningful thresholds should be documented. Future changes (e.g., adding a modal footer that reduces available height) will have no baseline to reason from.
+
+**Fix:** Add an inline comment:
+
+```tsx
+{/* max-h-[85vh]: leaves visible margin so the modal does not touch screen edges on small viewports */}
+<DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
 ```
 
 ---
 
-### WR-05: Publisher Confirm Awaited Without `confirm_select` — Comment Is Misleading
-
-**File:** `src-tauri/src/commands/publish.rs:67-69`
-
-**Issue:** The code double-awaits `basic_publish`:
-
-```rust
-channel
-    .basic_publish(...)
-    .await
-    .map_err(|e| AppError::AmqpError(e.to_string()))?
-    .await  // await the publisher-confirm future
-    .map_err(|e| AppError::AmqpError(e.to_string()))?;
-```
-
-The comment says "await the publisher-confirm future". In lapin, publisher confirms only work after calling `channel.confirm_select()`. Without it, the inner `.await` resolves immediately as a no-op — it does NOT confirm broker delivery. The comment misleads maintainers into believing delivery is confirmed. For a dev tool where the user expects to know if the message was accepted, this is a correctness gap.
-
-**Fix — Option A (correct the comment, keep fire-and-forget):**
-
-```rust
-channel
-    .basic_publish(
-        exchange.as_str().into(),
-        routing_key.as_str().into(),
-        BasicPublishOptions::default(),
-        &payload,
-        BasicProperties::default()
-            .with_content_type("application/x-protobuf".into()),
-    )
-    .await
-    .map_err(|e| AppError::AmqpError(e.to_string()))?;
-// NOTE: publisher confirms not enabled (no confirm_select). This is fire-and-forget.
-```
-
-**Fix — Option B (enable real publisher confirms):**
-
-```rust
-use lapin::options::ConfirmSelectOptions;
-channel
-    .confirm_select(ConfirmSelectOptions::default())
-    .await
-    .map_err(|e| AppError::AmqpError(e.to_string()))?;
-channel
-    .basic_publish(...)
-    .await
-    .map_err(|e| AppError::AmqpError(e.to_string()))?
-    .await  // now a real confirmed delivery
-    .map_err(|e| AppError::AmqpError(e.to_string()))?;
-```
-
-Option B is preferable for a dev tool where the send result is shown to the user.
-
----
-
-### WR-06: `ConnectionSection.test.tsx` `beforeEach` Omits `managementAuthError` Reset
-
-**File:** `src/components/connection/__tests__/ConnectionSection.test.tsx:46-54`
-
-**Issue:** The `beforeEach` store reset omits `managementAuthError`:
-
-```typescript
-useConnectionStore.setState({
-  profiles: [],
-  activeProfileName: null,
-  connectionStatus: "disconnected",
-  connectionError: null,
-  managementStatus: "unknown",
-  queues: [],
-  exchanges: [],
-  // managementAuthError is missing
-});
-```
-
-`useConnectionStore`'s `INITIAL_STATE` includes `managementAuthError: null`. Any test that sets `managementAuthError` in the store will leak that value into subsequent tests because the partial `setState` call does not override it. The `PublishBar.test.tsx` `beforeEach` correctly includes `managementAuthError: null`. This inconsistency makes the connection test suite order-dependent.
-
-**Fix:**
-
-```typescript
-useConnectionStore.setState({
-  profiles: [],
-  activeProfileName: null,
-  connectionStatus: "disconnected",
-  connectionError: null,
-  managementStatus: "unknown",
-  managementAuthError: null,  // add this field
-  queues: [],
-  exchanges: [],
-});
-```
-
----
-
-_Reviewed: 2026-05-17T12:00:00Z_
+_Reviewed: 2026-05-17_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: standard_
