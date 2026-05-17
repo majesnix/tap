@@ -47,7 +47,7 @@
 - [x] 01-01-PLAN.md — Walking Skeleton: scaffold, full Rust backend (parse_proto + encode_message + extractor for all kinds), app layout, file open flow, string scalar + hex preview
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 01-02-PLAN.md — Scalar field coverage: all 16 scalar kinds, zod validation, zero-value defaults
+- [x] 01-02-PLAN.md — Scalar field coverage: all 16 scalar kinds, zod validation, zero-value defaults
 - [ ] 01-03-PLAN.md — Nested + Repeated + Depth cap: NestedMessageField (collapsible, depth), RepeatedField (useFieldArray add/remove), DepthCapPlaceholder at 5 levels
 - [ ] 01-04-PLAN.md — Enum + Oneof: EnumField (Select, name/number split), OneofField (RadioGroup, conditional mount, unregister)
 - [ ] 01-05-PLAN.md — WellKnownType controls + include path persistence: WellKnownTypeField (Timestamp/Duration/fallback), FileSection + IncludePathDialog with tauri-plugin-store persistence
@@ -115,7 +115,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Proto Parsing + Form | 1/5 | In Progress | — |
+| 1. Proto Parsing + Form | 2/5 | In Progress | — |
 | 2. Connect + Publish | 0/? | Not started | — |
 | 3. Full Feature Set | 0/? | Not started | — |
 
