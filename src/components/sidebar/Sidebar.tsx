@@ -1,5 +1,6 @@
 import { useProtoStore } from "@/stores/useProtoStore";
 import { FileSection } from "@/components/sidebar/FileSection";
+import { ConnectionSection } from "@/components/sidebar/ConnectionSection";
 import {
   Select,
   SelectContent,
@@ -48,6 +49,10 @@ export function Sidebar() {
           </div>
         </>
       )}
+
+      {/* Connection panel: profile dropdown + status dot + manage button */}
+      <Separator />
+      <ConnectionSection />
 
       <div className="flex-1" />
 

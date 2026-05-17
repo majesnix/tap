@@ -58,3 +58,21 @@ export type RenderFieldFn = (
   path: string,
   depth: number
 ) => React.ReactNode;
+
+// ── Phase 2: Connection types ────────────────────────────────────────────────
+
+/**
+ * Non-secret connection profile. Password is stored in the OS keychain
+ * by the Rust backend only — never included here.
+ */
+export interface ConnectionProfile {
+  name: string;
+  host: string;
+  port: number;        // default 5672
+  vhost: string;       // default "/"
+  username: string;
+  managementPort: number; // default 15672
+}
+
+export type ConnectionStatus = "connected" | "error" | "disconnected";
+export type ManagementStatus = "live" | "manual" | "unknown";
