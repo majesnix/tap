@@ -196,4 +196,84 @@ describe("ConnectionSection", () => {
     const statusDot = document.querySelector(".bg-emerald-500");
     expect(statusDot).toBeInTheDocument();
   });
+
+  describe("handleRetest", () => {
+    beforeEach(() => {
+      // Seed a profile so the Re-test button is visible
+      useConnectionStore.setState({
+        profiles: [
+          { name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false },
+        ],
+        activeProfileName: "Local RabbitMQ",
+        connectionStatus: "connected",
+        connectionError: null,
+        managementStatus: "unknown",
+        queues: [],
+        exchanges: [],
+      });
+    });
+
+    it("shows green checkmark after successful re-test", async () => {
+      mockInvoke.mockImplementation((cmd: string) => {
+        if (cmd === "list_profiles") return Promise.resolve([
+          { name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false },
+        ]);
+        if (cmd === "test_connection") return Promise.resolve(undefined);
+        return Promise.resolve(undefined);
+      });
+
+      render(<ConnectionSection />);
+      const retestBtn = await screen.findByRole("button", { name: /re-test/i });
+      fireEvent.click(retestBtn);
+
+      await waitFor(() => {
+        const connectedElements = screen.getAllByText("Connected");
+        expect(connectedElements.length).toBeGreaterThan(0);
+      });
+    });
+
+    it("shows red badge with error message after failed re-test", async () => {
+      mockInvoke.mockImplementation((cmd: string) => {
+        if (cmd === "list_profiles") return Promise.resolve([
+          { name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false },
+        ]);
+        if (cmd === "test_connection") return Promise.reject(new Error("connection refused"));
+        return Promise.resolve(undefined);
+      });
+
+      render(<ConnectionSection />);
+      const retestBtn = await screen.findByRole("button", { name: /re-test/i });
+      fireEvent.click(retestBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText(/connection refused/i)).toBeInTheDocument();
+      });
+    });
+
+    it("Re-test button is disabled while testing is in progress", async () => {
+      let resolveTest: () => void;
+      const pendingPromise = new Promise<void>((resolve) => {
+        resolveTest = resolve;
+      });
+
+      mockInvoke.mockImplementation((cmd: string) => {
+        if (cmd === "list_profiles") return Promise.resolve([
+          { name: "Local RabbitMQ", host: "localhost", port: 5672, vhost: "/", username: "guest", management_port: 15672, management_ssl: false },
+        ]);
+        if (cmd === "test_connection") return pendingPromise;
+        return Promise.resolve(undefined);
+      });
+
+      render(<ConnectionSection />);
+      const retestBtn = await screen.findByRole("button", { name: /re-test/i });
+      fireEvent.click(retestBtn);
+
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /re-test/i })).toBeDisabled();
+      });
+
+      // Clean up pending promise
+      resolveTest!();
+    });
+  });
 });
