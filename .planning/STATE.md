@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Plan 02-01 complete
-last_updated: "2026-05-17T20:52:00.000Z"
+stopped_at: Plan 02-02 complete
+last_updated: "2026-05-17T21:10:00.000Z"
 progress:
   total_phases: 3
   completed_phases: 1
   total_plans: 10
-  completed_plans: 7
-  percent: 70
+  completed_plans: 8
+  percent: 80
 ---
 
 # Project State: Proto Sender
@@ -36,13 +36,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 01-05 (WellKnownTypeField + Include Path Persistence): COMPLETE — commits 60ee94e, ff7a8e3
 - Plan 01-06 (FormPanel Debounce Fix): COMPLETE — commits e230aff, 2e9bd3f
 - Plan 02-01 (Connection Profiles — Slice 1): COMPLETE — commits 7253b00, b00613b, b3b608c
+- Plan 02-02 (Connection Test + Activation — Slice 2): COMPLETE — commits f5860cd, f5d2c9b
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 7
-- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01
+- Plans completed: 8
+- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02
 - Phases completed: 1/3
 
 ## Accumulated Context
@@ -78,10 +79,15 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - apple-native-keyring-store requires features=["keychain"] on macOS (no default features on macOS)
 - keyring-core 1.x: Store::new() returns Arc<CredentialStore>; set_default_store takes Arc (not Store::default())
 - keyring-core 1.x: delete_credential() method (not delete_password() from older keyring v3 API)
+- lapin Connection::close() takes ShortString not &str — use "".into() for string literal arg
+- URI test assertion must check path segment, not full URI — amqp:// always contains // in scheme
+- activateProfile/testConnection IPC args use { profileName } camelCase (consistent with other connection commands)
+- Default mockInvoke in beforeEach must return [] for list_profiles to prevent profiles.length crash
+- getAllByText vs getByText when ConnectionTestResult + status dot both render "Connected"
 
 ### Active TODOs
 
-- Plan 02-01 (slice 1) complete — ready for plan 02-02 (AMQP connection test + queue/exchange listing)
+- Plan 02-02 (slice 2) complete — ready for plan 02-03 (queue/exchange listing + publish bar)
 
 ### Blockers
 
@@ -95,6 +101,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-17 (plan 02-01 complete)
-Stopped at: Plan 02-01 complete
-Next action: Phase 02 — Plan 02-02 (AMQP connection test, queue/exchange listing)
+Last updated: 2026-05-17 (plan 02-02 complete)
+Stopped at: Plan 02-02 complete
+Next action: Phase 02 — Plan 02-03 (queue/exchange listing + publish bar)

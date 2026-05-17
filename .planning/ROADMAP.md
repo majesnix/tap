@@ -91,7 +91,7 @@
 - [x] 02-01-PLAN.md — Profile management: keyring-core + tauri-plugin-store, save/list/delete commands, ConnectionSection sidebar, ProfileManagementModal
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 02-02-PLAN.md — Connection test + activation: lapin ephemeral connect, test_connection + activate_profile commands, ConnectionTestResult inline display, status dot activation
+- [x] 02-02-PLAN.md — Connection test + activation: lapin ephemeral connect, test_connection + activate_profile commands, ConnectionTestResult inline display, status dot activation
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 02-03-PLAN.md — Queue/exchange listing + PublishBar: reqwest + Management API, fetch_queues/fetch_exchanges, PublishBar with Live/Manual badge + mode toggle
