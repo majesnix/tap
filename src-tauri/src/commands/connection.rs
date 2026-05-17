@@ -1,4 +1,6 @@
 use lapin::{Connection, ConnectionProperties};
+use reqwest::Client;
+use serde::Deserialize;
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
@@ -8,6 +10,48 @@ use crate::profiles::{
     build_amqp_uri, delete_password, get_password, store_password, ConnectionProfile,
     PROFILES_STORE_KEY,
 };
+
+/// Intermediate struct for deserializing Management API /api/queues response.
+/// Uses serde to ignore all fields except name — the Management API returns 50+ fields.
+#[derive(Deserialize)]
+struct QueueApiInfo {
+    name: String,
+}
+
+/// Intermediate struct for deserializing Management API /api/exchanges response.
+#[derive(Deserialize)]
+struct ExchangeApiInfo {
+    name: String,
+    // Captured from JSON for completeness but not used in filter logic — only internal flag is checked
+    #[allow(dead_code)]
+    #[serde(rename = "type")]
+    exchange_type: String,
+    internal: bool,
+}
+
+/// Helper: load profile from store and retrieve password from keychain.
+/// Returns (profile, password) — password is cleartext, use immediately.
+fn load_profile_with_password(
+    app: &AppHandle,
+    profile_name: &str,
+) -> Result<(crate::profiles::ConnectionProfile, String), AppError> {
+    let store = app
+        .store("proto-sender.json")
+        .map_err(|e| AppError::StoreError(e.to_string()))?;
+
+    let profiles: Vec<crate::profiles::ConnectionProfile> = store
+        .get(crate::profiles::PROFILES_STORE_KEY)
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+
+    let profile = profiles
+        .into_iter()
+        .find(|p| p.name == profile_name)
+        .ok_or_else(|| AppError::ProfileNotFound(profile_name.to_string()))?;
+
+    let password = crate::profiles::get_password(profile_name)?;
+    Ok((profile, password))
+}
 
 /// Save a connection profile (non-secret fields to tauri-plugin-store; password to OS keychain).
 /// SECURITY: password param is used then dropped — never stored in any struct or logged.
@@ -146,4 +190,112 @@ pub async fn test_connection(app: AppHandle, profile_name: String) -> Result<(),
 pub async fn activate_profile(app: AppHandle, profile_name: String) -> Result<(), AppError> {
     // Reuse test_connection logic — if it succeeds, this profile is now active
     test_connection(app, profile_name).await
+}
+
+/// Fetch queue names from the RabbitMQ Management API.
+/// Returns Vec<String> of queue names for the profile's vhost.
+///
+/// Error disambiguation (CRITICAL — per Pitfall 7):
+/// - reqwest connect error (is_connect=true) → ManagementApiUnavailable(0)  — frontend shows Manual badge
+/// - HTTP 401 → ManagementApiAuthFailed — surface as error (NOT silent fallback)
+/// - HTTP 404 → ManagementApiUnavailable(404) — plugin not enabled, silent fallback
+/// - Other HTTP → ManagementApiUnavailable(status)
+///
+/// SECURITY: Uses reqwest basic_auth (Authorization header), NOT URL-embedded credentials.
+#[tauri::command]
+pub async fn fetch_queues(
+    app: AppHandle,
+    profile_name: String,
+) -> Result<Vec<String>, AppError> {
+    let (profile, password) = load_profile_with_password(&app, &profile_name)?;
+
+    let encoded_vhost = percent_encoding::utf8_percent_encode(
+        &profile.vhost,
+        percent_encoding::NON_ALPHANUMERIC,
+    );
+    let url = format!(
+        "http://{}:{}/api/queues/{}",
+        profile.host, profile.management_port, encoded_vhost
+    );
+
+    let client = Client::new();
+    let resp = client
+        .get(&url)
+        .basic_auth(&profile.username, Some(&password))
+        // SECURITY: basic_auth sets Authorization header — credentials NOT in URL
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_connect() {
+                AppError::ManagementApiUnavailable(0) // port unreachable
+            } else {
+                AppError::ManagementApiError(e.to_string())
+            }
+        })?;
+
+    match resp.status().as_u16() {
+        200 => {
+            let queues: Vec<QueueApiInfo> = resp
+                .json()
+                .await
+                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
+            Ok(queues.into_iter().map(|q| q.name).collect())
+        }
+        401 => Err(AppError::ManagementApiAuthFailed),
+        404 => Err(AppError::ManagementApiUnavailable(404)),
+        other => Err(AppError::ManagementApiUnavailable(other)),
+    }
+}
+
+/// Fetch exchange names from the RabbitMQ Management API.
+/// Filters out: internal exchanges, system exchanges (name starts with "amq."),
+/// and the empty-name default exchange.
+///
+/// Same error disambiguation as fetch_queues.
+#[tauri::command]
+pub async fn fetch_exchanges(
+    app: AppHandle,
+    profile_name: String,
+) -> Result<Vec<String>, AppError> {
+    let (profile, password) = load_profile_with_password(&app, &profile_name)?;
+
+    let encoded_vhost = percent_encoding::utf8_percent_encode(
+        &profile.vhost,
+        percent_encoding::NON_ALPHANUMERIC,
+    );
+    let url = format!(
+        "http://{}:{}/api/exchanges/{}",
+        profile.host, profile.management_port, encoded_vhost
+    );
+
+    let client = Client::new();
+    let resp = client
+        .get(&url)
+        .basic_auth(&profile.username, Some(&password))
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_connect() {
+                AppError::ManagementApiUnavailable(0)
+            } else {
+                AppError::ManagementApiError(e.to_string())
+            }
+        })?;
+
+    match resp.status().as_u16() {
+        200 => {
+            let exchanges: Vec<ExchangeApiInfo> = resp
+                .json()
+                .await
+                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
+            Ok(exchanges
+                .into_iter()
+                .filter(|e| !e.internal && !e.name.starts_with("amq.") && !e.name.is_empty())
+                .map(|e| e.name)
+                .collect())
+        }
+        401 => Err(AppError::ManagementApiAuthFailed),
+        404 => Err(AppError::ManagementApiUnavailable(404)),
+        other => Err(AppError::ManagementApiUnavailable(other)),
+    }
 }

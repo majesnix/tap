@@ -16,7 +16,8 @@ pub enum AppError {
     ManagementApiError(String),
     #[error("Management API unavailable (HTTP {0})")]
     ManagementApiUnavailable(u16),
-    #[error("Management API authentication failed")]
+    // CRITICAL: This exact message is matched by frontend catch block substring "authentication failed"
+    #[error("Management API authentication failed: wrong credentials (HTTP 401)")]
     ManagementApiAuthFailed,
     #[error("Profile not found: {0}")]
     ProfileNotFound(String),
