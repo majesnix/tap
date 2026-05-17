@@ -45,6 +45,7 @@ beforeEach(() => {
     useProtoStore.getState().setFile("/fake/test.proto", MINIMAL_SCHEMA);
     useProtoStore.getState().setSelectedType("Msg");
   });
+  vi.clearAllMocks();
   vi.useFakeTimers();
   vi.mocked(ipc.encodeMessage).mockResolvedValue([0x0a, 0x05]);
 });
@@ -89,7 +90,7 @@ test("encodeMessage is not called more than once when typing rapidly", () => {
 
   const input = screen.getByRole("textbox");
 
-  // Simulate 5 rapid change events
+  // Simulate 5 rapid change events — each fires onValuesChange but debounce resets each time
   act(() => {
     fireEvent.change(input, { target: { value: "h" } });
     fireEvent.change(input, { target: { value: "he" } });
@@ -103,7 +104,7 @@ test("encodeMessage is not called more than once when typing rapidly", () => {
     vi.advanceTimersByTime(100);
   });
 
-  // Should still not be called
+  // Should still not be called — 100ms < 200ms debounce
   expect(ipc.encodeMessage).not.toHaveBeenCalled();
 
   // Advance another 100ms (200ms total since last keystroke)

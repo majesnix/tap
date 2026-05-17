@@ -1,4 +1,4 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { encodeMessage } from "@/lib/ipc";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -17,18 +17,20 @@ export function FormPanel() {
   const { schema, selectedMessageType, setHexPreview, setEncoding, setEncodeError } =
     useProtoStore();
 
-  const latestValues = useRef<unknown>(null);
-  const debouncedValues = useDebounce(latestValues.current, 200);
+  const [latestValues, setLatestValues] = useState<unknown>(null);
+  const debouncedValues = useDebounce(latestValues, 200);
 
-  const handleValuesChange = useCallback(
-    async (values: unknown) => {
-      latestValues.current = values;
-      if (!selectedMessageType) return;
+  const handleValuesChange = useCallback((values: unknown) => {
+    setLatestValues(values);
+  }, []);
 
+  useEffect(() => {
+    if (!debouncedValues || !selectedMessageType) return;
+    void (async () => {
       try {
         setEncoding(true);
         setEncodeError(null);
-        const bytes = await encodeMessage(selectedMessageType, values);
+        const bytes = await encodeMessage(selectedMessageType, debouncedValues);
         setHexPreview(bytesToHex(bytes));
       } catch (err) {
         const msg = typeof err === "string" ? err : "Encoding failed";
@@ -37,12 +39,8 @@ export function FormPanel() {
       } finally {
         setEncoding(false);
       }
-    },
-    [selectedMessageType, setHexPreview, setEncoding, setEncodeError]
-  );
-
-  // Suppress unused warning — debouncedValues drives future optimization
-  void debouncedValues;
+    })();
+  }, [debouncedValues, selectedMessageType, setHexPreview, setEncoding, setEncodeError]);
 
   if (!schema || !selectedMessageType) {
     return (
