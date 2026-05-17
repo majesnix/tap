@@ -1,0 +1,135 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { PublishBar } from "@/components/publish/PublishBar";
+import { useConnectionStore } from "@/stores/useConnectionStore";
+
+vi.mock("@tauri-apps/api/core", () => ({
+  invoke: vi.fn(),
+}));
+
+// Mock shadcn Select with a native <select> to avoid Radix UI portal/pointer-event issues in jsdom
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ value, onValueChange, children }: { value?: string; onValueChange?: (v: string) => void; children: React.ReactNode }) => (
+    <select
+      value={value ?? ""}
+      onChange={(e) => onValueChange?.(e.target.value)}
+      role="combobox"
+    >
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <option value="">{placeholder}</option>,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => (
+    <option value={value}>{children}</option>
+  ),
+}));
+
+import { invoke } from "@tauri-apps/api/core";
+const mockInvoke = vi.mocked(invoke);
+
+describe("PublishBar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: null,
+      connectionStatus: "disconnected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+    // Default: IPC calls return empty arrays
+    mockInvoke.mockImplementation(() => Promise.resolve([]));
+  });
+
+  it("Send button is disabled when no active connection", () => {
+    render(<PublishBar />);
+    const sendBtn = screen.getByRole("button", { name: /send/i });
+    expect(sendBtn).toBeDisabled();
+  });
+
+  it("shows Live badge and queue dropdown when Management API returns queues", async () => {
+    useConnectionStore.setState({
+      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }],
+      activeProfileName: "Local",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "live",
+      managementAuthError: null,
+      queues: ["orders", "payments"],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    expect(screen.getByText("Live")).toBeInTheDocument();
+    // Dropdown should be rendered (not text input)
+    expect(screen.queryByRole("combobox")).toBeTruthy();
+  });
+
+  it("shows Manual badge and text input when Management API unavailable", async () => {
+    useConnectionStore.setState({
+      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }],
+      activeProfileName: "Local",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "manual",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    expect(screen.getByText("Manual")).toBeInTheDocument();
+    // Text input should be rendered instead of dropdown
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
+  it("shows auth error message when Management API returns 401", async () => {
+    useConnectionStore.setState({
+      profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }],
+      activeProfileName: "Local",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: "Management API authentication failed: wrong credentials (HTTP 401)",
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    // Auth error badge must be visible — NOT the silent Manual badge
+    expect(screen.getByText(/authentication failed/i)).toBeInTheDocument();
+    // Must NOT show the plain Manual badge
+    expect(screen.queryByText("Manual")).not.toBeInTheDocument();
+  });
+
+  it("shows routing key input in Exchange mode", async () => {
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "Local",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    // Switch to Exchange mode
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/routing key/i)).toBeInTheDocument();
+    });
+  });
+
+  it("hides routing key input in Queue mode", () => {
+    render(<PublishBar />);
+    // Default mode is Queue
+    expect(screen.queryByPlaceholderText(/routing key/i)).not.toBeInTheDocument();
+  });
+});
