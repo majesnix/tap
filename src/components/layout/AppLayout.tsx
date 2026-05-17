@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { FormPanel } from "@/components/form/FormPanel";
 import { HexPreviewPanel } from "@/components/preview/HexPreviewPanel";
+import { PublishBar } from "@/components/publish/PublishBar";
 
 export function AppLayout() {
   return (
@@ -10,8 +11,9 @@ export function AppLayout() {
         <Sidebar />
       </aside>
 
-      {/* Center: dynamic proto form */}
+      {/* Center: publish bar + dynamic proto form */}
       <main className="flex-1 flex flex-col overflow-hidden">
+        <PublishBar />
         <FormPanel />
       </main>
 

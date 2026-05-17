@@ -43,3 +43,11 @@ export async function testConnection(profileName: string): Promise<void> {
 export async function activateProfile(profileName: string): Promise<void> {
   return invoke<void>("activate_profile", { profileName });
 }
+
+export async function fetchQueues(profileName: string): Promise<string[]> {
+  return invoke<string[]>("fetch_queues", { profileName });
+}
+
+export async function fetchExchanges(profileName: string): Promise<string[]> {
+  return invoke<string[]>("fetch_exchanges", { profileName });
+}

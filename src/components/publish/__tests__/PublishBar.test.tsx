@@ -89,20 +89,32 @@ describe("PublishBar", () => {
   });
 
   it("shows auth error message when Management API returns 401", async () => {
+    // Mock fetch_queues to reject with auth error — simulates real 401 flow
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") {
+        return Promise.reject(new Error("Management API authentication failed: wrong credentials (HTTP 401)"));
+      }
+      return Promise.resolve([]);
+    });
+
     useConnectionStore.setState({
       profiles: [{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }],
       activeProfileName: "Local",
       connectionStatus: "connected",
       connectionError: null,
       managementStatus: "unknown",
-      managementAuthError: "Management API authentication failed: wrong credentials (HTTP 401)",
+      managementAuthError: null,
       queues: [],
       exchanges: [],
     });
 
     render(<PublishBar />);
-    // Auth error badge must be visible — NOT the silent Manual badge
-    expect(screen.getByText(/authentication failed/i)).toBeInTheDocument();
+
+    // Wait for the async fetch to reject and auth error to be set
+    await waitFor(() => {
+      // Auth error badge must be visible — NOT the silent Manual badge
+      expect(screen.getByText(/authentication failed/i)).toBeInTheDocument();
+    });
     // Must NOT show the plain Manual badge
     expect(screen.queryByText("Manual")).not.toBeInTheDocument();
   });
