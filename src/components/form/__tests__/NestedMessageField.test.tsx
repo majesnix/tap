@@ -1,27 +1,51 @@
 import { render, screen } from "@testing-library/react";
 import { FormProvider, useForm } from "react-hook-form";
 import { NestedMessageField } from "../fields/NestedMessageField";
-import type { FieldSchema } from "@/lib/types";
+import { useProtoStore } from "@/stores/useProtoStore";
+import type { FieldSchema, MessageSchema, ProtoSchema } from "@/lib/types";
+
+// Build a minimal schema for use in all tests
+const stringField: FieldSchema = {
+  name: "title",
+  label: "title",
+  kind: { type: "scalar", scalar: "string" },
+  repeated: false,
+  default_value: "",
+};
+const innerMessage: MessageSchema = {
+  name: "Inner",
+  full_name: "com.Inner",
+  fields: [stringField],
+};
+const testSchema: ProtoSchema = {
+  messages: [innerMessage],
+  message_map: { "com.Inner": innerMessage },
+};
+
+const innerField: FieldSchema = {
+  name: "inner",
+  label: "Inner",
+  kind: { type: "message", full_name: "com.Inner" },
+  repeated: false,
+};
 
 /**
  * Wraps NestedMessageField in a FormProvider for isolated testing.
  * Uses the `path` prop to match ProtoFormRenderer callsite.
  */
 function renderNested(depth: number) {
+  // Seed Zustand store with schema so NestedMessageField can look up the message type
+  useProtoStore.setState({ schema: testSchema });
+
   const Wrapper = () => {
     const methods = useForm({ defaultValues: { inner: { title: "" } } });
     return (
       <FormProvider {...methods}>
         <NestedMessageField
-          field={{
-            name: "inner",
-            label: "Inner",
-            kind: { type: "message", full_name: "com.Inner" },
-            repeated: false,
-          }}
+          field={innerField}
           path="inner"
           depth={depth}
-          renderChildField={(f: FieldSchema, childPath: string) => (
+          renderChildField={(_f: FieldSchema, childPath: string) => (
             <input key={childPath} data-testid={childPath} />
           )}
         />
