@@ -128,7 +128,7 @@ describe("ProfileManagementModal", () => {
         exchanges: [],
         setActiveProfile,
         setConnectionStatus,
-      } as Parameters<typeof useConnectionStore.setState>[0]);
+      } as unknown as Parameters<typeof useConnectionStore.setState>[0]);
 
       mockInvoke.mockImplementation((cmd: string) => {
         if (cmd === "save_profile") return Promise.resolve(undefined);
@@ -191,7 +191,7 @@ describe("ProfileManagementModal", () => {
         exchanges: [],
         setActiveProfile,
         setConnectionStatus,
-      } as Parameters<typeof useConnectionStore.setState>[0]);
+      } as unknown as Parameters<typeof useConnectionStore.setState>[0]);
 
       mockInvoke.mockImplementation((cmd: string) => {
         if (cmd === "save_profile") return Promise.resolve(undefined);

@@ -80,6 +80,57 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleTestOnly = async () => {
+    setError(null);
+    setTestState("idle");
+    setTestError(null);
+
+    const profile: ConnectionProfile = {
+      name: formValues.name.trim(),
+      host: formValues.host.trim(),
+      port: Number(formValues.port) || 5672,
+      vhost: formValues.vhost.trim() || "/",
+      username: formValues.username.trim(),
+      management_port: Number(formValues.managementPort) || 15672,
+      management_ssl: formValues.managementSsl,
+    };
+
+    if (!profile.name) {
+      setError("Profile name is required.");
+      return;
+    }
+    if (!profile.host) {
+      setError("Host is required.");
+      return;
+    }
+
+    try {
+      await saveProfile(profile, formValues.password);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setError(message);
+      return;
+    }
+
+    // Refresh the profiles list unconditionally so the profile appears in the sidebar
+    const updated = await listProfiles();
+    setProfiles(updated);
+
+    setTestState("testing");
+    try {
+      await testConnection(profile.name);
+      setTestState("success");
+      // Do NOT call setActiveProfile or setConnectionStatus — profile is saved but not activated
+      // Do NOT close the modal
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setTestState("error");
+      setTestError(message);
+      // Do NOT call setConnectionStatus — this is a non-activating test
+      // Do NOT close the modal
+    }
+  };
+
   const handleSave = async () => {
     setError(null);
     setTestState("idle");
@@ -270,6 +321,15 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                 <Button variant="outline" onClick={handleCancel}>
                   Cancel
                 </Button>
+                {formMode === "create" && (
+                  <Button
+                    variant="outline"
+                    onClick={handleTestOnly}
+                    disabled={testState === "testing"}
+                  >
+                    Test Connection
+                  </Button>
+                )}
                 <Button onClick={handleSave} disabled={testState === "testing"}>
                   Save &amp; Connect
                 </Button>
