@@ -17,11 +17,14 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - [x] Generate a type-aware dynamic form from the parsed proto schema — Validated in Phase 01: proto-parsing-form
 - [x] Type-check field values before send (string, int32/64, float, bool, bytes, enum) — Validated in Phase 01: proto-parsing-form
 
+### Validated
+
+- [x] Connect to RabbitMQ with saved named connection profiles (host, port, vhost, user, password) — Validated in Phase 02: connect-publish
+- [x] Fetch live queue list and exchange list from RabbitMQ Management API — Validated in Phase 02: connect-publish
+- [x] Publish to a selected queue (direct) or exchange + routing key — Validated in Phase 02: connect-publish
+- [x] Encode message as binary protobuf wire format before sending — Validated in Phase 02: connect-publish
+
 ### Active
-- [ ] Connect to RabbitMQ with saved named connection profiles (host, port, vhost, user, password)
-- [ ] Fetch live queue list and exchange list from RabbitMQ (via management API or AMQP)
-- [ ] Publish to a selected queue (direct) or exchange + routing key
-- [ ] Encode message as binary protobuf wire format before sending
 - [ ] Keep a message history log with ability to replay/resend past messages
 
 ### Out of Scope
@@ -76,7 +79,7 @@ This document evolves at phase transitions and milestone boundaries.
 ---
 ## Current State
 
-Phase 01 (proto-parsing-form) complete — dynamic form with all 6 field kinds, live debounced hex encoding. Phase 02 (RabbitMQ connection UI) is next.
+Phase 02 (connect-publish) complete — named connection profiles with OS keychain password storage, Test Connection flow, live queue/exchange picker via Management API with silent fallback, binary protobuf publish with form retention after send. Two UAT gap fixes shipped: edit-mode Test Connection button and modal scroll for many profiles. Phase 03 (full-feature-set) is next.
 
 ---
-*Last updated: 2026-05-17 after Phase 01 completion*
+*Last updated: 2026-05-18 after Phase 02 completion*
