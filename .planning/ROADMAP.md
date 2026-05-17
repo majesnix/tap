@@ -1,0 +1,138 @@
+# Roadmap: Proto Sender
+
+**Milestone:** v1 MVP
+**Granularity:** Coarse
+**Mode:** mvp
+**Created:** 2026-05-17
+**Requirements:** 25 v1 requirements mapped across 3 phases
+
+---
+
+## Phases
+
+- [ ] **Phase 1: Proto Parsing + Form** — Load a `.proto` file, fill out a dynamic form, and see the binary-encoded result — no network required
+- [ ] **Phase 2: Connect + Publish** — Connect to RabbitMQ via saved profiles and actually send encoded messages
+- [ ] **Phase 3: Full Feature Set** — Message history, advanced properties, WellKnownType controls, multi-file support, live queue listing
+
+---
+
+## Phase Details
+
+### Phase 1: Proto Parsing + Form
+**Goal:** User can load a `.proto` file, see a fully rendered type-aware form, fill in values, and inspect the resulting binary-encoded protobuf payload — entirely offline, no RabbitMQ required.
+**Mode:** mvp
+**Depends on:** Nothing
+**Requirements:**
+- PROT-01: User can open a `.proto` file via a file picker dialog at runtime (no pre-compilation step)
+- PROT-02: User can configure include paths so relative imports resolve correctly across project directory trees
+- FORM-01: Form renders all scalar field types with appropriate input types and constraints
+- FORM-02: Form renders nested message fields as expandable inline sub-forms
+- FORM-03: Form renders repeated fields as a list with add/remove item controls
+- FORM-04: Form renders enum fields as dropdowns showing value names
+- FORM-05: Form renders oneof fields as a radio group; selecting a branch clears all sibling branches
+- FORM-06: App validates field values before send and surfaces errors inline
+- FORM-07: Form pre-populates sensible zero-value defaults on load
+- FORM-08: App caps nested message expansion at 5 levels deep and shows a collapse placeholder below that
+- FORM-09: WellKnownType fields use purpose-built controls (datetime picker for Timestamp, human-readable for Duration)
+
+**Success Criteria** (what must be TRUE):
+1. User opens a `.proto` file with nested imports and sees a fully rendered form within 2 seconds — no terminal, no compilation step.
+2. Every field type (scalar, nested message, repeated, enum, oneof) renders correctly and accepts or rejects input according to proto type constraints.
+3. Filling out the form and clicking "Encode" produces a hex or binary preview of the protobuf wire bytes that changes when field values change.
+4. Recursive message types do not crash or infinitely expand the form — the renderer stops at 5 levels deep and shows a collapse indicator.
+
+**Plans:** TBD
+**UI hint:** yes
+
+---
+
+### Phase 2: Connect + Publish
+**Goal:** User can create and save a RabbitMQ connection profile, connect to a live broker, select a queue or exchange, and successfully publish the encoded protobuf message.
+**Mode:** mvp
+**Depends on:** Phase 1
+**Requirements:**
+- CONN-01: User can create and save named connection profiles (host, port, vhost, username, password, management API port)
+- CONN-02: User can switch between saved connection profiles with a single click
+- CONN-03: App tests connection reachability and credential validity when the user saves a profile
+- CONN-04: Passwords are stored in the OS keychain — never in plain config files
+- PUBL-01: User can publish a message directly to a named queue (via the default exchange)
+- PUBL-02: User can publish a message to a named exchange with a user-specified routing key
+- PUBL-03: User can select target queues and exchanges from a live dropdown populated from the Management API; falls back to manual text input when Management API is unavailable
+
+**Success Criteria** (what must be TRUE):
+1. User creates a connection profile, saves it, and the app immediately verifies the connection — showing a clear success or failure message without leaving the form.
+2. Switching between saved profiles reconnects to the correct broker and the queue/exchange picker reflects that broker's live data.
+3. User fills out the proto form, selects a queue, clicks Send, and the message arrives in the RabbitMQ queue — verifiable via the Management UI or a consumer.
+4. Passwords never appear in any config file, log output, or application state visible to the frontend.
+5. When the Management API is unreachable, the queue/exchange picker falls back gracefully to a manual text input with a visible status indicator.
+
+**Plans:** TBD
+
+---
+
+### Phase 3: Full Feature Set
+**Goal:** User has access to the complete v1 feature set: message history with replay, advanced AMQP properties, WellKnownType form controls, multi-proto-file support, and recursive depth limiting.
+**Mode:** mvp
+**Depends on:** Phase 2
+**Requirements:**
+- PROT-03: Tool renders WellKnownTypes (Timestamp, Duration, Any, etc.) with purpose-built form controls
+- PROT-04: User can have multiple `.proto` files open simultaneously and switch between message types within one session
+- PUBL-04: User can set AMQP message properties before sending (content-type, delivery-mode, TTL, correlation-id, reply-to, custom headers)
+- HIST-01: App logs all sent messages (timestamp, queue or exchange/routing-key, message type name, send status)
+- HIST-02: User can click any history entry to re-populate the form with its original field values and resend
+- HIST-03: User can view the binary payload of any history entry as a hex string
+- HIST-04: User can filter the history log by message type name or by queue/exchange name
+
+**Success Criteria** (what must be TRUE):
+1. Every message sent via Phase 2 appears in the history log with correct timestamp, target, type name, and status — and persists after the app is restarted.
+2. Clicking a history entry restores the exact field values into the form and the user can resend with one more click.
+3. User can filter the history list by message type name and by queue/exchange name, reducing visible entries to only matching rows.
+4. User can open two different `.proto` files and switch between their message types within one session without reloading.
+5. User can set AMQP properties (at minimum content-type, delivery-mode, and correlation-id) before sending and those properties are present on the received message.
+
+**Plans:** TBD
+**UI hint:** yes
+
+---
+
+## Progress Table
+
+| Phase | Plans Complete | Status | Completed |
+|-------|----------------|--------|-----------|
+| 1. Proto Parsing + Form | 0/? | Not started | — |
+| 2. Connect + Publish | 0/? | Not started | — |
+| 3. Full Feature Set | 0/? | Not started | — |
+
+---
+
+## Coverage
+
+| Requirement | Phase |
+|-------------|-------|
+| PROT-01 | Phase 1 |
+| PROT-02 | Phase 1 |
+| FORM-01 | Phase 1 |
+| FORM-02 | Phase 1 |
+| FORM-03 | Phase 1 |
+| FORM-04 | Phase 1 |
+| FORM-05 | Phase 1 |
+| FORM-06 | Phase 1 |
+| FORM-07 | Phase 1 |
+| FORM-08 | Phase 1 |
+| FORM-09 | Phase 1 |
+| CONN-01 | Phase 2 |
+| CONN-02 | Phase 2 |
+| CONN-03 | Phase 2 |
+| CONN-04 | Phase 2 |
+| PUBL-01 | Phase 2 |
+| PUBL-02 | Phase 2 |
+| PUBL-03 | Phase 2 |
+| PROT-03 | Phase 3 |
+| PROT-04 | Phase 3 |
+| PUBL-04 | Phase 3 |
+| HIST-01 | Phase 3 |
+| HIST-02 | Phase 3 |
+| HIST-03 | Phase 3 |
+| HIST-04 | Phase 3 |
+
+**Total v1 mapped:** 25/25

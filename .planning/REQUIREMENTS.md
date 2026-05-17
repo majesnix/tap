@@ -83,37 +83,37 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONN-01 | — | Pending |
-| CONN-02 | — | Pending |
-| CONN-03 | — | Pending |
-| CONN-04 | — | Pending |
-| PROT-01 | — | Pending |
-| PROT-02 | — | Pending |
-| PROT-03 | — | Pending |
-| PROT-04 | — | Pending |
-| FORM-01 | — | Pending |
-| FORM-02 | — | Pending |
-| FORM-03 | — | Pending |
-| FORM-04 | — | Pending |
-| FORM-05 | — | Pending |
-| FORM-06 | — | Pending |
-| FORM-07 | — | Pending |
-| FORM-08 | — | Pending |
-| FORM-09 | — | Pending |
-| PUBL-01 | — | Pending |
-| PUBL-02 | — | Pending |
-| PUBL-03 | — | Pending |
-| PUBL-04 | — | Pending |
-| HIST-01 | — | Pending |
-| HIST-02 | — | Pending |
-| HIST-03 | — | Pending |
-| HIST-04 | — | Pending |
+| CONN-01 | Phase 2 | Pending |
+| CONN-02 | Phase 2 | Pending |
+| CONN-03 | Phase 2 | Pending |
+| CONN-04 | Phase 2 | Pending |
+| PROT-01 | Phase 1 | Pending |
+| PROT-02 | Phase 1 | Pending |
+| PROT-03 | Phase 3 | Pending |
+| PROT-04 | Phase 3 | Pending |
+| FORM-01 | Phase 1 | Pending |
+| FORM-02 | Phase 1 | Pending |
+| FORM-03 | Phase 1 | Pending |
+| FORM-04 | Phase 1 | Pending |
+| FORM-05 | Phase 1 | Pending |
+| FORM-06 | Phase 1 | Pending |
+| FORM-07 | Phase 1 | Pending |
+| FORM-08 | Phase 1 | Pending |
+| FORM-09 | Phase 1 | Pending |
+| PUBL-01 | Phase 2 | Pending |
+| PUBL-02 | Phase 2 | Pending |
+| PUBL-03 | Phase 2 | Pending |
+| PUBL-04 | Phase 3 | Pending |
+| HIST-01 | Phase 3 | Pending |
+| HIST-02 | Phase 3 | Pending |
+| HIST-03 | Phase 3 | Pending |
+| HIST-04 | Phase 3 | Pending |
 
 **Coverage:**
 - v1 requirements: 25 total
-- Mapped to phases: 0
-- Unmapped: 25 ⚠️
+- Mapped to phases: 25
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-05-17*
-*Last updated: 2026-05-17 after initial definition*
+*Last updated: 2026-05-17 after roadmap creation*
