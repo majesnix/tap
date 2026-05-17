@@ -17,6 +17,8 @@ pub struct ConnectionProfile {
     pub vhost: String,
     pub username: String,
     pub management_port: u16,
+    #[serde(default)]
+    pub management_ssl: bool,
 }
 
 /// Store the password in the OS keychain. Service = KEYRING_SERVICE, username = profile name.
@@ -45,9 +47,10 @@ pub fn get_password(profile_name: &str) -> Result<String, AppError> {
 /// do NOT store in any field, log file, or tracing output. Drop after use.
 pub fn build_amqp_uri(host: &str, port: u16, vhost: &str, user: &str, pass: &str) -> String {
     let enc_vhost = utf8_percent_encode(vhost, NON_ALPHANUMERIC);
+    let enc_user = utf8_percent_encode(user, NON_ALPHANUMERIC);
     let enc_pass = utf8_percent_encode(pass, NON_ALPHANUMERIC);
-    // "/" vhost → "%2F"; "@" in password → "%40"
-    format!("amqp://{}:{}@{}:{}/{}", user, enc_pass, host, port, enc_vhost)
+    // "/" vhost → "%2F"; "@" in password/username → "%40"
+    format!("amqp://{}:{}@{}:{}/{}", enc_user, enc_pass, host, port, enc_vhost)
 }
 
 /// Delete the password from the OS keychain. Called on profile delete.
@@ -74,6 +77,7 @@ mod tests {
             vhost: "/".to_string(),
             username: "guest".to_string(),
             management_port: 15672,
+            management_ssl: false,
         };
         let json = serde_json::to_string(&profile).unwrap();
         assert!(!json.contains("password"), "password must never appear in serialized ConnectionProfile");
@@ -99,5 +103,12 @@ mod uri_tests {
     fn special_chars_in_password_encoded() {
         let uri = build_amqp_uri("localhost", 5672, "/", "user", "p@ss:w0rd#");
         assert!(!uri.contains("@p"), "bare '@' in password would break URI parsing");
+    }
+
+    #[test]
+    fn special_chars_in_username_encoded() {
+        let uri = build_amqp_uri("localhost", 5672, "/", "user@domain", "pass");
+        assert!(!uri.contains("user@domain"), "bare '@' in username would break URI parsing");
+        assert!(uri.contains("user%40domain"), "username must be percent-encoded");
     }
 }
