@@ -48,17 +48,16 @@ not a marketing page. Tighter inner spacing preserves vertical real estate in ne
 | Token | Value | Usage                                                          |
 |-------|-------|----------------------------------------------------------------|
 | xs    | 4px   | Icon-to-label gap, inline checkbox gap, radio button gap       |
-| sm    | 8px   | Input internal padding-x, label-to-input gap, badge padding    |
-| md    | 12px  | Form row gap (between adjacent fields in a row)                |
-| lg    | 16px  | Section gap within a form group, sidebar item gap              |
-| xl    | 24px  | Panel internal padding, between top-level form sections        |
-| 2xl   | 32px  | Between sidebar sections, between form and preview strip        |
-| 3xl   | 48px  | Not used in Phase 1 (reserved for page-level breaks in later phases) |
+| sm    | 8px   | Input internal padding-x, label-to-input gap, badge padding, form row gap (between adjacent fields in a row) |
+| md    | 16px  | Section gap within a form group, sidebar item gap              |
+| lg    | 24px  | Panel internal padding, between top-level form sections        |
+| xl    | 32px  | Between sidebar sections, between form and preview strip       |
+| 2xl   | 48px  | Not used in Phase 1 (reserved for page-level breaks in later phases) |
 
 Exceptions:
 - Sidebar width: 240px fixed (D-02, CONTEXT.md)
-- Depth-cap collapse placeholder: 12px vertical padding (compact, communicates non-interactivity)
-- Bottom preview strip: 16px padding all sides; monospace code block uses 8px padding-x 6px padding-y
+- Depth-cap collapse placeholder: 8px vertical padding (compact, communicates non-interactivity)
+- Bottom preview strip: 16px padding all sides; monospace code block uses 8px padding-x, 8px padding-y
 
 Source: D-02, general form-density guidance.
 
@@ -167,7 +166,7 @@ Executor installs these via `npx shadcn add <component>` during project bootstra
 | Select         | `select`         | Message type dropdown (sidebar), enum field dropdowns         |
 | Checkbox       | `checkbox`       | bool scalar fields                                            |
 | RadioGroup     | `radio-group`    | oneof field branches                                          |
-| Dialog         | `dialog`         | Include-path configuration modal                              |
+| Dialog         | `dialog`         | Include-path configuration modal                             |
 | Collapsible    | `collapsible`    | Nested message sub-forms, hex preview bottom strip, depth-cap placeholder |
 | ScrollArea     | `scroll-area`    | Main form area (deep nesting can exceed window height)        |
 | Badge          | `badge`          | Field type annotation (e.g. "int32", "repeated", "oneof")     |
@@ -191,7 +190,7 @@ Third-party blocks: none. shadcn official registry only.
 | Include path dialog body        | Add the directories that contain imported `.proto` files. The file's parent directory is included by default. |
 | Include path — add button       | Add path                                                                                  |
 | Include path — confirm button   | Load file                                                                                 |
-| Include path — cancel button    | Cancel                                                                                    |
+| Include path — cancel button    | Discard path changes                                                                      |
 | Encode preview — strip label    | Binary preview (hex)                                                                      |
 | Encode preview — loading        | Encoding…                                                                                 |
 | Encode preview — error          | Encoding failed — check field values                                                      |
