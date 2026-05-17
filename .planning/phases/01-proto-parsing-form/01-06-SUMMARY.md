@@ -143,6 +143,13 @@ None — no external service configuration required.
 - VERIFICATION.md Truth #3 is resolved: changing a form field triggers a debounced (200ms) encode call, not an immediate one on every keystroke
 - Ready for Phase 02 — RabbitMQ connection UI
 
+## TDD Gate Compliance
+
+- RED gate: PRESENT — `e230aff test(01-06): add failing tests for debounced encode path`
+- GREEN gate: PRESENT as `fix(...)` not `feat(...)` — `2e9bd3f fix(01-06): gate encodeMessage behind 200ms debounce using useState`
+- Rationale for `fix` over `feat`: plan was `gap_closure: true` — a bug fix against VERIFICATION.md Truth #3 (dead debounce gate). Semantic commit type matches the actual change. The functional TDD cycle (failing test → minimal implementation → all tests pass) was followed correctly.
+- REFACTOR gate: not used — minimal implementation needed no cleanup pass
+
 ## Self-Check: PASSED
 
 - FOUND: .planning/phases/01-proto-parsing-form/01-06-SUMMARY.md
