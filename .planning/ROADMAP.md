@@ -85,7 +85,7 @@
 4. Passwords never appear in any config file, log output, or application state visible to the frontend.
 5. When the Management API is unreachable, the queue/exchange picker falls back gracefully to a manual text input with a visible status indicator.
 
-**Plans:** 4/4 plans complete
+**Plans:** 6/6 plans complete
 
 **Wave 1** — Profile save + keychain (no connection test yet)
 - [x] 02-01-PLAN.md — Profile management: keyring-core + tauri-plugin-store, save/list/delete commands, ConnectionSection sidebar, ProfileManagementModal
@@ -137,7 +137,7 @@
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Proto Parsing + Form | 6/6 | Complete   | 2026-05-17 |
-| 2. Connect + Publish | 4/4 | Complete   | 2026-05-17 |
+| 2. Connect + Publish | 6/6 | Complete   | 2026-05-17 |
 | 3. Full Feature Set | 0/? | Not started | — |
 
 ---
