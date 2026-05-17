@@ -629,22 +629,25 @@ export async function publishMessage(
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **HIST-02: Resend — should Resend re-populate only or re-populate + send immediately?**
    - What we know: UI-SPEC "Resend Button" says it "calls `handleResend(entry)` which re-populates form AND dispatches send immediately." Row-click (anywhere except action buttons) triggers "HIST-02 re-populate behavior" only.
    - What's clear: Row click = populate only. Resend button = populate + send. These are distinct.
    - Recommendation: Implement as specified. Planner should create two distinct handlers: `handleReplay(entry)` (row click) and `handleResend(entry)` (button click = handleReplay + send).
+   - **RESOLVED:** Row click = pre-populate form only (calls `onReplay` callback). Resend button = pre-populate AND send immediately (calls `handleResend` which sets `pendingReplayValues`, switches active file index, then calls `publishMessage(entry.payloadBytes)`).
 
 2. **HIST-02: Resend when message type not in active schema**
    - What we know: CONTEXT.md says "show an error toast"; UI-SPEC shows Resend button as `disabled` when no connection.
    - What's unclear: Should Resend be disabled (static) or trigger a toast (dynamic) when the type is missing from the current schema?
    - Recommendation: Disable Resend button with tooltip when no active connection (per UI-SPEC). For missing-type, show an error toast (per CONTEXT.md) since the button cannot know at render time which types will be present.
+   - **RESOLVED:** Resend button is `disabled` with tooltip when `connectionStatus !== 'connected'`. When connection is active but message type is absent from loaded schema, `handleResend` shows an error toast ("Message type not found in active schema") and aborts without sending.
 
 3. **`pendingReplayValues` mechanism for form.reset() injection**
    - What we know: `react-hook-form` `reset()` is called from a component holding the `useForm` instance (`FormPanel`). History replay is triggered from `MessageHistoryPanel` which is in a different component subtree.
    - What's unclear: How does `MessageHistoryPanel` reach `FormPanel`'s `reset()` function?
    - Recommendation: Add `pendingReplayValues: Record<string, unknown> | null` to `useProtoStore`. `FormPanel` watches this via `useEffect` and calls `form.reset(pendingReplayValues)` then clears it. [ASSUMED]
+   - **RESOLVED:** Add `pendingReplayValues: Record<string, unknown> | null` and `setPendingReplayValues(v: Record<string, unknown> | null): void` to `useProtoStore`. `FormPanel` adds a `useEffect` that watches `pendingReplayValues`; when non-null it calls `form.reset(pendingReplayValues)` then `setPendingReplayValues(null)` to clear the signal.
 
 ---
 
