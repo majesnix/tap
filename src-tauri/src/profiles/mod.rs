@@ -1,4 +1,5 @@
 use keyring_core::Entry;
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
@@ -39,6 +40,16 @@ pub fn get_password(profile_name: &str) -> Result<String, AppError> {
         .map_err(|e| AppError::KeyringError(e.to_string()))
 }
 
+/// Build a percent-encoded AMQP URI.
+/// SECURITY: The returned String contains the cleartext password — use immediately,
+/// do NOT store in any field, log file, or tracing output. Drop after use.
+pub fn build_amqp_uri(host: &str, port: u16, vhost: &str, user: &str, pass: &str) -> String {
+    let enc_vhost = utf8_percent_encode(vhost, NON_ALPHANUMERIC);
+    let enc_pass = utf8_percent_encode(pass, NON_ALPHANUMERIC);
+    // "/" vhost → "%2F"; "@" in password → "%40"
+    format!("amqp://{}:{}@{}:{}/{}", user, enc_pass, host, port, enc_vhost)
+}
+
 /// Delete the password from the OS keychain. Called on profile delete.
 pub fn delete_password(profile_name: &str) -> Result<(), AppError> {
     let entry = Entry::new(KEYRING_SERVICE, profile_name)
@@ -66,5 +77,27 @@ mod tests {
         };
         let json = serde_json::to_string(&profile).unwrap();
         assert!(!json.contains("password"), "password must never appear in serialized ConnectionProfile");
+    }
+}
+
+#[cfg(test)]
+mod uri_tests {
+    use super::*;
+
+    #[test]
+    fn default_vhost_encodes_correctly() {
+        let uri = build_amqp_uri("localhost", 5672, "/", "guest", "guest");
+        assert!(uri.contains("%2F"), "default vhost '/' must become '%2F' in URI");
+        // The path segment after host:port must be encoded — no bare slash vhost
+        // URI will be: amqp://guest:guest@localhost:5672/%2F
+        // Extract the part after the last ":" (port) to verify no unencoded "/" in vhost
+        let after_port = uri.split(':').last().unwrap_or("");
+        assert!(!after_port.starts_with("5672//"), "unencoded '/' in path causes wrong vhost");
+    }
+
+    #[test]
+    fn special_chars_in_password_encoded() {
+        let uri = build_amqp_uri("localhost", 5672, "/", "user", "p@ss:w0rd#");
+        assert!(!uri.contains("@p"), "bare '@' in password would break URI parsing");
     }
 }

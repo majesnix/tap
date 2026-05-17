@@ -41,6 +41,8 @@ pub fn run() {
             commands::connection::save_profile,
             commands::connection::list_profiles,
             commands::connection::delete_profile,
+            commands::connection::test_connection,
+            commands::connection::activate_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
