@@ -339,4 +339,26 @@ describe("ProfileManagementModal", () => {
       expect(mockInvoke).not.toHaveBeenCalledWith("save_profile", expect.anything());
     });
   });
+
+  describe("scroll layout", () => {
+    it("DialogContent has max-h-[85vh] flex flex-col overflow-hidden classes", async () => {
+      renderModal();
+      // DialogContent renders as role="dialog"
+      const dialog = await screen.findByRole("dialog");
+      expect(dialog).toHaveClass("max-h-[85vh]");
+      expect(dialog).toHaveClass("flex");
+      expect(dialog).toHaveClass("flex-col");
+      expect(dialog).toHaveClass("overflow-hidden");
+    });
+
+    it("scroll container div has flex-1 min-h-0 overflow-y-auto classes", async () => {
+      renderModal();
+      await screen.findByRole("dialog");
+      const scrollContainer = document.querySelector('[data-testid="profile-modal-scroll"]');
+      expect(scrollContainer).toBeInTheDocument();
+      expect(scrollContainer).toHaveClass("flex-1");
+      expect(scrollContainer).toHaveClass("min-h-0");
+      expect(scrollContainer).toHaveClass("overflow-y-auto");
+    });
+  });
 });

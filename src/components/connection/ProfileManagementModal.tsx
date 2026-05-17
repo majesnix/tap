@@ -224,161 +224,163 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
   return (
     <>
       <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
-        <DialogContent className="sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] flex flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>Connection Profiles</DialogTitle>
           </DialogHeader>
 
-          {/* Profile list */}
-          {profiles.length > 0 && (
-            <div className="flex flex-col gap-2">
-              {profiles.map((profile) => (
-                <div
-                  key={profile.name}
-                  className="flex items-center justify-between rounded-md border px-3 py-2"
-                >
-                  <span className="text-sm font-medium">{profile.name}</span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleShowEditForm(profile)}
-                      aria-label={`Edit profile ${profile.name}`}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setDeleteTarget(profile.name)}
-                      aria-label={`Delete profile ${profile.name}`}
-                    >
-                      Delete
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {profiles.length === 0 && formMode === "list" && (
-            <p className="text-sm text-muted-foreground">No profiles saved yet.</p>
-          )}
-
-          {/* New profile button */}
-          {formMode === "list" && (
-            <Button variant="outline" onClick={handleShowNewForm} className="w-full">
-              + New Profile
-            </Button>
-          )}
-
-          {/* Inline profile form (create or edit) */}
-          {(formMode === "create" || formMode === "edit") && (
-            <div className="flex flex-col gap-3">
-              <p className="text-sm font-semibold text-foreground">
-                {formMode === "edit" ? "Edit Profile" : "New Profile"}
-              </p>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold">Profile Name</label>
-                <Input
-                  placeholder="e.g. Local RabbitMQ"
-                  value={formValues.name}
-                  onChange={(e) => handleFieldChange("name", e.target.value)}
-                  readOnly={formMode === "edit"}
-                  className={formMode === "edit" ? "opacity-60 cursor-not-allowed" : ""}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold">Host</label>
-                <Input
-                  placeholder="localhost"
-                  value={formValues.host}
-                  onChange={(e) => handleFieldChange("host", e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold">Port</label>
-                <Input
-                  type="number"
-                  value={formValues.port}
-                  onChange={(e) => handleFieldChange("port", e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold">Virtual Host</label>
-                <Input
-                  placeholder="/"
-                  value={formValues.vhost}
-                  onChange={(e) => handleFieldChange("vhost", e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold">Username</label>
-                <Input
-                  placeholder="guest"
-                  value={formValues.username}
-                  onChange={(e) => handleFieldChange("username", e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold">Password</label>
-                <Input
-                  type="password"
-                  placeholder={
-                    formMode === "edit"
-                      ? "Enter password to update; leave blank to keep current"
-                      : "••••••••"
-                  }
-                  value={formValues.password}
-                  onChange={(e) => handleFieldChange("password", e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm font-semibold">Management API Port</label>
-                <Input
-                  type="number"
-                  value={formValues.managementPort}
-                  onChange={(e) => handleFieldChange("managementPort", e.target.value)}
-                />
-              </div>
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="management-ssl"
-                  checked={formValues.managementSsl}
-                  onCheckedChange={(checked) =>
-                    setFormValues((prev) => ({ ...prev, managementSsl: checked === true }))
-                  }
-                />
-                <label htmlFor="management-ssl" className="text-sm font-semibold cursor-pointer">
-                  Management API SSL (HTTPS)
-                </label>
-              </div>
-
-              {error && (
-                <p className="text-sm text-destructive">{error}</p>
-              )}
-
-              <ConnectionTestResult state={testState} errorMessage={testError} />
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={handleCancel}>
-                  Cancel
-                </Button>
-                {formMode === "create" && (
-                  <Button
-                    variant="outline"
-                    onClick={handleTestOnly}
-                    disabled={testState === "testing"}
+          <div className="flex-1 min-h-0 overflow-y-auto" data-testid="profile-modal-scroll">
+            {/* Profile list */}
+            {profiles.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {profiles.map((profile) => (
+                  <div
+                    key={profile.name}
+                    className="flex items-center justify-between rounded-md border px-3 py-2"
                   >
-                    Test Connection
-                  </Button>
-                )}
-                <Button onClick={handleSave} disabled={testState === "testing"}>
-                  Save &amp; Connect
-                </Button>
+                    <span className="text-sm font-medium">{profile.name}</span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleShowEditForm(profile)}
+                        aria-label={`Edit profile ${profile.name}`}
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTarget(profile.name)}
+                        aria-label={`Delete profile ${profile.name}`}
+                      >
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          )}
+            )}
+
+            {profiles.length === 0 && formMode === "list" && (
+              <p className="text-sm text-muted-foreground">No profiles saved yet.</p>
+            )}
+
+            {/* New profile button */}
+            {formMode === "list" && (
+              <Button variant="outline" onClick={handleShowNewForm} className="w-full mt-2">
+                + New Profile
+              </Button>
+            )}
+
+            {/* Inline profile form (create or edit) */}
+            {(formMode === "create" || formMode === "edit") && (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm font-semibold text-foreground">
+                  {formMode === "edit" ? "Edit Profile" : "New Profile"}
+                </p>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Profile Name</label>
+                  <Input
+                    placeholder="e.g. Local RabbitMQ"
+                    value={formValues.name}
+                    onChange={(e) => handleFieldChange("name", e.target.value)}
+                    readOnly={formMode === "edit"}
+                    className={formMode === "edit" ? "opacity-60 cursor-not-allowed" : ""}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Host</label>
+                  <Input
+                    placeholder="localhost"
+                    value={formValues.host}
+                    onChange={(e) => handleFieldChange("host", e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Port</label>
+                  <Input
+                    type="number"
+                    value={formValues.port}
+                    onChange={(e) => handleFieldChange("port", e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Virtual Host</label>
+                  <Input
+                    placeholder="/"
+                    value={formValues.vhost}
+                    onChange={(e) => handleFieldChange("vhost", e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Username</label>
+                  <Input
+                    placeholder="guest"
+                    value={formValues.username}
+                    onChange={(e) => handleFieldChange("username", e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Password</label>
+                  <Input
+                    type="password"
+                    placeholder={
+                      formMode === "edit"
+                        ? "Enter password to update; leave blank to keep current"
+                        : "••••••••"
+                    }
+                    value={formValues.password}
+                    onChange={(e) => handleFieldChange("password", e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Management API Port</label>
+                  <Input
+                    type="number"
+                    value={formValues.managementPort}
+                    onChange={(e) => handleFieldChange("managementPort", e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="management-ssl"
+                    checked={formValues.managementSsl}
+                    onCheckedChange={(checked) =>
+                      setFormValues((prev) => ({ ...prev, managementSsl: checked === true }))
+                    }
+                  />
+                  <label htmlFor="management-ssl" className="text-sm font-semibold cursor-pointer">
+                    Management API SSL (HTTPS)
+                  </label>
+                </div>
+
+                {error && (
+                  <p className="text-sm text-destructive">{error}</p>
+                )}
+
+                <ConnectionTestResult state={testState} errorMessage={testError} />
+
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={handleCancel}>
+                    Cancel
+                  </Button>
+                  {formMode === "create" && (
+                    <Button
+                      variant="outline"
+                      onClick={handleTestOnly}
+                      disabled={testState === "testing"}
+                    >
+                      Test Connection
+                    </Button>
+                  )}
+                  <Button onClick={handleSave} disabled={testState === "testing"}>
+                    Save &amp; Connect
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
