@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Send } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,15 +19,46 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useConnectionStore } from "@/stores/useConnectionStore";
-import { fetchExchanges, fetchQueues } from "@/lib/ipc";
+import { useProtoStore } from "@/stores/useProtoStore";
+import { fetchExchanges, fetchQueues, publishMessage } from "@/lib/ipc";
 
 type Mode = "queue" | "exchange";
+
+/**
+ * Compute the exchange + routingKey args for publish_message IPC.
+ *
+ * PUBL-01 (queue mode): exchange = "" (AMQP default exchange), routingKey = queue name.
+ *   exchange MUST be empty string — NOT "amq.default" or "default".
+ * PUBL-02 (exchange mode): exchange = named exchange, routingKey = explicit routing key.
+ */
+export function buildPublishArgs(
+  mode: "queue" | "exchange",
+  selectedQueue: string,
+  selectedExchange: string,
+  routingKey: string,
+): { exchange: string; routingKey: string } {
+  if (mode === "queue") {
+    return { exchange: "", routingKey: selectedQueue };
+  }
+  return { exchange: selectedExchange, routingKey };
+}
+
+/** Decode a hex string like "0a 05 68 65 6c 6c 6f" to an array of bytes. */
+function hexToBytes(hex: string): number[] {
+  // hexPreview format: "0a 05 68 65 6c 6c 6f" (space-separated hex pairs)
+  return hex
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((h) => parseInt(h, 16));
+}
 
 export function PublishBar() {
   const [mode, setMode] = useState<Mode>("queue");
   const [selectedQueue, setSelectedQueue] = useState<string>("");
   const [selectedExchange, setSelectedExchange] = useState<string>("");
   const [routingKey, setRoutingKey] = useState<string>("");
+  const [isSending, setIsSending] = useState(false);
 
   const {
     activeProfileName,
@@ -39,7 +71,10 @@ export function PublishBar() {
     setExchanges,
     setManagementStatus,
     setManagementAuthError,
+    setConnectionStatus,
   } = useConnectionStore();
+
+  const { hexPreview } = useProtoStore();
 
   // Fetch queues or exchanges on mount and whenever profile or mode changes.
   // Implements 401 discrimination: auth failure → destructive badge, NOT silent Manual fallback.
@@ -85,10 +120,45 @@ export function PublishBar() {
   }, [activeProfileName, mode]);
 
   const isConnected = connectionStatus === "connected";
+  const hasTarget = mode === "queue" ? Boolean(selectedQueue) : Boolean(selectedExchange);
+  const canSend = isConnected && hasTarget;
 
-  // TODO: wired in slice 4 (02-04-PLAN.md)
   const handleSend = async () => {
-    // no-op placeholder — implementation in slice 4
+    if (!activeProfileName || !canSend) return;
+
+    const targetName = mode === "queue" ? selectedQueue : selectedExchange;
+    if (!targetName) return;
+
+    // Use buildPublishArgs to compute PUBL-01 / PUBL-02 args
+    const { exchange, routingKey: targetRoutingKey } = buildPublishArgs(
+      mode,
+      selectedQueue,
+      selectedExchange,
+      routingKey,
+    );
+
+    if (!hexPreview) {
+      toast.error("Send failed: No encoded message. Fill out the form first.");
+      return;
+    }
+
+    const payload = hexToBytes(hexPreview);
+
+    setIsSending(true);
+    try {
+      await publishMessage(activeProfileName, exchange, targetRoutingKey, payload);
+      // D-13: success toast, 3 seconds, non-blocking
+      toast(`Message sent to ${targetName}`, { duration: 3000 });
+      // D-15: form retains all field values — do NOT reset the form
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      // D-14: failure toast, destructive, 5 seconds
+      toast.error(`Send failed: ${message}`, { duration: 5000 });
+      // On AMQP error, update connection status to error
+      setConnectionStatus("error", message);
+    } finally {
+      setIsSending(false);
+    }
   };
 
   return (
@@ -205,12 +275,14 @@ export function PublishBar() {
       {isConnected ? (
         <Button
           variant="default"
-          disabled={
-            mode === "queue" ? !selectedQueue : !selectedExchange
-          }
+          disabled={!canSend || isSending}
           onClick={handleSend}
         >
-          <Send className="w-4 h-4 mr-2" />
+          {isSending ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4 mr-2" />
+          )}
           Send
         </Button>
       ) : (

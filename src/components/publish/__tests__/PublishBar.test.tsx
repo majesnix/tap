@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { PublishBar } from "@/components/publish/PublishBar";
+import { PublishBar, buildPublishArgs } from "@/components/publish/PublishBar";
 import { useConnectionStore } from "@/stores/useConnectionStore";
+
+// Module-scope mock for sonner — uses vi.hoisted() so the factory reference is valid
+// after hoisting. vi.mock() factories are hoisted before const declarations; vi.hoisted()
+// creates the variable in the hoisted block so it is always initialized first.
+const toastMock = vi.hoisted(() => Object.assign(vi.fn(), { error: vi.fn() }));
+vi.mock("sonner", () => ({ toast: toastMock }));
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
@@ -28,6 +34,23 @@ vi.mock("@/components/ui/select", () => ({
 
 import { invoke } from "@tauri-apps/api/core";
 const mockInvoke = vi.mocked(invoke);
+
+describe("buildPublishArgs", () => {
+  it("PUBL-01: queue mode uses empty string exchange and queue name as routing key", () => {
+    const result = buildPublishArgs("queue", "orders", "", "");
+    expect(result).toEqual({ exchange: "", routingKey: "orders" });
+  });
+
+  it("PUBL-01: exchange must be empty string (not amq.default or default)", () => {
+    const result = buildPublishArgs("queue", "my-queue", "", "");
+    expect(result.exchange).toBe("");
+  });
+
+  it("PUBL-02: exchange mode uses named exchange and explicit routing key", () => {
+    const result = buildPublishArgs("exchange", "", "my-exchange", "my.routing.key");
+    expect(result).toEqual({ exchange: "my-exchange", routingKey: "my.routing.key" });
+  });
+});
 
 describe("PublishBar", () => {
   beforeEach(() => {

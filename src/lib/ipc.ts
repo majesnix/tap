@@ -51,3 +51,12 @@ export async function fetchQueues(profileName: string): Promise<string[]> {
 export async function fetchExchanges(profileName: string): Promise<string[]> {
   return invoke<string[]>("fetch_exchanges", { profileName });
 }
+
+export async function publishMessage(
+  profileName: string,
+  exchange: string,     // "" for default exchange (queue direct), named exchange for PUBL-02
+  routingKey: string,   // queue name (PUBL-01) or explicit routing key (PUBL-02)
+  payload: number[]     // binary protobuf bytes as number[] (from encodeMessage)
+): Promise<void> {
+  return invoke<void>("publish_message", { profileName, exchange, routingKey, payload });
+}
