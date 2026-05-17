@@ -41,7 +41,7 @@
 3. Filling out the form and clicking "Encode" produces a hex or binary preview of the protobuf wire bytes that changes when field values change.
 4. Recursive message types do not crash or infinitely expand the form — the renderer stops at 5 levels deep and shows a collapse indicator.
 
-**Plans:** 5/5 plans complete
+**Plans:** 6 plans (5 complete + 1 gap closure)
 
 **Wave 1** — Foundation (must complete before Wave 2 begins)
 - [x] 01-01-PLAN.md — Walking Skeleton: scaffold, full Rust backend (parse_proto + encode_message + extractor for all kinds), app layout, file open flow, string scalar + hex preview
@@ -51,6 +51,9 @@
 - [x] 01-03-PLAN.md — Nested + Repeated + Depth cap: NestedMessageField (collapsible, depth), RepeatedField (useFieldArray add/remove), DepthCapPlaceholder at 5 levels
 - [x] 01-04-PLAN.md — Enum + Oneof: EnumField (Select, name/number split), OneofField (RadioGroup, conditional mount, unregister)
 - [x] 01-05-PLAN.md — WellKnownType controls + include path persistence: WellKnownTypeField (Timestamp/Duration/fallback), FileSection + IncludePathDialog with tauri-plugin-store persistence
+
+**Wave 3** — Gap Closure *(blocked on Wave 2 completion)*
+- [ ] 01-06-PLAN.md — Gap closure: fix broken debounce gate in FormPanel (useState reactive source + useEffect encoding pipeline)
 
 **Cross-cutting constraints:**
 - All Tauri IPC commands use `tauri::async_runtime::spawn` — never bare `tokio::spawn`
@@ -115,7 +118,7 @@
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Proto Parsing + Form | 5/5 | Complete   | 2026-05-17 |
+| 1. Proto Parsing + Form | 5/6 (gap closure pending) | Gap closure in progress | 2026-05-17 |
 | 2. Connect + Publish | 0/? | Not started | — |
 | 3. Full Feature Set | 0/? | Not started | — |
 
@@ -138,6 +141,7 @@
 | FORM-09 | Phase 1 |
 | CONN-01 | Phase 2 |
 | CONN-02 | Phase 2 |
+| CONN-03 | Phase 2 |
 | CONN-03 | Phase 2 |
 | CONN-04 | Phase 2 |
 | PUBL-01 | Phase 2 |
