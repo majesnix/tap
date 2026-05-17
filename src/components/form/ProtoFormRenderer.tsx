@@ -52,12 +52,16 @@ function buildDefaultValues(
         }
         break;
       case "enum":
+        // Store the integer number (not the name string) — matches EnumField's Controller value
         defaults[field.name] =
-          field.kind.values.length > 0 ? field.kind.values[0].name : "";
+          field.kind.values.length > 0 ? field.kind.values[0].number : 0;
         break;
-      case "oneof":
-        defaults[field.name] = { _selected: "" };
+      case "oneof": {
+        // _selected must start on the first branch name — OneofField's useWatch default matches this
+        const firstBranch = field.kind.branches[0]?.[0]?.name ?? "";
+        defaults[field.name] = { _selected: firstBranch };
         break;
+      }
       case "message":
       case "well_known":
         defaults[field.name] = null;
