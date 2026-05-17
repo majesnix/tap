@@ -2,8 +2,8 @@
 status: partial
 phase: 02-connect-publish
 source: [02-VERIFICATION.md]
-started: 2026-05-17T21:30:00Z
-updated: 2026-05-17T21:30:00Z
+started: 2026-05-17T23:40:00Z
+updated: 2026-05-17T23:40:00Z
 ---
 
 ## Current Test
@@ -12,23 +12,29 @@ updated: 2026-05-17T21:30:00Z
 
 ## Tests
 
-### 1. End-to-end AMQP connection test
-expected: User can create a connection profile, click "Test Connection", and see a green checkmark inline when the broker is reachable with valid credentials
+### 1. End-to-End Profile Save + Connection Test
+expected: Spinner appears while test runs; green checkmark + "Connected" displayed on success. Status dot in sidebar turns green. Modal stays open for user to close manually.
+result: [pending]
 
-### 2. OS keychain isolation
-expected: The profile JSON stored on disk contains no password field; the password is stored exclusively in the OS keychain and retrievable across app restarts
+### 2. Standalone "Test Connection" Button
+expected: Spinner then green checkmark inline. Modal stays open. Profile IS in sidebar list but NOT yet active — status dot stays gray, dropdown still unselected.
+result: [pending]
 
-### 3. Message delivery to queue
-expected: After clicking Send, the message appears in the target queue (confirm via RabbitMQ Management UI or a consumer); message payload is binary protobuf wire format, not JSON
+### 3. OS Keychain Isolation
+expected: Password in Keychain Access under service "dev.protosender.app". proto-sender.json has host/port/vhost/username/managementPort but NO "password" key.
+result: [pending]
 
-### 4. Silent Manual fallback when Management API unreachable
-expected: When the Management API port (default 15672) is unreachable, the queue/exchange dropdown switches to a manual text input field without surfacing an error toast
+### 4. Message Delivery to Queue
+expected: "Message sent to [queue]" toast for 3s. Message visible in RabbitMQ Management UI. Form values unchanged after send.
+result: [pending]
 
-### 5. 401 auth error badge — not silent fallback
-expected: When the Management API returns HTTP 401, a visible red error badge appears in the publish bar (not a silent switch to manual mode)
+### 5. Management API Fallback Behavior (silent)
+expected: Amber "Manual" badge. Picker switches to plain text Input. No error message.
+result: [pending]
 
-### 6. Multi-profile switching with live data refresh
-expected: Switching to a different profile in the sidebar dropdown re-triggers the connection test and refreshes the queue/exchange list for the new broker
+### 6. 401 Auth Error — NOT Silent Fallback
+expected: Destructive red badge "Management API authentication failed: wrong credentials (HTTP 401)". Picker does NOT fall back to Manual silently.
+result: [pending]
 
 ## Summary
 
