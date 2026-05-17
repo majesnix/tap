@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { saveProfile, listProfiles, deleteProfile } from "@/lib/ipc";
+import { saveProfile, listProfiles, deleteProfile, testConnection } from "@/lib/ipc";
 import { useConnectionStore } from "@/stores/useConnectionStore";
+import { ConnectionTestResult } from "@/components/connection/ConnectionTestResult";
 import type { ConnectionProfile } from "@/lib/types";
 
 interface ProfileFormValues {
@@ -46,22 +47,30 @@ interface ProfileManagementModalProps {
   onClose: () => void;
 }
 
+type TestState = "idle" | "testing" | "success" | "error";
+
 export function ProfileManagementModal({ open, onClose }: ProfileManagementModalProps) {
-  const { profiles, setProfiles, setActiveProfile } = useConnectionStore();
+  const { profiles, setProfiles, setActiveProfile, setConnectionStatus } = useConnectionStore();
   const [formMode, setFormMode] = useState<"list" | "create">("list");
   const [formValues, setFormValues] = useState<ProfileFormValues>(DEFAULT_FORM_VALUES);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [testState, setTestState] = useState<TestState>("idle");
+  const [testError, setTestError] = useState<string | null>(null);
 
   const handleShowNewForm = () => {
     setFormValues(DEFAULT_FORM_VALUES);
     setError(null);
+    setTestState("idle");
+    setTestError(null);
     setFormMode("create");
   };
 
   const handleCancel = () => {
     setFormMode("list");
     setError(null);
+    setTestState("idle");
+    setTestError(null);
   };
 
   const handleFieldChange = (field: keyof ProfileFormValues, value: string) => {
@@ -70,33 +79,52 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
 
   const handleSave = async () => {
     setError(null);
+    setTestState("idle");
+    setTestError(null);
+
+    const profile: ConnectionProfile = {
+      name: formValues.name.trim(),
+      host: formValues.host.trim(),
+      port: Number(formValues.port) || 5672,
+      vhost: formValues.vhost.trim() || "/",
+      username: formValues.username.trim(),
+      managementPort: Number(formValues.managementPort) || 15672,
+    };
+
+    if (!profile.name) {
+      setError("Profile name is required.");
+      return;
+    }
+    if (!profile.host) {
+      setError("Host is required.");
+      return;
+    }
+
     try {
-      const profile: ConnectionProfile = {
-        name: formValues.name.trim(),
-        host: formValues.host.trim(),
-        port: Number(formValues.port) || 5672,
-        vhost: formValues.vhost.trim() || "/",
-        username: formValues.username.trim(),
-        managementPort: Number(formValues.managementPort) || 15672,
-      };
-
-      if (!profile.name) {
-        setError("Profile name is required.");
-        return;
-      }
-      if (!profile.host) {
-        setError("Host is required.");
-        return;
-      }
-
+      // Step 1: persist profile + keychain password
       await saveProfile(profile, formValues.password);
-      const updated = await listProfiles();
-      setProfiles(updated);
-      setActiveProfile(profile.name);
-      setFormMode("list");
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
+      return;
+    }
+
+    // Step 2: test the connection inline (spinner → checkmark / red X)
+    setTestState("testing");
+    try {
+      await testConnection(profile.name);
+      setTestState("success");
+      // Step 3 on success: refresh profiles, activate, update status
+      const updated = await listProfiles();
+      setProfiles(updated);
+      setActiveProfile(profile.name);
+      setConnectionStatus("connected");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setTestState("error");
+      setTestError(message);
+      setConnectionStatus("error", message);
+      // Do NOT close the modal — user can correct and retry
     }
   };
 
@@ -220,11 +248,15 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                 <p className="text-sm text-destructive">{error}</p>
               )}
 
+              <ConnectionTestResult state={testState} errorMessage={testError} />
+
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={handleCancel}>
                   Cancel
                 </Button>
-                <Button onClick={handleSave}>Save &amp; Connect</Button>
+                <Button onClick={handleSave} disabled={testState === "testing"}>
+                  Save &amp; Connect
+                </Button>
               </div>
             </div>
           )}

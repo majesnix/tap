@@ -17,6 +17,25 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   }),
 }));
 
+// Mock shadcn Select with a native <select> to avoid Radix UI portal/pointer-event issues in jsdom
+vi.mock("@/components/ui/select", () => ({
+  Select: ({ value, onValueChange, children }: { value?: string; onValueChange?: (v: string) => void; children: React.ReactNode }) => (
+    <select
+      value={value ?? ""}
+      onChange={(e) => onValueChange?.(e.target.value)}
+      role="combobox"
+    >
+      {children}
+    </select>
+  ),
+  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectValue: ({ placeholder }: { placeholder?: string }) => <option value="">{placeholder}</option>,
+  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  SelectItem: ({ value, children }: { value: string; children: React.ReactNode }) => (
+    <option value={value}>{children}</option>
+  ),
+}));
+
 import { invoke } from "@tauri-apps/api/core";
 const mockInvoke = vi.mocked(invoke);
 
@@ -32,6 +51,11 @@ describe("ConnectionSection", () => {
       managementStatus: "unknown",
       queues: [],
       exchanges: [],
+    });
+    // Default: list_profiles returns empty array to prevent undefined from crashing profiles.length
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_profiles") return Promise.resolve([]);
+      return Promise.resolve(undefined);
     });
   });
 
@@ -89,5 +113,87 @@ describe("ConnectionSection", () => {
         password: expect.any(String),
       }));
     });
+  });
+
+  it("shows spinner then checkmark when connection test passes", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "save_profile") return Promise.resolve(undefined);
+      if (cmd === "test_connection") return Promise.resolve(undefined);
+      if (cmd === "list_profiles") return Promise.resolve([{ name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 }]);
+      return Promise.resolve(undefined);
+    });
+
+    render(<ConnectionSection />);
+    fireEvent.click(screen.getByRole("button", { name: /manage connection profiles/i }));
+    await waitFor(() => screen.getByText(/\+ new profile/i));
+    fireEvent.click(screen.getByText(/\+ new profile/i));
+
+    fireEvent.change(screen.getByPlaceholderText(/e.g. local rabbitmq/i), { target: { value: "Local" } });
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), { target: { value: "localhost" } });
+    fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+
+    await waitFor(() => {
+      // ConnectionTestResult shows "Connected" with emerald color inside the modal form
+      const connectedElements = screen.getAllByText("Connected");
+      expect(connectedElements.length).toBeGreaterThan(0);
+    });
+  });
+
+  it("shows error message when connection test fails", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "save_profile") return Promise.resolve(undefined);
+      if (cmd === "test_connection") return Promise.reject(new Error("Connection refused"));
+      if (cmd === "list_profiles") return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+
+    render(<ConnectionSection />);
+    fireEvent.click(screen.getByRole("button", { name: /manage connection profiles/i }));
+    await waitFor(() => screen.getByText(/\+ new profile/i));
+    fireEvent.click(screen.getByText(/\+ new profile/i));
+    fireEvent.change(screen.getByPlaceholderText(/e.g. local rabbitmq/i), { target: { value: "Test" } });
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), { target: { value: "localhost" } });
+    fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/connection refused/i)).toBeInTheDocument();
+    });
+  });
+
+  it("switching profiles calls activateProfile and updates status dot to green", async () => {
+    // Seed profiles so the dropdown renders
+    useConnectionStore.setState({
+      profiles: [
+        { name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 },
+        { name: "Staging", host: "staging.internal", port: 5672, vhost: "/", username: "admin", managementPort: 15672 },
+      ],
+      activeProfileName: "Local",
+      connectionStatus: "disconnected",
+      connectionError: null,
+      managementStatus: "unknown",
+      queues: [],
+      exchanges: [],
+    });
+
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_profiles") return Promise.resolve([
+        { name: "Local", host: "localhost", port: 5672, vhost: "/", username: "guest", managementPort: 15672 },
+        { name: "Staging", host: "staging.internal", port: 5672, vhost: "/", username: "admin", managementPort: 15672 },
+      ]);
+      if (cmd === "activate_profile") return Promise.resolve(undefined);
+      return Promise.resolve(undefined);
+    });
+
+    render(<ConnectionSection />);
+    // Select a different profile via the native select mock
+    const select = screen.getByRole("combobox");
+    fireEvent.change(select, { target: { value: "Staging" } });
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("activate_profile", { profileName: "Staging" });
+    });
+    // Status dot should reflect connected state
+    const statusDot = document.querySelector(".bg-emerald-500");
+    expect(statusDot).toBeInTheDocument();
   });
 });

@@ -35,3 +35,11 @@ export async function listProfiles(): Promise<ConnectionProfile[]> {
 export async function deleteProfile(profileName: string): Promise<void> {
   return invoke<void>("delete_profile", { profileName });
 }
+
+export async function testConnection(profileName: string): Promise<void> {
+  return invoke<void>("test_connection", { profileName });
+}
+
+export async function activateProfile(profileName: string): Promise<void> {
+  return invoke<void>("activate_profile", { profileName });
+}

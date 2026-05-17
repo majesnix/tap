@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listProfiles } from "@/lib/ipc";
+import { listProfiles, activateProfile } from "@/lib/ipc";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { ProfileManagementModal } from "@/components/connection/ProfileManagementModal";
 
@@ -25,7 +25,7 @@ const STATUS_TEXT: Record<string, string> = {
 };
 
 export function ConnectionSection() {
-  const { profiles, activeProfileName, connectionStatus, setProfiles, setActiveProfile } =
+  const { profiles, activeProfileName, connectionStatus, setProfiles, setActiveProfile, setConnectionStatus } =
     useConnectionStore();
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -37,9 +37,16 @@ export function ConnectionSection() {
       });
   }, [setProfiles]);
 
-  const handleProfileChange = (name: string) => {
+  const handleProfileChange = async (name: string) => {
     setActiveProfile(name);
-    // Connection test will be added in slice 2
+    setConnectionStatus("disconnected");
+    try {
+      await activateProfile(name);
+      setConnectionStatus("connected");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setConnectionStatus("error", message);
+    }
   };
 
   const dotClass = STATUS_DOT_CLASS[connectionStatus] ?? "bg-muted-foreground";
