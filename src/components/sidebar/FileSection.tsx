@@ -43,10 +43,15 @@ export function FileSection() {
 
     if (!selected || typeof selected !== "string") return;
 
-    // Derive parent directory from file path
-    const pathParts = selected.split("/");
+    // WR-04: Derive parent directory cross-platform.
+    // On Windows, Tauri's dialog returns native paths with "\" separators; on
+    // macOS/Linux it uses "/". Detect which separator is present to avoid
+    // splitting on "/" when the path contains only "\", which would leave the
+    // entire path as a single element and produce a bogus parent dir.
+    const sep = selected.includes("\\") ? "\\" : "/";
+    const pathParts = selected.split(sep);
     pathParts.pop();
-    const parentDir = pathParts.join("/") || "/";
+    const parentDir = pathParts.join(sep) || sep;
 
     // Load previously saved include paths for this file (D-09)
     const store = await load(STORE_PATH);
@@ -112,8 +117,10 @@ export function FileSection() {
           >
             <TabsList className="flex flex-col h-auto w-full items-stretch gap-0.5 p-1">
               {openFiles.map((file, index) => {
+                // WR-04: split on the OS separator to extract the file name
+                const fileSep = file.filePath.includes("\\") ? "\\" : "/";
                 const fileName =
-                  file.filePath.split("/").pop() ?? file.filePath;
+                  file.filePath.split(fileSep).pop() ?? file.filePath;
                 return (
                   <div key={file.filePath} className="flex items-center">
                     <TabsTrigger
