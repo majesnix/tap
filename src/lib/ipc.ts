@@ -52,11 +52,32 @@ export async function fetchExchanges(profileName: string): Promise<string[]> {
   return invoke<string[]>("fetch_exchanges", { profileName });
 }
 
+export interface AmqpPropsIpc {
+  contentType?: string | null;
+  deliveryMode?: number | null;
+  ttl?: number | null;
+  correlationId?: string | null;
+  replyTo?: string | null;
+  headers?: Array<[string, string]> | null;
+}
+
 export async function publishMessage(
   profileName: string,
-  exchange: string,     // "" for default exchange (queue direct), named exchange for PUBL-02
-  routingKey: string,   // queue name (PUBL-01) or explicit routing key (PUBL-02)
-  payload: number[]     // binary protobuf bytes as number[] (from encodeMessage)
+  exchange: string, // "" for default exchange (queue direct), named exchange for PUBL-02
+  routingKey: string, // queue name (PUBL-01) or explicit routing key (PUBL-02)
+  payload: number[], // binary protobuf bytes as number[] (from encodeMessage)
+  amqpProps?: AmqpPropsIpc
 ): Promise<void> {
-  return invoke<void>("publish_message", { profileName, exchange, routingKey, payload });
+  return invoke<void>("publish_message", {
+    profileName,
+    exchange,
+    routingKey,
+    payload,
+    contentType: amqpProps?.contentType ?? null,
+    deliveryMode: amqpProps?.deliveryMode ?? null,
+    ttl: amqpProps?.ttl ?? null,
+    correlationId: amqpProps?.correlationId ?? null,
+    replyTo: amqpProps?.replyTo ?? null,
+    headers: amqpProps?.headers ?? null,
+  });
 }

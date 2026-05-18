@@ -23,6 +23,8 @@ pub enum AppError {
     ProfileNotFound(String),
     #[error("Store error: {0}")]
     StoreError(String),
+    #[error("Invalid input: {0}")]
+    InvalidInput(String),
 }
 
 impl serde::Serialize for AppError {
