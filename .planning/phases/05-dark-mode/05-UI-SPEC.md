@@ -1,7 +1,8 @@
 ---
 phase: 5
 slug: dark-mode
-status: draft
+status: approved
+reviewed_at: 2026-05-18
 shadcn_initialized: true
 preset: "b2fA (radix-nova / neutral / geist)"
 created: 2026-05-18
