@@ -6,6 +6,7 @@ import { Toaster } from "@/components/ui/sonner";
 
 const THEME_STORE_PATH = "proto-sender.json";
 const THEME_MODE_KEY = "theme-mode";
+const VALID_THEMES: string[] = ["system", "light", "dark"];
 
 // Exported for unit testing (ThemeBootstrap.test.tsx imports this directly)
 export function ThemeBootstrap() {
@@ -19,7 +20,7 @@ export function ThemeBootstrap() {
     load(THEME_STORE_PATH)
       .then((store) => store.get<string>(THEME_MODE_KEY))
       .then((saved) => {
-        if (saved) setTheme(saved);
+        if (saved && VALID_THEMES.includes(saved)) setTheme(saved);
       })
       .catch((err) => {
         // Log so the developer can diagnose; bootstrap still completes
