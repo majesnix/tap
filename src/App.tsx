@@ -38,10 +38,11 @@ export function ThemeBootstrap() {
   // value (Pitfall 6 from 05-RESEARCH.md).
   useEffect(() => {
     if (!bootstrapped || !theme) return;
-    load(THEME_STORE_PATH).then((store) => {
-      store.set(THEME_MODE_KEY, theme);
-      store.save();
-    });
+    load(THEME_STORE_PATH)
+      .then((store) => store.set(THEME_MODE_KEY, theme).then(() => store.save()))
+      .catch((err) => {
+        console.error("[ThemeBootstrap] Failed to persist theme:", err);
+      });
   }, [theme, bootstrapped]);
 
   return null;
