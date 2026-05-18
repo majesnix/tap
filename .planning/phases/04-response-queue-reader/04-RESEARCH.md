@@ -665,17 +665,19 @@ New files (no existing code modified):
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Proto field names: snake_case vs lowerCamelCase in decoded tree**
    - What we know: `serde_json::to_value(&dyn_msg)` defaults to lowerCamelCase field names. `serialize_with_options` with `use_proto_field_name: true` preserves exact proto names.
    - What's unclear: Product decision — which display format is better for dev tool users?
    - Recommendation: Use `use_proto_field_name: true` for the dev tool context. Users see their `.proto` file names in the tree, not camelCased transformations. Implement via `serialize_with_options`. This is Claude's discretion per CONTEXT.md — planner should lock this choice.
+   - RESOLVED: Use `serialize_with_options` with `use_proto_field_name(true)`. Locked in Plan 04-01 Task 2A — `consume_message` serializes via `serde_json::to_value` with SerializeOptions that preserve exact `.proto` field names.
 
 2. **Collapsible tree implementation for ResponseDecodedView**
    - What we know: `serde_json::Value` returns a JSON object tree. The decoded view must render nested objects as collapsible sections.
    - What's unclear: No existing collapsible JSON tree component in the codebase. The decode may return nested objects for nested proto messages.
    - Recommendation: Build a simple recursive `JsonTreeNode` component using shadcn `Collapsible` + `CollapsibleContent`. Each object value gets a toggle; scalar values render as `key: value` rows.
+   - RESOLVED: Implement recursive `JsonTreeNode` using shadcn `Collapsible` + `CollapsibleContent` with `ChevronRight`/`ChevronDown` toggles. Locked in Plan 04-02 Task 2A.
 
 ---
 
