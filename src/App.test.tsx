@@ -60,7 +60,7 @@ describe("ThemeBootstrap", () => {
 
   test("bootstrapped: mirror effect does NOT write to store before bootstrap completes (race guard)", async () => {
     // mockGet is a pending promise — bootstrap never completes in this window
-    let resolvePending: (value: string | null) => void;
+    let resolvePending: (value: string | null) => void = () => {};
     const pendingPromise = new Promise<string | null>((resolve) => {
       resolvePending = resolve;
     });
@@ -77,7 +77,7 @@ describe("ThemeBootstrap", () => {
     expect(mockSet).not.toHaveBeenCalled();
 
     // Cleanup: resolve the pending promise so no dangling work
-    resolvePending!(null);
+    resolvePending(null);
   });
 
   test("mirror effect writes to store after bootstrap completes", async () => {
