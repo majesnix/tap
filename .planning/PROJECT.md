@@ -24,8 +24,14 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - [x] Publish to a selected queue (direct) or exchange + routing key — Validated in Phase 02: connect-publish
 - [x] Encode message as binary protobuf wire format before sending — Validated in Phase 02: connect-publish
 
-### Active
-- [ ] Keep a message history log with ability to replay/resend past messages
+### Validated
+
+- [x] Multi-file proto tabs — open multiple `.proto` files simultaneously, switch between them with independent form state — Validated in Phase 03: full-feature-set
+- [x] AMQP message properties — set content-type, delivery mode, TTL, correlation ID, reply-to, custom headers — Validated in Phase 03: full-feature-set
+- [x] Message history with persistence — every send recorded, survives app restart, FIFO-capped at 100 — Validated in Phase 03: full-feature-set
+- [x] Hex payload preview — inspect binary wire-format bytes for any history entry — Validated in Phase 03: full-feature-set
+- [x] History filtering — filter by message type name and queue/exchange target — Validated in Phase 03: full-feature-set
+- [x] Replay + resend — re-fill form from history entry or republish raw bytes directly — Validated in Phase 03: full-feature-set
 
 ### Out of Scope
 
@@ -79,7 +85,7 @@ This document evolves at phase transitions and milestone boundaries.
 ---
 ## Current State
 
-Phase 02 (connect-publish) complete — named connection profiles with OS keychain password storage, Test Connection flow, live queue/exchange picker via Management API with silent fallback, binary protobuf publish with form retention after send. Two UAT gap fixes shipped: edit-mode Test Connection button and modal scroll for many profiles. Phase 03 (full-feature-set) is next.
+Phase 03 (full-feature-set) complete — v1.0 milestone fully shipped. All core features delivered: multi-file proto tabs, AMQP properties sheet, persistent message history with hex preview, history filtering, form replay and raw resend. 130 frontend tests + 12 Rust tests passing. 3 code review findings (publisher confirm mode, connection leak on error, draft header cap) remain open for v1.1.
 
 ---
-*Last updated: 2026-05-18 after Phase 02 completion*
+*Last updated: 2026-05-18 after Phase 03 completion*
