@@ -18,7 +18,12 @@ interface HexViewDialogProps {
 export function HexViewDialog({ entry, open, onOpenChange }: HexViewDialogProps) {
   if (!entry) return null;
 
+  // WR-05: Filter out any values outside [0, 255] before rendering.
+  // payloadBytes is typed as number[] but values loaded from persisted JSON may
+  // be corrupted (NaN, negative, >255, float) and would produce malformed hex
+  // strings (e.g. "-1", "nan", multi-char values > 255).
   const hex = entry.payloadBytes
+    .filter((b) => Number.isInteger(b) && b >= 0 && b <= 255)
     .map((b) => b.toString(16).padStart(2, "0"))
     .join(" ");
 
