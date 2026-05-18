@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Binary } from "lucide-react";
+import { Binary, RotateCcw } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -15,10 +15,17 @@ import type { HistoryEntry } from "@/stores/useHistoryStore";
 
 interface HistoryTableProps {
   entries: HistoryEntry[];
-  onReplay?: (entry: HistoryEntry) => void; // Called on row click — pre-fill form only
+  isFiltered?: boolean;
+  onReplay?: (entry: HistoryEntry) => void; // Row click — pre-fill form only (no send)
+  onResend?: (entry: HistoryEntry) => void; // Resend button — republish stored bytes immediately
 }
 
-export function HistoryTable({ entries, onReplay }: HistoryTableProps) {
+export function HistoryTable({
+  entries,
+  isFiltered,
+  onReplay,
+  onResend,
+}: HistoryTableProps) {
   const [selectedEntry, setSelectedEntry] = useState<HistoryEntry | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -31,7 +38,9 @@ export function HistoryTable({ entries, onReplay }: HistoryTableProps) {
   if (entries.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center text-muted-foreground text-xs p-4 text-center">
-        No messages sent yet. Send a message to see history here.
+        {isFiltered
+          ? "No entries match the current filter."
+          : "No messages sent yet. Send a message to see history here."}
       </div>
     );
   }
@@ -45,7 +54,7 @@ export function HistoryTable({ entries, onReplay }: HistoryTableProps) {
             <TableHead className="text-xs">Type</TableHead>
             <TableHead className="text-xs">Target</TableHead>
             <TableHead className="text-xs">Status</TableHead>
-            <TableHead className="text-xs w-8"></TableHead>
+            <TableHead className="text-xs w-16"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -81,15 +90,31 @@ export function HistoryTable({ entries, onReplay }: HistoryTableProps) {
                 )}
               </TableCell>
               <TableCell>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6"
-                  onClick={(e) => handleHexClick(e, entry)}
-                  title="View binary payload"
-                >
-                  <Binary className="h-3 w-3" />
-                </Button>
+                <div className="flex gap-1 items-center">
+                  {onResend && (
+                    <Button
+                      variant="default"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onResend(entry);
+                      }}
+                      title="Resend this message"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={(e) => handleHexClick(e, entry)}
+                    title="View binary payload"
+                  >
+                    <Binary className="h-3 w-3" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
