@@ -591,7 +591,7 @@ test("bytes field renders text input with bytes badge", () => { ... });
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | `atob()` is available in Tauri's WebView (Chromium-based) without polyfill | Code Examples, Pitfall 1 | If unavailable, byte count display and refine validation would need alternative decode approach; LOW risk — Chromium has supported atob since forever |
+| A1 | `atob()` and `TextEncoder` are available in all Tauri WebView engines without polyfill (WKWebView/macOS, WebKitGTK/Linux, WebView2/Windows) | Code Examples, Pitfall 1 | If unavailable, byte count display and refine validation would need alternative decode approach; LOW risk — both are Web standard APIs supported since Safari 10 / WebKit 534 |
 
 **All other claims verified from codebase (encode.rs, ScalarField.tsx, ProtoFormRenderer.tsx, package.json, popover.tsx, textarea.tsx) or from official language specs (TextEncoder, atob).**
 
@@ -613,7 +613,7 @@ test("bytes field renders text input with bytes badge", () => { ... });
 
 ## Environment Availability
 
-Step 2.6: SKIPPED — no external dependencies. Phase 6 is a pure frontend component change. All required UI components (`shadcn Popover`, `Textarea`, `Button`, `Input`, `Label`, `Badge`) are already installed. No new npm packages required. `atob()` and `TextEncoder` are browser-native APIs available in all Tauri WebView environments.
+Step 2.6: SKIPPED — no external dependencies. Phase 6 is a pure frontend component change. All required UI components (`shadcn Popover`, `Textarea`, `Button`, `Input`, `Label`, `Badge`) are already installed. No new npm packages required. `atob()` and `TextEncoder` are Web standard APIs available in all Tauri WebView engines (WKWebView on macOS, WebKitGTK on Linux, WebView2 on Windows).
 
 ---
 
@@ -646,6 +646,7 @@ Step 2.6: SKIPPED — no external dependencies. Phase 6 is a pure frontend compo
 - `src/components/ui/textarea.tsx` — confirmed `Textarea` export
 - `src/components/publish/AmqpPropertiesSheet.tsx` — confirmed Popover controlled-open pattern with `useState`
 - `src/components/form/__tests__/ScalarField.test.tsx` — bytes badge test confirmed at line 196-207 (must be removed)
+- `src/components/form/fields/RepeatedField.tsx` — confirmed `renderItem` called with `{ ...field, repeated: false }` preserving `kind.scalar === 'bytes'`; pre-dispatch branch in renderField routes repeated bytes items to BytesField correctly
 - `package.json` — `zod ^3.25.76`, `react-hook-form ^7.76.0`, `radix-ui ^1.4.3` confirmed
 - `.planning/config.json` — `nyquist_validation: false` confirmed (Validation Architecture section omitted)
 
