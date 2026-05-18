@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema } from "./types";
+import type { ProtoSchema, ConsumeResult } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -48,6 +48,13 @@ export async function fetchQueues(profileName: string): Promise<string[]> {
   return invoke<string[]>("fetch_queues", { profileName });
 }
 
+export async function fetchQueueDepth(
+  profileName: string,
+  queueName: string,
+): Promise<number> {
+  return invoke<number>("fetch_queue_depth", { profileName, queueName });
+}
+
 export async function fetchExchanges(profileName: string): Promise<string[]> {
   return invoke<string[]>("fetch_exchanges", { profileName });
 }
@@ -79,5 +86,17 @@ export async function publishMessage(
     correlationId: amqpProps?.correlationId ?? null,
     replyTo: amqpProps?.replyTo ?? null,
     headers: amqpProps?.headers ?? null,
+  });
+}
+
+export async function consumeMessage(
+  profileName: string,
+  queueName: string,
+  messageTypeName: string,
+): Promise<ConsumeResult> {
+  return invoke<ConsumeResult>("consume_message", {
+    profileName,
+    queueName,
+    messageTypeName,
   });
 }

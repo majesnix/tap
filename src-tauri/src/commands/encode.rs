@@ -10,12 +10,15 @@ pub async fn encode_message(
     form_values: JsonValue,
     pool_state: tauri::State<'_, Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<Vec<u8>, AppError> {
-    let pool_guard = pool_state.lock().unwrap();
-    let pool = pool_guard.as_ref().ok_or_else(|| {
-        AppError::EncodeError {
+    let pool_guard = pool_state
+        .lock()
+        .map_err(|_| AppError::EncodeError {
             field: "<root>".to_string(),
-            message: "No proto file has been parsed yet".to_string(),
-        }
+            message: "Internal state lock poisoned — restart the application".to_string(),
+        })?;
+    let pool = pool_guard.as_ref().ok_or_else(|| AppError::EncodeError {
+        field: "<root>".to_string(),
+        message: "No proto file has been parsed yet".to_string(),
     })?;
 
     let msg_desc = pool

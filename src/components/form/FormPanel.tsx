@@ -84,12 +84,12 @@ export function FormPanel() {
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="px-4 py-3 border-b border-border">
+    <div className="flex-1 flex flex-col min-h-0">
+      <div className="px-4 py-3 border-b border-border shrink-0">
         <h2 className="text-sm font-semibold">{message.name}</h2>
         <p className="text-xs text-muted-foreground">{message.full_name}</p>
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <ProtoFormRenderer
           message={message}
           onValuesChange={handleValuesChange}

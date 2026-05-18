@@ -76,7 +76,6 @@ export function PublishBar() {
     setExchanges,
     setManagementStatus,
     setManagementAuthError,
-    setConnectionStatus,
   } = useConnectionStore();
 
   const { hexPreview } = useProtoStore();
@@ -191,8 +190,6 @@ export function PublishBar() {
       const message = err instanceof Error ? err.message : String(err);
       // D-14: failure toast, destructive, 5 seconds
       toast.error(`Send failed: ${message}`, { duration: 5000 });
-      // On AMQP error, update connection status to error
-      setConnectionStatus("error", message);
 
       // Record failed send to history
       void useHistoryStore.getState().appendEntry({

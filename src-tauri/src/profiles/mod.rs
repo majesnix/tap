@@ -92,9 +92,6 @@ mod uri_tests {
     fn default_vhost_encodes_correctly() {
         let uri = build_amqp_uri("localhost", 5672, "/", "guest", "guest");
         assert!(uri.contains("%2F"), "default vhost '/' must become '%2F' in URI");
-        // The path segment after host:port must be encoded — no bare slash vhost
-        // URI will be: amqp://guest:guest@localhost:5672/%2F
-        // Extract the part after the last ":" (port) to verify no unencoded "/" in vhost
         let after_port = uri.split(':').last().unwrap_or("");
         assert!(!after_port.starts_with("5672//"), "unencoded '/' in path causes wrong vhost");
     }

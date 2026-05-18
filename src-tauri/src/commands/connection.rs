@@ -18,6 +18,12 @@ struct QueueApiInfo {
     name: String,
 }
 
+/// Intermediate struct for deserializing a single queue's depth from the Management API.
+#[derive(Deserialize)]
+struct QueueDepthApiInfo {
+    messages: u64,
+}
+
 /// Intermediate struct for deserializing Management API /api/exchanges response.
 #[derive(Deserialize)]
 struct ExchangeApiInfo {
@@ -245,6 +251,60 @@ pub async fn fetch_queues(
                 .await
                 .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
             Ok(queues.into_iter().map(|q| q.name).collect())
+        }
+        401 => Err(AppError::ManagementApiAuthFailed),
+        404 => Err(AppError::ManagementApiUnavailable(404)),
+        other => Err(AppError::ManagementApiUnavailable(other)),
+    }
+}
+
+/// Fetch the ready+unacknowledged message count for a single queue.
+/// Returns u64 — callers treat None (Management API unavailable) as a silent no-op.
+///
+/// SECURITY: credentials passed via Authorization header, not URL.
+#[tauri::command]
+pub async fn fetch_queue_depth(
+    app: AppHandle,
+    profile_name: String,
+    queue_name: String,
+) -> Result<u64, AppError> {
+    let (profile, password) = load_profile_with_password(&app, &profile_name)?;
+
+    let encoded_vhost = percent_encoding::utf8_percent_encode(
+        &profile.vhost,
+        percent_encoding::NON_ALPHANUMERIC,
+    );
+    let encoded_queue = percent_encoding::utf8_percent_encode(
+        &queue_name,
+        percent_encoding::NON_ALPHANUMERIC,
+    );
+    let scheme = if profile.management_ssl { "https" } else { "http" };
+    let url = format!(
+        "{}://{}:{}/api/queues/{}/{}",
+        scheme, profile.host, profile.management_port, encoded_vhost, encoded_queue
+    );
+
+    let client = Client::new();
+    let resp = client
+        .get(&url)
+        .basic_auth(&profile.username, Some(&password))
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_connect() {
+                AppError::ManagementApiUnavailable(0)
+            } else {
+                AppError::ManagementApiError(e.to_string())
+            }
+        })?;
+
+    match resp.status().as_u16() {
+        200 => {
+            let info: QueueDepthApiInfo = resp
+                .json()
+                .await
+                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
+            Ok(info.messages)
         }
         401 => Err(AppError::ManagementApiAuthFailed),
         404 => Err(AppError::ManagementApiUnavailable(404)),

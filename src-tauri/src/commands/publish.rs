@@ -129,7 +129,9 @@ pub async fn publish_message(
 
     // Publish: exchange = "" for default exchange (PUBL-01), named exchange (PUBL-02)
     // Now that confirm mode is enabled (CR-01), the second .await is a real broker ack.
-    let publish_result = channel
+    // CRITICAL ORDER: (1) basic_publish → get confirm future, (2) await confirm future,
+    // (3) close connection. Closing before (2) causes "invalid connection state: Closed".
+    let confirm_future = match channel
         .basic_publish(
             exchange.as_str().into(),
             routing_key.as_str().into(),
@@ -137,15 +139,22 @@ pub async fn publish_message(
             &payload,
             props,
         )
-        .await;
+        .await
+    {
+        Ok(f) => f,
+        Err(e) => {
+            let _ = conn.close(0, "".into()).await;
+            return Err(AppError::AmqpError(e.to_string()));
+        }
+    };
 
-    // CR-02: close connection regardless of outcome
+    // Await the broker ack BEFORE closing — confirm channel lives on the connection
+    let confirm_result = confirm_future.await;
+
+    // CR-02: close connection after confirmation is received
     let _ = conn.close(0, "".into()).await;
 
-    let confirmation = publish_result.map_err(|e| AppError::AmqpError(e.to_string()))?;
-    confirmation
-        .await // await the publisher-confirm future (real broker ack after CR-01)
-        .map_err(|e| AppError::AmqpError(e.to_string()))?;
+    confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))?;
 
     tracing::debug!(
         "Published message to exchange='{}' routing_key='{}'",

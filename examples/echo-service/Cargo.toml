@@ -1,0 +1,13 @@
+[package]
+name = "echo-service"
+version = "0.1.0"
+edition = "2021"
+description = "Mini RabbitMQ echo service for testing proto-sender response queue reader"
+
+[[bin]]
+name = "echo-service"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "signal"] }
+lapin = { version = "4", features = ["tokio"] }

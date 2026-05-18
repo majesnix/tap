@@ -77,3 +77,12 @@ export interface ConnectionProfile {
 
 export type ConnectionStatus = "connected" | "error" | "disconnected";
 export type ManagementStatus = "live" | "manual" | "unknown";
+
+// ── Phase 4: Response queue reader types ─────────────────────────────────────
+
+export interface ConsumeResult {
+  empty: boolean;
+  decoded: Record<string, unknown> | null;
+  hexString: string;
+  error: string | null;
+}
