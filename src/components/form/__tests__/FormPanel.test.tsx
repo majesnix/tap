@@ -42,7 +42,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
 
 beforeEach(() => {
   act(() => {
-    useProtoStore.getState().setFile("/fake/test.proto", MINIMAL_SCHEMA);
+    useProtoStore.getState().addOrActivateFile("/fake/test.proto", MINIMAL_SCHEMA);
     useProtoStore.getState().setSelectedType("Msg");
   });
   vi.clearAllMocks();
