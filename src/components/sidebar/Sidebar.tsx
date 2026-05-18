@@ -9,6 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { ThemeToggle } from "@/components/sidebar/ThemeToggle";
 
 export function Sidebar() {
   const { schema, selectedMessageType, setSelectedType } = useProtoStore();
@@ -55,9 +56,9 @@ export function Sidebar() {
       <ConnectionSection />
 
       <div className="flex-1" />
-
-      <div className="text-xs text-muted-foreground text-center">
-        v0.1.0 — Walking Skeleton
+      <div className="flex items-center justify-between">
+        <div className="text-xs text-muted-foreground">v0.1.0 — Walking Skeleton</div>
+        <ThemeToggle />
       </div>
     </div>
   );
