@@ -137,7 +137,7 @@
 - [x] 03-03-PLAN.md — Message history (HIST-01/03): useHistoryStore + RightPanel Hex/History tabs + PublishBar history recording
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 03-04-PLAN.md — History replay + filter (HIST-02/04): HistoryFilterBar + Replay/Resend handlers + FormPanel pendingReplayValues consumer
+- [x] 03-04-PLAN.md — History replay + filter (HIST-02/04): HistoryFilterBar + Replay/Resend handlers + FormPanel pendingReplayValues consumer
 
 **UI hint:** yes
 
