@@ -114,7 +114,7 @@ This document evolves at phase transitions and milestone boundaries.
 
 v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 plans). The app is fully functional as a local dev tool: load a `.proto` file, fill out the form, connect to RabbitMQ, publish a binary-encoded protobuf message, and read back response messages from a reply queue.
 
-Next: `/gsd-new-milestone` to define v1.1 scope (likely: distribution/packaging, CI/CD, and first batch of v2 form features).
+v1.1 Phase 5 (dark-mode) shipped 2026-05-18. All 4 DRK requirements delivered: OS preference detection (DRK-01), in-app toggle (DRK-02), cross-restart persistence via tauri-plugin-store (DRK-03), and full UI surface visual correctness (DRK-04). Dark mode is now complete.
 
 ---
-*Last updated: 2026-05-18 after v1.1 milestone start*
+*Last updated: 2026-05-18 after Phase 5 dark-mode completion*
