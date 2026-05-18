@@ -30,7 +30,10 @@ export function ThemeToggle() {
     return <Button variant="ghost" size="icon" className="size-8" disabled />;
   }
 
-  const current = (theme as ThemeMode) ?? "system";
+  const raw = theme ?? "system";
+  const current: ThemeMode = CYCLE_ORDER.includes(raw as ThemeMode)
+    ? (raw as ThemeMode)
+    : "system";
   const nextIndex = (CYCLE_ORDER.indexOf(current) + 1) % CYCLE_ORDER.length;
   const nextMode = CYCLE_ORDER[nextIndex];
 
