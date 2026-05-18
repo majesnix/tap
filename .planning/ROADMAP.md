@@ -127,14 +127,14 @@
 4. User can open two different `.proto` files and switch between their message types within one session without reloading.
 5. User can set AMQP properties (at minimum content-type, delivery-mode, and correlation-id) before sending and those properties are present on the received message.
 
-**Plans:** 2/4 plans executed
+**Plans:** 3/4 plans executed
 
 **Wave 1** — Foundation (parallel, no overlap)
 - [x] 03-01-PLAN.md — Multi-file tabs (PROT-03/04): useProtoStore expansion + FileSection Tabs + FormPanel signals
 - [x] 03-02-PLAN.md — AMQP properties (PUBL-04): useAmqpStore + AmqpPropertiesSheet + publish.rs extension
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 03-03-PLAN.md — Message history (HIST-01/03): useHistoryStore + RightPanel Hex/History tabs + PublishBar history recording
+- [x] 03-03-PLAN.md — Message history (HIST-01/03): useHistoryStore + RightPanel Hex/History tabs + PublishBar history recording
 
 **Wave 3** *(blocked on Wave 2 completion)*
 - [ ] 03-04-PLAN.md — History replay + filter (HIST-02/04): HistoryFilterBar + Replay/Resend handlers + FormPanel pendingReplayValues consumer
@@ -149,7 +149,7 @@
 |-------|----------------|--------|-----------|
 | 1. Proto Parsing + Form | 6/6 | Complete   | 2026-05-17 |
 | 2. Connect + Publish | 6/6 | Complete   | 2026-05-17 |
-| 3. Full Feature Set | 2/4 | In Progress|  |
+| 3. Full Feature Set | 3/4 | In Progress|  |
 
 ---
 

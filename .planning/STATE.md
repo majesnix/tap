@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed Phase 03 Plan 02 — AMQP Properties
-last_updated: "2026-05-18T06:44:17.564Z"
+stopped_at: Completed Phase 03 Plan 03 — Message History
+last_updated: "2026-05-18T06:58:52Z"
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 16
-  completed_plans: 14
-  percent: 88
+  completed_plans: 15
+  percent: 94
 ---
 
 # Project State: Proto Sender
@@ -18,7 +18,7 @@ progress:
 ## Current Phase
 
 Phase 3 — Full Feature Set
-Status: Executing Phase 03 (Plan 03-02 complete)
+Status: Executing Phase 03 (Plan 03-03 complete)
 
 ## Project Reference
 
@@ -43,13 +43,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
   - Plan 02-GAP2 (UAT Gap Fix — Modal Scroll Layout): COMPLETE — commit 1398733
 - Plan 03-01 (Multi-file Tabs + Store Signal Fields): COMPLETE — commits 1e6ab26, be6f0e4, 2e9cf6c
 - Plan 03-02 (AMQP Properties): COMPLETE — commits ed583c8, bbb5ae5, 1ea0ad9
+- Plan 03-03 (Message History): COMPLETE — commits 7d02068, 5fb9aa5, d3ca824, e63736b
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 14
-- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01; PUBL-04 delivered by plan 03-02
+- Plans completed: 15
+- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01; PUBL-04 delivered by plan 03-02; HIST-01, HIST-03 delivered by plan 03-03
 - Phases completed: 2/3 (Phase 03 in progress)
 
 ## Accumulated Context
@@ -115,10 +116,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Default content_type changed to application/octet-stream per D-04 (was application/x-protobuf)
 - Delivery mode uses Switch component (not RadioGroup) per plan UI-SPEC
 - InvalidInput AppError variant added for delivery_mode Rust validation
+- activeTab is local state in RightPanel (not global store) — Pitfall 6 from plan
+- lastSendAt only set on success — RightPanel auto-switch to History only fires on successful send
+- Edge-detection refs (prevLastSendAt, prevPendingReplay) for useEffect signals in RightPanel
+- historyLoaded boolean gate in appendEntry prevents pre-hydration race (T-03-03-06 mitigate)
 
 ### Active TODOs
 
-- Phase 03 in progress — Plan 03-02 complete; Plans 03-03 through 03-0N are next
+- Phase 03 in progress — Plan 03-03 complete; remaining plans are next
 
 ### Blockers
 
@@ -132,6 +137,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-18 (plan 03-02 complete)
-Stopped at: Completed Phase 03 Plan 02 — AMQP Properties
-Next action: Phase 03 — Plan 03-03
+Last updated: 2026-05-18 (plan 03-03 complete)
+Stopped at: Completed Phase 03 Plan 03 — Message History
+Next action: Phase 03 — Plan 03-04 (or next plan)

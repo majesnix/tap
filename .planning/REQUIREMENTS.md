@@ -43,9 +43,9 @@
 
 ### Message History
 
-- [ ] **HIST-01**: App logs all sent messages (timestamp, queue or exchange/routing-key, message type name, send status)
+- [x] **HIST-01**: App logs all sent messages (timestamp, queue or exchange/routing-key, message type name, send status)
 - [ ] **HIST-02**: User can click any history entry to re-populate the form with its original field values and resend
-- [ ] **HIST-03**: User can view the binary payload of any history entry as a hex string
+- [x] **HIST-03**: User can view the binary payload of any history entry as a hex string
 - [ ] **HIST-04**: User can filter the history log by message type name or by queue/exchange name
 
 ## v2 Requirements
@@ -104,9 +104,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PUBL-02 | Phase 2 | Complete |
 | PUBL-03 | Phase 2 | Complete |
 | PUBL-04 | Phase 3 | Complete |
-| HIST-01 | Phase 3 | Pending |
+| HIST-01 | Phase 3 | Complete |
 | HIST-02 | Phase 3 | Pending |
-| HIST-03 | Phase 3 | Pending |
+| HIST-03 | Phase 3 | Complete |
 | HIST-04 | Phase 3 | Pending |
 
 **Coverage:**
