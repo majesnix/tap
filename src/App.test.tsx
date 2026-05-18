@@ -98,11 +98,23 @@ describe("ThemeBootstrap", () => {
       forcedTheme: undefined,
     });
 
+    // After the initial bootstrap act, the mirror effect fires once with the
+    // current theme ("system"). Assert the call sequence so far to ensure
+    // the bootstrap write is not silently overwritten by a stale mirror write.
+    expect(mockSet.mock.calls).toEqual([["theme-mode", "system"]]);
+
     await act(async () => {
       rerender(<ThemeBootstrap />);
     });
 
-    expect(mockSet).toHaveBeenCalledWith("theme-mode", "dark");
+    // After the theme change rerender, the mirror fires again with "dark".
+    // Use toHaveBeenLastCalledWith to assert the most recent write — not
+    // just any historical call — ensuring the sequence is correct.
+    expect(mockSet).toHaveBeenLastCalledWith("theme-mode", "dark");
+    expect(mockSet.mock.calls).toEqual([
+      ["theme-mode", "system"],
+      ["theme-mode", "dark"],
+    ]);
     expect(mockSave).toHaveBeenCalled();
   });
 });
