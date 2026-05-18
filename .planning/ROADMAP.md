@@ -47,7 +47,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
 Plans:
 - [x] 05-01-PLAN.md — ThemeProvider + ThemeBootstrap with race-guard persistence bridge (DRK-01, DRK-03)
 - [x] 05-02-PLAN.md — ThemeToggle component + Sidebar footer integration (DRK-02)
-- [ ] 05-03-PLAN.md — DRK-04 manual visual UAT checkpoint (DRK-04)
+- [x] 05-03-PLAN.md — DRK-04 manual visual UAT checkpoint (DRK-04)
 **UI hint**: yes
 
 ---
