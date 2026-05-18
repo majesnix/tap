@@ -37,11 +37,14 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Theme mode persists across app restarts via tauri-plugin-store — v1.1 (Phase 05)
 - ✓ All UI surfaces render correctly in dark mode — form panel, connection sidebar, publish bar, AMQP sheet, history panel, response tab, modals, shadcn/ui components — v1.1 (Phase 05)
 
-### Active (v2 candidates)
+### Active (v1.2 — Form Improvements)
 
 - [ ] Bytes field with base64 input and UTF-8 text helper button (FORM-V2-01)
 - [ ] Map field (`map<K, V>`) rendered as dynamic key-value row list (FORM-V2-02)
-- [ ] JSON override toggle — switch between form view and raw JSON edit mode (FORM-V2-03)
+- [ ] JSON override toggle — switch between form view and raw JSON edit mode with two-way sync (FORM-V2-03)
+
+### Backlog (future milestones)
+
 - [ ] Routing key autocomplete from exchange binding table (PUBL-V2-01)
 - [ ] Publisher confirms mode with per-message acknowledgment status (PUBL-V2-02)
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)
@@ -98,6 +101,15 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | CYCLE_ORDER array for ThemeToggle progression | Stateless mode cycling — no state machine needed | ✓ Good — system → light → dark → system; no edge case where mode gets stuck |
 | DRK-04 verified by manual visual UAT only | No automated snapshot/visual regression tool was set up | ✓ Good — human UAT approved; sufficient for a dev tool in this phase |
 
+## Current Milestone: v1.2 Form Improvements
+
+**Goal:** Extend the dynamic form renderer to cover the remaining proto field types and add a JSON override mode for power users.
+
+**Target features:**
+- Bytes field (FORM-V2-01) — base64 input with UTF-8 text helper button
+- Map field (FORM-V2-02) — `map<K, V>` rendered as a dynamic key-value row list
+- JSON override toggle (FORM-V2-03) — form ↔ raw JSON edit mode with two-way sync
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
@@ -119,4 +131,4 @@ v1.1 shipped 2026-05-18. Phase 5 (dark-mode) delivered all 4 DRK requirements: O
 The app now has 2 shipped milestones: v1.0 (full MVP, 30 requirements, 4 phases) and v1.1 (dark mode, 4 requirements, 1 phase). Next milestone not yet defined.
 
 ---
-*Last updated: 2026-05-18 after v1.1 Dark Mode milestone completion*
+*Last updated: 2026-05-18 — v1.2 Form Improvements milestone started*

@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.1
-milestone_name: dark-mode
-status: archived
-stopped_at: v1.1 milestone archived
-last_updated: "2026-05-18T00:00:00.000Z"
+milestone: v1.2
+milestone_name: Form Improvements
+status: planning
+last_updated: "2026-05-18T21:48:17.390Z"
 last_activity: 2026-05-18
 progress:
-  total_phases: 1
-  completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Proto Sender
@@ -159,3 +158,10 @@ See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 Last updated: 2026-05-18 (v1.1 milestone started)
 Stopped at: Phase 5 UI-SPEC approved
 Next action: `/gsd-discuss-phase 5` or `/gsd-plan-phase 5`
+
+## Current Position
+
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-18 — Milestone v1.2 started
