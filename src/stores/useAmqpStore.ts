@@ -24,7 +24,7 @@ interface AmqpStore {
   reset: () => void;
 }
 
-const INITIAL_PROPERTIES: AmqpProperties = {
+export const INITIAL_PROPERTIES: AmqpProperties = {
   contentType: "application/octet-stream", // D-04 default
   deliveryMode: 2, // D-04 default: persistent
   ttl: null,
@@ -34,7 +34,7 @@ const INITIAL_PROPERTIES: AmqpProperties = {
 };
 
 /** Maximum number of custom AMQP headers (T-03-02-02 cap). */
-const MAX_HEADERS = 20;
+export const MAX_HEADERS = 20;
 
 export const useAmqpStore = create<AmqpStore>((set) => ({
   properties: { ...INITIAL_PROPERTIES, headers: [] },

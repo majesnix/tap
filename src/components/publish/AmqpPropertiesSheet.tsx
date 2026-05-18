@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -15,21 +16,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useAmqpStore, type AmqpProperties } from "@/stores/useAmqpStore";
+import {
+  useAmqpStore,
+  type AmqpProperties,
+  INITIAL_PROPERTIES,
+  MAX_HEADERS,
+} from "@/stores/useAmqpStore";
 
 interface AmqpPropertiesSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
-
-const INITIAL_PROPERTIES: AmqpProperties = {
-  contentType: "application/octet-stream",
-  deliveryMode: 2,
-  ttl: null,
-  correlationId: null,
-  replyTo: null,
-  headers: [],
-};
 
 export function AmqpPropertiesSheet({
   open,
@@ -242,6 +239,11 @@ export function AmqpPropertiesSheet({
                       disabled={!newHeaderKey.trim()}
                       onClick={() => {
                         if (!newHeaderKey.trim()) return;
+                        // CR-03: enforce MAX_HEADERS cap in local draft state
+                        if (draft.headers.length >= MAX_HEADERS) {
+                          toast.error("Maximum 20 custom headers reached");
+                          return;
+                        }
                         setDraft((d) => ({
                           ...d,
                           headers: [
