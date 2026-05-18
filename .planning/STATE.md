@@ -4,7 +4,7 @@ milestone: v1.1
 milestone_name: dark-mode
 status: executing
 stopped_at: Phase 5 UI-SPEC approved
-last_updated: "2026-05-18T19:39:37.858Z"
+last_updated: "2026-05-18T19:40:54.488Z"
 last_activity: 2026-05-18
 progress:
   total_phases: 1
@@ -20,7 +20,7 @@ progress:
 
 Phase: Not started (defining requirements)
 Plan: —
-Status: Ready to execute
+Status: Executing Phase 05
 Last activity: 2026-05-18
 
 ## Project Reference
@@ -28,7 +28,7 @@ Last activity: 2026-05-18
 See: .planning/PROJECT.md (updated 2026-05-18)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** v1.1 Dark Mode — Phase 5 (dark mode implementation)
+**Current focus:** Phase 05 — dark-mode
 
 ## Phase History
 

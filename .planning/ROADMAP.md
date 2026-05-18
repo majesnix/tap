@@ -45,8 +45,8 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
   4. Every existing UI surface — form panel, connection sidebar, publish bar, AMQP properties sheet, message history panel, response tab, modals, and shadcn/ui components — renders without visual defects in dark mode
 **Plans**: 3 plans
 Plans:
-- [ ] 05-01-PLAN.md — ThemeProvider + ThemeBootstrap with race-guard persistence bridge (DRK-01, DRK-03)
-- [ ] 05-02-PLAN.md — ThemeToggle component + Sidebar footer integration (DRK-02)
+- [x] 05-01-PLAN.md — ThemeProvider + ThemeBootstrap with race-guard persistence bridge (DRK-01, DRK-03)
+- [x] 05-02-PLAN.md — ThemeToggle component + Sidebar footer integration (DRK-02)
 - [ ] 05-03-PLAN.md — DRK-04 manual visual UAT checkpoint (DRK-04)
 **UI hint**: yes
 
