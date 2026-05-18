@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.1
-milestone_name: next-milestone
-status: planning_next_milestone
-stopped_at: v1.0 milestone archived
-last_updated: "2026-05-18T15:30:00.000Z"
+milestone_name: dark-mode
+status: planning
+stopped_at: Milestone v1.1 started — defining requirements
+last_updated: "2026-05-18T16:00:00.000Z"
 progress:
   total_phases: 0
   completed_phases: 0
@@ -17,14 +17,17 @@ progress:
 
 ## Current Phase
 
-v1.0 milestone complete — planning next milestone
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-18 — Milestone v1.1 Dark Mode started
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-18)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Planning next milestone — run `/gsd-new-milestone` to begin
+**Current focus:** v1.1 Dark Mode — Phase 5 (dark mode implementation)
 
 ## Phase History
 
@@ -138,7 +141,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ### Active TODOs
 
-- v1.0 archived — run `/gsd-new-milestone` to start v1.1 planning
+- Run `/gsd-discuss-phase 5` to plan Phase 5 (dark mode)
 
 ### Blockers
 
@@ -152,6 +155,6 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ## Session Continuity
 
-Last updated: 2026-05-18 (v1.0 milestone archived)
-Stopped at: v1.0 milestone archived — all 4 phases, 18 plans, 30 requirements complete
-Next action: `/gsd-new-milestone` — define v1.1 scope
+Last updated: 2026-05-18 (v1.1 milestone started)
+Stopped at: Requirements and roadmap defined for v1.1 Dark Mode
+Next action: `/gsd-discuss-phase 5` or `/gsd-plan-phase 5`

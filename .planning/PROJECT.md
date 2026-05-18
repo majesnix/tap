@@ -88,6 +88,16 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | ack-before-decode for consume_message | Avoids re-delivery on decode error; acceptable for dev tool usage | ✓ Good — simpler Rust code; no re-delivery edge case issues |
 | Ephemeral lapin connections per operation | No persistent AMQP connection state to manage in Tauri app | ✓ Good — simplified error handling, no reconnection logic needed |
 
+## Current Milestone: v1.1 Dark Mode
+
+**Goal:** Add dark mode to the app — follows OS preference by default, with an in-app toggle to override (system / light / dark), and preference persisted across restarts.
+
+**Target features:**
+- System preference detection (`prefers-color-scheme`) applied on startup
+- In-app toggle between system / light / dark mode
+- Theme preference persisted via tauri-plugin-store
+- All existing UI surfaces verified correct in dark mode
+
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
@@ -107,4 +117,4 @@ v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 pl
 Next: `/gsd-new-milestone` to define v1.1 scope (likely: distribution/packaging, CI/CD, and first batch of v2 form features).
 
 ---
-*Last updated: 2026-05-18 after v1.0 milestone*
+*Last updated: 2026-05-18 after v1.1 milestone start*
