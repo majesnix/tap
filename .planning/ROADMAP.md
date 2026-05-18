@@ -4,7 +4,7 @@
 **Granularity:** Coarse
 **Mode:** mvp
 **Created:** 2026-05-17
-**Requirements:** 25 v1 requirements mapped across 3 phases
+**Requirements:** 30 requirements mapped across 4 phases
 
 ---
 
@@ -12,7 +12,8 @@
 
 - [x] **Phase 1: Proto Parsing + Form** — Load a `.proto` file, fill out a dynamic form, and see the binary-encoded result — no network required (completed 2026-05-17)
 - [x] **Phase 2: Connect + Publish** — Connect to RabbitMQ via saved profiles and actually send encoded messages (completed 2026-05-17)
-- [ ] **Phase 3: Full Feature Set** — Message history, advanced properties, WellKnownType controls, multi-file support, live queue listing
+- [x] **Phase 3: Full Feature Set** — Message history, advanced properties, WellKnownType controls, multi-file support, live queue listing (completed 2026-05-18)
+- [ ] **Phase 4: Response Queue Reader** — Select a reply queue, consume and deserialize incoming protobuf messages, view decoded fields, and ack the message from the queue
 
 ---
 
@@ -143,13 +144,44 @@
 
 ---
 
+### Phase 4: Response Queue Reader
+**Goal:** User can select a reply/response queue, read one incoming message on demand, deserialize the binary protobuf payload using the currently loaded schema and message type, view the decoded field values, and acknowledge (remove) the message from the queue — completing the request/reply loop without leaving the app.
+**Mode:** mvp
+**Depends on:** Phase 2
+**Requirements:**
+- RESP-01: User can select a reply/response queue to read from (live dropdown from Management API, falls back to manual text input when unavailable)
+- RESP-02: App reads (consumes) one incoming message from the selected queue on a "Read" button click — non-blocking; shows "Queue empty" when no messages are waiting
+- RESP-03: App deserializes the binary protobuf payload using the currently loaded proto schema and selected message type, displaying all field values in a structured read-only view
+- RESP-04: App acknowledges (basic.ack) the consumed message after successful deserialization, permanently removing it from the queue
+- RESP-05: Decoded response view shows both the human-readable field values and the raw hex payload side by side
+
+**Success Criteria** (what must be TRUE):
+1. User selects a reply queue from the live picker, clicks "Read", and sees the decoded field values rendered from the binary payload — no manual hex parsing required.
+2. After a successful read, the message is acknowledged and is no longer present in the queue (verifiable via RabbitMQ Management UI).
+3. If the queue is empty when "Read" is clicked, the app shows a clear "Queue empty" indicator — no block, no crash, no timeout hang.
+4. The decoded view uses the same proto schema and message type currently active in the form panel — no extra configuration required.
+5. When the Management API is unavailable, the queue picker falls back to a manual text input with a visible status indicator (consistent with PUBL-03 behavior).
+
+**Plans:** 2 plans
+
+**Wave 1** — Core e2e slice (Rust + plumbing + minimal ResponseTab)
+- [ ] 04-01-PLAN.md — consume_message command (basic_get → basic_ack → prost-reflect decode) + types/ipc/useResponseStore + minimal ResponseTab wired as 3rd tab in RightPanel
+  Requirements: RESP-02, RESP-03, RESP-04, RESP-05
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 04-02-PLAN.md — ResponseQueuePicker (Live/Manual) + ResponseDecodedView (collapsible tree) + ResponseHexSection (copy buttons) + ResponseTab composition
+  Requirements: RESP-01, RESP-05
+
+---
+
 ## Progress Table
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Proto Parsing + Form | 6/6 | Complete   | 2026-05-17 |
 | 2. Connect + Publish | 6/6 | Complete   | 2026-05-17 |
-| 3. Full Feature Set | 3/4 | In Progress|  |
+| 3. Full Feature Set | 4/4 | Complete   | 2026-05-18 |
+| 4. Response Queue Reader | 0/2 | Planning complete | |
 
 ---
 
@@ -182,5 +214,10 @@
 | HIST-02 | Phase 3 |
 | HIST-03 | Phase 3 |
 | HIST-04 | Phase 3 |
+| RESP-01 | Phase 4 |
+| RESP-02 | Phase 4 |
+| RESP-03 | Phase 4 |
+| RESP-04 | Phase 4 |
+| RESP-05 | Phase 4 |
 
-**Total v1 mapped:** 25/25
+**Total v1 mapped:** 30/30
