@@ -1,5 +1,6 @@
 use lapin::{
-    options::BasicPublishOptions, BasicProperties, Connection, ConnectionProperties,
+    options::{BasicPublishOptions, ConfirmSelectOptions},
+    BasicProperties, Connection, ConnectionProperties,
 };
 use std::time::Duration;
 use tauri::AppHandle;
@@ -14,7 +15,9 @@ use crate::profiles::build_amqp_uri;
 ///
 /// CRITICAL: exchange = "" is the AMQP default exchange (not "default" or "amq.default").
 ///
-/// SECURITY: AMQP URI contains cleartext password — built, used, dropped. Never logged.
+/// SECURITY: AMQP URI contains cleartext password — built in a tight scope and
+/// immediately dropped; error messages from Connection::connect are sanitized to
+/// avoid leaking the URI/password in AppError payloads sent to the frontend.
 #[tauri::command]
 pub async fn publish_message(
     app: AppHandle,
@@ -43,31 +46,53 @@ pub async fn publish_message(
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
 
-    // Build AMQP URI — use immediately, do NOT log
-    let uri = build_amqp_uri(
-        &profile.host,
-        profile.port,
-        &profile.vhost,
-        &profile.username,
-        &password,
-    );
-    // password is no longer needed — drop it
-    drop(password);
+    // WR-01: Build URI in a tight block so it is dropped before any error is
+    // propagated. The connect error is replaced with a generic message to prevent
+    // the password-containing URI from leaking into the AppError payload sent to
+    // the frontend or captured by tracing.
+    let conn = {
+        let uri = build_amqp_uri(
+            &profile.host,
+            profile.port,
+            &profile.vhost,
+            &profile.username,
+            &password,
+        );
+        // password is no longer needed — drop it before connecting
+        drop(password);
+        // uri is in scope only for the duration of this block
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            Connection::connect(&uri, ConnectionProperties::default()),
+        )
+        .await;
+        // uri is dropped here, before we inspect the result
+        result
+            .map_err(|_| AppError::AmqpError("Publish connection timed out (10s)".to_string()))?
+            .map_err(|_| AppError::AmqpError("AMQP connection failed — check host, port, vhost, and credentials".to_string()))?
+    };
 
-    // Connect with 10s timeout (same as test_connection)
-    // SECURITY: uri not logged
-    let conn = tokio::time::timeout(
-        Duration::from_secs(10),
-        Connection::connect(&uri, ConnectionProperties::default()),
-    )
-    .await
-    .map_err(|_| AppError::AmqpError("Publish connection timed out (10s)".to_string()))?
-    .map_err(|e| AppError::AmqpError(e.to_string()))?;
+    // CR-02: close the connection on any error path after this point so we do
+    // not leak TCP connections when create_channel or basic_publish fails.
+    let channel = match conn.create_channel().await {
+        Ok(ch) => ch,
+        Err(e) => {
+            let _ = conn.close(0, "".into()).await;
+            return Err(AppError::AmqpError(e.to_string()));
+        }
+    };
 
-    let channel = conn
-        .create_channel()
+    // CR-01: enable publisher confirm mode on the channel BEFORE publishing.
+    // Without this call the channel is in normal (fire-and-forget) mode and the
+    // Confirmation future returned by basic_publish resolves immediately with a
+    // synthetic ack — the broker never actually acknowledges the message.
+    if let Err(e) = channel
+        .confirm_select(ConfirmSelectOptions::default())
         .await
-        .map_err(|e| AppError::AmqpError(e.to_string()))?;
+    {
+        let _ = conn.close(0, "".into()).await;
+        return Err(AppError::AmqpError(e.to_string()));
+    }
 
     // D-04: default content_type is "application/octet-stream", NOT "application/x-protobuf"
     // content_type=None means the caller did not override → use the D-04 default
@@ -103,7 +128,8 @@ pub async fn publish_message(
     }
 
     // Publish: exchange = "" for default exchange (PUBL-01), named exchange (PUBL-02)
-    channel
+    // Now that confirm mode is enabled (CR-01), the second .await is a real broker ack.
+    let publish_result = channel
         .basic_publish(
             exchange.as_str().into(),
             routing_key.as_str().into(),
@@ -111,13 +137,15 @@ pub async fn publish_message(
             &payload,
             props,
         )
-        .await
-        .map_err(|e| AppError::AmqpError(e.to_string()))?
-        .await // await the publisher-confirm future
-        .map_err(|e| AppError::AmqpError(e.to_string()))?;
+        .await;
 
-    // Close connection — ephemeral, no persistent state
+    // CR-02: close connection regardless of outcome
     let _ = conn.close(0, "".into()).await;
+
+    let confirmation = publish_result.map_err(|e| AppError::AmqpError(e.to_string()))?;
+    confirmation
+        .await // await the publisher-confirm future (real broker ack after CR-01)
+        .map_err(|e| AppError::AmqpError(e.to_string()))?;
 
     tracing::debug!(
         "Published message to exchange='{}' routing_key='{}'",
