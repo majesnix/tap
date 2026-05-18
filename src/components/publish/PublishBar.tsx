@@ -20,7 +20,9 @@ import {
 } from "@/components/ui/tooltip";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
+import { useAmqpStore } from "@/stores/useAmqpStore";
 import { fetchExchanges, fetchQueues, publishMessage } from "@/lib/ipc";
+import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 
 type Mode = "queue" | "exchange";
 
@@ -60,6 +62,7 @@ export function PublishBar() {
   const [selectedExchange, setSelectedExchange] = useState<string>("");
   const [routingKey, setRoutingKey] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
 
   const {
     activeProfileName,
@@ -144,10 +147,23 @@ export function PublishBar() {
     }
 
     const payload = hexToBytes(hexPreview);
+    // Capture AMQP properties synchronously BEFORE any await (Pitfall 3)
+    const { properties } = useAmqpStore.getState();
+    const amqpProps = {
+      contentType: properties.contentType ?? undefined,
+      deliveryMode: properties.deliveryMode ?? undefined,
+      ttl: properties.ttl ?? undefined,
+      correlationId: properties.correlationId ?? undefined,
+      replyTo: properties.replyTo ?? undefined,
+      headers:
+        properties.headers.length > 0
+          ? properties.headers.map((h) => [h.key, h.value] as [string, string])
+          : null,
+    };
 
     setIsSending(true);
     try {
-      await publishMessage(activeProfileName, exchange, targetRoutingKey, payload);
+      await publishMessage(activeProfileName, exchange, targetRoutingKey, payload, amqpProps);
       // D-13: success toast, 3 seconds, non-blocking
       toast(`Message sent to ${targetName}`, { duration: 3000 });
       // D-15: form retains all field values — do NOT reset the form
@@ -272,6 +288,11 @@ export function PublishBar() {
         </div>
       )}
 
+      {/* Properties button — opens AMQP properties sheet */}
+      <Button variant="outline" size="sm" onClick={() => setPropertiesOpen(true)}>
+        Properties
+      </Button>
+
       {/* Send button — disabled with tooltip when no active connection */}
       {isConnected ? (
         <Button
@@ -303,6 +324,8 @@ export function PublishBar() {
           </Tooltip>
         </TooltipProvider>
       )}
+
+      <AmqpPropertiesSheet open={propertiesOpen} onOpenChange={setPropertiesOpen} />
     </div>
   );
 }
