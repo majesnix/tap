@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package example;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/wrappers.proto";
+
+// Covers: google.protobuf well-known types (Timestamp, Duration, StringValue).
+// Load this file with the google/protobuf directory on the include path so imports resolve.
+// If your proto installation is at /usr/local/include, add that as an include path in the app.
+message Event {
+  string                    event_id    = 1;
+  string                    source      = 2;
+  string                    event_type  = 3;
+  google.protobuf.Timestamp occurred_at = 4;
+  google.protobuf.Duration  processing_sla = 5;
+
+  // Nullable scalar — tests the WellKnownTypeField wrapper branch.
+  google.protobuf.StringValue correlation_id = 6;
+
+  EventPayload payload = 7;
+}
+
+message EventPayload {
+  string              topic   = 1;
+  map<string, string> headers = 2;
+  bytes               body    = 3;
+}

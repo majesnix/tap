@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package example;
+
+// Basic scalar fields — good starting point for smoke-testing the form renderer.
+message User {
+  string  id        = 1;
+  string  name      = 2;
+  string  email     = 3;
+  int32   age       = 4;
+  bool    active    = 5;
+  Role    role      = 6;
+
+  repeated string tags = 7;
+}
+
+enum Role {
+  ROLE_UNSPECIFIED = 0;
+  ROLE_VIEWER      = 1;
+  ROLE_EDITOR      = 2;
+  ROLE_ADMIN       = 3;
+}
+
+// Minimal update wrapper — tests that switching message types in the same file works.
+message UpdateUserRequest {
+  string user_id = 1;
+  User   user    = 2;
+}
