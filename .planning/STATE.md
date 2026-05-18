@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Completed Phase 03 Plan 01 — Multi-file Tabs + Store Signal Fields
-last_updated: "2026-05-18T06:32:20.026Z"
+stopped_at: Completed Phase 03 Plan 02 — AMQP Properties
+last_updated: "2026-05-18T06:44:17.564Z"
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 16
-  completed_plans: 13
-  percent: 81
+  completed_plans: 14
+  percent: 88
 ---
 
 # Project State: Proto Sender
@@ -18,7 +18,7 @@ progress:
 ## Current Phase
 
 Phase 3 — Full Feature Set
-Status: Executing Phase 03 (Plan 03-01 complete)
+Status: Executing Phase 03 (Plan 03-02 complete)
 
 ## Project Reference
 
@@ -42,13 +42,14 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 02-GAP (UAT Gap Fix — Test Connection + Edit Mode): COMPLETE — commits ef4d928, da68a62, 3f8fd65, 504fd63, 822dbd8, c25906c
   - Plan 02-GAP2 (UAT Gap Fix — Modal Scroll Layout): COMPLETE — commit 1398733
 - Plan 03-01 (Multi-file Tabs + Store Signal Fields): COMPLETE — commits 1e6ab26, be6f0e4, 2e9cf6c
+- Plan 03-02 (AMQP Properties): COMPLETE — commits ed583c8, bbb5ae5, 1ea0ad9
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 13
-- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01
+- Plans completed: 14
+- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01; PUBL-04 delivered by plan 03-02
 - Phases completed: 2/3 (Phase 03 in progress)
 
 ## Accumulated Context
@@ -108,10 +109,16 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - resetRef sibling approach for ProtoFormRenderer: optional prop, renderer wires methods.reset to it post-mount
 - Close button as sibling of TabsTrigger (not nested) — avoids invalid nested button HTML
 - 20-file cap enforced in addOrActivateFile with toast.error (T-03-01-03 mitigate)
+- Local draft state in AmqpPropertiesSheet: Apply commits, dismiss discards (not reactive to store)
+- TTL typed as number|null (not string sentinel) — matches Rust Option<u32> across IPC boundary
+- Headers as Vec<(String,String)> in Rust / Array<[string,string]> in TS per D-08 (no AmqpHeader struct)
+- Default content_type changed to application/octet-stream per D-04 (was application/x-protobuf)
+- Delivery mode uses Switch component (not RadioGroup) per plan UI-SPEC
+- InvalidInput AppError variant added for delivery_mode Rust validation
 
 ### Active TODOs
 
-- Phase 03 in progress — Plan 03-01 complete; Plans 03-02 through 03-0N are next
+- Phase 03 in progress — Plan 03-02 complete; Plans 03-03 through 03-0N are next
 
 ### Blockers
 
@@ -125,6 +132,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-18 (plan 03-01 complete)
-Stopped at: Completed Phase 03 Plan 01 — Multi-file Tabs + Store Signal Fields
-Next action: Phase 03 — Plan 03-02
+Last updated: 2026-05-18 (plan 03-02 complete)
+Stopped at: Completed Phase 03 Plan 02 — AMQP Properties
+Next action: Phase 03 — Plan 03-03

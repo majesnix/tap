@@ -39,7 +39,7 @@
 - [x] **PUBL-01**: User can publish a message directly to a named queue (via the default exchange)
 - [x] **PUBL-02**: User can publish a message to a named exchange with a user-specified routing key
 - [x] **PUBL-03**: User can select target queues and exchanges from a live dropdown populated from the RabbitMQ Management API; when the Management API is unavailable the dropdown falls back to a manual text input with a clear status indicator
-- [ ] **PUBL-04**: User can set AMQP message properties before sending (content-type, delivery-mode, TTL, correlation-id, reply-to, custom headers as key-value pairs)
+- [x] **PUBL-04**: User can set AMQP message properties before sending (content-type, delivery-mode, TTL, correlation-id, reply-to, custom headers as key-value pairs)
 
 ### Message History
 
@@ -103,7 +103,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PUBL-01 | Phase 2 | Complete |
 | PUBL-02 | Phase 2 | Complete |
 | PUBL-03 | Phase 2 | Complete |
-| PUBL-04 | Phase 3 | Pending |
+| PUBL-04 | Phase 3 | Complete |
 | HIST-01 | Phase 3 | Pending |
 | HIST-02 | Phase 3 | Pending |
 | HIST-03 | Phase 3 | Pending |
