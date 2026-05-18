@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.1
 milestone_name: dark-mode
-status: milestone_complete
-stopped_at: Phase 5 UI-SPEC approved
-last_updated: "2026-05-18T19:40:54.488Z"
+status: archived
+stopped_at: v1.1 milestone archived
+last_updated: "2026-05-18T00:00:00.000Z"
 last_activity: 2026-05-18
 progress:
   total_phases: 1
   completed_phases: 1
   total_plans: 3
-  completed_plans: 0
+  completed_plans: 3
   percent: 100
 ---
 
@@ -18,17 +18,17 @@ progress:
 
 ## Current Phase
 
-Phase: 05
-Plan: Not started
-Status: Milestone complete
+Phase: N/A — milestone archived
+Plan: N/A
+Status: v1.1 milestone archived 2026-05-18
 Last activity: 2026-05-18
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-18)
+See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 05 — dark-mode
+**Current focus:** Planning next milestone — run `/gsd-new-milestone` to begin
 
 ## Phase History
 
@@ -142,7 +142,7 @@ See: .planning/PROJECT.md (updated 2026-05-18)
 
 ### Active TODOs
 
-- Run `/gsd-discuss-phase 5` to plan Phase 5 (dark mode)
+- Run `/gsd-new-milestone` to begin planning the next milestone
 
 ### Blockers
 

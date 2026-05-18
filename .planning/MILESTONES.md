@@ -25,3 +25,25 @@
 **Archive:** [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) | [milestones/v1.0-REQUIREMENTS.md](milestones/v1.0-REQUIREMENTS.md)
 
 ---
+
+## v1.1 Dark Mode
+
+**Shipped:** 2026-05-18
+**Phases:** 1 (Phase 5) | **Plans:** 3 | **Requirements:** 4/4
+
+**Delivered:** Full dark mode support — OS-preference detection, in-app toggle cycling system / light / dark, cross-restart persistence via tauri-plugin-store, and manual visual UAT sign-off across all UI surfaces.
+
+**Key accomplishments:**
+1. next-themes ThemeProvider wrapping App root with OS preference detection (`enableSystem`) — no custom matchMedia code
+2. ThemeBootstrap persistence bridge: reads tauri-plugin-store on startup, race guard via `bootstrapped` flag prevents stale localStorage clobber before async read completes (DRK-01, DRK-03)
+3. ThemeToggle icon cycle button (Monitor/Sun/Moon) in sidebar footer — `CYCLE_ORDER` drives stateless progression, mounted guard prevents layout shift (DRK-02)
+4. Human UAT approved — all 30+ UI surfaces (form panel, sidebar, publish bar, AMQP sheet, history panel, response tab, modals, shadcn/ui components) verified correct in dark mode (DRK-04)
+
+**Stats:**
+- Timeline: 2026-05-18 (~3 hours)
+- Commits: 36
+- LOC: +3,234 / −36
+
+**Archive:** [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) | [milestones/v1.1-REQUIREMENTS.md](milestones/v1.1-REQUIREMENTS.md)
+
+---

@@ -32,6 +32,10 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Live queue dropdown from Management API with fallback to manual text input (consistent across PublishBar and ResponseTab) — v1.0 (Phase 04)
 - ✓ Copy hex and decoded JSON to clipboard — v1.0 (Phase 04)
 - ✓ Ack message after basic_get — v1.0 (Phase 04)
+- ✓ OS dark/light preference (`prefers-color-scheme`) applied automatically on startup — v1.1 (Phase 05)
+- ✓ In-app toggle cycling system / light / dark modes — immediate effect, no reload — v1.1 (Phase 05)
+- ✓ Theme mode persists across app restarts via tauri-plugin-store — v1.1 (Phase 05)
+- ✓ All UI surfaces render correctly in dark mode — form panel, connection sidebar, publish bar, AMQP sheet, history panel, response tab, modals, shadcn/ui components — v1.1 (Phase 05)
 
 ### Active (v2 candidates)
 
@@ -53,16 +57,18 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 ## Context
 
 - Shipped v1.0 with ~42,800 LOC (TypeScript + Rust), 50 commits, 4 phases, 18 plans, delivered in a single day.
-- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x).
+- v1.1 added dark mode: next-themes + ThemeBootstrap persistence bridge, ThemeToggle in sidebar, human UAT pass. +3,234 LOC, 36 commits, 3 plans.
+- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (next-themes 0.x, react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x).
 - This is a developer productivity tool, analogous to Postman but for RabbitMQ + protobuf.
 - The proto parsing must happen at runtime (no pre-compilation step) — developers drop in `.proto` files.
 - Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
 - Team use means packaging/distribution matters — the app should be distributable as a binary.
 
-**Known issues / tech debt at v1.0:**
+**Known issues / tech debt at v1.1:**
 - Linux keychain (libsecret) install documentation needed for distribution.
 - No CI/CD pipeline — builds are manual.
 - No app distribution pipeline (notarization, signing) — binary not yet packaged for team.
+- No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
 
 ## Constraints
 
@@ -87,16 +93,10 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | tauri::async_runtime::spawn (not tokio::spawn) | tokio::spawn panics on Windows in Tauri 2 event listeners | ✓ Good — confirmed by Tauri issue #10289 |
 | ack-before-decode for consume_message | Avoids re-delivery on decode error; acceptable for dev tool usage | ✓ Good — simpler Rust code; no re-delivery edge case issues |
 | Ephemeral lapin connections per operation | No persistent AMQP connection state to manage in Tauri app | ✓ Good — simplified error handling, no reconnection logic needed |
-
-## Current Milestone: v1.1 Dark Mode
-
-**Goal:** Add dark mode to the app — follows OS preference by default, with an in-app toggle to override (system / light / dark), and preference persisted across restarts.
-
-**Target features:**
-- System preference detection (`prefers-color-scheme`) applied on startup
-- In-app toggle between system / light / dark mode
-- Theme preference persisted via tauri-plugin-store
-- All existing UI surfaces verified correct in dark mode
+| next-themes ThemeProvider (not custom CSS var solution) | Handles OS preference, hydration, class application automatically | ✓ Good — zero custom matchMedia code; dark CSS vars were already in index.css |
+| ThemeBootstrap child-of-ThemeProvider pattern | Async tauri-plugin-store read requires component after context is ready | ✓ Good — race guard via bootstrapped flag prevented Pitfall 6 stale localStorage clobber |
+| CYCLE_ORDER array for ThemeToggle progression | Stateless mode cycling — no state machine needed | ✓ Good — system → light → dark → system; no edge case where mode gets stuck |
+| DRK-04 verified by manual visual UAT only | No automated snapshot/visual regression tool was set up | ✓ Good — human UAT approved; sufficient for a dev tool in this phase |
 
 ## Evolution
 
@@ -114,7 +114,9 @@ This document evolves at phase transitions and milestone boundaries.
 
 v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 plans). The app is fully functional as a local dev tool: load a `.proto` file, fill out the form, connect to RabbitMQ, publish a binary-encoded protobuf message, and read back response messages from a reply queue.
 
-v1.1 Phase 5 (dark-mode) shipped 2026-05-18. All 4 DRK requirements delivered: OS preference detection (DRK-01), in-app toggle (DRK-02), cross-restart persistence via tauri-plugin-store (DRK-03), and full UI surface visual correctness (DRK-04). Dark mode is now complete.
+v1.1 shipped 2026-05-18. Phase 5 (dark-mode) delivered all 4 DRK requirements: OS preference detection via next-themes (DRK-01), in-app icon cycle toggle in sidebar footer (DRK-02), cross-restart persistence via tauri-plugin-store with race guard (DRK-03), and human UAT sign-off across all UI surfaces (DRK-04). Dark mode is complete.
+
+The app now has 2 shipped milestones: v1.0 (full MVP, 30 requirements, 4 phases) and v1.1 (dark mode, 4 requirements, 1 phase). Next milestone not yet defined.
 
 ---
-*Last updated: 2026-05-18 after Phase 5 dark-mode completion*
+*Last updated: 2026-05-18 after v1.1 Dark Mode milestone completion*
