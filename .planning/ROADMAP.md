@@ -43,7 +43,11 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
   2. User can open a theme toggle in the app UI and switch between system, light, and dark modes — the change takes effect immediately without a reload
   3. After switching theme and restarting the app, the previously selected mode is restored
   4. Every existing UI surface — form panel, connection sidebar, publish bar, AMQP properties sheet, message history panel, response tab, modals, and shadcn/ui components — renders without visual defects in dark mode
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 05-01-PLAN.md — ThemeProvider + ThemeBootstrap with race-guard persistence bridge (DRK-01, DRK-03)
+- [ ] 05-02-PLAN.md — ThemeToggle component + Sidebar footer integration (DRK-02)
+- [ ] 05-03-PLAN.md — DRK-04 manual visual UAT checkpoint (DRK-04)
 **UI hint**: yes
 
 ---
@@ -56,7 +60,7 @@ See [milestones/v1.0-ROADMAP.md](milestones/v1.0-ROADMAP.md) for full phase deta
 | 2. Connect + Publish | v1.0 | 6/6 | Complete | 2026-05-17 |
 | 3. Full Feature Set | v1.0 | 4/4 | Complete | 2026-05-18 |
 | 4. Response Queue Reader | v1.0 | 2/2 | Complete | 2026-05-18 |
-| 5. Dark Mode | v1.1 | 0/? | Not started | - |
+| 5. Dark Mode | v1.1 | 0/3 | Not started | - |
 
 ---
 
