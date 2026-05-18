@@ -1,5 +1,5 @@
 import { FormProvider, useForm, useWatch } from "react-hook-form";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import type { FieldSchema, MessageSchema, RenderFieldFn } from "@/lib/types";
 import { ScalarField } from "./fields/ScalarField";
 import { NestedMessageField } from "./fields/NestedMessageField";
@@ -13,6 +13,14 @@ const MAX_DEPTH = 5;
 interface ProtoFormRendererProps {
   message: MessageSchema;
   onValuesChange: (values: unknown) => void;
+  /**
+   * Optional ref that will be populated with a form.reset function once the
+   * form is mounted. FormPanel uses this to trigger replay without prop-drilling
+   * all the way through the component tree.
+   */
+  resetRef?: React.MutableRefObject<
+    ((values: Record<string, unknown>) => void) | null
+  >;
 }
 
 /**
@@ -80,6 +88,7 @@ function buildDefaultValues(
 export function ProtoFormRenderer({
   message,
   onValuesChange,
+  resetRef,
 }: ProtoFormRendererProps) {
   const methods = useForm({
     defaultValues: buildDefaultValues(message),
@@ -96,6 +105,17 @@ export function ProtoFormRenderer({
   useEffect(() => {
     methods.reset(buildDefaultValues(message));
   }, [message.full_name, methods]);
+
+  // Wire up the resetRef so FormPanel can trigger form.reset() for replay (HIST-02)
+  const resetRefInternal = useRef(resetRef);
+  resetRefInternal.current = resetRef;
+  useEffect(() => {
+    if (resetRefInternal.current) {
+      resetRefInternal.current.current = (values: Record<string, unknown>) => {
+        methods.reset(values);
+      };
+    }
+  });
 
   /**
    * Main dispatch function. Determines which field component to render

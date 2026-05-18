@@ -1,4 +1,4 @@
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { encodeMessage } from "@/lib/ipc";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -14,14 +14,30 @@ function bytesToHex(bytes: number[]): string {
 }
 
 export function FormPanel() {
-  const { schema, selectedMessageType, setHexPreview, setEncoding, setEncodeError } =
-    useProtoStore();
+  const {
+    schema,
+    selectedMessageType,
+    setHexPreview,
+    setEncoding,
+    setEncodeError,
+    pendingReplayValues,
+    setPendingReplayValues,
+  } = useProtoStore();
 
-  const [latestValues, setLatestValues] = useState<unknown>(null);
+  // latestValues is now in Zustand store (D-07 / advisor Option A)
+  const latestValues = useProtoStore((s) => s.latestValues);
   const debouncedValues = useDebounce(latestValues, 200);
 
+  // resetRef is passed to ProtoFormRenderer so FormPanel can trigger form.reset() for replay (HIST-02)
+  const resetRef = useRef<((values: Record<string, unknown>) => void) | null>(
+    null
+  );
+
+  // Mirror current form values into store for PublishBar / other consumers (D-07)
   const handleValuesChange = useCallback((values: unknown) => {
-    setLatestValues(values);
+    useProtoStore
+      .getState()
+      .setLatestValues(values as Record<string, unknown>);
   }, []);
 
   useEffect(() => {
@@ -41,6 +57,14 @@ export function FormPanel() {
       }
     })();
   }, [debouncedValues, selectedMessageType, setHexPreview, setEncoding, setEncodeError]);
+
+  // Consume pendingReplayValues: when set by HIST-02, call form.reset() and clear the signal
+  useEffect(() => {
+    if (pendingReplayValues && resetRef.current) {
+      resetRef.current(pendingReplayValues);
+      setPendingReplayValues(null);
+    }
+  }, [pendingReplayValues, setPendingReplayValues]);
 
   if (!schema || !selectedMessageType) {
     return (
@@ -66,7 +90,11 @@ export function FormPanel() {
         <p className="text-xs text-muted-foreground">{message.full_name}</p>
       </div>
       <ScrollArea className="flex-1">
-        <ProtoFormRenderer message={message} onValuesChange={handleValuesChange} />
+        <ProtoFormRenderer
+          message={message}
+          onValuesChange={handleValuesChange}
+          resetRef={resetRef}
+        />
       </ScrollArea>
     </div>
   );

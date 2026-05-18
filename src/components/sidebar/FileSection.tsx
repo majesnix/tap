@@ -2,6 +2,7 @@ import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { load } from "@tauri-apps/plugin-store";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IncludePathDialog } from "@/components/include-paths/IncludePathDialog";
 import { parseProto } from "@/lib/ipc";
 import { useProtoStore } from "@/stores/useProtoStore";
@@ -23,8 +24,11 @@ const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
  * Persistence (D-08/D-09): key = "include_paths:{absoluteFilePath}", store = "proto-sender.json"
  */
 export function FileSection() {
-  const setFile = useProtoStore((state) => state.setFile);
-  const activeFilePath = useProtoStore((state) => state.activeFilePath);
+  const openFiles = useProtoStore((s) => s.openFiles);
+  const activeIndex = useProtoStore((s) => s.activeIndex);
+  const addOrActivateFile = useProtoStore((s) => s.addOrActivateFile);
+  const closeFile = useProtoStore((s) => s.closeFile);
+  const setActiveIndex = useProtoStore((s) => s.setActiveIndex);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);
@@ -69,7 +73,7 @@ export function FileSection() {
       await store.save();
 
       const schema = await parseProto(pendingFilePath, paths);
-      setFile(pendingFilePath, schema);
+      addOrActivateFile(pendingFilePath, schema);
       setParseError(null);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -92,10 +96,6 @@ export function FileSection() {
     setPendingFilePath(null);
   };
 
-  const fileName = activeFilePath
-    ? activeFilePath.split("/").pop() ?? activeFilePath
-    : null;
-
   return (
     <>
       <div className="flex flex-col gap-2">
@@ -103,13 +103,42 @@ export function FileSection() {
           Open .proto File
         </Button>
 
-        {fileName && (
-          <p
-            className="text-xs text-muted-foreground truncate"
-            title={activeFilePath ?? ""}
+        {openFiles.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No file open</p>
+        ) : (
+          <Tabs
+            value={String(activeIndex)}
+            onValueChange={(v) => setActiveIndex(Number(v))}
           >
-            {fileName}
-          </p>
+            <TabsList className="flex flex-col h-auto w-full items-stretch gap-0.5 p-1">
+              {openFiles.map((file, index) => {
+                const fileName =
+                  file.filePath.split("/").pop() ?? file.filePath;
+                return (
+                  <div key={file.filePath} className="flex items-center">
+                    <TabsTrigger
+                      value={String(index)}
+                      className="flex-1 text-left justify-start text-xs truncate"
+                      title={file.filePath}
+                    >
+                      {fileName}
+                    </TabsTrigger>
+                    <button
+                      type="button"
+                      aria-label={`Close ${fileName}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        closeFile(index);
+                      }}
+                      className="ml-1 flex items-center justify-center rounded-sm px-1 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+            </TabsList>
+          </Tabs>
         )}
 
         {parseError && (

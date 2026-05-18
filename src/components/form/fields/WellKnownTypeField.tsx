@@ -106,16 +106,25 @@ export function WellKnownTypeField({ field, path }: WellKnownTypeFieldProps) {
           name={path}
           control={control}
           defaultValue=""
-          render={({ field: rhfField }) => (
-            <Input
-              id={path}
-              type="text"
-              value={rhfField.value as string}
-              onChange={rhfField.onChange}
-              onBlur={rhfField.onBlur}
-              placeholder={`${wkt} value`}
-            />
-          )}
+          render={({ field: rhfField }) => {
+            const shortName = wkt.split(".").pop() ?? wkt;
+            const isJsonType = ["Any", "Struct", "Value", "ListValue"].includes(
+              shortName
+            );
+            const placeholder = isJsonType
+              ? `${shortName} (JSON)`
+              : `${shortName} value`;
+            return (
+              <Input
+                id={path}
+                type="text"
+                value={rhfField.value as string}
+                onChange={rhfField.onChange}
+                onBlur={rhfField.onBlur}
+                placeholder={placeholder}
+              />
+            );
+          }}
         />
       )}
     </div>
