@@ -1,7 +1,8 @@
 ---
 phase: 4
 slug: response-queue-reader
-status: draft
+status: approved
+reviewed_at: 2026-05-18
 shadcn_initialized: true
 preset: b2fA
 created: 2026-05-18
