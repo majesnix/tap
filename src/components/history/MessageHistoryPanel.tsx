@@ -60,7 +60,9 @@ export function MessageHistoryPanel() {
     setPendingReplayValues(entry.fieldValues);
     // NOTE: RightPanel auto-switches to "hex" tab via pendingReplayValues edge-detection.
 
-    // Step 2: Send immediately using stored payload bytes (no re-encoding)
+    // Step 2: Send immediately using stored payload bytes (no re-encoding).
+    // WR-02: Separate publish from history write so appendEntry failures do not
+    // show a misleading "Resend failed" toast when the message was actually sent.
     try {
       await publishMessage(
         activeProfileName,
@@ -68,10 +70,20 @@ export function MessageHistoryPanel() {
         entry.routingKey,
         entry.payloadBytes
       );
-      const target = entry.exchange
-        ? `${entry.exchange} → ${entry.routingKey}`
-        : entry.routingKey;
-      toast(`Message resent to ${target}`, { duration: 3000 });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(`Resend failed: ${message}`, { duration: 5000 });
+      return;
+    }
+
+    const target = entry.exchange
+      ? `${entry.exchange} → ${entry.routingKey}`
+      : entry.routingKey;
+    toast(`Message resent to ${target}`, { duration: 3000 });
+
+    // History write is best-effort — a store/persistence failure must not
+    // show "Resend failed" when the message was delivered successfully.
+    try {
       await useHistoryStore.getState().appendEntry({
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
@@ -82,9 +94,9 @@ export function MessageHistoryPanel() {
         fieldValues: entry.fieldValues,
         payloadBytes: entry.payloadBytes,
       });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Resend failed: ${message}`, { duration: 5000 });
+    } catch {
+      // Non-fatal: message was sent; history record could not be persisted.
+      // Silently ignored — history panel will simply not show this resend.
     }
   };
 
