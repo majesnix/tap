@@ -16,12 +16,18 @@ export function ThemeBootstrap() {
   // Overrides whatever next-themes found in localStorage. Must complete
   // before mirror effect is allowed to write (bootstrapped flag).
   useEffect(() => {
-    load(THEME_STORE_PATH).then((store) =>
-      store.get<string>(THEME_MODE_KEY).then((saved) => {
+    load(THEME_STORE_PATH)
+      .then((store) => store.get<string>(THEME_MODE_KEY))
+      .then((saved) => {
         if (saved) setTheme(saved);
-        setBootstrapped(true);
       })
-    );
+      .catch((err) => {
+        // Log so the developer can diagnose; bootstrap still completes
+        console.error("[ThemeBootstrap] Failed to load saved theme:", err);
+      })
+      .finally(() => {
+        setBootstrapped(true);
+      });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // DRK-03: Mirror each user-initiated change back to tauri-plugin-store.
