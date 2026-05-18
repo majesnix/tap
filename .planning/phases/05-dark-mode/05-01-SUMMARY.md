@@ -102,6 +102,15 @@ None. ThemeBootstrap is fully wired: reads from tauri-plugin-store on mount, wri
 - Plan 05-03: DRK-04 visual UAT can now be run since ThemeProvider applies `.dark` class on `<html>` correctly
 - DRK-01 and DRK-03 are delivered; DRK-02 awaits Plan 05-02 (ThemeToggle)
 
+## Self-Check: PASSED
+
+- [x] src/App.tsx exists
+- [x] src/App.test.tsx exists
+- [x] .planning/phases/05-dark-mode/05-01-SUMMARY.md exists
+- [x] Commit 72671e6 exists (test RED)
+- [x] Commit bd9c3d3 exists (feat GREEN)
+- [x] Commit 292c037 exists (docs SUMMARY)
+
 ---
 *Phase: 05-dark-mode*
 *Completed: 2026-05-18*
