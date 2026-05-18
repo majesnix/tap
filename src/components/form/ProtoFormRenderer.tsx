@@ -115,7 +115,14 @@ export function ProtoFormRenderer({
         methods.reset(values);
       };
     }
-  });
+    // WR-03: Nullify the ref when this component unmounts so callers holding
+    // the ref do not invoke reset() on an unmounted react-hook-form instance.
+    return () => {
+      if (resetRefInternal.current) {
+        resetRefInternal.current.current = null;
+      }
+    };
+  }); // intentionally no dep array — runs after every render to stay in sync
 
   /**
    * Main dispatch function. Determines which field component to render
