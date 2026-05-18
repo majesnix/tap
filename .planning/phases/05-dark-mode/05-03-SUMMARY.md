@@ -11,7 +11,7 @@ requires:
   - phase: "05-02"
     provides: "ThemeToggle component in sidebar footer"
 provides:
-  - "Human UAT sign-off on DRK-04 visual surface checklist (pending)"
+  - "Human UAT sign-off on DRK-04 visual surface checklist — APPROVED"
 affects:
   - "05-04-PLAN (gap plan if defects found)"
 
@@ -31,11 +31,12 @@ key-decisions:
 
 patterns-established: []
 
-requirements-completed: []  # DRK-04 pending human approval
+requirements-completed:
+  - DRK-04
 
 # Metrics
-duration: pending
-completed: pending
+duration: "~5 min (human UAT walkthrough)"
+completed: "2026-05-18"
 ---
 
 # Phase 5 Plan 03: DRK-04 Manual Visual UAT — Dark Mode Surface Walkthrough Summary
@@ -44,7 +45,7 @@ completed: pending
 
 ## Status
 
-**AWAITING HUMAN APPROVAL** — this plan is a `checkpoint:human-verify` gate. No automated tasks run.
+**APPROVED** — Human UAT passed. All UI surfaces verified in dark mode. DRK-04 complete.
 
 Plans 05-01 and 05-02 have been executed and committed:
 - ThemeProvider wraps the App root (DRK-01: OS preference, DRK-03: persistence)
@@ -132,4 +133,4 @@ None — this plan is a checkpoint gate only. No code was written.
 
 ---
 *Phase: 05-dark-mode*
-*Completed: pending human UAT approval*
+*Completed: 2026-05-18 — Human UAT approved, DRK-04 verified*
