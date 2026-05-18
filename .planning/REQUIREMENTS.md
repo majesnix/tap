@@ -60,27 +60,27 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BFLD-01 | — | Pending |
-| BFLD-02 | — | Pending |
-| BFLD-03 | — | Pending |
-| BFLD-04 | — | Pending |
-| MFLD-01 | — | Pending |
-| MFLD-02 | — | Pending |
-| MFLD-03 | — | Pending |
-| MFLD-04 | — | Pending |
-| MFLD-05 | — | Pending |
-| JSON-01 | — | Pending |
-| JSON-02 | — | Pending |
-| JSON-03 | — | Pending |
-| JSON-04 | — | Pending |
-| JSON-05 | — | Pending |
-| JSON-06 | — | Pending |
+| BFLD-01 | Phase 6 | Pending |
+| BFLD-02 | Phase 6 | Pending |
+| BFLD-03 | Phase 6 | Pending |
+| BFLD-04 | Phase 6 | Pending |
+| MFLD-01 | Phase 7 | Pending |
+| MFLD-02 | Phase 7 | Pending |
+| MFLD-03 | Phase 7 | Pending |
+| MFLD-04 | Phase 7 | Pending |
+| MFLD-05 | Phase 7 | Pending |
+| JSON-01 | Phase 8 | Pending |
+| JSON-02 | Phase 8 | Pending |
+| JSON-03 | Phase 8 | Pending |
+| JSON-04 | Phase 8 | Pending |
+| JSON-05 | Phase 8 | Pending |
+| JSON-06 | Phase 8 | Pending |
 
 **Coverage:**
 - v1.2 requirements: 15 total
-- Mapped to phases: 0 (roadmap pending)
-- Unmapped: 15 ⚠️
+- Mapped to phases: 15 (Phase 6: 4, Phase 7: 5, Phase 8: 6)
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-05-19*
-*Last updated: 2026-05-19 after initial definition*
+*Last updated: 2026-05-19 — traceability updated after roadmap creation*

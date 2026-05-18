@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.2
 milestone_name: Form Improvements
-status: planning
-last_updated: "2026-05-18T21:48:17.390Z"
-last_activity: 2026-05-18
+status: roadmap_ready
+last_updated: "2026-05-19T00:00:00.000Z"
+last_activity: 2026-05-19
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Current Phase
 
-Phase: N/A — milestone archived
-Plan: N/A
-Status: v1.1 milestone archived 2026-05-18
-Last activity: 2026-05-18
+Phase: 6 — BytesField
+Plan: TBD (roadmap created, planning not yet started)
+Status: Not started
+Last activity: 2026-05-19
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Planning next milestone — run `/gsd-new-milestone` to begin
+**Current focus:** v1.2 Form Improvements — Phases 6-8 (BytesField, MapField, JSON Override Toggle)
 
 ## Phase History
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 
 - Plans completed: 15
 - Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01; PUBL-04 delivered by plan 03-02; HIST-01, HIST-03 delivered by plan 03-03; HIST-02, HIST-04 delivered by plan 03-04
-- Phases completed: 2/3 (Phase 03 in progress)
+- Phases completed: 0/3 (v1.2 not yet started)
 
 ## Accumulated Context
 
@@ -134,14 +134,21 @@ See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 - fetchQueues mock in ResponseTab.test.tsx uses mockRejectedValue to keep isLiveMode=false — preserves existing test assertions on Input "Queue name" placeholder
 - Local useState for managementAuthError in ResponseQueuePicker (not useConnectionStore) — parallel impl pattern, not shared state
 - ResponseQueuePicker: 401 auth error uses "authentication failed" substring match (same as PublishBar pattern)
+- v1.2 architecture: ProtoFormRenderer dispatch is FROZEN — new field types added as pre-dispatch branches or new case in renderField switch
+- v1.2 architecture: react-hook-form reset() not setValue() for JSON-to-form sync — setValue bypasses useFieldArray internal refs
+- v1.2 architecture: zod bytes regex must use standard base64 alphabet (+/), not URL-safe (-_)
+- v1.2 architecture: map rows stored as Array<{key, value}> via useFieldArray — never as Record<K,V> (silent JS deduplication)
+- v1.2 architecture: next-themes resolvedTheme prop used for JSON editor dark mode (already in use for Phase 5)
+- v1.2 stack: @uiw/react-codemirror ^4.25.9 + @codemirror/lang-json ^6.0.x — only new npm packages for the milestone
 
 ### Roadmap Evolution
 
 - Phase 4 added (2026-05-18): Response Queue Reader — select reply queue, consume + deserialize incoming protobuf message, ack to remove from queue (RESP-01 to RESP-05)
+- Phases 6-8 added (2026-05-19): v1.2 Form Improvements — BytesField (Phase 6), MapField (Phase 7), JSON Override Toggle (Phase 8)
 
 ### Active TODOs
 
-- Run `/gsd-new-milestone` to begin planning the next milestone
+- Run `/gsd-plan-phase 6` to begin planning Phase 6 (BytesField)
 
 ### Blockers
 
@@ -152,16 +159,17 @@ See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 - shadcn/ui + Tailwind 4 Vite config: VERIFIED — @tailwindcss/vite plugin works, no tailwind.config.js
 - macOS arbitrary file read entitlements: Entitlements.plist approach confirmed (bundle.macOS.entitlements path string)
 - Linux keychain (libsecret): still needs install notes for distribution
+- v1.2 stack additions: @uiw/react-codemirror v4.x (CodeMirror 6 wrapper) + @codemirror/lang-json ^6.0.x — verified HIGH confidence on GitHub releases March 2025
 
 ## Session Continuity
 
-Last updated: 2026-05-18 (v1.1 milestone started)
-Stopped at: Phase 5 UI-SPEC approved
-Next action: `/gsd-discuss-phase 5` or `/gsd-plan-phase 5`
+Last updated: 2026-05-19 (v1.2 roadmap created)
+Stopped at: Roadmap created, Phase 6 ready to plan
+Next action: `/gsd-plan-phase 6`
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 6 — BytesField (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-18 — Milestone v1.2 started
+Status: Roadmap created
+Last activity: 2026-05-19 — v1.2 roadmap written (Phases 6-8)
