@@ -21,6 +21,7 @@ import {
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useAmqpStore } from "@/stores/useAmqpStore";
+import { useHistoryStore } from "@/stores/useHistoryStore";
 import { fetchExchanges, fetchQueues, publishMessage } from "@/lib/ipc";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 
@@ -147,6 +148,10 @@ export function PublishBar() {
     }
 
     const payload = hexToBytes(hexPreview);
+
+    // Capture proto store fields synchronously BEFORE any await (Zustand getState() is synchronous)
+    const { latestValues, selectedMessageType } = useProtoStore.getState();
+
     // Capture AMQP properties synchronously BEFORE any await (Pitfall 3)
     const { properties } = useAmqpStore.getState();
     const amqpProps = {
@@ -167,12 +172,40 @@ export function PublishBar() {
       // D-13: success toast, 3 seconds, non-blocking
       toast(`Message sent to ${targetName}`, { duration: 3000 });
       // D-15: form retains all field values — do NOT reset the form
+
+      // Record successful send to history
+      void useHistoryStore.getState().appendEntry({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        messageTypeName: selectedMessageType ?? "unknown",
+        exchange,
+        routingKey: targetRoutingKey,
+        status: "sent",
+        fieldValues: latestValues ?? {},
+        payloadBytes: payload,
+      });
+
+      // Signal RightPanel to auto-switch to History tab
+      useProtoStore.getState().setLastSendAt(Date.now());
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       // D-14: failure toast, destructive, 5 seconds
       toast.error(`Send failed: ${message}`, { duration: 5000 });
       // On AMQP error, update connection status to error
       setConnectionStatus("error", message);
+
+      // Record failed send to history
+      void useHistoryStore.getState().appendEntry({
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        messageTypeName: selectedMessageType ?? "unknown",
+        exchange,
+        routingKey: targetRoutingKey,
+        status: "failed",
+        errorMessage: message,
+        fieldValues: latestValues ?? {},
+        payloadBytes: payload,
+      });
     } finally {
       setIsSending(false);
     }

@@ -26,7 +26,9 @@ interface HistoryStore {
 }
 
 async function persistEntries(entries: HistoryEntry[]): Promise<void> {
-  const store = await load(HISTORY_STORE_PATH, { autoSave: false });
+  // NEVER use autoSave: true — always call .save() explicitly.
+  // Note: load() without options works; passing { autoSave: false } requires 'defaults' field.
+  const store = await load(HISTORY_STORE_PATH);
   await store.set(HISTORY_KEY, entries);
   await store.save();
 }
@@ -36,7 +38,7 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
   historyLoaded: false,
 
   loadHistory: async () => {
-    const store = await load(HISTORY_STORE_PATH, { autoSave: false });
+    const store = await load(HISTORY_STORE_PATH);
     const saved = await store.get<HistoryEntry[]>(HISTORY_KEY);
     set({ entries: saved ?? [], historyLoaded: true });
   },

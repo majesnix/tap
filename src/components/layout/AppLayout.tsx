@@ -1,6 +1,6 @@
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { FormPanel } from "@/components/form/FormPanel";
-import { HexPreviewPanel } from "@/components/preview/HexPreviewPanel";
+import { RightPanel } from "@/components/layout/RightPanel";
 import { PublishBar } from "@/components/publish/PublishBar";
 
 export function AppLayout() {
@@ -17,9 +17,9 @@ export function AppLayout() {
         <FormPanel />
       </main>
 
-      {/* Right: hex preview */}
+      {/* Right: hex preview + message history tabs */}
       <aside className="w-80 min-w-64 border-l border-border flex flex-col shrink-0">
-        <HexPreviewPanel />
+        <RightPanel />
       </aside>
     </div>
   );
