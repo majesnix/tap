@@ -269,7 +269,7 @@ export function PublishBar() {
                 placeholder={mode === "queue" ? "Select queue…" : "Select exchange…"}
               />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent position="popper" className="max-h-60">
               {(mode === "queue" ? queues : exchanges).map((name) => (
                 <SelectItem key={name} value={name}>
                   {name}
