@@ -1,31 +1,30 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.0
-milestone_name: milestone
-status: executing
-stopped_at: Phase 4 UI-SPEC approved
-last_updated: "2026-05-18T13:02:20.884Z"
+milestone: v1.1
+milestone_name: next-milestone
+status: planning_next_milestone
+stopped_at: v1.0 milestone archived
+last_updated: "2026-05-18T15:30:00.000Z"
 progress:
-  total_phases: 4
-  completed_phases: 3
-  total_plans: 18
-  completed_plans: 16
-  percent: 89
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Proto Sender
 
 ## Current Phase
 
-Phase 4 — Response Queue Reader
-Status: Ready to execute
+v1.0 milestone complete — planning next milestone
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-17)
+See: .planning/PROJECT.md (updated 2026-05-18)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 03 — full-feature-set
+**Current focus:** Planning next milestone — run `/gsd-new-milestone` to begin
 
 ## Phase History
 
@@ -45,6 +44,8 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 03-02 (AMQP Properties): COMPLETE — commits ed583c8, bbb5ae5, 1ea0ad9
 - Plan 03-03 (Message History): COMPLETE — commits 7d02068, 5fb9aa5, d3ca824, e63736b
 - Plan 03-04 (History Filter + Replay/Resend): COMPLETE — commits c3d0d8d, a651885, 5141d6a
+- Plan 04-01 (Response Queue Reader — Core Slice): COMPLETE — consume_message Rust command + useResponseStore + ResponseTab + RightPanel 3rd tab
+- Plan 04-02 (Response Queue Reader — UX Polish): COMPLETE — ResponseQueuePicker (Live/Manual) + ResponseDecodedView (collapsible tree) + ResponseHexSection (copy buttons) + ResponseTab composition
 
 ---
 
@@ -124,6 +125,12 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - filterHistoryEntries and findReplayTabIndex extracted as pure functions for testability (not inline)
 - Resend shown for ALL entries regardless of status — D-03 guarantees payloadBytes always captured
 - Task 3 TDD executed before Task 1 to satisfy import dependency on historyHelpers
+- ConsumeResult uses #[serde(rename_all = "camelCase")] — Tauri does not auto-convert return value fields; hex_string must serialize as hexString to match TS interface
+- use_proto_field_name=true on SerializeOptions — users see .proto field names (snake_case), not lowerCamelCase transforms
+- stringify_64_bit_integers=true — JS precision safety for int64/uint64 fields
+- fetchQueues mock in ResponseTab.test.tsx uses mockRejectedValue to keep isLiveMode=false — preserves existing test assertions on Input "Queue name" placeholder
+- Local useState for managementAuthError in ResponseQueuePicker (not useConnectionStore) — parallel impl pattern, not shared state
+- ResponseQueuePicker: 401 auth error uses "authentication failed" substring match (same as PublishBar pattern)
 
 ### Roadmap Evolution
 
@@ -131,7 +138,7 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ### Active TODOs
 
-- Phase 4 added — ready for /gsd-discuss-phase 4 and /gsd-plan-phase 4
+- v1.0 archived — run `/gsd-new-milestone` to start v1.1 planning
 
 ### Blockers
 
@@ -145,6 +152,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-18 (plan 03-04 complete)
-Stopped at: Phase 4 UI-SPEC approved
-Next action: Phase 03 complete — all v1 features shipped
+Last updated: 2026-05-18 (v1.0 milestone archived)
+Stopped at: v1.0 milestone archived — all 4 phases, 18 plans, 30 requirements complete
+Next action: `/gsd-new-milestone` — define v1.1 scope

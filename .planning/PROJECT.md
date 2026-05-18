@@ -2,7 +2,7 @@
 
 ## What This Is
 
-A Tauri desktop application (Rust backend + React frontend) that lets developers load `.proto` files, generates a dynamic form from the schema, connects to RabbitMQ, and sends binary-encoded protobuf messages to a selected queue or exchange — without writing any code. Built as a team dev-tool: each developer installs it locally and uses their own saved connection profiles.
+A Tauri desktop application (Rust backend + React frontend) that lets developers load `.proto` files, generate a dynamic form from the schema, connect to RabbitMQ, send binary-encoded protobuf messages to a selected queue or exchange, and read back incoming response messages from a reply queue — all without writing any code. Built as a team dev-tool: each developer installs it locally and uses their own saved connection profiles.
 
 ## Core Value
 
@@ -12,41 +12,57 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 
 ### Validated
 
-- [x] Load `.proto` files via file picker at runtime, with import resolution from the filesystem — Validated in Phase 01: proto-parsing-form
-- [x] Parse all proto features: nested messages, repeated fields, enums, oneof fields — Validated in Phase 01: proto-parsing-form
-- [x] Generate a type-aware dynamic form from the parsed proto schema — Validated in Phase 01: proto-parsing-form
-- [x] Type-check field values before send (string, int32/64, float, bool, bytes, enum) — Validated in Phase 01: proto-parsing-form
+- ✓ Load `.proto` files via file picker at runtime, with import resolution from the filesystem — v1.0 (Phase 01)
+- ✓ Parse all proto features: nested messages, repeated fields, enums, oneof fields, WellKnownTypes — v1.0 (Phase 01)
+- ✓ Generate a type-aware dynamic form from the parsed proto schema — v1.0 (Phase 01)
+- ✓ Type-check and validate field values before send, surface errors inline — v1.0 (Phase 01)
+- ✓ Connect to RabbitMQ with saved named connection profiles (host, port, vhost, user, password) stored with OS keychain — v1.0 (Phase 02)
+- ✓ Fetch live queue list and exchange list from RabbitMQ Management API — v1.0 (Phase 02)
+- ✓ Publish to a selected queue (direct) or exchange + routing key — v1.0 (Phase 02)
+- ✓ Encode message as binary protobuf wire format before sending — v1.0 (Phase 02)
+- ✓ Multi-file proto tabs — open multiple `.proto` files simultaneously, switch between them — v1.0 (Phase 03)
+- ✓ AMQP message properties — set content-type, delivery mode, TTL, correlation ID, reply-to, custom headers — v1.0 (Phase 03)
+- ✓ Message history with persistence — every send recorded, survives app restart, FIFO-capped at 100 — v1.0 (Phase 03)
+- ✓ Hex payload preview — inspect binary wire-format bytes for any history entry — v1.0 (Phase 03)
+- ✓ History filtering — filter by message type name and queue/exchange target — v1.0 (Phase 03)
+- ✓ Replay + resend — re-fill form from history entry or republish raw bytes directly — v1.0 (Phase 03)
+- ✓ Consume one message at a time from a selected RabbitMQ queue via basic_get — v1.0 (Phase 04)
+- ✓ Decode binary protobuf payload using the loaded schema and display as a collapsible key-value tree — v1.0 (Phase 04)
+- ✓ Display raw hex payload alongside decoded fields — v1.0 (Phase 04)
+- ✓ Live queue dropdown from Management API with fallback to manual text input (consistent across PublishBar and ResponseTab) — v1.0 (Phase 04)
+- ✓ Copy hex and decoded JSON to clipboard — v1.0 (Phase 04)
+- ✓ Ack message after basic_get — v1.0 (Phase 04)
 
-### Validated
+### Active (v2 candidates)
 
-- [x] Connect to RabbitMQ with saved named connection profiles (host, port, vhost, user, password) — Validated in Phase 02: connect-publish
-- [x] Fetch live queue list and exchange list from RabbitMQ Management API — Validated in Phase 02: connect-publish
-- [x] Publish to a selected queue (direct) or exchange + routing key — Validated in Phase 02: connect-publish
-- [x] Encode message as binary protobuf wire format before sending — Validated in Phase 02: connect-publish
-
-### Validated
-
-- [x] Multi-file proto tabs — open multiple `.proto` files simultaneously, switch between them with independent form state — Validated in Phase 03: full-feature-set
-- [x] AMQP message properties — set content-type, delivery mode, TTL, correlation ID, reply-to, custom headers — Validated in Phase 03: full-feature-set
-- [x] Message history with persistence — every send recorded, survives app restart, FIFO-capped at 100 — Validated in Phase 03: full-feature-set
-- [x] Hex payload preview — inspect binary wire-format bytes for any history entry — Validated in Phase 03: full-feature-set
-- [x] History filtering — filter by message type name and queue/exchange target — Validated in Phase 03: full-feature-set
-- [x] Replay + resend — re-fill form from history entry or republish raw bytes directly — Validated in Phase 03: full-feature-set
+- [ ] Bytes field with base64 input and UTF-8 text helper button (FORM-V2-01)
+- [ ] Map field (`map<K, V>`) rendered as dynamic key-value row list (FORM-V2-02)
+- [ ] JSON override toggle — switch between form view and raw JSON edit mode (FORM-V2-03)
+- [ ] Routing key autocomplete from exchange binding table (PUBL-V2-01)
+- [ ] Publisher confirms mode with per-message acknowledgment status (PUBL-V2-02)
+- [ ] Export history entries to JSON or CSV (HIST-V2-01)
+- [ ] Full-text search across historical message field values (HIST-V2-02)
 
 ### Out of Scope
 
-- Message consumption / reading from queues — send-only tool
-- Real-time message monitoring or stream inspection
-- OAuth or team-shared credentials — each user manages their own profiles
+- Real-time message monitoring or stream subscription — different product, not core to the send-test loop
+- OAuth or team-shared credentials — each user manages their own profiles locally
 - Non-proto message formats (JSON-only, Avro, etc.) in v1
+- Request scripting / automation — Postman-style scripting adds scope without core value
 
 ## Context
 
-- This is a developer productivity tool, analogous to Postman but for RabbitMQ + protobuf
-- The proto parsing must happen at runtime (no pre-compilation step) — developers drop in `.proto` files
-- Proto files may import other `.proto` files; the tool must resolve relative imports from the filesystem
-- Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI
-- Team use means packaging/distribution matters — the app should be distributable as a binary
+- Shipped v1.0 with ~42,800 LOC (TypeScript + Rust), 50 commits, 4 phases, 18 plans, delivered in a single day.
+- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x).
+- This is a developer productivity tool, analogous to Postman but for RabbitMQ + protobuf.
+- The proto parsing must happen at runtime (no pre-compilation step) — developers drop in `.proto` files.
+- Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
+- Team use means packaging/distribution matters — the app should be distributable as a binary.
+
+**Known issues / tech debt at v1.0:**
+- Linux keychain (libsecret) install documentation needed for distribution.
+- No CI/CD pipeline — builds are manual.
+- No app distribution pipeline (notarization, signing) — binary not yet packaged for team.
 
 ## Constraints
 
@@ -60,21 +76,21 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| Tauri over Electron | Lighter bundle, Rust backend handles proto encoding and AMQP natively | — Pending |
-| Binary proto wire format | Matches production consumer expectations | — Pending |
-| Runtime .proto parsing | No pre-compilation step — developer just drops in the file | — Pending |
-| Save named connection profiles | Team members connect to different RabbitMQ instances | — Pending |
+| Tauri 2.x over Electron | Lighter bundle, Rust backend handles proto encoding and AMQP natively | ✓ Good — native feel, no Node.js overhead in production binary |
+| Binary proto wire format | Matches production consumer expectations | ✓ Good — prost-reflect encoding validated against real RabbitMQ consumers |
+| Runtime .proto parsing (protox + prost-reflect) | No pre-compilation step — developer just drops in the file | ✓ Good — protox Compiler API handled include path resolution cleanly |
+| Save named connection profiles | Team members connect to different RabbitMQ instances | ✓ Good — OS keychain storage never exposed passwords |
+| reqwest + Management API for queue listing | AMQP 0-9-1 has no enumeration operation | ✓ Good — 401 surfaced as auth error not silent fallback |
+| react-hook-form + zod (not RJSF) | Proto oneof/repeated don't map cleanly to JSON Schema | ✓ Good — useFieldArray handled repeated fields; zod pinned to ^3.24.2 |
+| zustand 5.x for global state | Simpler than Redux for this scope | ✓ Good — 5 stores stayed manageable |
+| shadcn/ui nova preset | Zero-dependency components, source-copied | ✓ Good — Tailwind 4 + @tailwindcss/vite plugin worked; Radix portals need jsdom mocking |
+| tauri::async_runtime::spawn (not tokio::spawn) | tokio::spawn panics on Windows in Tauri 2 event listeners | ✓ Good — confirmed by Tauri issue #10289 |
+| ack-before-decode for consume_message | Avoids re-delivery on decode error; acceptable for dev tool usage | ✓ Good — simpler Rust code; no re-delivery edge case issues |
+| Ephemeral lapin connections per operation | No persistent AMQP connection state to manage in Tauri app | ✓ Good — simplified error handling, no reconnection logic needed |
 
 ## Evolution
 
 This document evolves at phase transitions and milestone boundaries.
-
-**After each phase transition** (via `/gsd-transition`):
-1. Requirements invalidated? → Move to Out of Scope with reason
-2. Requirements validated? → Move to Validated with phase reference
-3. New requirements emerged? → Add to Active
-4. Decisions to log? → Add to Key Decisions
-5. "What This Is" still accurate? → Update if drifted
 
 **After each milestone** (via `/gsd-complete-milestone`):
 1. Full review of all sections
@@ -83,9 +99,12 @@ This document evolves at phase transitions and milestone boundaries.
 4. Update Context with current state
 
 ---
+
 ## Current State
 
-Phase 03 (full-feature-set) complete — v1.0 milestone fully shipped. All core features delivered: multi-file proto tabs, AMQP properties sheet, persistent message history with hex preview, history filtering, form replay and raw resend. 130 frontend tests + 12 Rust tests passing. 3 code review findings (publisher confirm mode, connection leak on error, draft header cap) remain open for v1.1.
+v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 plans). The app is fully functional as a local dev tool: load a `.proto` file, fill out the form, connect to RabbitMQ, publish a binary-encoded protobuf message, and read back response messages from a reply queue.
+
+Next: `/gsd-new-milestone` to define v1.1 scope (likely: distribution/packaging, CI/CD, and first batch of v2 form features).
 
 ---
-*Last updated: 2026-05-18 after Phase 03 completion*
+*Last updated: 2026-05-18 after v1.0 milestone*
