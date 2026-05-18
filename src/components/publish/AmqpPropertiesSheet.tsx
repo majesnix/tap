@@ -99,7 +99,7 @@ export function AmqpPropertiesSheet({
           </SheetDescription>
         </SheetHeader>
 
-        <div className="flex flex-col gap-4 py-4 overflow-y-auto">
+        <div className="flex flex-col gap-4 px-4 py-2 flex-1 min-h-0 overflow-y-auto">
           {/* Content Type */}
           <div className="flex flex-col gap-1">
             <label className="text-sm font-medium">Content Type</label>
@@ -268,7 +268,7 @@ export function AmqpPropertiesSheet({
           </div>
         </div>
 
-        <SheetFooter className="flex flex-row gap-2 justify-end">
+        <SheetFooter className="flex flex-row gap-2 justify-end border-t pt-4">
           <Button variant="outline" onClick={handleReset}>
             Reset to defaults
           </Button>
