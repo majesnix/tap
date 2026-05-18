@@ -3,29 +3,29 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: executing
-stopped_at: Phase 3 context gathered
-last_updated: "2026-05-18T00:02:39.717Z"
+stopped_at: Completed Phase 03 Plan 01 — Multi-file Tabs + Store Signal Fields
+last_updated: "2026-05-18T06:32:20.026Z"
 progress:
   total_phases: 3
   completed_phases: 2
   total_plans: 16
-  completed_plans: 12
-  percent: 75
+  completed_plans: 13
+  percent: 81
 ---
 
 # Project State: Proto Sender
 
 ## Current Phase
 
-Phase 2 — Connect + Publish
-Status: Ready to execute
+Phase 3 — Full Feature Set
+Status: Executing Phase 03 (Plan 03-01 complete)
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-17)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 02 — connect-publish
+**Current focus:** Phase 03 — full-feature-set
 
 ## Phase History
 
@@ -41,14 +41,15 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - Plan 02-04 (Publish Message — Slice 4): COMPLETE — commits 8729375, b6b3ff6
 - Plan 02-GAP (UAT Gap Fix — Test Connection + Edit Mode): COMPLETE — commits ef4d928, da68a62, 3f8fd65, 504fd63, 822dbd8, c25906c
   - Plan 02-GAP2 (UAT Gap Fix — Modal Scroll Layout): COMPLETE — commit 1398733
+- Plan 03-01 (Multi-file Tabs + Store Signal Fields): COMPLETE — commits 1e6ab26, be6f0e4, 2e9cf6c
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 11
-- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP
-- Phases completed: 2/3
+- Plans completed: 13
+- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01
+- Phases completed: 2/3 (Phase 03 in progress)
 
 ## Accumulated Context
 
@@ -101,10 +102,16 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 - handleRetest DOES update global connectionStatus (re-test is authoritative for active profile)
 - Blank-password guard in handleSave (frontend) required because Rust save_profile always writes to keychain unconditionally
 - ConnectionProfile type uses snake_case (management_port/management_ssl), not camelCase
+- Plain stored activeFilePath + schema (not getters) — all mutating actions keep them in sync explicitly
+- True no-op addOrActivateFile: return s unchanged when same file is already active (prevents spurious re-renders)
+- latestValues lifted to Zustand store (D-07 / Option A) — FormPanel calls setLatestValues via getState()
+- resetRef sibling approach for ProtoFormRenderer: optional prop, renderer wires methods.reset to it post-mount
+- Close button as sibling of TabsTrigger (not nested) — avoids invalid nested button HTML
+- 20-file cap enforced in addOrActivateFile with toast.error (T-03-01-03 mitigate)
 
 ### Active TODOs
 
-- Phase 02 complete — all 4 slices + UAT gap fix done; ready for Phase 03
+- Phase 03 in progress — Plan 03-01 complete; Plans 03-02 through 03-0N are next
 
 ### Blockers
 
@@ -118,6 +125,6 @@ See: .planning/PROJECT.md (updated 2026-05-17)
 
 ## Session Continuity
 
-Last updated: 2026-05-17 (plan 02-GAP2 complete)
-Stopped at: Phase 3 context gathered
-Next action: Phase 03 — next phase planning
+Last updated: 2026-05-18 (plan 03-01 complete)
+Stopped at: Completed Phase 03 Plan 01 — Multi-file Tabs + Store Signal Fields
+Next action: Phase 03 — Plan 03-02
