@@ -51,12 +51,18 @@ Exceptions:
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
-| Label | 14px (text-sm) | 600 (font-semibold) | 1.25 |
-| Body / Input / Suggestion item | 14px (text-sm) | 400 (font-normal) | 1.5 |
-| Badge / Hint text | 12px (text-xs) | 500 (font-medium) | 1.4 |
+| Label / Badge | 14px (text-sm) / 12px (text-xs) | 600 (font-semibold) | 1.25 / 1.4 |
+| Body / Input / Suggestion item / Hint text | 14px (text-sm) / 12px (text-xs) | 400 (font-normal) | 1.5 / 1.4 |
+
+Exactly 2 declared weights: 400 (font-normal) and 600 (font-semibold).
+
+Badge instances in this phase override the shadcn `font-medium` base class with `font-semibold` via className:
+- Exchange type badge: add `font-semibold` to the `className` prop
+- Amber pattern badge: add `font-semibold` to the `className` prop
+
+Hint text inherits 400 (font-normal) from its parent — no weight class applied.
 
 Source: Existing PublishBar typography — `text-sm font-semibold` for "Routing Key" label, `text-sm` for Input, `text-xs` for Badge.
-Weights are 400 (normal) and 600 (semibold) only. Badge uses 500 via shadcn `font-medium` base class.
 
 ---
 
@@ -76,7 +82,7 @@ Accent reserved for: active mode toggle (Queue/Exchange pill) only. Send button 
 Exchange wildcard patterns use amber colors. No semantic `warning` token exists in the theme. Use raw Tailwind with dark-mode pairs:
 
 ```
-className="bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300"
+className="bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300 font-semibold"
 ```
 
 Applied directly to the `<Badge>` element via `className` override (no new variant added to badge.tsx).
@@ -85,10 +91,10 @@ The executor MUST verify WCAG AA contrast (4.5:1) for both light and dark values
 ### Exchange type muted badge (D-05)
 
 ```
-className="text-muted-foreground border-border bg-transparent text-xs font-medium"
+className="text-muted-foreground border-border bg-transparent text-xs font-semibold"
 ```
 
-Use `variant="outline"` on `<Badge>` with no further override — matches the existing Live/Manual badges in PublishBar.
+Use `variant="outline"` on `<Badge>` with the className above — matches the existing Live/Manual badges in PublishBar but overrides weight to font-semibold.
 
 ---
 
@@ -105,6 +111,8 @@ Use `variant="outline"` on `<Badge>` with no further override — matches the ex
 ---
 
 ## Interaction Contract
+
+The combobox trigger (a button styled to match `<Input className="w-48">`) is the primary visual anchor of the routing key section — it is the element users see first and interact with to access suggestions.
 
 ### State Machine: Routing Key Widget
 
@@ -144,7 +152,7 @@ State determination order (checked top to bottom):
 ```
 <CommandItem>
   <span className="flex-1 truncate">{bindingKey}</span>
-  <Badge className="ml-2 bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300 shrink-0">
+  <Badge className="ml-2 bg-amber-100 text-amber-900 dark:bg-amber-900/30 dark:text-amber-300 font-semibold shrink-0">
     pattern
   </Badge>
 </CommandItem>
@@ -183,7 +191,7 @@ Each `<SelectItem>` in the exchange dropdown renders as a flex row:
 <SelectItem key={ex.name} value={ex.name}>
   <span className="flex items-center gap-2">
     {ex.name}
-    <Badge variant="outline" className="text-xs text-muted-foreground">
+    <Badge variant="outline" className="text-xs text-muted-foreground font-semibold">
       [{ex.exchange_type}]
     </Badge>
   </span>
@@ -206,7 +214,7 @@ Styling:
 className="text-xs text-muted-foreground mt-1"
 ```
 
-No icon. No tooltip. Plain text only.
+No icon. No tooltip. Plain text only. Weight: 400 (font-normal) — inherits from parent, no weight class applied.
 
 ### Routing Key Section Layout
 
