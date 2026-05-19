@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from "react";
+import React, { useMemo, useEffect, useRef } from "react";
 import {
   Controller,
   useFieldArray,
@@ -100,14 +100,14 @@ function defaultValueForKind(kind: FieldKind): unknown {
  * - Key input dispatched by key_type: text (string), number (int32), text+regex (int64), Select (bool)
  * - Duplicate key detection via useWatch + useMemo — fires on onChange
  * - Inline "Duplicate key" error shown on every affected row
- * - setError/clearErrors on `${path}.__mapDuplicateGuard` keeps formState.isValid false while duplicates exist
+ * - register(guardName, { validate }) + trigger(guardName) keeps formState.isValid false while duplicates exist
  * - renderValue prop renders the value column — depth+1 prevents MAX_DEPTH bypass
  */
 export function MapField({ field, path, depth, renderValue }: MapFieldProps): React.ReactNode {
   // All hook calls are unconditional — Rules of Hooks compliance.
   // ProtoFormRenderer already guarantees field.kind.type === "map" at the call site;
   // the cast below is safe by construction.
-  const { control, setError, clearErrors } = useFormContext();
+  const { control, register, unregister, trigger, setValue } = useFormContext();
   const { key_type, value_kind } = field.kind as Extract<FieldKind, { type: "map" }>;
 
   const { fields, append, remove } = useFieldArray({ control, name: path });
@@ -130,17 +130,25 @@ export function MapField({ field, path, depth, renderValue }: MapFieldProps): Re
   const hasDuplicates = duplicateKeys.size > 0;
   const guardName = `${path}.__mapDuplicateGuard`;
 
-  // Keep hidden guard field error in sync with duplicate state.
-  // setError/clearErrors is the authoritative mechanism that keeps formState.isValid false.
-  // No Controller is needed — RHF only runs Controller validate rules when the field's
-  // own value changes, and the guard field has no input.
+  // useRef mirrors hasDuplicates so the validate closure never goes stale.
+  const hasDuplicatesRef = useRef(false);
+  hasDuplicatesRef.current = hasDuplicates;
+
+  // Register guard field with validate rule — keeps formState.isValid false while duplicates exist.
   useEffect(() => {
-    if (hasDuplicates) {
-      setError(guardName, { type: "manual", message: "Duplicate key" });
-    } else {
-      clearErrors(guardName);
-    }
-  }, [hasDuplicates, guardName, setError, clearErrors]);
+    register(guardName, {
+      validate: () => (hasDuplicatesRef.current ? "Duplicate key" : true),
+    });
+    return () => unregister(guardName);
+  }, [register, unregister, guardName]);
+
+  // Force re-validation of the guard field whenever duplicate state changes.
+  // setValue sets a concrete value so RHF includes the field in isValid computation;
+  // trigger then runs the registered validate rule.
+  useEffect(() => {
+    setValue(guardName, hasDuplicates);
+    void trigger(guardName);
+  }, [hasDuplicates, guardName, setValue, trigger]);
 
   // Build badge label — e.g. "map<string, int32>"
   const valueSummary =
