@@ -22,7 +22,8 @@ export type FieldKind =
   | { type: "message"; full_name: string }
   | { type: "enum"; values: EnumValue[] }
   | { type: "oneof"; branches: FieldSchema[][] }
-  | { type: "well_known"; wkt: "Timestamp" | "Duration" | string };
+  | { type: "well_known"; wkt: "Timestamp" | "Duration" | string }
+  | { type: "map"; key_type: ScalarKind; value_kind: FieldKind };
 
 export interface EnumValue {
   name: string;

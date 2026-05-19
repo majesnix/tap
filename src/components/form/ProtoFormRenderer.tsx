@@ -8,6 +8,7 @@ import { EnumField } from "./fields/EnumField";
 import { OneofField } from "./fields/OneofField";
 import { WellKnownTypeField } from "./fields/WellKnownTypeField";
 import { BytesField } from "./fields/BytesField";
+import { MapField } from "./fields/MapField";
 
 const MAX_DEPTH = 5;
 
@@ -74,6 +75,9 @@ function buildDefaultValues(
       case "message":
       case "well_known":
         defaults[field.name] = null;
+        break;
+      case "map":
+        defaults[field.name] = [];
         break;
     }
   }
@@ -145,6 +149,19 @@ export function ProtoFormRenderer({
     // Phase 6: bytes fields bypass ScalarField — ProtoFormRenderer switch is FROZEN (D-01)
     if (field.kind.type === "scalar" && field.kind.scalar === "bytes") {
       return <BytesField key={path} field={field} path={path} />;
+    }
+
+    // Phase 7: map fields bypass the switch block — ProtoFormRenderer switch is FROZEN (D-01)
+    if (field.kind.type === "map") {
+      return (
+        <MapField
+          key={path}
+          field={field}
+          path={path}
+          depth={depth}
+          renderValue={renderField}
+        />
+      );
     }
 
     switch (field.kind.type) {
