@@ -437,7 +437,7 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
 describe("Phase 10 — Publisher Confirms Badge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.useFakeTimers(); // Required: first timer-dependent tests in this file
+    vi.useFakeTimers({ shouldAdvanceTime: true }); // Required: first timer-dependent tests in this file
     useConnectionStore.setState({
       profiles: [],
       activeProfileName: "test-profile",

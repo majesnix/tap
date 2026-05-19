@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +25,7 @@ import { useHistoryStore } from "@/stores/useHistoryStore";
 import { fetchExchanges, fetchQueues, publishMessage, fetchBindings } from "@/lib/ipc";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
+import type { PublishOutcome } from "@/lib/types";
 
 type Mode = "queue" | "exchange";
 
@@ -68,6 +69,11 @@ export function PublishBar() {
   const [bindingKeys, setBindingKeys] = useState<string[]>([]);
   const [isLoadingBindings, setIsLoadingBindings] = useState(false);
   const [useCombobox, setUseCombobox] = useState(false);
+
+  // Phase 10: Delivery outcome badge state (D-06, D-07, D-08)
+  const [outcome, setOutcome] = useState<PublishOutcome | null>(null);
+  // D-08: ref holds the active auto-dismiss timer ID; null means no timer pending
+  const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
     activeProfileName,
@@ -173,6 +179,15 @@ export function PublishBar() {
     };
   }, [activeProfileName, selectedExchange, isEligibleForCombobox]);
 
+  // Pitfall 4: Clean up dismiss timer on unmount to prevent setOutcome on unmounted component.
+  useEffect(() => {
+    return () => {
+      if (dismissTimerRef.current !== null) {
+        clearTimeout(dismissTimerRef.current);
+      }
+    };
+  }, []);
+
   const isConnected = connectionStatus === "connected";
   const hasTarget = mode === "queue" ? Boolean(selectedQueue) : Boolean(selectedExchange);
   const canSend = isConnected && hasTarget && !encodeError;
@@ -182,6 +197,15 @@ export function PublishBar() {
 
     const targetName = mode === "queue" ? selectedQueue : selectedExchange;
     if (!targetName) return;
+
+    // D-09: cancel prior dismiss timer and clear prior badge immediately on new send.
+    // Pitfall 3: without this, a fast double-click creates two timers and the first
+    // prematurely clears the second send's badge.
+    if (dismissTimerRef.current !== null) {
+      clearTimeout(dismissTimerRef.current);
+      dismissTimerRef.current = null;
+    }
+    setOutcome(null);
 
     // Use buildPublishArgs to compute PUBL-01 / PUBL-02 args
     const { exchange, routingKey: targetRoutingKey } = buildPublishArgs(
@@ -217,9 +241,21 @@ export function PublishBar() {
 
     setIsSending(true);
     try {
-      await publishMessage(activeProfileName, exchange, targetRoutingKey, payload, amqpProps);
-      // D-13: success toast, 3 seconds, non-blocking
-      toast(`Message sent to ${targetName}`, { duration: 3000 });
+      // D-01: capture delivery outcome; badge replaces the success toast (PATTERNS.md §Modified Patterns).
+      const result = await publishMessage(activeProfileName, exchange, targetRoutingKey, payload, amqpProps);
+      setOutcome(result);
+
+      // D-08: ACK auto-dismisses after 3s; Returned and NACK after 5s; Timeout never auto-dismisses.
+      const delay: number | null =
+        result.status === "ack"      ? 3000 :
+        result.status === "returned" ? 5000 :
+        result.status === "nack"     ? 5000 :
+        null; // "timeout" — no auto-dismiss per PUBL-08
+
+      if (delay !== null) {
+        dismissTimerRef.current = setTimeout(() => setOutcome(null), delay);
+      }
+
       // D-15: form retains all field values — do NOT reset the form
 
       // Record successful send to history
@@ -406,6 +442,46 @@ export function PublishBar() {
       <Button variant="outline" size="sm" onClick={() => setPropertiesOpen(true)}>
         Properties
       </Button>
+
+      {/* D-06: Delivery outcome badge — appears inline to the left of the Send button.
+          D-07: Reuses Badge component with className overrides (not new variants).
+          Pattern: variant="outline" + className matches existing management status badges
+          (see the Live/Manual badge pattern at the managementAuthError conditional above). */}
+      {outcome && (
+        <div className="flex items-center gap-1">
+          <Badge
+            variant="outline"
+            className={
+              outcome.status === "ack"
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                : outcome.status === "returned"
+                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
+                : outcome.status === "nack"
+                ? "bg-destructive/10 text-destructive border-destructive/20"
+                : /* timeout */ "bg-muted text-muted-foreground border-border"
+            }
+          >
+            {outcome.status === "ack"
+              ? "ACK"
+              : outcome.status === "returned"
+              ? "Returned"
+              : outcome.status === "nack"
+              ? "NACK"
+              : /* timeout */ "Timeout"}
+          </Badge>
+          {/* D-08: Pitfall 6 — ONLY the Timeout badge has a manual dismiss button.
+              ACK/Returned/NACK auto-dismiss; they do not show a dismiss button. */}
+          {outcome.status === "timeout" && (
+            <button
+              onClick={() => setOutcome(null)}
+              className="text-muted-foreground hover:text-foreground text-xs ml-1"
+              aria-label="Dismiss timeout badge"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Send button — disabled with tooltip when no active connection */}
       {isConnected ? (
