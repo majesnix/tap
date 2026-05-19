@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useRef } from "react";
+import React, { useMemo, useEffect } from "react";
 import {
   Controller,
   useFieldArray,
@@ -100,7 +100,7 @@ function defaultValueForKind(kind: FieldKind): unknown {
  * - Key input dispatched by key_type: text (string), number (int32), text+regex (int64), Select (bool)
  * - Duplicate key detection via useWatch + useMemo — fires on onChange
  * - Inline "Duplicate key" error shown on every affected row
- * - Hidden `${path}.__mapDuplicateGuard` Controller keeps formState.isValid false while duplicates exist
+ * - setError/clearErrors on `${path}.__mapDuplicateGuard` keeps formState.isValid false while duplicates exist
  * - renderValue prop renders the value column — depth+1 prevents MAX_DEPTH bypass
  */
 export function MapField({ field, path, depth, renderValue }: MapFieldProps): React.ReactNode {
@@ -130,12 +130,10 @@ export function MapField({ field, path, depth, renderValue }: MapFieldProps): Re
   const hasDuplicates = duplicateKeys.size > 0;
   const guardName = `${path}.__mapDuplicateGuard`;
 
-  // Use a ref so the validate closure always reads the latest value (avoids stale closure).
-  const hasDuplicatesRef = useRef(hasDuplicates);
-  hasDuplicatesRef.current = hasDuplicates;
-
   // Keep hidden guard field error in sync with duplicate state.
-  // setError/clearErrors is the mechanism that keeps formState.isValid false.
+  // setError/clearErrors is the authoritative mechanism that keeps formState.isValid false.
+  // No Controller is needed — RHF only runs Controller validate rules when the field's
+  // own value changes, and the guard field has no input.
   useEffect(() => {
     if (hasDuplicates) {
       setError(guardName, { type: "manual", message: "Duplicate key" });
@@ -276,19 +274,6 @@ export function MapField({ field, path, depth, renderValue }: MapFieldProps): Re
           </div>
         );
       })}
-
-      {/* Hidden duplicate guard — keeps formState.isValid false while duplicates exist (D-06).
-          The validate rule reads hasDuplicatesRef.current (not stale closure) so it never
-          accidentally clears the error set by setError in the useEffect above. */}
-      <Controller
-        name={guardName}
-        control={control}
-        rules={{
-          validate: () =>
-            hasDuplicatesRef.current ? "Duplicate key detected" : true,
-        }}
-        render={() => <></>}
-      />
 
       {/* Add entry button */}
       <Button
