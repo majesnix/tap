@@ -559,17 +559,19 @@ All other claims are verified against the codebase or CONTEXT.md/UI-SPEC.md.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Toggle state placement: prop-threading vs. Zustand slice**
    - What we know: `isBlockLibraryOpen` must live in `AppLayout` (D-01, D-04 says session-only, not persisted). The toggle button lives in `FormPanel` header (D-03).
    - What's unclear: Should `AppLayout` pass `onToggleBlockLibrary` + `isBlockLibraryOpen` as props to `FormPanel`, or should a minimal Zustand UI slice (e.g., `useUIStore`) hold this state so both components can access it without prop-threading?
    - Recommendation: Prop-threading is simpler and consistent with YAGNI (the toggle is a single boolean, one level deep). Introduce a Zustand UI slice only if a second consumer emerges. The planner should pick one approach and be consistent.
+   - **RESOLVED: Prop-threading chosen.** `isBlockLibraryOpen` state and `setIsBlockLibraryOpen` live in `AppLayout`; `onToggleBlockLibrary` callback and `isBlockLibraryOpen` flag are passed as props to `FormPanel`. Plan 11-03 Task 1 (AppLayout) and Task 2 (FormPanel) implement this pattern exactly. No Zustand UI slice introduced.
 
 2. **`PublishBar` position relative to block panel**
    - What we know: UI-SPEC Layout Contract shows `PublishBar` above the `flex row` of panel + FormPanel.
    - What's unclear: In current `AppLayout`, `PublishBar` is a direct child of `<main>` flex-col. When `<main>` becomes a flex-row container for the block panel + FormPanel, `PublishBar` must stay above both.
    - Recommendation: Wrap the panel + FormPanel in a nested `div` with `flex-1 flex flex-row min-h-0` inside `<main>` (which remains `flex-col`). `PublishBar` stays as the first child of `<main>`. See Pattern 3 code example above.
+   - **RESOLVED: PublishBar stays above the flex row.** `<main>` remains `flex-col`; `<PublishBar />` is its first child; a nested `<div className="flex-1 flex flex-row min-h-0">` wraps `<BlockLibraryPanel>` and `<FormPanel>`. Plan 11-03 Task 1 implements this exact structure.
 
 ---
 
