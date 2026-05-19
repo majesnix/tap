@@ -28,6 +28,7 @@ pub fn extract_schema(pool: &DescriptorPool) -> ProtoSchema {
     let messages: Vec<MessageSchema> = pool
         .all_messages()
         .filter(|m| !m.full_name().starts_with("google.protobuf."))
+        .filter(|m| !m.is_map_entry())
         .map(|m| extract_message(&m))
         .collect();
 
@@ -103,6 +104,31 @@ fn extract_message(msg: &MessageDescriptor) -> MessageSchema {
 }
 
 fn extract_field_schema(field: &FieldDescriptor, oneof_group: Option<String>) -> FieldSchema {
+    // Map fields: MUST check is_map() before field.kind() match.
+    // Map fields have Kind::Message(synthetic_entry_type) underneath.
+    // Without this guard they fall through as nested messages (Pitfall 1).
+    if field.is_map() {
+        let map_entry_msg = match field.kind() {
+            Kind::Message(m) => m,
+            _ => unreachable!("map field always has Message kind"),
+        };
+        let key_field = map_entry_msg.map_entry_key_field();
+        let val_field = map_entry_msg.map_entry_value_field();
+        let value_kind = extract_field_kind(&val_field);
+        let key_type = match extract_field_kind(&key_field) {
+            FieldKind::Scalar { scalar } => scalar,
+            _ => unreachable!("proto3 spec: map key must be scalar"),
+        };
+        return FieldSchema {
+            name: field.name().to_string(),
+            label: to_label(field.name()),
+            kind: FieldKind::Map { key_type, value_kind: Box::new(value_kind) },
+            repeated: false, // is_list() returns false for map fields; set explicitly per D-02
+            oneof_group,
+            default_value: None,
+        };
+    }
+    // EXISTING code continues unchanged:
     let repeated = field.is_list();
     let kind = extract_field_kind(field);
 
