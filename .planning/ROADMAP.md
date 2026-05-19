@@ -50,7 +50,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 
 ### v1.3 Publishing UX + Message Blocks (Phases 9–12)
 
-- [ ] **Phase 9: Routing Key Autocomplete** — 0/? plans — not started
+- [ ] **Phase 9: Routing Key Autocomplete** — 0/3 plans — not started
 - [ ] **Phase 10: Publisher Confirms Badge** — 0/? plans — not started
 - [ ] **Phase 11: Block Library — Store, Editor, Persistence** — 0/? plans — not started
 - [ ] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/? plans — not started
@@ -68,7 +68,11 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   2. User selects a `headers` or `fanout` exchange and the routing key input shows no suggestions (autocomplete suppressed)
   3. User sees topic exchange wildcard patterns (e.g. `orders.*.created`) displayed in the suggestions list with a visible label indicating they are patterns and must be edited before sending
   4. User has no active connection or the Management API is unreachable and the routing key input falls back to plain free-text entry with no error state shown
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 09-01-PLAN.md — Rust backend: ExchangeSummary struct + fetch_exchanges update + fetch_bindings command + lib.rs registration
+- [ ] 09-02-PLAN.md — Frontend contracts: install Command component, ExchangeSummary type, updated ipc.ts/store, RoutingKeyCombobox component + tests
+- [ ] 09-03-PLAN.md — PublishBar integration: exchange type badges, bindings useEffect, conditional combobox/input, hint text, updated tests
 **UI hint**: yes
 
 ### Phase 10: Publisher Confirms Badge
@@ -121,7 +125,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 | 6. BytesField | v1.2 | 1/1 | Complete | 2026-05-19 |
 | 7. MapField | v1.2 | 4/4 | Complete | 2026-05-19 |
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
-| 9. Routing Key Autocomplete | v1.3 | 0/? | Not started | — |
+| 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
 | 10. Publisher Confirms Badge | v1.3 | 0/? | Not started | — |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 0/? | Not started | — |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
