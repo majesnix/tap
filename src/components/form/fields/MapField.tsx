@@ -77,6 +77,19 @@ function int64Regex(keyType: ScalarKind): RegExp {
   return /^-?[0-9]+$/;
 }
 
+/** Sensible default value for a new map value row, based on the value's FieldKind.
+ *  Prevents the "uncontrolled to controlled" React warning caused by `undefined` values.
+ */
+function defaultValueForKind(kind: FieldKind): unknown {
+  if (kind.type === "scalar") {
+    if (kind.scalar === "bool") return false;
+    if (["int64", "uint64", "sint64", "fixed64", "sfixed64"].includes(kind.scalar)) return "0";
+    if (kind.scalar === "string" || kind.scalar === "bytes") return "";
+    return 0;
+  }
+  return null;
+}
+
 // ---- Component -------------------------------------------------------------
 
 /**
@@ -145,7 +158,7 @@ export function MapField({ field, path, depth, renderValue }: MapFieldProps): Re
   const badgeLabel = `map<${key_type}, ${valueSummary}>`;
 
   function handleAppend() {
-    append({ key: defaultKeyValue(key_type), value: undefined });
+    append({ key: defaultKeyValue(key_type), value: defaultValueForKind(value_kind) });
   }
 
   return (
