@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Publishing UX + Message Blocks
-status: ready_to_plan
-stopped_at: Phase 11 UI-SPEC approved
-last_updated: "2026-05-19T20:48:30.209Z"
+status: planning
+stopped_at: Phase 12 context gathered
+last_updated: "2026-05-19T21:57:53.796Z"
 last_activity: 2026-05-19
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 8
-  completed_plans: 5
-  percent: 75
+  completed_plans: 8
+  percent: 100
 ---
 
 # Project State: Proto Sender
@@ -28,7 +28,7 @@ Last activity: 2026-05-19
 See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 11 — block-library-store-editor-persistence
+**Current focus:** Phase 12 — block-library-drag-and-drop-layer
 
 ## Phase History
 
@@ -165,7 +165,7 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 
 ### Active TODOs
 
-- Run `/gsd-plan-phase 9` to begin planning Phase 9 (Routing Key Autocomplete)
+- Run `/gsd-plan-phase 12` to begin planning Phase 12 (Block Library DnD Layer)
 
 ### Blockers
 
@@ -177,18 +177,18 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 - macOS arbitrary file read entitlements: Entitlements.plist approach confirmed (bundle.macOS.entitlements path string)
 - Linux keychain (libsecret): still needs install notes for distribution
 - v1.2 stack additions: @uiw/react-codemirror v4.x (CodeMirror 6 wrapper) + @codemirror/lang-json ^6.0.x — verified HIGH confidence on GitHub releases March 2025
-- v1.3 open questions: fetch_exchanges signature change strategy (Vec<String> → Vec<{name, exchange_type}>); mandatory:true default behavior change; BlockLibraryPanel toggle placement; topic wildcard annotation UX — all to resolve in Phase 9/11 plan
+- v1.3 open questions: resolved during Phase 9/11 execution — fetch_exchanges returns ExchangeSummary{name,exchange_type}, mandatory=true on publish, BlockLibraryPanel toggle in FormPanel header
 
 ## Session Continuity
 
-Last updated: 2026-05-19 (v1.3 roadmap created)
-Stopped at: Phase 11 UI-SPEC approved
-Next action: `/gsd-plan-phase 9`
+Last updated: 2026-05-19 (Phase 11 code review fixes complete)
+Stopped at: Phase 12 context gathered
+Next action: `/gsd-plan-phase 12`
 
 ## Current Position
 
-Phase: 11 (block-library-store-editor-persistence) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 11
-Last activity: 2026-05-19 -- Phase 11 execution started
+Phase: 12 (block-library-drag-and-drop-layer) — NOT STARTED
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-05-19 -- Phase 11 closed
 Progress: 0/4 phases complete [          ] 0%
