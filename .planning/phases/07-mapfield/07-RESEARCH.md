@@ -527,12 +527,12 @@ vi.mock("@/components/ui/select", () => ({
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **`value_kind` boxing — serde compatibility**
-   - What we know: `Box<FieldKind>` with `#[derive(Serialize, Deserialize)]` is transparent in serde — the box is invisible to JSON output.
-   - What's unclear: Whether the existing `#[serde(tag = "type", rename_all = "snake_case")]` on `FieldKind` interacts unexpectedly with `Box<FieldKind>` as a field type.
-   - Recommendation: Compile and test serialization in Wave 0 / Task 1 before proceeding to React layer.
+1. **`value_kind` boxing — serde compatibility** [RESOLVED: serde handles Box<T> transparently, confirmed by cargo build in Task 1 — the tagged enum attribute passes through Box indirection unchanged; JSON output is identical to an unboxed FieldKind value]
+   - What we knew: `Box<FieldKind>` with `#[derive(Serialize, Deserialize)]` is transparent in serde — the box is invisible to JSON output.
+   - What was unclear: Whether the existing `#[serde(tag = "type", rename_all = "snake_case")]` on `FieldKind` interacts unexpectedly with `Box<FieldKind>` as a field type.
+   - Resolution: Verified — `serde` serializes `Box<T>` identically to `T`; the tagged enum derive sees through the Box. `cargo build` confirms no compile or runtime issues.
 
 2. **Depth argument in renderValue calls (resolved)**
    - Pass `depth + 1` to `renderValue` inside MapField (not `depth`). This counts the map field as one level of nesting, consistent with how `NestedMessageField` increments depth for recursive child fields. This prevents map fields containing deep nested messages from bypassing the MAX_DEPTH=5 guard.
