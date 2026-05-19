@@ -560,17 +560,19 @@ vi.mock("@uiw/react-codemirror", () => ({
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **`buildDefaultValues` export path**
    - What we know: function is defined but not exported in `ProtoFormRenderer.tsx`
    - What's unclear: whether the planner wants to export from `ProtoFormRenderer.tsx` (adding `export`) or move to `src/lib/schema-utils.ts`
    - Recommendation: Add `export` to `buildDefaultValues` in `ProtoFormRenderer.tsx`. It is a pure schema utility — export is safe. ProtoFormRenderer is FROZEN for behavioral changes, not for adding exports to existing functions.
+   - RESOLVED: Exported directly from ProtoFormRenderer.tsx — Plan 01 Task 1 adds the 'export' keyword (already pure, no side effects). No utility module needed.
 
 2. **`jsonSnapshot` vs `jsonDraft` state split**
    - What we know: `jsonSnapshot` is the pre-filled value on entry; `jsonDraft` is the live-edited string
    - What's unclear: whether they should be a single state or two
    - Recommendation: Two separate state variables. `jsonSnapshot` is used only once (initial `value` prop), `jsonDraft` is updated on every `onChange`. CodeMirror is uncontrolled after initialization so `jsonSnapshot` can be the initial value passed only at mode entry.
+   - RESOLVED: Two separate state variables — 'jsonDraft' (string, live editor content, initialized from snapshot on enter) and 'entrySnapshot' (Record<string,unknown>, point-in-time latestValues capture on enter, used by Discard). Plan 02 implements this split.
 
 ---
 
