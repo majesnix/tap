@@ -56,12 +56,12 @@ Exceptions: none from the 4-point scale; all Tailwind defaults are multiples of 
 
 ## Typography
 
-> Note: This is a sub-component spec, not a full application hierarchy. BytesField uses a single size (`text-xs` = 12px) for all helper text. Body text and heading hierarchy are inherited from the project global styles and are not redeclared here.
+> Note: This is a sub-component spec, not a full application hierarchy. BytesField uses a single size (`text-xs` = 12px) for all helper text. Body text and heading hierarchy are inherited from the project global styles and are not redeclared here. Line-height is not overridden — Tailwind `text-xs` sets `line-height: 1rem` (~1.333 ratio) by default.
 
-| Role | Size | Weight | Line Height | Element |
-|------|------|--------|-------------|---------|
-| Field label | 12px (`text-xs`) | 600 (`font-semibold`) | 1.5 (Tailwind default) | `<Label>` for field name |
-| Error / byte count / placeholder | 12px (`text-xs`) | 400 (`font-normal`) | 1.5 (Tailwind default) | `<p role="alert">`, `<p>` byte count, `<Input>` placeholder |
+| Role | Size | Weight | Element |
+|------|------|--------|---------|
+| Field label | 12px (`text-xs`) | 600 (`font-semibold`) | `<Label>` for field name |
+| Error / byte count / placeholder | 12px (`text-xs`) | 400 (`font-normal`) | `<p role="alert">`, `<p>` byte count, `<Input>` placeholder |
 
 Weights used: 2 — `font-semibold` (label) + `font-normal` (all helper text, placeholder, error, byte count).
 
@@ -122,6 +122,7 @@ All components pre-installed; zero new installs required for this phase.
 
 - Controlled via local `useState` (`popoverOpen` / `setPopoverOpen`)
 - Opens when user clicks "From text"
+- Positioning: `side="bottom" align="start"` on `PopoverContent`
 - Closes automatically when user clicks "Convert" (same action — D-04)
 - Close-without-convert: user can close via outside click (Popover default behavior)
 - `utf8Input` local state is cleared on Convert action
