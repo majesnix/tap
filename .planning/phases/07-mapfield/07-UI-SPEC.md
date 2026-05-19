@@ -1,7 +1,8 @@
 ---
 phase: 7
 slug: mapfield
-status: draft
+status: approved
+reviewed_at: 2026-05-19
 shadcn_initialized: true
 preset: radix-nova
 created: 2026-05-19
