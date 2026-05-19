@@ -71,13 +71,28 @@ export function FormPanel() {
     })();
   }, [debouncedValues, selectedMessageType, setHexPreview, setEncoding, setEncodeError]);
 
-  // Consume pendingReplayValues: when set by HIST-02, call form.reset() and clear the signal
+  // WR-01: reset JSON mode state when the active message type changes
   useEffect(() => {
-    if (pendingReplayValues && resetRef.current) {
+    setIsJsonMode(false);
+    setJsonDraft("");
+    setEntrySnapshot(null);
+    setParseError(null);
+  }, [selectedMessageType]);
+
+  // Consume pendingReplayValues: when set by HIST-02, call form.reset() and clear the signal
+  // WR-02: also handle replay arriving while in JSON mode — exit JSON mode first so renderer
+  // remounts, then the effect re-fires on the next render with resetRef.current available
+  useEffect(() => {
+    if (!pendingReplayValues) return;
+    if (isJsonMode) {
+      setIsJsonMode(false);
+      return;
+    }
+    if (resetRef.current) {
       resetRef.current(pendingReplayValues);
       setPendingReplayValues(null);
     }
-  }, [pendingReplayValues, setPendingReplayValues]);
+  }, [pendingReplayValues, isJsonMode, setPendingReplayValues]);
 
   if (!schema || !selectedMessageType) {
     return (
@@ -113,7 +128,13 @@ export function FormPanel() {
     // JSON → FORM: parse the current draft
     let parsedValues: Record<string, unknown>;
     try {
-      parsedValues = JSON.parse(jsonDraft) as Record<string, unknown>;
+      const raw: unknown = JSON.parse(jsonDraft);
+      // CR-01: guard against valid but non-object JSON (null, arrays, primitives)
+      if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+        setParseError("JSON must be an object, not a primitive or array");
+        return;
+      }
+      parsedValues = raw as Record<string, unknown>;
     } catch (e) {
       // Invalid JSON (D-05): show banner, stay in JSON mode — NEVER switch modes here
       setParseError(e instanceof Error ? e.message : "Invalid JSON");
