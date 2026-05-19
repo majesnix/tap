@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { FormPanel } from "@/components/form/FormPanel";
 import { RightPanel } from "@/components/layout/RightPanel";
 import { PublishBar } from "@/components/publish/PublishBar";
+import { BlockLibraryPanel } from "@/components/blocks/BlockLibraryPanel";
 
 export function AppLayout() {
+  const [isBlockLibraryOpen, setIsBlockLibraryOpen] = useState(false);
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {/* Left sidebar: file picker + message type selector */}
@@ -11,10 +15,18 @@ export function AppLayout() {
         <Sidebar />
       </aside>
 
-      {/* Center: publish bar + dynamic proto form */}
+      {/* Center: publish bar above, panel + form side by side below */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <PublishBar />
-        <FormPanel />
+        <div className="flex-1 flex flex-row min-h-0">
+          {isBlockLibraryOpen && (
+            <BlockLibraryPanel />
+          )}
+          <FormPanel
+            isBlockLibraryOpen={isBlockLibraryOpen}
+            onToggleBlockLibrary={() => setIsBlockLibraryOpen((v) => !v)}
+          />
+        </div>
       </main>
 
       {/* Right: hex preview + message history tabs */}

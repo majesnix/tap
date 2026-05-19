@@ -310,3 +310,33 @@ describe("JSON Override Toggle", () => {
     expect(screen.getByTestId("codemirror-stub")).toBeInTheDocument();
   });
 });
+
+describe("Block Library Toggle", () => {
+  test("Library button renders with aria-label 'Block library'", () => {
+    render(<FormPanel />);
+    expect(
+      screen.getByRole("button", { name: "Block library" })
+    ).toBeInTheDocument();
+  });
+
+  test("clicking Library button calls onToggleBlockLibrary prop", () => {
+    const mockToggle = vi.fn();
+    render(<FormPanel onToggleBlockLibrary={mockToggle} />);
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Block library" }));
+    });
+    expect(mockToggle).toHaveBeenCalledTimes(1);
+  });
+
+  test("Library button has bg-muted class when isBlockLibraryOpen=true", () => {
+    render(<FormPanel isBlockLibraryOpen={true} />);
+    const btn = screen.getByRole("button", { name: "Block library" });
+    expect(btn).toHaveClass("bg-muted");
+  });
+
+  test("Library button does NOT have bg-muted class when isBlockLibraryOpen=false", () => {
+    render(<FormPanel isBlockLibraryOpen={false} />);
+    const btn = screen.getByRole("button", { name: "Block library" });
+    expect(btn).not.toHaveClass("bg-muted");
+  });
+});
