@@ -267,11 +267,17 @@ export function PublishBar() {
               />
             </SelectTrigger>
             <SelectContent position="popper" className="max-h-60">
-              {(mode === "queue" ? queues : exchanges).map((name) => (
-                <SelectItem key={name} value={name}>
-                  {name}
-                </SelectItem>
-              ))}
+              {mode === "queue"
+                ? queues.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
+                    </SelectItem>
+                  ))
+                : exchanges.map((exchange) => (
+                    <SelectItem key={exchange.name} value={exchange.name}>
+                      {exchange.name}
+                    </SelectItem>
+                  ))}
             </SelectContent>
           </Select>
         ) : (

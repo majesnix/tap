@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema, ConsumeResult } from "./types";
+import type { ProtoSchema, ConsumeResult, ExchangeSummary } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -55,8 +55,20 @@ export async function fetchQueueDepth(
   return invoke<number>("fetch_queue_depth", { profileName, queueName });
 }
 
-export async function fetchExchanges(profileName: string): Promise<string[]> {
-  return invoke<string[]>("fetch_exchanges", { profileName });
+export async function fetchExchanges(profileName: string): Promise<ExchangeSummary[]> {
+  return invoke<ExchangeSummary[]>("fetch_exchanges", { profileName });
+}
+
+/**
+ * Fetch routing keys from a named exchange's bindings via the Management API.
+ * Returns deduplicated, non-empty routing key strings.
+ * On any error the frontend silently falls back to plain Input (D-10).
+ */
+export async function fetchBindings(
+  profileName: string,
+  exchangeName: string,
+): Promise<string[]> {
+  return invoke<string[]>("fetch_bindings", { profileName, exchangeName });
 }
 
 export interface AmqpPropsIpc {

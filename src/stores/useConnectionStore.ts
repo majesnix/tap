@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ConnectionProfile, ConnectionStatus, ManagementStatus } from "@/lib/types";
+import type { ConnectionProfile, ConnectionStatus, ManagementStatus, ExchangeSummary } from "@/lib/types";
 
 interface ConnectionStore {
   profiles: ConnectionProfile[];
@@ -9,7 +9,7 @@ interface ConnectionStore {
   managementStatus: ManagementStatus;
   managementAuthError: string | null;
   queues: string[];
-  exchanges: string[];
+  exchanges: ExchangeSummary[];
 
   setProfiles: (profiles: ConnectionProfile[]) => void;
   setActiveProfile: (name: string | null) => void;
@@ -17,7 +17,7 @@ interface ConnectionStore {
   setManagementStatus: (status: ManagementStatus) => void;
   setManagementAuthError: (err: string | null) => void;
   setQueues: (queues: string[]) => void;
-  setExchanges: (exchanges: string[]) => void;
+  setExchanges: (exchanges: ExchangeSummary[]) => void;
   reset: () => void;
 }
 
@@ -29,7 +29,7 @@ const INITIAL_STATE = {
   managementStatus: "unknown" as ManagementStatus,
   managementAuthError: null as string | null,
   queues: [] as string[],
-  exchanges: [] as string[],
+  exchanges: [] as ExchangeSummary[],
 } as const;
 
 export const useConnectionStore = create<ConnectionStore>((set) => ({

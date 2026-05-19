@@ -87,3 +87,15 @@ export interface ConsumeResult {
   hexString: string;
   error: string | null;
 }
+
+// ── Phase 9: Routing key autocomplete types ───────────────────────────────────
+
+/**
+ * Exchange summary returned by the updated fetch_exchanges Rust command.
+ * exchange_type values are lowercase per RabbitMQ Management API convention:
+ * "direct" | "fanout" | "topic" | "headers"
+ */
+export interface ExchangeSummary {
+  name: string;
+  exchange_type: string;
+}
