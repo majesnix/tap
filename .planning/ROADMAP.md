@@ -52,7 +52,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 
 - [ ] **Phase 9: Routing Key Autocomplete** — 0/3 plans — not started
 - [x] **Phase 10: Publisher Confirms Badge** — 0/2 plans — not started (completed 2026-05-19)
-- [ ] **Phase 11: Block Library — Store, Editor, Persistence** — 0/3 plans — not started
+- [x] **Phase 11: Block Library — Store, Editor, Persistence** — 0/3 plans — not started (completed 2026-05-19)
 - [ ] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/? plans — not started
 
 ---
@@ -112,7 +112,7 @@ Plans:
 - [x] 11-02-PLAN.md — BlockLibraryPanel: two-view component (list + editor), CodeMirror editor, AlertDialog delete confirmation, validation, tests
 
 **Wave 3** *(blocked on Wave 2 completion)*
-- [ ] 11-03-PLAN.md — Integration: AppLayout flex restructure, FormPanel toggle button, App.tsx loadBlocks() mount call
+- [x] 11-03-PLAN.md — Integration: AppLayout flex restructure, FormPanel toggle button, App.tsx loadBlocks() mount call
 **UI hint**: yes
 
 ### Phase 12: Block Library — Drag-and-Drop Layer
@@ -142,7 +142,7 @@ Plans:
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
 | 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete    | 2026-05-19 |
-| 11. Block Library — Store, Editor, Persistence | v1.3 | 2/3 | In Progress|  |
+| 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete   | 2026-05-19 |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
 
 ---
