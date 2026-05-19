@@ -192,7 +192,7 @@ export function ProtoFormRenderer({
 
   return (
     <FormProvider {...methods}>
-      <form className="flex flex-col gap-4 p-4">
+      <form className="flex flex-col gap-4 p-4" onSubmit={(e) => e.preventDefault()}>
         {message.fields.map((field) => {
           const path = field.name;
 

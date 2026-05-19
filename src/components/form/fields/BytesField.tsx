@@ -136,9 +136,9 @@ export function BytesField({ field, path }: BytesFieldProps) {
             )}
 
             {/* "From text" helper — below input, left-aligned (D-05) */}
-            <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <Popover open={popoverOpen} onOpenChange={(open) => { setPopoverOpen(open); if (!open) setUtf8Input(""); }}>
               <PopoverTrigger asChild>
-                <Button variant="outline" size="sm" className="text-xs w-fit">
+                <Button type="button" variant="outline" size="sm" className="text-xs w-fit">
                   From text
                 </Button>
               </PopoverTrigger>
@@ -151,8 +151,10 @@ export function BytesField({ field, path }: BytesFieldProps) {
                     className="min-h-20 text-sm"
                   />
                   <Button
+                    type="button"
                     size="sm"
                     className="text-xs"
+                    disabled={utf8Input === ""}
                     onClick={() => {
                       rhfField.onChange(utf8ToBase64(utf8Input));
                       setPopoverOpen(false);
