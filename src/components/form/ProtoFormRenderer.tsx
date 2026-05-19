@@ -1,5 +1,5 @@
 import { FormProvider, useForm, useWatch } from "react-hook-form";
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import type { FieldSchema, MessageSchema, RenderFieldFn } from "@/lib/types";
 import { ScalarField } from "./fields/ScalarField";
 import { NestedMessageField } from "./fields/NestedMessageField";
@@ -111,23 +111,21 @@ export function ProtoFormRenderer({
     methods.reset(buildDefaultValues(message));
   }, [message.full_name, methods]);
 
-  // Wire up the resetRef so FormPanel can trigger form.reset() for replay (HIST-02)
-  const resetRefInternal = useRef(resetRef);
-  resetRefInternal.current = resetRef;
+  // Wire up the resetRef so FormPanel can trigger form.reset() for replay (HIST-02).
+  // Dependency array [resetRef, methods] ensures the effect re-runs only when these
+  // stable references change, and cleanup runs only on actual unmount (not every render).
   useEffect(() => {
-    if (resetRefInternal.current) {
-      resetRefInternal.current.current = (values: Record<string, unknown>) => {
+    if (resetRef) {
+      resetRef.current = (values: Record<string, unknown>) => {
         methods.reset(values);
       };
     }
-    // WR-03: Nullify the ref when this component unmounts so callers holding
-    // the ref do not invoke reset() on an unmounted react-hook-form instance.
     return () => {
-      if (resetRefInternal.current) {
-        resetRefInternal.current.current = null;
+      if (resetRef) {
+        resetRef.current = null;  // Nullify on actual unmount only
       }
     };
-  }); // intentionally no dep array — runs after every render to stay in sync
+  }, [resetRef, methods]);
 
   /**
    * Main dispatch function. Determines which field component to render
