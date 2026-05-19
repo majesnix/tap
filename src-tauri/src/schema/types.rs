@@ -32,6 +32,7 @@ pub enum FieldKind {
     Enum { values: Vec<EnumValue> },
     Oneof { branches: Vec<Vec<FieldSchema>> },
     WellKnown { wkt: String },
+    Map { key_type: ScalarKind, value_kind: Box<FieldKind> },
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
