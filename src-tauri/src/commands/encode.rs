@@ -347,7 +347,7 @@ fn scalar_or_message_value(
 
 fn parse_i32(v: &JsonValue) -> Option<i32> {
     v.as_i64()
-        .map(|n| n as i32)
+        .and_then(|n| i32::try_from(n).ok())
         .or_else(|| v.as_str().and_then(|s| s.parse::<i32>().ok()))
 }
 
@@ -358,7 +358,7 @@ fn parse_i64(v: &JsonValue) -> Option<i64> {
 
 fn parse_u32(v: &JsonValue) -> Option<u32> {
     v.as_u64()
-        .map(|n| n as u32)
+        .and_then(|n| u32::try_from(n).ok())
         .or_else(|| v.as_str().and_then(|s| s.parse::<u32>().ok()))
 }
 
