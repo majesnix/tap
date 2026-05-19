@@ -174,8 +174,13 @@ fn extract_field_schema(field: &FieldDescriptor, oneof_group: Option<String>) ->
         };
         let key_field = map_entry_msg.map_entry_key_field();
         let val_field = map_entry_msg.map_entry_value_field();
-        let key_type = extract_scalar_kind_from_field(&key_field);
-        let value_kind = extract_field_kind_from_descriptor(&val_field);
+        // extract_field_kind() already exists in extractor.rs (line 119) — reuse it:
+        let value_kind = extract_field_kind(&val_field);
+        // For key_type: pattern-match the result to get ScalarKind (map keys are always scalar):
+        let key_type = match extract_field_kind(&key_field) {
+            FieldKind::Scalar { scalar } => scalar,
+            _ => unreachable!("proto3 spec: map key must be scalar"),
+        };
         return FieldSchema {
             name: field.name().to_string(),
             label: to_label(field.name()),
@@ -529,10 +534,8 @@ vi.mock("@/components/ui/select", () => ({
    - What's unclear: Whether the existing `#[serde(tag = "type", rename_all = "snake_case")]` on `FieldKind` interacts unexpectedly with `Box<FieldKind>` as a field type.
    - Recommendation: Compile and test serialization in Wave 0 / Task 1 before proceeding to React layer.
 
-2. **Value sub-renderer for map values that are themselves messages**
-   - What we know: D-08 specifies the synthetic FieldSchema uses `kind: field.kind.value_kind` and `repeated: false`. For message-typed values, `renderValue` will recurse into `NestedMessageField`.
-   - What's unclear: Depth tracking — the `depth` argument passed to `renderValue` should be `depth + 1` (not `depth`) to count the map field as one level of nesting.
-   - Recommendation: Pass `depth + 1` to `renderValue` inside MapField, matching how `NestedMessageField` increments depth for its children.
+2. **Depth argument in renderValue calls (resolved)**
+   - Pass `depth + 1` to `renderValue` inside MapField (not `depth`). This counts the map field as one level of nesting, consistent with how `NestedMessageField` increments depth for recursive child fields. This prevents map fields containing deep nested messages from bypassing the MAX_DEPTH=5 guard.
 
 ---
 
