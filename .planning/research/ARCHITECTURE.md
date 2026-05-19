@@ -1,362 +1,459 @@
-# Architecture Research: Proto Sender
+# Architecture Research: Proto Sender v1.3
 
-**Researched:** 2026-05-17
-**Confidence:** HIGH (all critical claims verified against official docs, docs.rs, and Context7)
-
----
-
-## Component Overview
-
-The application has six distinct components with clear ownership boundaries. Four live in Rust (backend), three live in React (frontend).
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  React Frontend                                                 │
-│  ┌───────────────────┐   ┌────────────────────────────────┐    │
-│  │  ProtoFormEngine  │   │  ConnectionProfileManager      │    │
-│  │  (UI only)        │   │  (UI only)                     │    │
-│  └───────────────────┘   └────────────────────────────────┘    │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐  │
-│  │  MessageHistoryView  (UI only)                           │  │
-│  └──────────────────────────────────────────────────────────┘  │
-└──────────────────────────────────────────────────────────────────┘
-                          │  Tauri IPC (commands + events)
-┌─────────────────────────────────────────────────────────────────┐
-│  Rust Backend                                                   │
-│  ┌─────────────────────┐   ┌───────────────────────────────┐   │
-│  │  ProtoEngine        │   │  AmqpBroker                   │   │
-│  │  (protox +          │   │  (lapin + reqwest)            │   │
-│  │   prost-reflect)    │   │                               │   │
-│  └─────────────────────┘   └───────────────────────────────┘   │
-│                                                                  │
-│  ┌─────────────────────┐   ┌───────────────────────────────┐   │
-│  │  ProfileStore       │   │  HistoryStore                 │   │
-│  │  (plugin-store +    │   │  (SQLite via                  │   │
-│  │   keyring crate)    │   │   tauri-plugin-sql)           │   │
-│  └─────────────────────┘   └───────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Component Responsibilities
-
-| Component | Owner | Responsibility | Does NOT Own |
-|-----------|-------|---------------|--------------|
-| ProtoFormEngine | React | Render form from descriptor JSON; collect field values | Parsing, encoding |
-| ConnectionProfileManager | React | Profile CRUD UI; invokes Tauri commands for credential ops | Credential storage |
-| MessageHistoryView | React | Display, filter, replay history entries | Storage |
-| ProtoEngine | Rust | Parse .proto text → descriptor JSON; encode form values → bytes | UI, networking |
-| AmqpBroker | Rust | Hold live lapin Connection; publish bytes; call Management HTTP API | Proto logic |
-| ProfileStore | Rust | Persist profile metadata (JSON via plugin-store); passwords via OS keychain | AMQP logic |
+**Researched:** 2026-05-19
+**Milestone:** v1.3 — Routing key autocomplete, Publisher confirms badge, Message block library
+**Overall Confidence:** HIGH (all integration points verified against existing codebase and official docs)
 
 ---
 
-## Data Flow
+## Integration Overview
 
-### Proto Parse Flow
+Three features land on an already-proven Tauri 2.x + React architecture. The v1.0–v1.2 patterns are stable:
 
-```
-User picks .proto file via OS dialog
-         │
-         ▼
-Tauri dialog plugin returns file path string
-         │
-         ▼ (Tauri command: parse_proto)
-ProtoEngine (Rust):
-  protox::Compiler::new([include_roots])?
-    .open_file(proto_path)?
-    .file_descriptor_set()
-         │
-         ▼
-FileDescriptorSet consumed by prost-reflect:
-  DescriptorPool::from_file_descriptor_set(fds)
-  → walk MessageDescriptor fields to build SchemaNode tree
-         │
-         ▼ IPC return (serde_json)
-Frontend receives SchemaNode tree
-         │
-         ▼
-ProtoFormEngine renders dynamic form
-```
+- Rust commands handle all credentials and broker communication; React never holds passwords or makes direct AMQP/HTTP calls.
+- `useConnectionStore` holds Management API state (queues, exchanges, status).
+- `PublishBar` is the single component that orchestrates publish-mode UI.
+- `FormPanel` owns the react-hook-form context via `ProtoFormRenderer`; `resetRef` is the only safe way to push values into the form.
+- `useHistoryStore` is the established pattern for persisted in-memory data via `tauri-plugin-store` + zustand.
 
-### Send Flow
-
-```
-User fills form + clicks Send
-         │
-         ▼ (Tauri command: encode_and_publish)
-ProtoEngine (Rust):
-  Rebuild DynamicMessage from SchemaNode + form values JSON
-  DynamicMessage.encode_to_vec() → Vec<u8>
-         │
-         ▼
-AmqpBroker (Rust):
-  channel.basic_publish(exchange, routing_key, bytes, props)
-  PublisherConfirm awaited
-         │
-         ▼
-HistoryStore (Rust):
-  INSERT INTO message_history (proto_file, message_type, values_json, bytes_hex, target, ts)
-         │
-         ▼ Tauri event: publish-result
-Frontend shows success/error toast; history view refreshes
-```
-
-### Queue/Exchange Listing Flow
-
-```
-User opens connection (or clicks Refresh)
-         │
-         ▼ (Tauri command: connect)
-AmqpBroker creates lapin Connection, stores in AppState
-         │
-         ▼ (Tauri command: list_queues / list_exchanges)
-reqwest GET http://{host}:15672/api/queues/{vhost}
-         Authorization: Basic {user}:{password}
-         │
-         ▼ IPC return
-Frontend populates target selector
-```
+Each v1.3 feature integrates at a clearly-scoped contact surface. None requires a change to the core form rendering pipeline or `ProtoFormRenderer`.
 
 ---
 
-## Tauri IPC Design
+## Feature Integration
 
-### Command Boundary Rule
+### Feature 1: Routing Key Autocomplete (PUBL-01)
 
-An operation is a Rust command if it needs any of: filesystem access, AMQP connection, credential storage, or binary encoding. Pure UI state stays in React.
+#### Decision: New Tauri command required
 
-### Commands (Rust → exposed to frontend)
+Credentials live in the OS keychain. The existing Management API pattern (`fetch_queues`, `fetch_exchanges` in `connection.rs`) never exposes passwords to the React side — the Rust command builds the Authorization header. Routing key autocomplete requires the same Management API credentials. Making reqwest calls from React is not an option here: it would require shipping plaintext credentials over IPC to the frontend, re-implementing the 401 vs port-unreachable error discrimination in JS, and bypassing the security boundary that the existing pattern deliberately enforces.
 
-| Command | Input | Output | Notes |
-|---------|-------|--------|-------|
-| `parse_proto` | `{path: String, include_roots: Vec<String>}` | `SchemaNode` (JSON) | Triggers protox + prost-reflect |
-| `encode_message` | `{descriptor_name: String, values: serde_json::Value}` | `Vec<u8>` as base64 string | For validation/preview without send |
-| `connect` | `{profile_id: String}` | `ConnectionStatus` | Stores live Connection in AppState |
-| `disconnect` | — | — | Drops lapin Connection from AppState |
-| `list_queues` | `{profile_id: String}` | `Vec<QueueInfo>` | Management HTTP API via reqwest |
-| `list_exchanges` | `{profile_id: String}` | `Vec<ExchangeInfo>` | Management HTTP API via reqwest |
-| `publish` | `{profile_id, exchange, routing_key, payload_bytes_b64, props}` | `PublishResult` | Uses stored Connection |
-| `save_profile` | `ConnectionProfile` | — | Writes JSON via plugin-store + password to keychain |
-| `load_profiles` | — | `Vec<ConnectionProfile>` (no passwords) | Passwords fetched on demand |
-| `get_password` | `{profile_id: String}` | `String` | Reads from OS keychain |
-| `delete_profile` | `{profile_id: String}` | — | Deletes store entry + keychain entry |
-| `list_history` | `{limit, offset, filter}` | `Vec<HistoryEntry>` | SQLite paginated query |
-| `replay_message` | `{history_id: u64}` | `PublishResult` | Re-encodes + re-publishes |
+**New command: `get_exchange_bindings(profile_name: String, exchange: String) -> Result<Vec<String>, AppError>`**
 
-### Events (Rust → Frontend push, no request needed)
+- Endpoint: `GET /api/exchanges/{vhost}/{exchange}/bindings/source`
+- Response: array of binding objects; extract `routing_key` field, deduplicate, return `Vec<String>`
+- Error handling: same pattern as `fetch_exchanges` — `is_connect()` → `ManagementApiUnavailable(0)`, HTTP 401 → `ManagementApiAuthFailed`, 404 → `ManagementApiUnavailable(404)`
+- Filters: exclude blank routing keys (topic exchange wildcard-only bindings may have empty routing_key); deduplicate (multiple queues can be bound with the same key)
+- File: `src-tauri/src/commands/connection.rs` (extend existing file, same pattern as `fetch_exchanges`)
 
-| Event | Payload | When Emitted |
-|-------|---------|--------------|
-| `connection-status` | `{profile_id, status: Connected/Disconnected/Error}` | On lapin connection state change |
-| `publish-result` | `{success: bool, message_id, error_msg?}` | After publish completes or fails |
+#### State: local component state, NOT a new zustand store
 
-### Why this split
+Binding keys are per-exchange-selection. They are UI-local autocomplete data, not cross-component shared state. Adding them to `useConnectionStore` would couple unrelated components to a cache that only `PublishBar` ever reads.
 
-`parse_proto` and `publish` are Rust-only because: protox and prost-reflect are Rust crates with no WASM-compatible alternative; lapin requires a native async runtime; keychain access is OS-native. The frontend never touches binary bytes or file paths directly — it sends structured JSON and receives structured JSON.
+**Pattern in `PublishBar.tsx`:**
+
+```typescript
+// Local state keyed by exchange name
+const [bindingKeys, setBindingKeys] = useState<string[]>([]);
+const [bindingsLoading, setBindingsLoading] = useState(false);
+
+useEffect(() => {
+  if (mode !== "exchange" || !selectedExchange || !activeProfileName) {
+    setBindingKeys([]);
+    return;
+  }
+  setBindingsLoading(true);
+  getExchangeBindings(activeProfileName, selectedExchange)
+    .then(setBindingKeys)
+    .catch(() => setBindingKeys([]))  // silent fallback: no suggestions
+    .finally(() => setBindingsLoading(false));
+}, [mode, selectedExchange, activeProfileName]);
+```
+
+Binding fetch is fire-and-forget on exchange selection change. Empty result or error → no suggestions shown, routing key input remains fully editable (no blocking). This matches the Management API unavailability graceful degradation pattern already in place.
+
+#### Component change: `PublishBar.tsx`
+
+The current routing key field is a plain `<Input>`. Replace with a combobox that shows `bindingKeys` as suggestions while remaining freely editable (not a constrained select — routing keys for topic exchanges are patterns, not exhaustive lists).
+
+**Combobox implementation:** Use a `<Popover>` + `<Input>` combination (shadcn/ui `Popover` is already installed). Do NOT use `<Select>` — that forces a choice from the list and blocks free-text entry. The popover opens when the input is focused and `bindingKeys.length > 0`, filters suggestions as the user types, closes on blur or selection.
+
+**IPC wrapper in `ipc.ts`:**
+
+```typescript
+export async function getExchangeBindings(
+  profileName: string,
+  exchange: string
+): Promise<string[]> {
+  return invoke<string[]>("get_exchange_bindings", { profileName, exchange });
+}
+```
+
+#### Capability file update required
+
+`src-tauri/capabilities/` must list `get_exchange_bindings` (Pitfall 7 from PITFALLS.md — every new command must be added immediately or `invoke()` silently returns null).
 
 ---
 
-## State Management
+### Feature 2: Publisher Confirms Badge (PUBL-02)
 
-### Rust AppState (managed via `tauri::Builder::manage`)
+#### Current state: confirm-select is already wired; NACK is silently swallowed
+
+`publish.rs` already calls `channel.confirm_select(ConfirmSelectOptions::default())` before publish and awaits the confirmation future. This is correct.
+
+**The existing bug:** `confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))?` handles only the transport-level `Err` case. In lapin, `confirm_future.await` returns `Result<Confirmation, lapin::Error>`. The `Confirmation` enum has three variants: `Ack(Option<Box<BasicReturnMessage>>)`, `Nack(Option<Box<BasicReturnMessage>>)`, and `NotRequested`. The current code unwraps `Ok(Confirmation::Nack(...))` without inspecting it — a broker NACK silently becomes `Ok(())` and the frontend shows a success toast. This is a correctness bug that PUBL-02 must fix as part of implementing the badge.
+
+#### Required Rust change: new return type
+
+Change `publish_message` from `Result<(), AppError>` to `Result<PublishOutcome, AppError>`.
 
 ```rust
-pub struct AppState {
-    // Keyed by profile_id.
-    // Must be tokio::sync::Mutex (not std::sync::Mutex) because lapin's
-    // channel.basic_publish is async and the lock may be held across await points.
-    // Holding a std::sync::Mutex across an await would block the Tokio worker thread.
-    pub connections: tokio::sync::Mutex<HashMap<String, ActiveConnection>>,
-    // Parsed descriptors keyed by proto_path.
-    // RwLock: reads are common (encode on every send), writes are rare (new file).
-    pub descriptor_cache: tokio::sync::RwLock<HashMap<String, DescriptorPool>>,
-}
+// src-tauri/src/commands/publish.rs — add new type
 
-pub struct ActiveConnection {
-    pub connection: lapin::Connection,
-    pub channel: lapin::Channel,
+#[derive(serde::Serialize)]
+pub struct PublishOutcome {
+    pub acked: bool,
+    pub nack_reason: Option<String>,
 }
 ```
 
-The Tauri v2 docs explicitly state that async commands must use async-compatible locks when held across await points. `tokio::sync::Mutex` is re-exported as `tauri::async_runtime::Mutex` for convenience.
+The command returns:
+- `Ok(PublishOutcome { acked: true, nack_reason: None })` on broker ACK
+- `Ok(PublishOutcome { acked: false, nack_reason: Some(...) })` on broker NACK (the reason is extracted from `BasicReturnMessage` if present, otherwise a generic "broker rejected message")
+- `Err(AppError::AmqpError(...))` on transport/protocol failure (existing behavior preserved)
 
-### React State (React Query + Zustand)
+**Replace the existing confirm handling in `publish.rs`:**
 
-| State | Where | Shape |
-|-------|-------|-------|
-| Parsed schema (SchemaNode tree) | Zustand store | Updated after `parse_proto` command returns |
-| Form field values | React local state (per form) | `Record<string, unknown>` |
-| Active profile | Zustand store | `ConnectionProfile` (no password) |
-| Connection status | Zustand store | Updated by `connection-status` event listener |
-| History list | React Query (auto-fetch) | Paginated, invalidated after each publish |
-| Queue/Exchange list | React Query (stale-while-revalidate) | Cached per profile connection |
+```rust
+// Replace:
+confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))?;
+Ok(())
 
-Do not use Redux for this app — it is overkill for a single-window desktop tool. React Query handles async server state (queues, history) and Zustand handles app-level UI state (active schema, active profile, connection status).
+// With:
+match confirm_result {
+    Ok(confirmation) => {
+        if confirmation.is_ack() {
+            Ok(PublishOutcome { acked: true, nack_reason: None })
+        } else {
+            let reason = confirmation
+                .take_message()
+                .map(|m| format!("broker returned message: reply_text={}", m.reply_text))
+                .unwrap_or_else(|| "broker NACKed message (no return message)".to_string());
+            Ok(PublishOutcome { acked: false, nack_reason: Some(reason) })
+        }
+    }
+    Err(e) => Err(AppError::AmqpError(e.to_string())),
+}
+```
+
+#### Ephemeral connection: no change needed
+
+`confirm_select` is a per-channel flag called at channel-open time before any publish. The ephemeral connection pattern (new connection per `publish_message` call) supports this cleanly — no persistent channel state is needed. This is confirmed by the existing code structure.
+
+#### IPC wrapper change: `ipc.ts`
+
+```typescript
+export interface PublishOutcome {
+  acked: boolean;
+  nackReason?: string | null;
+}
+
+export async function publishMessage(
+  profileName: string,
+  exchange: string,
+  routingKey: string,
+  payload: number[],
+  amqpProps?: AmqpPropsIpc
+): Promise<PublishOutcome> {  // return type changes from Promise<void>
+  return invoke<PublishOutcome>("publish_message", { ... });
+}
+```
+
+#### Frontend: PublishBar.tsx — badge state
+
+```typescript
+type ConfirmState = { status: "ack" | "nack" | "none"; reason?: string };
+const [confirmState, setConfirmState] = useState<ConfirmState>({ status: "none" });
+```
+
+In `handleSend`, after `await publishMessage(...)`:
+- `outcome.acked === true` → `setConfirmState({ status: "ack" })` + existing success toast
+- `outcome.acked === false` → `setConfirmState({ status: "nack", reason: outcome.nackReason })` + `toast.error(...)` replacing the success toast
+
+Auto-dismiss via `useEffect`:
+
+```typescript
+useEffect(() => {
+  if (confirmState.status === "none") return;
+  const id = setTimeout(() => setConfirmState({ status: "none" }), 3000);
+  return () => clearTimeout(id);
+}, [confirmState.status]);
+```
+
+Badge renders inline in `PublishBar` beside the Send button:
+
+```tsx
+{confirmState.status !== "none" && (
+  <Badge variant={confirmState.status === "ack" ? "outline" : "destructive"}>
+    {confirmState.status === "ack" ? "ACK" : `NACK${confirmState.reason ? `: ${confirmState.reason}` : ""}`}
+  </Badge>
+)}
+```
+
+#### HistoryStore impact
+
+The `HistoryEntry.status` field is already `"sent" | "failed"`. NACK does not map cleanly to either. Options:
+1. Add `"nacked"` as a third status value — requires `HistoryEntry` type change.
+2. Record NACK as `"failed"` with `errorMessage: "Broker NACKed: ..."` — no type change.
+
+Recommendation: option 2 for v1.3 (simplest, backward-compatible with existing history display). A NACK is effectively a delivery failure from the developer's perspective.
 
 ---
 
-## Storage Strategy
+### Feature 3: Message Block Library (BLK-01 through BLK-04)
 
-Three distinct persistence needs require three different mechanisms.
+#### State: useBlocksStore (zustand) + tauri-plugin-store (persistence)
 
-### Connection Profile Metadata (non-secret fields)
+This mirrors the `useHistoryStore` pattern exactly. `tauri-plugin-store` is persistence, not state. The in-memory list for UI rendering lives in zustand.
 
-**Use:** `@tauri-apps/plugin-store` v2 (official Tauri plugin; crate: `tauri-plugin-store = "2.0.0"`)
-**Location:** `profiles.json` in the app's data directory (managed by plugin; path resolved via `BaseDirectory.AppData`)
-**Contents:** `{ id, name, host, port, vhost, username, management_port }` — no passwords
-**Why:** The official Tauri store plugin handles atomic writes, JSON serialization, cross-platform path resolution, and is accessible from both Rust and JS. No custom file management needed.
-**API:** `import { Store } from '@tauri-apps/plugin-store'`; `store.set(key, value)` / `store.get<T>(key)`
+**Store file: `src/stores/useBlocksStore.ts`** (new file)
 
-### Passwords
+**Block data model:**
 
-**Use:** `keyring` crate (open-source-cooperative/keyring-rs, version 3.x) called from Rust Tauri commands
-**Location:** OS keychain (macOS Keychain, Windows Credential Manager, Linux Secret Service via libsecret)
-**Key scheme:** `proto-sender:{profile_id}`
-**Why:** The `keyring` crate is the most mature cross-platform Rust credential store library (2,000+ dependents). It is invoked only from Rust via custom Tauri commands (`save_profile`, `get_password`, `delete_profile`) — the frontend never calls keychain directly.
-**Alternative considered:** `tauri-plugin-keyring` (charlesportwoodii) — community plugin with identical underlying crate but adds a JS API surface that is not needed here since all credential ops go through explicit Rust commands. Prefer the bare crate to avoid community plugin maintenance risk for a security-sensitive component.
-**Linux caveat:** Requires `libsecret` (GNOME) or `kwallet` (KDE). Not present by default on all minimal Linux installs. Must be documented in install instructions.
-
-### Message History
-
-**Use:** `@tauri-apps/plugin-sql` v2 with SQLite feature (official Tauri plugin; crate: `tauri-plugin-sql = "2.0.0"`, feature `sqlite`)
-**Location:** `history.db` relative to `BaseDirectory.AppConfig` (managed by plugin)
-**Why:** History needs queryable filtering (by proto type, date, profile) and pagination. A flat JSON file would require loading all records into memory. The official Tauri SQL plugin exposes SQLite to the JS side without needing custom Rust query commands, and supports inline schema migrations via `Builder::add_migrations`.
-**API:** `import Database from '@tauri-apps/plugin-sql'`; `Database.load('sqlite:history.db')`
-
-**Schema:**
-```sql
-CREATE TABLE message_history (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  profile_id  TEXT    NOT NULL,
-  proto_path  TEXT    NOT NULL,
-  msg_type    TEXT    NOT NULL,
-  values_json TEXT    NOT NULL,
-  payload_hex TEXT    NOT NULL,
-  exchange    TEXT    NOT NULL,
-  routing_key TEXT    NOT NULL,
-  sent_at     TEXT    NOT NULL DEFAULT (datetime('now'))
-);
+```typescript
+export interface MessageBlock {
+  id: string;                          // crypto.randomUUID()
+  name: string;                        // user-defined label
+  values: Record<string, unknown>;     // form getValues() snapshot — schema-agnostic
+  updatedAt: string;                   // new Date().toISOString()
+}
 ```
 
-`values_json` stores the original form input; `payload_hex` stores the encoded bytes. This lets replay re-send the exact bytes without re-encoding (bit-for-bit identical) while also allowing the user to open a past message in the form editor.
+`values` is the same shape as `latestValues` in `useProtoStore` and `fieldValues` in `HistoryEntry` — a flat-ish `Record<string, unknown>` from react-hook-form's `getValues()`. It is schema-agnostic per PROJECT.md ("global/type-agnostic" BLK-04 requirement).
+
+**Store shape:**
+
+```typescript
+interface BlocksStore {
+  blocks: MessageBlock[];
+  blocksLoaded: boolean;
+  loadBlocks: () => Promise<void>;
+  addBlock: (name: string, values: Record<string, unknown>) => Promise<void>;
+  updateBlock: (id: string, name: string, values: Record<string, unknown>) => Promise<void>;
+  deleteBlock: (id: string) => Promise<void>;
+}
+```
+
+Persistence path: `blocks.json` (separate from `history.json` and `proto-sender.json` — follows existing pattern of one concern per store file).
+
+Hydration: `loadBlocks()` called in `App.tsx` at startup alongside `loadHistory()` (existing startup sequence).
+
+#### Block JSON editor component
+
+**New component: `src/components/blocks/BlockEditor.tsx`**
+
+Reuses the existing `JsonEditor` component (`src/components/form/JsonEditor.tsx`) — the CodeMirror wrapper is already generic enough. `BlockEditor` wraps `JsonEditor` with:
+- A `name` text input (block label)
+- Save / Cancel buttons
+- Validation: name must be non-empty; JSON must be valid object
+
+This is a distinct component from `JsonEditor` in the form because its lifecycle (create/edit named block) is different from the form's JSON override toggle (ephemeral per-session).
+
+#### Collapsible block library panel: layout decision
+
+`AppLayout.tsx` currently is three columns: `aside(sidebar) | main(PublishBar + FormPanel) | aside(RightPanel)`.
+
+The block library is most analogous to the right panel (persistent content beside the form) but adding a fourth column makes the layout too wide on typical developer screens (1440px).
+
+**Recommended approach: collapsible sub-panel inside `main`, to the left of `FormPanel`.**
+
+`main` becomes a horizontal split:
+```
+main
+  ├── [optional] BlockLibraryPanel (collapsible, ~240px, left side)
+  └── FormPanel (fills remaining space)
+```
+
+This keeps the layout at 3 logical columns. `BlockLibraryPanel` is hidden by default and shown when the user activates it (toggle button in `PublishBar` or `FormPanel` header). Its open/closed state is local React state in `AppLayout` or `main`'s component.
+
+**No change to AppLayout's outer structure** — the sidebar and RightPanel stay unchanged. Only the center `main` column gains an internal split.
+
+**New file: `src/components/blocks/BlockLibraryPanel.tsx`**
+
+Renders inside `main` as a flex sibling of `FormPanel`. Contains:
+- Block list (name + "Apply" button + edit/delete controls)
+- "New block" button that opens `BlockEditor`
+- Collapsible (uses existing `Collapsible` component from shadcn/ui, already installed)
+
+#### Drag-and-drop integration
+
+DnD requires a library decision. The HTML5 native drag-and-drop API is hostile in React + Tailwind (flickering, poor touch support, no accessible keyboard). **`@dnd-kit/core`** (~10KB gzip) is the modern standard: composable, accessible, no peer dependency conflicts, works in Tauri's WebView.
+
+**Stack addition required in STACK.md:** `@dnd-kit/core` + `@dnd-kit/utilities`. This is flagged as a needed addition.
+
+DnD interaction:
+1. Each block row in `BlockLibraryPanel` is a drag source (`useDraggable`).
+2. `ProtoFormRenderer`'s scroll container becomes a drop target (`useDroppable`).
+3. On drop, a `handleBlockApply` callback is called in `FormPanel`.
+
+#### Block merge logic in FormPanel
+
+The "merge fills empty fields only" rule requires a decision on what "empty" means. Recommendation for each field type:
+- `string`: `""` or `undefined`
+- `number`/`int32` etc.: `0` or `undefined`
+- `bool`: `false` or `undefined`
+- `repeated`: empty array `[]` or `undefined`
+- `map rows`: empty array `[]` or `undefined`
+- `oneof._selected`: `""` or `undefined`
+
+"Empty" = proto3 default value or `undefined`. A field already set to a non-default value by the user is preserved.
+
+**Merge implementation in `FormPanel.tsx`:**
+
+```typescript
+function mergeBlockIntoForm(
+  currentValues: Record<string, unknown>,
+  blockValues: Record<string, unknown>,
+  defaultValues: Record<string, unknown>
+): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...currentValues };
+  for (const [key, blockVal] of Object.entries(blockValues)) {
+    const current = currentValues[key];
+    const defaultVal = defaultValues[key];
+    // Only overwrite if current === default (field is "empty")
+    if (JSON.stringify(current) === JSON.stringify(defaultVal)) {
+      merged[key] = blockVal;
+    }
+  }
+  return merged;
+}
+```
+
+After merge: call `setPendingReplayValues(merged)` — the existing `useEffect` in `FormPanel.tsx` (line 85–95) handles `resetRef.current(mergedValues)` correctly. Do NOT call `resetRef.current()` directly (the null-before-mount pitfall is documented in PITFALLS.md #21 and in `FormPanel.tsx` line 165).
+
+#### Block creation from current form values
+
+"Save as block" can be triggered from `FormPanel`'s header (a "Save block" button). This reads `useFormContext().getValues()` at click time (not `watch()` — same reason as JSON mode entry). Opens `BlockEditor` in create mode pre-populated with the current values.
+
+---
+
+## New Components
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `BlockLibraryPanel` | `src/components/blocks/BlockLibraryPanel.tsx` | Collapsible panel listing named blocks with apply/edit/delete |
+| `BlockEditor` | `src/components/blocks/BlockEditor.tsx` | Create/edit a named block — name input + CodeMirror JSON editor |
+
+## New Commands (Rust)
+
+| Command | File | Purpose |
+|---------|------|---------|
+| `get_exchange_bindings` | `src-tauri/src/commands/connection.rs` | Fetch routing keys for a selected exchange via Management API |
+
+## New Stores
+
+| Store | File | Purpose |
+|-------|------|---------|
+| `useBlocksStore` | `src/stores/useBlocksStore.ts` | In-memory block list + CRUD + persistence via `blocks.json` |
+
+## New IPC wrappers
+
+| Function | File | Purpose |
+|----------|------|---------|
+| `getExchangeBindings` | `src/lib/ipc.ts` | Wrapper for `get_exchange_bindings` Tauri command |
+
+---
+
+## Modified Components/Commands
+
+### `src-tauri/src/commands/publish.rs`
+
+- Add `PublishOutcome` struct (`#[derive(serde::Serialize)]`)
+- Change return type from `Result<(), AppError>` to `Result<PublishOutcome, AppError>`
+- Replace confirm result handling: inspect `Confirmation::is_ack()` / `is_nack()` instead of map_err-only
+
+### `src/lib/ipc.ts`
+
+- Add `getExchangeBindings` function
+- Add `PublishOutcome` interface
+- Change `publishMessage` return type from `Promise<void>` to `Promise<PublishOutcome>`
+
+### `src/components/publish/PublishBar.tsx`
+
+- Add `bindingKeys: string[]` and `bindingsLoading: boolean` local state
+- Add `useEffect` to call `getExchangeBindings` when `selectedExchange` changes in exchange mode
+- Replace plain `<Input>` routing key field with a combobox (Popover + Input + suggestion list)
+- Add `confirmState: ConfirmState` local state
+- Add `useEffect` for auto-dismiss (3s timeout)
+- Add ACK/NACK ephemeral badge beside Send button
+- Update `handleSend` to use `PublishOutcome` return value
+
+### `src/components/layout/AppLayout.tsx`
+
+- Wrap the center `main` content area to accommodate the optional `BlockLibraryPanel`
+- Add a flex row container inside `main`: `[BlockLibraryPanel?] + FormPanel`
+- `BlockLibraryPanel` is hidden by default; toggled by a button (location TBD in plan phase — candidate: FormPanel header, or a dedicated "Blocks" icon in Sidebar)
+
+### `src/App.tsx` (or startup bootstrap)
+
+- Add `useBlocksStore.getState().loadBlocks()` call at startup alongside existing `loadHistory()`
+
+### `src-tauri/capabilities/` (capability file)
+
+- Add `get_exchange_bindings` to allowed commands
 
 ---
 
 ## Suggested Build Order
 
-Dependencies flow bottom-up. Each step can be tested independently.
+### 1. Routing Key Autocomplete (PUBL-01) — first
 
-### Step 1 — ProtoEngine (pure Rust, no Tauri)
+**Why first:** Single new Rust command + single component change scoped to `PublishBar`. No type changes to existing IPC contracts. No new stores. Validates the `GET /api/exchanges/{vhost}/{exchange}/bindings/source` endpoint is reachable on the team's RabbitMQ instances before depending on it for other features. Small blast radius: if this phase has issues, nothing else is broken.
 
-Build and test `protox::Compiler` + `prost-reflect::DescriptorPool` + `DynamicMessage` encoding in a standalone Rust binary. Acceptance test: parse a `.proto` with nested messages, a `repeated` field, an `enum`, and a `google.protobuf.Timestamp` import; encode a test message; verify the bytes decode correctly with a known-good decoder.
+**What it touches:** `connection.rs` (new command), `ipc.ts` (new function), `PublishBar.tsx` (combobox), capability file.
 
-**Why first:** This is the highest-risk unknown. It is also entirely independent of Tauri and RabbitMQ. Verifying it in isolation removes the largest technical risk before writing any UI.
+### 2. Publisher Confirms Badge (PUBL-02) — second
 
-### Step 2 — Tauri shell + ProtoEngine commands
+**Why second:** Modifies the `publish_message` return type — a cross-cutting change that affects `publish.rs`, `ipc.ts`, and `PublishBar.tsx`. Doing this after PUBL-01 means both `PublishBar.tsx` changes land in sequence (avoid editing the same component in two concurrent phases). The return type change is backward-compatible in spirit but is an API break: any code reading `void` from `publishMessage` must be updated. Doing this early (before BLK-03/04) means the block library's "apply and send" flow (if added later) inherits the correct ACK/NACK feedback.
 
-Scaffold Tauri 2 app. Expose `parse_proto` and `encode_message` as Tauri commands. Establish `AppState` with descriptor cache. Configure `fs:scope` with `"**/*"` in capabilities to allow reading user proto files from arbitrary paths. On macOS, add the `com.apple.security.temporary-exception.files.absolute-path.read-write` entitlement to allow reading from outside the sandbox.
+**Also fixes the existing NACK-silently-passes bug** — this is a correctness improvement bundled with the visual feature.
 
-**Why second:** Establishes the IPC boundary and the permissions model before any UI is built on top of it. Testing via a minimal invoke call confirms the Tauri scaffolding is correct.
+**What it touches:** `publish.rs` (PublishOutcome type + confirm handling), `ipc.ts` (return type + interface), `PublishBar.tsx` (badge + handleSend update).
 
-### Step 3 — ProtoFormEngine (React, no AMQP)
+### 3. Message Block Library (BLK-01 through BLK-04) — last
 
-Implement the React form renderer consuming the `SchemaNode` JSON from `parse_proto`. Support scalars first (string, int32/64, float, bool), then nested messages (recursive renderer), then `repeated` fields (add/remove row), then `enum` (select), then `oneof` (radio to select active branch). Wire the form's Submit to call `encode_message` and display the resulting hex bytes for inspection.
+**Why last:** The largest feature by surface area. New store, new persistence, new components, DnD library, layout change, FormPanel integration. The DnD library (`@dnd-kit/core`) is a new npm dependency that needs vetting. The block merge logic interacts with `FormPanel.tsx`'s `setPendingReplayValues` / `resetRef` machinery, which is complex (see PITFALLS.md #21). Building this last keeps the PUBL-01/02 phases clean and avoids DnD library setup contaminating a simpler feature's plan.
 
-**Why third:** This is the second-largest unknown (dynamic form generation for all proto field types). Completing it without AMQP means it can be tested against any `.proto` file immediately without a running broker.
+**Internal order within BLK:**
+1. BLK-01 + BLK-02 + BLK-03: Store + persistence + JSON editor UI (no DnD yet — blocks can be applied via an "Apply" button)
+2. BLK-04: DnD layer on top of a working apply mechanism
 
-### Step 4 — AmqpBroker: connect + publish
-
-Implement `connect`, `disconnect`, and `publish` commands with a hardcoded test profile. Test against a local RabbitMQ Docker container. Emit `connection-status` and `publish-result` events. Use publisher confirms (`channel.confirm_select` + awaiting `PublisherConfirm`) for reliable delivery.
-
-**Why fourth:** AMQP is a solved problem (lapin is mature) but needs integration testing. Doing it after the proto pipeline means each test send carries real encoded bytes.
-
-### Step 5 — ProfileStore (metadata + keychain)
-
-Implement `save_profile`, `load_profiles`, `get_password`, `delete_profile`. Integrate `@tauri-apps/plugin-store` for non-secret metadata and the `keyring` crate for passwords. Wire the ConnectionProfileManager UI. Replace the hardcoded test profile from Step 4 with a real saved profile.
-
-**Why fifth:** Profile management is straightforward but has platform-specific behavior (Linux keychain dependency). Deferring until the core pipeline works means profile bugs remain isolated from proto/AMQP bugs.
-
-### Step 6 — Queue/Exchange listing
-
-Implement `list_queues` and `list_exchanges` via reqwest to the RabbitMQ Management HTTP API. Populate the target selector UI. Handle the case where the management plugin is not enabled on the broker with a clear error and a manual text-entry fallback.
-
-**Why sixth:** Depends on working profiles (Step 5) to get credentials for the management API. Can proceed in parallel with Step 7 once Step 5 is done.
-
-### Step 7 — HistoryStore + replay
-
-Initialize SQLite database on app startup using `Builder::add_migrations`. Write history entries after every successful publish (Step 4 already emits `publish-result`). Implement `list_history` (paginated) and `replay_message`. Build `MessageHistoryView` with filter and resend UI.
-
-**Why last:** No dependencies that are not already satisfied. Zero risk of blocking earlier work. Technically the most straightforward component.
+This allows early validation of the merge logic before adding DnD complexity.
 
 ---
 
-## Key Architectural Decisions
+## Architecture Constraints for Implementation Plans
 
-These are choices that constrain future work. Each is made here with rationale so they are not relitigated in every phase.
+### Constraint 1: FormPanel reset pathway
 
-### Decision 1: Proto parsing and encoding happen entirely in Rust
+All "push values into form" operations must go through `setPendingReplayValues(values)`, never `resetRef.current(values)` directly. `resetRef.current` is `null` until `ProtoFormRenderer` mounts. The `useEffect` in `FormPanel.tsx` (lines 85–95) is the safe sequenced pathway.
 
-The frontend receives `SchemaNode` (a plain JSON structure describing field names, types, and nesting) and sends form values back as a `serde_json::Value` tree. The frontend never handles binary bytes, protobuf descriptors, or `FileDescriptorSet` structures.
+### Constraint 2: "Empty" field definition for block merge
 
-**Consequence:** Adding a second message format (e.g., JSON-only publish) in v2 only requires a new Rust command. The `SchemaNode` type becomes the stable IPC contract between backend and frontend.
+The block merge implementation must decide what constitutes "empty" per field type before the plan phase. The recommended definition is: a field is empty if and only if its current value deep-equals the `buildDefaultValues()` output for that field. This is safe because `buildDefaultValues` already exists in `ProtoFormRenderer.tsx` and is used for JSON mode and replay.
 
-### Decision 2: protox (pure Rust) over shelling out to protoc
+### Constraint 3: DnD library dependency
 
-`protox` v0.9.1 is pure Rust, requires no external binary, bundles all `google/protobuf/*` well-known types automatically (confirmed in Compiler::new docs), and accepts multiple include root paths. It outputs a `FileDescriptorSet` that `prost-reflect` v0.16.3 consumes directly via `DescriptorPool::from_file_descriptor_set`.
+`@dnd-kit/core` is not yet installed. The BLK phase plan must include an npm install step. Version: `@dnd-kit/core ^6.x` (latest stable; compatible with React 18 and Tauri WebView). Also install `@dnd-kit/utilities` for coordinate utilities used in drop detection.
 
-**Consequence:** The distributed binary has no dependency on a protoc installation, which is essential for cross-platform team distribution. The tradeoff is that protox may trail the latest proto specification — acceptable given the field types in scope (scalars, nested messages, repeated, enum, oneof, map, WKT).
+### Constraint 4: Confirm-select is per-channel, not per-connection
 
-### Decision 3: Persistent lapin Connection per active profile (not open/close per send)
+`confirm_select` is called on the lapin `Channel` object, not the `Connection`. The ephemeral connection pattern creates a new connection AND a new channel per `publish_message` call. `confirm_select` is called on the new channel — this is correct and is already what the existing code does. No architectural change to the connection pattern is needed.
 
-A lapin `Connection` is established when the user activates a profile and torn down on disconnect or app close. Each publish reuses the stored channel (or creates a new one if the previous channel was closed by an error).
+### Constraint 5: Management API bindings endpoint graceful degradation
 
-**Consequence:** Connection state must live in `AppState` behind a `tokio::sync::Mutex`. The `connection-status` event gives the frontend a reliable signal to disable the Send button when not connected.
-
-### Decision 4: Include roots must be user-declared for import resolution
-
-When the user picks a `.proto` file, the default include root is the directory containing that file. Users can add additional roots (e.g., a shared `proto/` directory in their monorepo). The `parse_proto` command accepts `Vec<String>` for include roots.
-
-**Consequence:** The UI needs an "include paths" management field in the file picker flow. This is a required interaction — without it, any proto that imports from a different directory will fail to parse.
-
-**macOS note:** Reading proto files from arbitrary user directories requires both the `fs:scope: ["**/*"]` capability permission and the `com.apple.security.temporary-exception.files.absolute-path.read-write` entitlement. Both must be configured in Step 2.
-
-### Decision 5: Queue/exchange listing requires RabbitMQ Management HTTP API
-
-AMQP 0.9.1 itself cannot enumerate queues or exchanges. The Management HTTP API (`GET /api/queues/{vhost}`, `GET /api/exchanges/{vhost}`) requires the `rabbitmq_management` plugin on the target broker. It is enabled by default in development (`rabbitmq:3-management` Docker image) but not always in production.
-
-**Consequence:** The profile must store a separate management port (default 15672). When the management API is unreachable, the app falls back to a manual text entry field for queue/exchange name rather than showing a hard error.
-
-### Decision 6: Message history stores both form values and encoded bytes
-
-`values_json` lets the user open a past message in the form editor. `payload_hex` lets replay send the exact bytes without re-encoding (bit-for-bit reproducibility).
-
-**Consequence:** History entries are slightly larger, but replay behavior is unambiguous and the edit-from-history flow works without re-parsing the proto file.
+The binding keys endpoint (`/api/exchanges/{vhost}/{exchange}/bindings/source`) uses the same Management API base URL and credentials as `fetch_exchanges`. If the Management API is unavailable (i.e., `managementStatus === "manual"`), the binding fetch will also fail. In that case, `bindingKeys` stays empty and the routing key input is a plain text field with no suggestions. This is correct behavior — degrade to manual entry, same as the existing queue/exchange picker degradation.
 
 ---
 
-## Confidence Assessment
+## Sources
 
-| Area | Confidence | Basis |
-|------|------------|-------|
-| protox runtime parsing + WKT bundling | HIGH | docs.rs/protox Compiler::new docs explicitly confirmed |
-| prost-reflect DynamicMessage encoding | HIGH | docs.rs/prost-reflect v0.16.3; implements prost::Message |
-| lapin publish + publisher confirms | HIGH | Context7 official docs; code examples verified |
-| Tauri 2 command/async state pattern | HIGH | v2.tauri.app official docs; tokio Mutex requirement explicit |
-| @tauri-apps/plugin-store v2 | HIGH | Official plugins-workspace v2 branch; verified API |
-| @tauri-apps/plugin-sql v2 SQLite | HIGH | Official plugins-workspace v2 branch; migration support confirmed |
-| keyring crate for passwords | HIGH | Widely used (open-source-cooperative/keyring-rs v3) |
-| Management HTTP API for queue listing | HIGH | RabbitMQ official docs; standard endpoints |
-| Linux keychain availability | MEDIUM | libsecret required; not universal across distros |
-| macOS entitlement for arbitrary file reads | MEDIUM | Confirmed in community discussion; needs testing per Tauri version |
-
----
-
-## Gaps to Address in Later Phases
-
-1. **`oneof` form UX** — the exact React pattern (radio + conditional field group vs. tabs) needs a UX decision in Phase 3. Both are implementable; radio is simpler.
-2. **`bytes` field input** — options are base64 text input, hex string input, or a file picker to load raw bytes. Decide in Phase 3; base64 is the lowest-friction default.
-3. **`map<K, V>` fields** — valid proto3 and common in real schemas. The form renderer must handle them as a dynamic list of key-value pair rows. Verify prost-reflect exposes them correctly before Phase 3 is considered complete.
-4. **Connection recovery** — lapin has experimental auto-reconnect. Phase 4 should decide: use it, or implement explicit reconnect-on-error triggered by a UI button. Explicit is safer for a dev tool where reconnect intent should be clear.
-5. **Management API port vs. AMQP port** — profiles need both ports. Cloud-hosted RabbitMQ (CloudAMQP, etc.) uses non-standard port assignments. The profile UI must make this explicit, not default-hide the management port.
-6. **Parse performance** — if protox takes >200ms on large import chains, Phase 2 should add progress feedback via a Tauri event from within the `parse_proto` command rather than leaving the UI unresponsive.
+- `src/components/publish/PublishBar.tsx` — existing state model, IPC call pattern, Management API error discrimination (HIGH confidence — primary source)
+- `src-tauri/src/commands/publish.rs` — existing confirm_select + confirm_future.await; confirmed NACK-swallowing bug (HIGH confidence — primary source)
+- `src-tauri/src/commands/connection.rs` — existing fetch_exchanges pattern; template for get_exchange_bindings (HIGH confidence — primary source)
+- `src/components/form/FormPanel.tsx` — resetRef pattern, setPendingReplayValues pathway, layout structure (HIGH confidence — primary source)
+- `src/stores/useHistoryStore.ts` — pattern for zustand + tauri-plugin-store persistence (HIGH confidence — primary source)
+- `src/stores/useConnectionStore.ts` — confirms binding keys should NOT go here (HIGH confidence — primary source)
+- lapin `Confirmation` enum: `Ack(Option<Box<BasicReturnMessage>>)`, `Nack(...)`, `NotRequested`; `is_ack()` / `is_nack()` methods (HIGH confidence — docs.rs 1.4.3 and lapin examples verified)
+- RabbitMQ Management API: `GET /api/exchanges/{vhost}/{exchange}/bindings/source` returns binding list with `routing_key` field (HIGH confidence — official RabbitMQ API reference)
+- `@dnd-kit/core` v6.x — modern accessible React DnD (MEDIUM confidence — ecosystem consensus; verify version compatibility with Tauri WebView during install)

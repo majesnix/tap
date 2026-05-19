@@ -1,324 +1,153 @@
-# Stack Research: Proto Sender
+# Stack Research: Proto Sender v1.3 Publishing UX + Message Blocks
 
-**Researched:** 2026-05-17
-**Overall confidence:** MEDIUM-HIGH (core Rust picks verified; React form approach is opinionated but well-supported)
-
----
-
-## Recommended Stack
-
-### Rust Backend
-
-#### Runtime Proto Parsing
-
-**`protox` 0.9.1** — Pure-Rust `.proto` compiler that produces a `FileDescriptorSet` at runtime without needing `protoc` installed.
-
-Use the `Compiler` struct directly:
-
-```rust
-use protox::Compiler;
-
-let descriptor_set = Compiler::new(["./proto/includes"])?
-    .include_imports(true)
-    .include_source_info(false)
-    .open_file("my_message.proto")?
-    .file_descriptor_set();
-```
-
-- `Compiler::new(includes)` — accepts a slice of include paths for import resolution
-- `include_imports(true)` — ensures imported `.proto` files appear in the output (needed for `prost-reflect` to resolve nested types)
-- `open_file()` / `open_files()` — compile individual files or batches
-- Returns a `prost_types::FileDescriptorSet` directly usable by `prost-reflect`
-
-Do NOT use `prost-build` for this — it is a build-time code generator, not a runtime parser. Do NOT use `protoc-rust` — requires the `protoc` binary installed on user machines.
-
-**`prost-reflect` 0.16.3** — Dynamic protobuf message encoding/decoding from a descriptor at runtime. This is the layer that sits between `protox` output and the wire-format bytes you send to RabbitMQ.
-
-Key API:
-
-```rust
-use prost_reflect::{DescriptorPool, DynamicMessage, Value};
-
-// Build pool from protox output
-let pool = DescriptorPool::from_file_descriptor_set(descriptor_set)?;
-let message_desc = pool.get_message_by_name("my.package.MyMessage").unwrap();
-
-// Build message from form values
-let mut msg = DynamicMessage::new(message_desc.clone());
-msg.set_field_by_name("user_id", Value::U32(42));
-msg.set_field_by_name("name", Value::String("alice".to_string()));
-
-// Encode to binary wire format
-let mut buf = Vec::new();
-msg.encode(&mut buf)?;
-```
-
-`DynamicMessage` handles nested messages, repeated fields, enums, and oneof fields. The `MessageDescriptor` exposes field metadata needed to build the React form schema. Enable the `serde` feature for JSON debug output.
-
-**`prost` 0.13.x** — Underlying codec used by both `protox` and `prost-reflect`. Include explicitly in `Cargo.toml` for `Message::encode` trait access.
-
-```toml
-[dependencies]
-prost = "0.13"
-prost-reflect = { version = "0.16", features = ["serde"] }
-protox = "0.9"
-```
+**Researched:** 2026-05-19
+**Milestone:** v1.3 — Routing Key Autocomplete, Publisher Confirms Badge, Message Block Library
+**Overall confidence:** HIGH — all findings verified against source code, npm registry, GitHub issues, and official RabbitMQ API docs
 
 ---
 
-#### AMQP Client
+## Context: What is Already Shipped
 
-**`lapin` 4.7.x** — The standard Rust AMQP 0-9-1 client for RabbitMQ. Actively maintained (4.7.4 released May 2025). Pure async/await. Supports all required operations: `basic_publish`, `exchange_declare`, `queue_declare` (passive), TLS, vhost routing via connection URI.
+The stack below is already in place and working. Do NOT re-add or re-research it.
 
-```toml
-[dependencies]
-lapin = "4"
-```
-
-Key usage pattern:
-
-```rust
-use lapin::{Connection, ConnectionProperties, BasicProperties, options::*};
-
-let conn = Connection::connect(
-    "amqp://user:pass@host:5672/vhost",
-    ConnectionProperties::default()
-).await?;
-
-let channel = conn.create_channel().await?;
-channel.basic_publish(
-    "my_exchange",      // exchange name, or "" for default
-    "routing.key",      // routing key
-    BasicPublishOptions::default(),
-    &proto_bytes,       // encoded protobuf bytes
-    BasicProperties::default()
-        .with_content_type("application/protobuf".into())
-        .with_delivery_mode(2),  // persistent
-).await?;
-```
-
-**Why not `amqprs`:** `amqprs` is newer and benchmarks better on syscall count, but it has a substantially smaller user base and ecosystem. `lapin` is the de facto standard, appears in all RabbitMQ Rust tutorials, and has broader feature coverage. For a developer tool where publish throughput is not a bottleneck, `lapin`'s maturity wins.
+| Layer | Libraries |
+|-------|-----------|
+| Rust backend | `protox 0.9`, `prost-reflect 0.16` (with `serde` feature), `base64 0.22`, `lapin 4.x` (with `tokio` feature), `reqwest 0.13` (with `json`, `rustls` features), `percent-encoding 2`, `serde 1.x`, `serde_json 1.x` |
+| Frontend form | `react-hook-form 7.76`, `@hookform/resolvers 5.x`, `zod 3.25`, `zustand 5.x` |
+| Frontend UI | `shadcn/ui` nova preset, `Tailwind 4.x`, `radix-ui 1.x`, `lucide-react 1.x`, `sonner 2.x` |
+| Frontend editor | `@uiw/react-codemirror 4.25.9`, `@codemirror/lang-json 6.x` |
+| Tauri | `@tauri-apps/api 2.x`, `tauri-plugin-store 2.x`, `tauri-plugin-dialog 2.x`, `tauri-plugin-fs 2.x` |
 
 ---
 
-#### RabbitMQ Queue/Exchange Discovery
+## Summary
 
-**`reqwest` 0.12.x** against the **RabbitMQ Management HTTP API**.
+Three new capabilities are needed for v1.3. The research findings below are ordered by feature.
 
-AMQP 0-9-1 has no protocol-level operation to list queues or exchanges. `queue.declare` with `passive=true` only checks existence of a queue you already know by name — it cannot enumerate. The Management Plugin HTTP API (`GET /api/queues/{vhost}`, `GET /api/exchanges/{vhost}`) is the only reliable approach.
+**Routing key autocomplete (PUBL-01):** No new Rust crates. One new Rust command (`fetch_binding_keys`) following the exact `fetch_queues` pattern with reqwest. One new shadcn/ui Combobox component installed via `pnpm dlx shadcn@latest add combobox command popover`. The shadcn Combobox is a recipe (Command + Popover composition, cmdk-based in the current shadcn releases). Async data is handled by managing the items list in local state and disabling client-side filtering.
 
-**Consequence and requirement:** The tool requires the RabbitMQ Management Plugin to be enabled on the broker. This plugin is enabled by default on all standard RabbitMQ installations and on all hosted RabbitMQ services (CloudAMQP, Amazon MQ, etc.). Document this as an explicit prerequisite.
+**Publisher confirms badge (PUBL-02):** Zero new dependencies — Rust or npm. `publish.rs` already implements `confirm_select` + the confirm future pattern fully (verified in source). The Tauri command already returns `Ok(())` on ACK and `Err(AppError::AmqpError)` on NACK or timeout. The frontend only needs to display a success/failure badge in `PublishBar.tsx` using the existing `Badge` component and a 3-second `setTimeout` dismiss — both already in the installed stack.
 
-```rust
-// List queues
-let url = format!("http://{}:{}/api/queues/{}", host, mgmt_port, vhost);
-let queues: Vec<QueueInfo> = reqwest::Client::new()
-    .get(&url)
-    .basic_auth(&user, Some(&password))
-    .send().await?
-    .json().await?;
-```
-
-Default management port: `15672`. Add `reqwest` with the `json` feature:
-
-```toml
-reqwest = { version = "0.12", features = ["json"] }
-```
-
-There is also a dedicated crate `rabbitmq-management-client` that wraps these endpoints, but it adds unnecessary abstraction for the limited surface area needed (just list queues + list exchanges). Use `reqwest` directly.
+**Message block library (BLK-01–04):** One new npm package: `@dnd-kit/core`. The PointerSensor (not HTML5 DnD) works reliably across Tauri's WebKit on macOS and Linux. Block persistence uses the already-installed `tauri-plugin-store`. Block editing uses the already-installed `@uiw/react-codemirror` + `@codemirror/lang-json`. No new Rust crates required.
 
 ---
 
-#### Local Profile Storage
+## New Dependencies
 
-**`tauri-plugin-store` 2.x** — Official Tauri plugin for persistent key-value storage. Stores profiles as a JSON file in the platform's app data directory. Survives app restarts. Works from both Rust and JavaScript sides.
+### npm (Frontend)
 
-```toml
-# Cargo.toml
-tauri-plugin-store = "2"
-```
+| Library | Version | Purpose | Why this, not alternatives |
+|---------|---------|---------|---------------------------|
+| `@dnd-kit/core` | `^6.3.1` | Drag-and-drop for block-to-form merge | PointerSensor uses Pointer Events (not HTML5 DnD), which works in all Tauri WebKit targets. HTML5 DnD has open webkit2gtk Linux bugs in Tauri (#6695). react-dnd is in maintenance mode since 2023. |
+| shadcn `Combobox` + `Command` + `Popover` | (source-copied, no version pin) | Routing key autocomplete input | shadcn Combobox is a recipe built on Command (cmdk) + Popover; consistent with shadcn patterns; async data handled via controlled state + `shouldFilter={false}` to disable client-side filtering. |
+
+Install commands:
 
 ```bash
-npm install @tauri-apps/plugin-store
+pnpm add @dnd-kit/core
+pnpm dlx shadcn@latest add combobox command popover
 ```
 
-Profiles are JSON objects keyed by profile name. Use `store.json` as the backing file. Each profile: `{ name, host, port, vhost, username, password, mgmt_port }`.
+Note: `command` and `popover` may already be pulled in as transitive shadcn components — run the add command and let shadcn skip any already-installed components.
 
-Do NOT use `serde_json` + manual file writes via `tauri-plugin-fs` for profiles. `tauri-plugin-store` handles file location, atomic writes, and cross-platform paths correctly.
+### Rust (Backend)
 
----
-
-#### Supporting Rust Crates
-
-| Crate | Version | Purpose |
-|-------|---------|---------|
-| `tokio` | 1.x | Async runtime (Tauri embeds one; use `tauri::async_runtime::spawn` not `tokio::spawn` directly — see Tauri Integration section) |
-| `serde` | 1.x | JSON serialization for IPC data transfer |
-| `serde_json` | 1.x | JSON encode/decode for profile data and form schema |
-| `thiserror` | 2.x | Ergonomic error types for Tauri commands |
-| `tracing` | 0.1 | Structured logging in Rust backend |
+No new crates. All three features are served by the existing `lapin 4.x` and `reqwest 0.13` already in `Cargo.toml`.
 
 ---
 
-### React Frontend
+## Integration Notes
 
-#### Dynamic Form Generation
+### PUBL-01: Routing Key Autocomplete
 
-**Approach: hand-rolled renderer using `react-hook-form` 7.x + `zod` 3.x**
+**Rust side:** Add a new `fetch_binding_keys` Tauri command to `connection.rs`. The endpoint is:
 
-Do NOT use `@rjsf/core` (JSON Schema Form). The reason: proto3 descriptors do not map cleanly to JSON Schema. `oneof` fields (proto's union type) have no direct JSON Schema equivalent, and `repeated` fields with nested messages require nested `useFieldArray` patterns that RJSF handles poorly. You would spend more time fighting RJSF's abstractions than building the renderer yourself.
-
-The correct approach:
-1. Rust command serializes the `MessageDescriptor` fields into a custom `FieldSchema` JSON array (field name, type, label, enum values, nested message reference)
-2. React receives this schema and renders fields by switching on the field type
-3. `react-hook-form` + `useFieldArray` handles repeated fields and nested messages
-4. `zod` validates proto type constraints (int32 range, required fields, enum membership)
-
-```bash
-npm install react-hook-form @hookform/resolvers zod
+```
+GET /api/exchanges/{vhost}/{exchange}/bindings/source
 ```
 
-**Why `react-hook-form` over Formik:** RHF is uncontrolled by default (no re-render per keystroke), which matters when a proto schema has 20+ fields. `useFieldArray` is first-class for repeated fields.
-
----
-
-#### UI Components
-
-**`shadcn/ui` (latest)** — Not a package dependency but a component collection you copy into your project (the shadcn CLI adds components to `src/components/ui/`). Built on Radix UI primitives + Tailwind CSS. Zero runtime overhead beyond what you use. Right choice for a dev tool: accessible, keyboard-navigable, dark-mode-compatible out of the box.
-
-```bash
-npx shadcn@latest init
-npx shadcn@latest add input select checkbox badge card tabs
-```
-
-Components needed: `Input`, `Select` (for enum fields and queue/exchange pickers), `Switch` (for bool fields), `Textarea` (for bytes fields as hex input), `Badge` (for message history), `Card`, `Tabs`, `Button`.
-
-Do NOT use MUI or Ant Design — they impose large bundle sizes and opinionated theming that conflicts with Tauri's native-feel goals. Do NOT use Chakra UI — peer dependency issues with React 19.
-
----
-
-#### State Management
-
-**Zustand 5.x** — Minimal global state for: active connection profile, selected queue/exchange, message history log. Avoid Redux for a tool of this scope — it is over-engineered. Zustand's atomic slice pattern keeps connection state and history state independent.
-
-```bash
-npm install zustand
-```
-
----
-
-#### React Supporting Libraries
-
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `@tauri-apps/api` | 2.x | Core Tauri IPC (`invoke`) |
-| `@tauri-apps/plugin-store` | 2.x | Profile storage JS bindings |
-| `@tauri-apps/plugin-dialog` | 2.x | Native file picker for `.proto` files |
-| `@tauri-apps/plugin-fs` | 2.x | Read `.proto` file content and resolve sibling imports |
-| `react-hook-form` | 7.x | Form state, dynamic fields, validation hooks |
-| `@hookform/resolvers` | 3.x | Zod resolver adapter |
-| `zod` | 3.x | Runtime validation schema for proto field types |
-| `zustand` | 5.x | Lightweight global state |
-| `tailwindcss` | 4.x | Utility CSS (required by shadcn/ui) |
-
----
-
-### Tauri Integration
-
-#### IPC Pattern
-
-All backend operations are exposed as Tauri commands. Arguments and return values must be JSON-serializable. Use `#[tauri::command]` on Rust async functions.
+Response is an array of binding objects, each containing a `routing_key` string field. The pattern follows `fetch_queues` exactly: build URL with `percent_encoding::utf8_percent_encode` on both vhost and exchange name, call `reqwest` with `basic_auth`, deserialize with a minimal struct, return `Vec<String>`.
 
 ```rust
-#[tauri::command]
-async fn parse_proto(
-    file_path: String,
-    include_dirs: Vec<String>,
-) -> Result<MessageSchemaJson, String> {
-    // protox compile → prost-reflect descriptor → serialize to JSON schema
-}
-
-#[tauri::command]
-async fn publish_message(
-    connection_id: String,
-    exchange: String,
+#[derive(Deserialize)]
+struct BindingApiInfo {
     routing_key: String,
-    field_values: serde_json::Value,
-    message_type: String,
-) -> Result<(), String> {
-    // DynamicMessage build → encode → lapin publish
-}
-
-#[tauri::command]
-async fn list_queues(profile: ConnectionProfile) -> Result<Vec<QueueInfo>, String> {
-    // reqwest → Management API
 }
 ```
 
-Register in `lib.rs`:
+Deduplicate the returned keys (topic exchanges may have multiple bindings with the same routing key to different queues) before returning to the frontend. The default exchange (`""`) has no bindings — return `Vec::new()` immediately without calling the API.
 
-```rust
-tauri::Builder::default()
-    .plugin(tauri_plugin_store::Builder::new().build())
-    .plugin(tauri_plugin_dialog::init())
-    .plugin(tauri_plugin_fs::init())
-    .invoke_handler(tauri::generate_handler![
-        parse_proto,
-        publish_message,
-        list_queues,
-        list_exchanges,
-        // ...
-    ])
-```
+Error handling: follow the existing 401 / is_connect discrimination pattern from `fetch_queues`. Management API unavailability is a non-fatal fallback — if the call fails, the routing key input falls back to plain `<Input>` (same fallback pattern already used for queue/exchange dropdowns in `PublishBar.tsx`).
 
-#### CRITICAL: Use `tauri::async_runtime::spawn`, NOT `tokio::spawn`
+**Frontend side:** The existing routing key `<Input>` in `PublishBar.tsx` (exchange mode only) becomes a shadcn `Combobox` when Management API is live and `selectedExchange` is non-empty. Fetch binding keys on exchange selection change via `useEffect`. Set `shouldFilter={false}` on the `Command` component inside the Combobox recipe to disable cmdk's client-side filtering — the full list from the API is always shown. The user can still type a free-form routing key not in the suggestions list (use a controlled open/close pattern with a plain `Input` value).
 
-In Tauri 2.x, calling `tokio::spawn` inside window event listeners or certain plugin callbacks causes a panic on Windows. Always use:
-
-```rust
-tauri::async_runtime::spawn(async move { /* lapin connection management */ });
-```
-
-Tauri owns the Tokio runtime. Do not annotate `main` with `#[tokio::main]` — Tauri initializes its own.
-
-#### File System Access (`.proto` files)
-
-Use `tauri-plugin-dialog` for the file picker (native OS dialog for selecting `.proto` files). Use `tauri-plugin-fs` to read file content. Both require explicit permissions in `src-tauri/capabilities/default.json`:
-
-```json
-{
-  "permissions": [
-    "core:default",
-    "store:default",
-    "dialog:default",
-    "fs:allow-read-file",
-    "fs:allow-read-dir"
-  ]
-}
-```
-
-Pass the resolved file path and include directory to the `parse_proto` Tauri command. The Rust backend (via `protox`) handles import resolution on the filesystem — do not try to resolve imports in the frontend.
-
-#### AMQP Connection Lifecycle
-
-Hold AMQP connections in a `tauri::State<Mutex<HashMap<String, lapin::Connection>>>`. Long-lived connections should be managed in Rust, not recreated per publish. Expose connect/disconnect commands explicitly.
+**No new Zustand store needed** — binding keys are local state in `PublishBar.tsx` alongside `selectedExchange`. They are ephemeral (not persisted) and only needed in this component.
 
 ---
 
-## Alternatives Considered
+### PUBL-02: Publisher Confirms Badge
 
-| Category | Recommended | Rejected | Reason Rejected |
-|----------|-------------|----------|-----------------|
-| Proto runtime parsing | `protox` 0.9.1 | `protobuf` crate (stepancheg) | `protobuf` crate's runtime reflection API is more complex and the crate is less actively maintained in 2025; `protox` + `prost-reflect` is the cleaner split |
-| Proto runtime parsing | `protox` 0.9.1 | `prost-build` | Build-time only — requires `protoc` and runs at compile time, not usable for loading user files at runtime |
-| Dynamic encoding | `prost-reflect` | `protobuf::reflect` (stepancheg crate) | Older API, more verbose, the `prost` ecosystem is the community default |
-| AMQP client | `lapin` 4.x | `amqprs` | `amqprs` is faster in benchmarks but `lapin` has larger ecosystem, more tutorials, more community usage; throughput is irrelevant for a dev tool |
-| Queue/exchange listing | `reqwest` + Management API | AMQP passive declare | AMQP 0-9-1 has no enumeration operation; passive declare only checks existence of a known name |
-| Queue/exchange listing | `reqwest` directly | `rabbitmq-management-client` crate | Thin wrapper adds abstraction over a 2-endpoint use case; `reqwest` is simpler |
-| Profile storage | `tauri-plugin-store` | `tauri-plugin-fs` + manual JSON | `tauri-plugin-store` handles atomic writes, app data directory resolution, and cross-platform paths; manual file I/O is unnecessary complexity |
-| Form generation | Hand-rolled + `react-hook-form` | `@rjsf/core` | Proto `oneof` and `repeated` fields do not map cleanly to JSON Schema; RJSF fights against the proto type model |
-| UI components | `shadcn/ui` | MUI / Ant Design | Bundle bloat; opinionated theming; `shadcn/ui` is zero-dependency (components are source-copied) |
-| Global state | Zustand 5 | Redux / Jotai | Redux is over-engineered for this scope; Zustand has simpler ergonomics with same capability |
+**Rust side: already done.** `publish.rs` already calls `channel.confirm_select(ConfirmSelectOptions::default())` before publish, then awaits the confirm future. The command returns `Ok(())` on broker ACK and `Err(AppError::AmqpError(...))` on NACK. No changes needed in Rust.
+
+**Frontend side only.** After `publishMessage(...)` resolves, show a `<Badge>` in `PublishBar.tsx`:
+- `Ok(())` path → green "ACK" badge using `variant="outline"` + emerald dot (matches the existing Live badge style)
+- `Err(...)` path → already handled by the existing `toast.error(...)` call; optionally also show a red "NACK" badge inline
+
+Badge state: local `useState` in `PublishBar.tsx` (not Zustand — this is session-only, single-component ephemeral state). Auto-dismiss: `useEffect` + `setTimeout(3000)` clearing the badge state. Clear on dismiss, on next send start, and on mode change.
+
+The `Badge` component (`src/components/ui/badge.tsx`) is already installed. No new component or library needed.
+
+**The existing `sonner` toast for send success can coexist with the inline badge** — they serve different UX purposes (toast confirms the action happened; inline badge confirms broker acknowledgment specifically).
+
+---
+
+### BLK-01–04: Message Block Library
+
+**Block data model:** A block is `{ id: string; name: string; fields: Record<string, unknown> }`. The `fields` object is free-form JSON (the user edits it in the block editor). Stored as an array in `tauri-plugin-store` under a new key (e.g., `"message_blocks"`).
+
+**Persistence:** `tauri-plugin-store` is already installed and used for theme and connection profiles. Add a new `useBlockStore` (Zustand) that reads/writes from the store on the `"message_blocks"` key. No new Rust command needed — the store plugin is JS-accessible directly from `@tauri-apps/plugin-store`.
+
+**Block JSON editor:** Reuse `@uiw/react-codemirror` + `@codemirror/lang-json` (already installed). Same pattern as `JsonOverlay.tsx` from v1.2. No new library needed.
+
+**Block panel layout:** A collapsible panel beside the form. The `Collapsible` component (`src/components/ui/collapsible.tsx`) is already installed.
+
+**Drag-and-drop with @dnd-kit/core:**
+
+Use `DndContext` + `useDraggable` (block item) + `useDroppable` (form drop zone). The PointerSensor is the correct sensor for Tauri WebView:
+
+```tsx
+import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+
+// In the parent layout component wrapping both BlockPanel and FormPanel:
+const sensors = useSensors(useSensor(PointerSensor));
+
+<DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+  <BlockPanel />   {/* contains useDraggable items */}
+  <FormPanel />    {/* contains useDroppable zone */}
+</DndContext>
+```
+
+The `handleDragEnd` callback receives `active.data.current` (block data) and `over.id` (drop zone id). Merge logic: iterate the dropped block's `fields`, and for each key, call `rhf.setValue(key, value)` only if the current form value for that key is empty/null/undefined (merge fills empty fields only, per BLK-04).
+
+**Critical Tauri integration note:** Do NOT set `"dragDropEnabled": false` in `tauri.conf.json`. That flag controls Tauri's own native file-drop system and is only relevant for HTML5 DnD (`dragstart`/`drop` events). @dnd-kit's PointerSensor uses Pointer Events (`pointerdown`/`pointermove`/`pointerup`), which are independent of the HTML5 DnD API and work in all WebKit targets including webkit2gtk on Linux.
+
+**@dnd-kit/sortable is NOT needed** — BLK-04 specifies drag onto form only, not reordering the block list.
+
+---
+
+## What NOT to Add
+
+| Rejected | Reason |
+|----------|--------|
+| `react-dnd` | In maintenance mode since 2023. No new features. HTML5 backend has the same Linux webkit2gtk bugs. |
+| Native HTML5 DnD (`dragstart`/`dragover`) | Two Tauri bugs (#6695, #12052) confirm HTML5 DnD does not work in webkit2gtk on Linux. Issue #6695 is still open with "status: upstream" label — no fix timeline. @dnd-kit's PointerSensor is the correct escape hatch. |
+| `@dnd-kit/sortable` | Block list reordering is not in scope for BLK-01–04. Adds ~5KB for no benefit. |
+| `downshift` | An alternative combobox primitive with async data support. Unnecessary — shadcn's Command + Popover recipe handles the use case with fewer lines and is consistent with existing shadcn components. |
+| `react-select` | Heavy (50KB+), hard to theme with Tailwind, not shadcn-consistent. Binding keys are a small list (tens of items), not a paginated async search. |
+| Any new Rust crate for binding fetch | `reqwest 0.13` + existing percent-encoding pattern is sufficient for the bindings endpoint. |
+| `rabbitmq-management-client` crate | Already rejected in v1.0 for same reason — thin wrapper over two endpoints; `reqwest` is simpler. |
+| `immer` | No new mutation patterns introduced. RHF + Zustand already manage state. Speculative addition. |
+| Additional CodeMirror packages | Block editor reuses already-installed `@uiw/react-codemirror` + `@codemirror/lang-json`. No new language extensions or themes needed. |
 
 ---
 
@@ -326,43 +155,23 @@ Hold AMQP connections in a `tauri::State<Mutex<HashMap<String, lapin::Connection
 
 | Constraint | Detail |
 |------------|--------|
-| Rust minimum | 1.77.2+ (required by Tauri 2 plugin ecosystem) |
-| `lapin` async runtime | Must use `tauri::async_runtime::spawn`, not bare `tokio::spawn` inside event listeners — causes panic in Tauri 2 on Windows |
-| `prost-reflect` + `protox` | Both use `prost_types::FileDescriptorSet` as the handoff type; ensure `prost` versions match (both should pull `prost` 0.13.x) |
-| `tauri-plugin-*` | All official Tauri plugins must be on the v2 branch; v1 plugins are incompatible with Tauri 2.x |
-| Node / npm | Use Node 20 LTS; Tailwind 4.x requires Node 18+ |
-| `reqwest` TLS | Add `features = ["json", "rustls-tls"]` to `reqwest` if targeting Linux musl or avoiding OpenSSL linking issues in cross-compilation |
-| `shadcn/ui` | Requires Tailwind CSS 4.x and Radix UI; verify Vite config for Tauri is compatible with Tailwind 4 (uses CSS `@import` rather than `tailwind.config.js` in v4) |
-| `#[tokio::main]` conflict | Do NOT add `#[tokio::main]` to the Tauri `main.rs` — Tauri manages the runtime; adding it creates a nested runtime conflict |
-
----
-
-## Confidence Levels
-
-| Area | Confidence | Reasoning |
-|------|------------|-----------|
-| `protox` for runtime proto parsing | HIGH | Docs.rs verified at 0.9.1; `Compiler` API confirmed with include paths and `file_descriptor_set()` output; direct integration with `prost-reflect` via `DescriptorPool` confirmed |
-| `prost-reflect` dynamic encoding | HIGH | Docs.rs confirmed at 0.16.3; `DynamicMessage`, `DescriptorPool`, `MessageDescriptor` APIs confirmed; oneof and repeated field support is documented |
-| `lapin` AMQP client | HIGH | Confirmed active at 4.7.4 (released May 2025); `basic_publish`, `exchange_declare`, `queue_declare` APIs verified via Context7; is the de facto standard |
-| Management API for queue listing | HIGH | AMQP 0-9-1 protocol limitation is unambiguous; confirmed by RabbitMQ official docs and multiple sources; Management Plugin is enabled by default on all standard installs |
-| `tauri-plugin-store` profiles | HIGH | Official Tauri plugin, v2 confirmed, setup docs verified via v2.tauri.app |
-| `tauri::async_runtime::spawn` requirement | HIGH | Confirmed via Tauri GitHub issue #10289 — `tokio::spawn` in event listeners panics on Windows in Tauri 2 |
-| `react-hook-form` + `useFieldArray` | HIGH | Version 7.66.0 confirmed; `useFieldArray` for repeated fields, nested objects, and validation are documented and verified |
-| shadcn/ui for dev tool UI | MEDIUM | Strong community consensus; version compatibility with Tailwind 4 requires verification during project setup (Tailwind 4 changed config format) |
-| Hand-rolled form renderer vs RJSF | MEDIUM | Reasoned recommendation based on proto type system vs JSON Schema mismatch; no head-to-head benchmark available, but the architectural argument is sound |
-| `reqwest` 0.12 for Management API | HIGH | Standard HTTP client; no compatibility concerns with the Management API |
+| `@dnd-kit/core` | Use `^6.3.1` (latest as of May 2026). Do NOT use `@dnd-kit/sortable` unless block list reordering is added in a future milestone. |
+| shadcn Combobox | Installed via `pnpm dlx shadcn@latest add combobox command popover` — source-copied into `src/components/ui/`. The recipe is Command (cmdk) + Popover. Use `shouldFilter={false}` on `<Command>` when displaying async data from the bindings API. |
+| `lapin 4.x` confirm-select | `ConfirmSelectOptions::default()` is the correct call. The confirm future returned by `basic_publish` MUST be awaited BEFORE closing the connection — closing first causes "invalid connection state: Closed" panic. This is already correctly implemented in `publish.rs`. |
+| Tauri `dragDropEnabled` | Do NOT set to `false` unless native file-drop is needed elsewhere. @dnd-kit uses PointerSensor (Pointer Events), not HTML5 DnD events. |
+| Block store key | Use a distinct store key (e.g., `"message_blocks"`) in `tauri-plugin-store` — separate from `"proto-sender-profiles"` and `"theme"`. Do not merge into existing store keys. |
 
 ---
 
 ## Sources
 
-- protox Compiler API: https://docs.rs/protox/latest/protox/struct.Compiler.html
-- prost-reflect DynamicMessage: https://docs.rs/prost-reflect/latest/prost_reflect/
-- lapin crate (amqp-rs): https://crates.io/crates/lapin
-- RabbitMQ AMQP 0-9-1 model (no queue enumeration): https://www.rabbitmq.com/tutorials/amqp-concepts
-- tauri-plugin-store setup: https://v2.tauri.app/plugin/store/
-- Tauri 2 IPC commands: https://v2.tauri.app/develop/calling-rust/
-- Tauri 2 async_runtime spawn: https://docs.rs/tauri/latest/tauri/async_runtime/index.html
-- Tauri 2 tokio::spawn panic issue: https://github.com/tauri-apps/tauri/issues/10289
-- react-hook-form useFieldArray: https://react-hook-form.com/ (Context7 verified v7.66.0)
-- rabbitmq-management-client crate: https://github.com/stefandanaita/rabbitmq-management-client
+- `publish.rs` source (already shipped): `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/publish.rs`
+- `connection.rs` `fetch_queues` pattern: `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/connection.rs`
+- `PublishBar.tsx` routing key input: `/Users/majesnix/gits/proto-sender/src/components/publish/PublishBar.tsx`
+- Tauri HTML5 DnD Linux bug (open, status: upstream): https://github.com/tauri-apps/tauri/issues/6695
+- Tauri HTML5 DnD Linux bug duplicate (closed as dupe of above): https://github.com/tauri-apps/tauri/issues/12052
+- @dnd-kit PointerSensor docs: https://dndkit.com/api-documentation/sensors/pointer
+- @dnd-kit/core 6.3.1 on npm: https://www.npmjs.com/package/@dnd-kit/core
+- RabbitMQ HTTP API bindings/source endpoint: https://www.rabbitmq.com/docs/http-api-reference
+- shadcn Combobox: https://ui.shadcn.com/docs/components/combobox
+- shadcn Combobox async pattern issue: https://github.com/shadcn-ui/ui/issues/1391
