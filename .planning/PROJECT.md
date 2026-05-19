@@ -129,9 +129,9 @@ v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 pl
 
 v1.1 shipped 2026-05-18. Phase 5 (dark-mode) delivered all 4 DRK requirements: OS preference detection via next-themes (DRK-01), in-app icon cycle toggle in sidebar footer (DRK-02), cross-restart persistence via tauri-plugin-store with race guard (DRK-03), and human UAT sign-off across all UI surfaces (DRK-04). Dark mode is complete.
 
-v1.2 in progress. Phase 6 (bytesfield) complete 2026-05-19. BFLD-01 through BFLD-04 delivered: dedicated BytesField component with RFC 4648 base64 validation (char-set regex + structural refine), TextEncoder-based UTF-8→base64 "From text" popover, byte count label, and ProtoFormRenderer pre-dispatch wiring. ScalarField bytes handling fully removed.
+v1.2 in progress. Phase 6 (bytesfield) complete 2026-05-19 — BFLD-01 through BFLD-04 delivered. Phase 7 (mapfield) complete — MAP-01 through MAP-05 delivered. Phase 8 (json-override-toggle) complete 2026-05-19 — JSON-01 through JSON-06 delivered: Braces toggle button in FormPanel header, CodeMirror JSON editor with syntax highlighting and dark/light theme, point-in-time snapshot pre-fill, valid-JSON→form sync via pendingReplayValues signal, invalid-JSON error banner with Fix JSON / Discard, and unknown-field sonner toast warning.
 
-The app now has 2 shipped milestones (v1.0, v1.1) and 1 in-progress milestone (v1.2 Form Improvements, Phase 6 of N complete).
+The app now has 2 shipped milestones (v1.0, v1.1) and 1 complete milestone (v1.2 Form Improvements — all 3 phases done).
 
 ---
-*Last updated: 2026-05-19 — Phase 6 (bytesfield) complete*
+*Last updated: 2026-05-19 — Phase 8 (json-override-toggle) complete, v1.2 milestone finished*
