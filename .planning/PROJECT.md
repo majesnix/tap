@@ -145,5 +145,7 @@ The app is feature-complete for v1 scope: all major proto field types, full send
 
 v1.3 milestone in progress. Phase 10 complete 2026-05-19 — publisher confirms badge (PUBL-05–08) delivered. `publish_message` returns `PublishOutcome { status }` (ack/nack/returned/timeout), with mandatory=true on all publishes, 5s broker timeout, and an ephemeral badge in PublishBar that auto-dismisses (3s ACK, 5s others) or requires manual dismissal (Timeout).
 
+Phase 11 complete 2026-05-19 — block library store, editor, and persistence (BLK-01–05) delivered. `useBlockStore` Zustand store with full CRUD and `tauri-plugin-store` persistence, `BlockLibraryPanel` two-view component (list + editor with lazy hydration), and AppLayout integration with toggle button in FormPanel. All built TDD-style (RED→GREEN across all 3 plans). 41 new tests, 245 total passing.
+
 ---
-*Last updated: 2026-05-19 — Phase 10 complete*
+*Last updated: 2026-05-19 — Phase 11 complete*
