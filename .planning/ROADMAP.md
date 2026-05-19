@@ -72,7 +72,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 Plans:
 - [ ] 09-01-PLAN.md — Rust backend: ExchangeSummary struct + fetch_exchanges update + fetch_bindings command + lib.rs registration
 - [x] 09-02-PLAN.md — Frontend contracts: install Command component, ExchangeSummary type, updated ipc.ts/store, RoutingKeyCombobox component + tests
-- [ ] 09-03-PLAN.md — PublishBar integration: exchange type badges, bindings useEffect, conditional combobox/input, hint text, updated tests
+- [x] 09-03-PLAN.md — PublishBar integration: exchange type badges, bindings useEffect, conditional combobox/input, hint text, updated tests
 **UI hint**: yes
 
 ### Phase 10: Publisher Confirms Badge
