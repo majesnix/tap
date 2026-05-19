@@ -106,7 +106,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 **Wave 1**
-- [ ] 11-01-PLAN.md — useBlockStore: Block type, Zustand store, CRUD actions, blocksLoaded hydration gate, tauri-plugin-store persistence (TDD)
+- [x] 11-01-PLAN.md — useBlockStore: Block type, Zustand store, CRUD actions, blocksLoaded hydration gate, tauri-plugin-store persistence (TDD)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 11-02-PLAN.md — BlockLibraryPanel: two-view component (list + editor), CodeMirror editor, AlertDialog delete confirmation, validation, tests
@@ -142,7 +142,7 @@ Plans:
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
 | 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete    | 2026-05-19 |
-| 11. Block Library — Store, Editor, Persistence | v1.3 | 0/3 | Not started | — |
+| 11. Block Library — Store, Editor, Persistence | v1.3 | 1/3 | In Progress|  |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
 
 ---
