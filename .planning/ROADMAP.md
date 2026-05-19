@@ -51,7 +51,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 ### v1.3 Publishing UX + Message Blocks (Phases 9–12)
 
 - [ ] **Phase 9: Routing Key Autocomplete** — 0/3 plans — not started
-- [ ] **Phase 10: Publisher Confirms Badge** — 0/? plans — not started
+- [ ] **Phase 10: Publisher Confirms Badge** — 0/2 plans — not started
 - [ ] **Phase 11: Block Library — Store, Editor, Persistence** — 0/? plans — not started
 - [ ] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/? plans — not started
 
@@ -84,7 +84,10 @@ Plans:
   2. User sends a message with no matching binding (mandatory=true, unroutable) and sees an amber Returned badge; the badge disappears automatically after 5 seconds
   3. User sends a message the broker negatively acknowledges and sees a red NACK badge; the badge disappears automatically after 5 seconds
   4. User sends a message and broker confirmation does not arrive within 5 seconds; user sees a gray Timeout badge that remains until manually dismissed
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — Rust backend: PublishOutcome struct, mandatory=true, tokio timeout, Confirmation match
+- [ ] 10-02-PLAN.md — Frontend: PublishOutcome type, ipc.ts return type, badge state + JSX + tests in PublishBar
 **UI hint**: yes
 
 ### Phase 11: Block Library — Store, Editor, Persistence
@@ -126,7 +129,7 @@ Plans:
 | 7. MapField | v1.2 | 4/4 | Complete | 2026-05-19 |
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
 | 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
-| 10. Publisher Confirms Badge | v1.3 | 0/? | Not started | — |
+| 10. Publisher Confirms Badge | v1.3 | 0/2 | Not started | — |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 0/? | Not started | — |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
 
