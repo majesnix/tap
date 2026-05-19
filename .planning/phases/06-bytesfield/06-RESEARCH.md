@@ -597,7 +597,7 @@ test("bytes field renders text input with bytes badge", () => { ... });
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **D-06 regex gap: use `.refine()` or tighten the regex?**
    - What we know: The locked regex accepts structurally invalid base64; `.refine()` with `atob()` is the minimal fix.
