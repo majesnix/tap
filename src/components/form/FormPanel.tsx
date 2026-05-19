@@ -6,7 +6,7 @@ import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
 import { JsonEditor } from "./JsonEditor";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Braces } from "lucide-react";
+import { Braces, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 
@@ -18,7 +18,12 @@ function bytesToHex(bytes: number[]): string {
   return bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ");
 }
 
-export function FormPanel() {
+interface FormPanelProps {
+  isBlockLibraryOpen?: boolean;
+  onToggleBlockLibrary?: () => void;
+}
+
+export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: FormPanelProps = {}) {
   const {
     schema,
     selectedMessageType,
@@ -191,17 +196,30 @@ export function FormPanel() {
           <h2 className="text-sm font-semibold">{message.name}</h2>
           <p className="text-xs text-muted-foreground">{message.full_name}</p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={isJsonMode ? "Return to form" : "Edit as JSON"}
-          aria-pressed={isJsonMode}
-          title={isJsonMode ? "Return to form" : "Edit as JSON"}
-          className={isJsonMode ? "bg-muted text-foreground" : ""}
-          onClick={handleToggle}
-        >
-          <Braces />
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Block library"
+            title="Block library"
+            aria-pressed={isBlockLibraryOpen}
+            className={isBlockLibraryOpen ? "bg-muted text-foreground" : ""}
+            onClick={onToggleBlockLibrary}
+          >
+            <Library size={16} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={isJsonMode ? "Return to form" : "Edit as JSON"}
+            aria-pressed={isJsonMode}
+            title={isJsonMode ? "Return to form" : "Edit as JSON"}
+            className={isJsonMode ? "bg-muted text-foreground" : ""}
+            onClick={handleToggle}
+          >
+            <Braces />
+          </Button>
+        </div>
       </div>
       {isJsonMode ? (
         // JSON mode: plain flex div — do NOT nest CodeMirror inside ScrollArea (RESEARCH Pitfall 4)
