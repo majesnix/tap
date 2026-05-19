@@ -125,6 +125,12 @@ fn set_field_value(
             }
             let map_key = json_to_map_key(field, key_json)?;
             if let Some(val) = scalar_or_message_value_for_map_entry(field, val_json)? {
+                if map.contains_key(&map_key) {
+                    return Err(AppError::EncodeError {
+                        field: field.name().to_string(),
+                        message: format!("duplicate map key: {:?}", map_key),
+                    });
+                }
                 map.insert(map_key, val);
             }
         }
