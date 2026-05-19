@@ -71,9 +71,12 @@ Plans:
   3. User sees an inline duplicate-key error and the send button is blocked until all keys in the map are unique
   4. User can fill in map values using the same renderers as the rest of the form — scalar, enum, and nested message value types all work
   5. A `map<K, V>` field with entries encodes correctly as binary protobuf wire format when sent (Value::Map path in encode.rs, not Value::List)
-**Plans**: 1 plan
+**Plans**: 4 plans
 Plans:
-- [x] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
+- [ ] 07-01-PLAN.md — Rust layer: FieldKind::Map variant, is_map() extractor guard, Value::Map encoder + 4 unit tests (Wave 1)
+- [ ] 07-02-PLAN.md — TypeScript wiring: FieldKind map union member, ProtoFormRenderer pre-dispatch branch, buildDefaultValues case (Wave 2)
+- [ ] 07-03-PLAN.md — MapField component: full TDD implementation — useFieldArray rows, key dispatch, duplicate detection, hidden guard, renderValue prop (Wave 3)
+- [ ] 07-04-PLAN.md — Human verify: live app verification of all MFLD-01 through MFLD-05 requirements (Wave 4)
 **UI hint**: yes
 
 ### Phase 8: JSON Override Toggle
@@ -88,7 +91,7 @@ Plans:
   5. JSON editor has syntax highlighting and respects the active dark/light theme
 **Plans**: 1 plan
 Plans:
-- [ ] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
+- [ ] 08-01-PLAN.md — JSON Override Toggle (TBD — plan-phase not yet run)
 **UI hint**: yes
 
 ---
@@ -102,8 +105,8 @@ Plans:
 | 3. Full Feature Set | v1.0 | 4/4 | Complete | 2026-05-18 |
 | 4. Response Queue Reader | v1.0 | 2/2 | Complete | 2026-05-18 |
 | 5. Dark Mode | v1.1 | 3/3 | Complete | 2026-05-18 |
-| 6. BytesField | v1.2 | 0/? | Not started | - |
-| 7. MapField | v1.2 | 0/? | Not started | - |
+| 6. BytesField | v1.2 | 0/1 | Not started | - |
+| 7. MapField | v1.2 | 0/4 | Not started | - |
 | 8. JSON Override Toggle | v1.2 | 0/? | Not started | - |
 
 ---
