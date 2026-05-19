@@ -51,7 +51,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 ### v1.3 Publishing UX + Message Blocks (Phases 9–12)
 
 - [ ] **Phase 9: Routing Key Autocomplete** — 0/3 plans — not started
-- [ ] **Phase 10: Publisher Confirms Badge** — 0/2 plans — not started
+- [x] **Phase 10: Publisher Confirms Badge** — 0/2 plans — not started (completed 2026-05-19)
 - [ ] **Phase 11: Block Library — Store, Editor, Persistence** — 0/? plans — not started
 - [ ] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/? plans — not started
 
@@ -90,7 +90,7 @@ Plans:
 - [x] 10-01-PLAN.md — Rust backend: PublishOutcome struct, mandatory=true, tokio timeout, Confirmation match
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 10-02-PLAN.md — Frontend: PublishOutcome type, ipc.ts return type, badge state + JSX + tests in PublishBar
+- [x] 10-02-PLAN.md — Frontend: PublishOutcome type, ipc.ts return type, badge state + JSX + tests in PublishBar
 **UI hint**: yes
 
 ### Phase 11: Block Library — Store, Editor, Persistence
@@ -132,7 +132,7 @@ Plans:
 | 7. MapField | v1.2 | 4/4 | Complete | 2026-05-19 |
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
 | 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
-| 10. Publisher Confirms Badge | v1.3 | 1/2 | In Progress|  |
+| 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete   | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 0/? | Not started | — |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
 
