@@ -1,6 +1,6 @@
 use lapin::{Connection, ConnectionProperties};
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tauri::AppHandle;
 use tauri_plugin_store::StoreExt;
@@ -28,11 +28,16 @@ struct QueueDepthApiInfo {
 #[derive(Deserialize)]
 struct ExchangeApiInfo {
     name: String,
-    // Captured from JSON for completeness but not used in filter logic — only internal flag is checked
-    #[allow(dead_code)]
     #[serde(rename = "type")]
     exchange_type: String,
     internal: bool,
+}
+
+/// Public output struct for fetch_exchanges — carries exchange type for frontend eligibility checks.
+#[derive(Serialize)]
+pub struct ExchangeSummary {
+    pub name: String,
+    pub exchange_type: String, // raw from API: "direct" | "fanout" | "topic" | "headers"
 }
 
 /// Helper: load profile from store and retrieve password from keychain.
@@ -321,7 +326,7 @@ pub async fn fetch_queue_depth(
 pub async fn fetch_exchanges(
     app: AppHandle,
     profile_name: String,
-) -> Result<Vec<String>, AppError> {
+) -> Result<Vec<ExchangeSummary>, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
 
     let encoded_vhost = percent_encoding::utf8_percent_encode(
@@ -357,8 +362,81 @@ pub async fn fetch_exchanges(
             Ok(exchanges
                 .into_iter()
                 .filter(|e| !e.internal && !e.name.starts_with("amq.") && !e.name.is_empty())
-                .map(|e| e.name)
+                .map(|e| ExchangeSummary { name: e.name, exchange_type: e.exchange_type })
                 .collect())
+        }
+        401 => Err(AppError::ManagementApiAuthFailed),
+        404 => Err(AppError::ManagementApiUnavailable(404)),
+        other => Err(AppError::ManagementApiUnavailable(other)),
+    }
+}
+
+/// Intermediate struct for deserializing exchange binding entries from the Management API.
+#[derive(Deserialize)]
+struct BindingApiInfo {
+    routing_key: String,
+}
+
+/// Fetch routing keys from exchange bindings via the RabbitMQ Management API.
+///
+/// Returns deduplicated, non-empty routing key strings for a named exchange.
+/// Used by the frontend combobox (PUBL-01).
+///
+/// Errors are intentionally NOT discriminated — the frontend silently falls back to
+/// plain Input on ANY error (D-10). Auth errors (401) are returned as AppError but
+/// the frontend catches all errors identically.
+#[tauri::command]
+pub async fn fetch_bindings(
+    app: AppHandle,
+    profile_name: String,
+    exchange_name: String,
+) -> Result<Vec<String>, AppError> {
+    let (profile, password) = load_profile_with_password(&app, &profile_name)?;
+
+    let encoded_vhost = percent_encoding::utf8_percent_encode(
+        &profile.vhost,
+        percent_encoding::NON_ALPHANUMERIC,
+    );
+    let encoded_exchange = percent_encoding::utf8_percent_encode(
+        &exchange_name,
+        percent_encoding::NON_ALPHANUMERIC,
+    );
+    let scheme = if profile.management_ssl { "https" } else { "http" };
+    let url = format!(
+        "{}://{}:{}/api/exchanges/{}/{}/bindings/source",
+        scheme, profile.host, profile.management_port, encoded_vhost, encoded_exchange
+    );
+
+    let client = Client::new();
+    let resp = client
+        .get(&url)
+        .basic_auth(&profile.username, Some(&password))
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_connect() {
+                AppError::ManagementApiUnavailable(0)
+            } else {
+                AppError::ManagementApiError(e.to_string())
+            }
+        })?;
+
+    match resp.status().as_u16() {
+        200 => {
+            let bindings: Vec<BindingApiInfo> = resp
+                .json()
+                .await
+                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
+            // Filter empty keys (default-exchange bindings have empty routing_key).
+            // sort() MUST precede dedup() in Rust — dedup only removes consecutive duplicates.
+            let mut keys: Vec<String> = bindings
+                .into_iter()
+                .map(|b| b.routing_key)
+                .filter(|k| !k.is_empty())
+                .collect();
+            keys.sort();
+            keys.dedup();
+            Ok(keys)
         }
         401 => Err(AppError::ManagementApiAuthFailed),
         404 => Err(AppError::ManagementApiUnavailable(404)),
