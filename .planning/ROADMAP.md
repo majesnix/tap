@@ -87,7 +87,7 @@ Plans:
 **Plans**: 2 plans
 Plans:
 **Wave 1**
-- [ ] 10-01-PLAN.md — Rust backend: PublishOutcome struct, mandatory=true, tokio timeout, Confirmation match
+- [x] 10-01-PLAN.md — Rust backend: PublishOutcome struct, mandatory=true, tokio timeout, Confirmation match
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 10-02-PLAN.md — Frontend: PublishOutcome type, ipc.ts return type, badge state + JSX + tests in PublishBar
@@ -132,7 +132,7 @@ Plans:
 | 7. MapField | v1.2 | 4/4 | Complete | 2026-05-19 |
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
 | 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
-| 10. Publisher Confirms Badge | v1.3 | 0/2 | Not started | — |
+| 10. Publisher Confirms Badge | v1.3 | 1/2 | In Progress|  |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 0/? | Not started | — |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
 
