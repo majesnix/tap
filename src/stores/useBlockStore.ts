@@ -50,24 +50,53 @@ export const useBlockStore = create<BlockStore>((set, get) => ({
   addBlock: async (block) => {
     // Guard: do not write before async store hydration completes (mirrors useHistoryStore appendEntry guard)
     if (!get().blocksLoaded) return;
-    const updated = [...get().blocks, block];
-    set({ blocks: updated });
-    await persistBlocks(updated);
+    let previous: Block[] = [];
+    let updated: Block[] = [];
+    set((state) => {
+      previous = state.blocks;
+      updated = [...state.blocks, block];
+      return { blocks: updated };
+    });
+    try {
+      await persistBlocks(updated);
+    } catch (err) {
+      // Roll back to prevent in-memory/disk divergence
+      set({ blocks: previous });
+      throw err;
+    }
   },
 
   updateBlock: async (id, updates) => {
     if (!get().blocksLoaded) return;
-    const updated = get().blocks.map((b) =>
-      b.id === id ? { ...b, ...updates } : b
-    );
-    set({ blocks: updated });
-    await persistBlocks(updated);
+    let previous: Block[] = [];
+    let updated: Block[] = [];
+    set((state) => {
+      previous = state.blocks;
+      updated = state.blocks.map((b) => (b.id === id ? { ...b, ...updates } : b));
+      return { blocks: updated };
+    });
+    try {
+      await persistBlocks(updated);
+    } catch (err) {
+      set({ blocks: previous });
+      throw err;
+    }
   },
 
   deleteBlock: async (id) => {
     if (!get().blocksLoaded) return;
-    const updated = get().blocks.filter((b) => b.id !== id);
-    set({ blocks: updated });
-    await persistBlocks(updated);
+    let previous: Block[] = [];
+    let updated: Block[] = [];
+    set((state) => {
+      previous = state.blocks;
+      updated = state.blocks.filter((b) => b.id !== id);
+      return { blocks: updated };
+    });
+    try {
+      await persistBlocks(updated);
+    } catch (err) {
+      set({ blocks: previous });
+      throw err;
+    }
   },
 }));

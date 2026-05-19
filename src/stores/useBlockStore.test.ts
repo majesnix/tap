@@ -75,6 +75,42 @@ describe("loadBlocks", () => {
   });
 });
 
+// ── persistence rollback ──────────────────────────────────────────────────────
+
+describe("persistence rollback (CR-02)", () => {
+  test("addBlock rolls back in-memory state and throws when persistBlocks fails", async () => {
+    useBlockStore.setState({ blocks: [], blocksLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("Disk full"));
+    const block = makeBlock({ id: "rollback-block" });
+    await expect(useBlockStore.getState().addBlock(block)).rejects.toThrow("Disk full");
+    // State must be reverted to empty
+    expect(useBlockStore.getState().blocks).toHaveLength(0);
+  });
+
+  test("updateBlock rolls back in-memory state and throws when persistBlocks fails", async () => {
+    const original = makeBlock({ id: "upd-block", name: "Original", content: "{}" });
+    useBlockStore.setState({ blocks: [original], blocksLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("Permission denied"));
+    await expect(
+      useBlockStore.getState().updateBlock("upd-block", { name: "Changed", content: "{}" })
+    ).rejects.toThrow("Permission denied");
+    // State must be reverted to original
+    expect(useBlockStore.getState().blocks[0].name).toBe("Original");
+  });
+
+  test("deleteBlock rolls back in-memory state and throws when persistBlocks fails", async () => {
+    const block = makeBlock({ id: "del-block" });
+    useBlockStore.setState({ blocks: [block], blocksLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("Store unavailable"));
+    await expect(useBlockStore.getState().deleteBlock("del-block")).rejects.toThrow(
+      "Store unavailable"
+    );
+    // State must be reverted — block still present
+    expect(useBlockStore.getState().blocks).toHaveLength(1);
+    expect(useBlockStore.getState().blocks[0].id).toBe("del-block");
+  });
+});
+
 // ── addBlock ──────────────────────────────────────────────────────────────────
 
 describe("addBlock", () => {
