@@ -1,7 +1,7 @@
 ---
 phase: 8
 slug: json-override-toggle
-status: draft
+status: approved
 shadcn_initialized: true
 preset: radix-nova
 created: 2026-05-19
@@ -69,10 +69,10 @@ Tokens from `src/index.css` (oklch dual-mode, shadcn nova preset):
 |------|-------|-------------|------------|-------|
 | Dominant (60%) | `--background` | `oklch(1 0 0)` (white) | `oklch(0.145 0 0)` (near-black) | App background, editor background |
 | Secondary (30%) | `--card` / `--muted` | `oklch(0.97 0 0)` (light gray) | `oklch(0.205 0 0)` (dark gray) | Error banner background, header surface |
-| Accent (10%) | `--primary` | `oklch(0.205 0 0)` | `oklch(0.922 0 0)` | Toggle button active state (`aria-pressed=true`) |
+| Accent (10%) | `--muted` | `oklch(0.97 0 0)` (light gray) | `oklch(0.205 0 0)` (dark gray) | Toggle button active state (`aria-pressed=true`, `bg-muted text-foreground`) |
 | Destructive | `--destructive` | `oklch(0.577 0.245 27.325)` (red) | `oklch(0.704 0.191 22.216)` (muted red) | Error banner border, icon, "Discard changes" button |
 
-Accent (`--primary`) is reserved for: toggle button pressed state only (via `bg-primary text-primary-foreground` when `aria-pressed=true`).
+Accent (`--muted`) is reserved for: toggle button pressed state only (via `bg-muted text-foreground` when `aria-pressed=true` — consistent with ghost `aria-expanded` pattern in button.tsx).
 
 Destructive is reserved for: inline error banner (border, icon, error text) and "Discard changes" button.
 
@@ -288,11 +288,11 @@ No destructive confirmation dialog — "Discard changes" button in banner is the
 
 ## Checker Sign-Off
 
-- [ ] Dimension 1 Copywriting: PASS
-- [ ] Dimension 2 Visuals: PASS
-- [ ] Dimension 3 Color: PASS
-- [ ] Dimension 4 Typography: PASS
-- [ ] Dimension 5 Spacing: PASS
-- [ ] Dimension 6 Registry Safety: PASS
+- [x] Dimension 1 Copywriting: PASS
+- [x] Dimension 2 Visuals: PASS
+- [x] Dimension 3 Color: PASS
+- [x] Dimension 4 Typography: PASS
+- [x] Dimension 5 Spacing: PASS
+- [x] Dimension 6 Registry Safety: PASS
 
-**Approval:** pending
+**Approval:** approved 2026-05-19
