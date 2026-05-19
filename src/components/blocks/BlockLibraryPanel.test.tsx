@@ -32,8 +32,8 @@ import { useTheme } from "next-themes";
 import type { Block } from "@/stores/useBlockStore";
 
 function setupStore(overrides: Partial<ReturnType<typeof useBlockStore>> = {}) {
-  (useTheme as ReturnType<typeof vi.fn>).mockReturnValue({ resolvedTheme: "light" });
-  (useBlockStore as ReturnType<typeof vi.fn>).mockReturnValue({
+  vi.mocked(useTheme).mockReturnValue({ resolvedTheme: "light" } as ReturnType<typeof useTheme>);
+  vi.mocked(useBlockStore).mockReturnValue({
     blocks: [],
     blocksLoaded: true,
     loadBlocks: mockLoadBlocks,
@@ -41,7 +41,7 @@ function setupStore(overrides: Partial<ReturnType<typeof useBlockStore>> = {}) {
     updateBlock: mockUpdateBlock,
     deleteBlock: mockDeleteBlock,
     ...overrides,
-  });
+  } as unknown as ReturnType<typeof useBlockStore>);
 }
 
 function makeBlock(overrides: Partial<Block> = {}): Block {
