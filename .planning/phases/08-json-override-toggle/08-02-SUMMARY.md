@@ -2,7 +2,7 @@
 phase: 08-json-override-toggle
 plan: "02"
 subsystem: frontend
-status: checkpoint
+status: complete
 tags: [json-toggle, formPanel, tdd, codemirror, zustand, react, sonner]
 dependency_graph:
   requires: [JsonEditor, buildDefaultValues-export]
