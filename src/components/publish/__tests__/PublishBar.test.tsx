@@ -1,8 +1,9 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { PublishBar, buildPublishArgs } from "@/components/publish/PublishBar";
 import { useConnectionStore } from "@/stores/useConnectionStore";
+import { useProtoStore } from "@/stores/useProtoStore";
 
 // Module-scope mock for sonner — uses vi.hoisted() so the factory reference is valid
 // after hoisting. vi.mock() factories are hoisted before const declarations; vi.hoisted()
@@ -430,5 +431,159 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
     });
     // No destructive auth error badge should appear
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});
+
+describe("Phase 10 — Publisher Confirms Badge", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers(); // Required: first timer-dependent tests in this file
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "live",
+      managementAuthError: null,
+      queues: ["test-queue"],
+      exchanges: [],
+    });
+    // CRITICAL: seed hexPreview so handleSend does not early-return at the
+    // "if (!hexPreview)" guard. Without this, clicking Send is a no-op and
+    // all waitFor(badge) assertions time out.
+    useProtoStore.setState({
+      hexPreview: "0a 05 68 65 6c 6c 6f",
+      encodeError: null,
+      latestValues: {},
+      selectedMessageType: "TestMessage",
+    });
+    // Default: fetch_queues returns queue list; publish_message is overridden per test
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      return Promise.resolve(undefined);
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers(); // Restore real timers after each test in this block
+  });
+
+  it("PUBL-05: shows green ACK badge after broker confirms delivery", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "publish_message") return Promise.resolve({ status: "ack" });
+      return Promise.resolve([]);
+    });
+    render(<PublishBar />);
+    // Select a queue and click Send
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    // We call handleSend by clicking the Send button (it is connected+hasTarget)
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByText("ACK")).toBeInTheDocument());
+    // Verify the badge element has the green className
+    expect(screen.getByText("ACK").closest("[data-slot='badge']")).toHaveClass("bg-emerald-500/10");
+  });
+
+  it("PUBL-05: ACK badge auto-dismisses after 3 seconds", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "publish_message") return Promise.resolve({ status: "ack" });
+      return Promise.resolve([]);
+    });
+    render(<PublishBar />);
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => screen.getByText("ACK"));
+    act(() => vi.advanceTimersByTime(3000));
+    await waitFor(() => expect(screen.queryByText("ACK")).not.toBeInTheDocument());
+  });
+
+  it("PUBL-06: shows amber Returned badge when message is unrouted", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "publish_message") return Promise.resolve({ status: "returned" });
+      return Promise.resolve([]);
+    });
+    render(<PublishBar />);
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByText("Returned")).toBeInTheDocument());
+    expect(screen.getByText("Returned").closest("[data-slot='badge']")).toHaveClass("bg-amber-500/10");
+  });
+
+  it("PUBL-07: shows red NACK badge on broker negative acknowledgment", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "publish_message") return Promise.resolve({ status: "nack" });
+      return Promise.resolve([]);
+    });
+    render(<PublishBar />);
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByText("NACK")).toBeInTheDocument());
+    expect(screen.getByText("NACK").closest("[data-slot='badge']")).toHaveClass("bg-destructive/10");
+  });
+
+  it("PUBL-08: Timeout badge does not auto-dismiss and shows dismiss button", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "publish_message") return Promise.resolve({ status: "timeout" });
+      return Promise.resolve([]);
+    });
+    render(<PublishBar />);
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => expect(screen.getByText("Timeout")).toBeInTheDocument());
+    // Advance far past any dismiss window — badge must still be visible
+    act(() => vi.advanceTimersByTime(10000));
+    expect(screen.getByText("Timeout")).toBeInTheDocument();
+    // Dismiss button must be present only for Timeout
+    expect(screen.getByLabelText("Dismiss timeout badge")).toBeInTheDocument();
+  });
+
+  it("PUBL-08: clicking dismiss button hides the Timeout badge", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "publish_message") return Promise.resolve({ status: "timeout" });
+      return Promise.resolve([]);
+    });
+    render(<PublishBar />);
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => screen.getByLabelText("Dismiss timeout badge"));
+    fireEvent.click(screen.getByLabelText("Dismiss timeout badge"));
+    expect(screen.queryByText("Timeout")).not.toBeInTheDocument();
+  });
+
+  it("D-09: new send replaces prior badge immediately without queuing", async () => {
+    let callCount = 0;
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "publish_message") {
+        callCount++;
+        // First call → ack, second call → nack
+        return Promise.resolve({ status: callCount === 1 ? "ack" : "nack" });
+      }
+      return Promise.resolve([]);
+    });
+    render(<PublishBar />);
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+
+    // First send → ACK badge
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => screen.getByText("ACK"));
+
+    // Second send → NACK badge replaces ACK
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    await waitFor(() => screen.getByText("NACK"));
+    // ACK badge must be gone
+    expect(screen.queryByText("ACK")).not.toBeInTheDocument();
   });
 });
