@@ -99,3 +99,14 @@ export interface ExchangeSummary {
   name: string;
   exchange_type: string;
 }
+
+// ── Phase 10: Publisher confirms outcome ──────────────────────────────────────
+
+/**
+ * Delivery outcome returned by publish_message Rust command.
+ * D-02: Flat interface with status as a string literal union.
+ * Values match Rust PublishOutcome.status field exactly.
+ */
+export interface PublishOutcome {
+  status: "ack" | "nack" | "returned" | "timeout";
+}

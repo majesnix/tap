@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema, ConsumeResult, ExchangeSummary } from "./types";
+import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -86,8 +86,8 @@ export async function publishMessage(
   routingKey: string, // queue name (PUBL-01) or explicit routing key (PUBL-02)
   payload: number[], // binary protobuf bytes as number[] (from encodeMessage)
   amqpProps?: AmqpPropsIpc
-): Promise<void> {
-  return invoke<void>("publish_message", {
+): Promise<PublishOutcome> {
+  return invoke<PublishOutcome>("publish_message", {
     profileName,
     exchange,
     routingKey,
