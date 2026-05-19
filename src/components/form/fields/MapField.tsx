@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { FieldSchema, RenderFieldFn, ScalarKind } from "@/lib/types";
+import type { FieldKind, FieldSchema, RenderFieldFn, ScalarKind } from "@/lib/types";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -91,10 +91,11 @@ function int64Regex(keyType: ScalarKind): RegExp {
  * - renderValue prop renders the value column — depth+1 prevents MAX_DEPTH bypass
  */
 export function MapField({ field, path, depth, renderValue }: MapFieldProps): React.ReactNode {
+  // All hook calls are unconditional — Rules of Hooks compliance.
+  // ProtoFormRenderer already guarantees field.kind.type === "map" at the call site;
+  // the cast below is safe by construction.
   const { control, setError, clearErrors } = useFormContext();
-
-  if (field.kind.type !== "map") return null;
-  const { key_type, value_kind } = field.kind;
+  const { key_type, value_kind } = field.kind as Extract<FieldKind, { type: "map" }>;
 
   const { fields, append, remove } = useFieldArray({ control, name: path });
 
