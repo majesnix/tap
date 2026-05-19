@@ -36,11 +36,12 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ In-app toggle cycling system / light / dark modes — immediate effect, no reload — v1.1 (Phase 05)
 - ✓ Theme mode persists across app restarts via tauri-plugin-store — v1.1 (Phase 05)
 - ✓ All UI surfaces render correctly in dark mode — form panel, connection sidebar, publish bar, AMQP sheet, history panel, response tab, modals, shadcn/ui components — v1.1 (Phase 05)
+- ✓ Map field (`map<K, V>`) rendered as dynamic key-value row list with duplicate-key validation and binary protobuf encoding — v1.2 (Phase 07)
 
 ### Active (v1.2 — Form Improvements)
 
 - [ ] Bytes field with base64 input and UTF-8 text helper button (FORM-V2-01)
-- [ ] Map field (`map<K, V>`) rendered as dynamic key-value row list (FORM-V2-02)
+- [ ] Map field (`map<K, V>`) rendered as dynamic key-value row list (FORM-V2-02) — Validated in Phase 07
 - [ ] JSON override toggle — switch between form view and raw JSON edit mode with two-way sync (FORM-V2-03)
 
 ### Backlog (future milestones)
