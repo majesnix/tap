@@ -32,6 +32,27 @@ vi.mock("@/components/ui/select", () => ({
   ),
 }));
 
+// Mock RoutingKeyCombobox to avoid cmdk/Radix portal issues in PublishBar integration tests
+vi.mock("../RoutingKeyCombobox", () => ({
+  RoutingKeyCombobox: ({
+    value,
+    onChange,
+    isLoading,
+  }: {
+    value: string;
+    onChange: (v: string) => void;
+    bindingKeys: string[];
+    isLoading: boolean;
+  }) => (
+    <input
+      aria-label="Routing key combobox"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      data-loading={isLoading}
+    />
+  ),
+}));
+
 import { invoke } from "@tauri-apps/api/core";
 const mockInvoke = vi.mocked(invoke);
 
@@ -166,5 +187,247 @@ describe("PublishBar", () => {
     render(<PublishBar />);
     // Default mode is Queue
     expect(screen.queryByPlaceholderText(/routing key/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("Phase 9 — Routing Key Autocomplete", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: null,
+      connectionStatus: "disconnected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+    mockInvoke.mockImplementation(() => Promise.resolve([]));
+  });
+
+  it("calls fetch_bindings when a direct exchange is selected", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_exchanges")
+        return Promise.resolve([{ name: "orders", exchange_type: "direct" }]);
+      if (cmd === "fetch_bindings") return Promise.resolve(["orders.eu"]);
+      return Promise.resolve([]);
+    });
+
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    // Switch to exchange mode — triggers fetchExchanges
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    // Wait for exchanges to be populated
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("fetch_exchanges", { profileName: "test-profile" });
+    });
+    // Select the exchange
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "orders" } });
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("fetch_bindings", {
+        profileName: "test-profile",
+        exchangeName: "orders",
+      });
+    });
+  });
+
+  it("does NOT call fetch_bindings for fanout exchange", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_exchanges")
+        return Promise.resolve([{ name: "logs", exchange_type: "fanout" }]);
+      return Promise.resolve([]);
+    });
+
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("fetch_exchanges", { profileName: "test-profile" });
+    });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "logs" } });
+
+    await new Promise((r) => setTimeout(r, 50));
+    const bindingsCalls = mockInvoke.mock.calls.filter(
+      (args) => args[0] === "fetch_bindings"
+    );
+    expect(bindingsCalls).toHaveLength(0);
+  });
+
+  it("does NOT call fetch_bindings for headers exchange", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_exchanges")
+        return Promise.resolve([{ name: "my-headers", exchange_type: "headers" }]);
+      return Promise.resolve([]);
+    });
+
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith("fetch_exchanges", { profileName: "test-profile" });
+    });
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "my-headers" } });
+
+    await new Promise((r) => setTimeout(r, 50));
+    const bindingsCalls = mockInvoke.mock.calls.filter(
+      (args) => args[0] === "fetch_bindings"
+    );
+    expect(bindingsCalls).toHaveLength(0);
+  });
+
+  it("shows hint text for fanout exchange (D-06)", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_exchanges")
+        return Promise.resolve([{ name: "logs", exchange_type: "fanout" }]);
+      return Promise.resolve([]);
+    });
+
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "logs" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Routing key is ignored for fanout exchanges.")
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows hint text for headers exchange (D-06)", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_exchanges")
+        return Promise.resolve([{ name: "my-headers", exchange_type: "headers" }]);
+      return Promise.resolve([]);
+    });
+
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "my-headers" } });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Headers exchanges route by message headers, not routing key.")
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("renders RoutingKeyCombobox (not plain Input) when bindings fetch succeeds", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_exchanges")
+        return Promise.resolve([{ name: "orders", exchange_type: "direct" }]);
+      if (cmd === "fetch_bindings") return Promise.resolve(["orders.eu"]);
+      return Promise.resolve([]);
+    });
+
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "orders" } });
+
+    await waitFor(() => {
+      // RoutingKeyCombobox mock renders aria-label="Routing key combobox"
+      expect(screen.getByLabelText("Routing key combobox")).toBeInTheDocument();
+    });
+  });
+
+  it("renders plain Input (not combobox) when fetch_bindings rejects (D-10 silent fallback)", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_exchanges")
+        return Promise.resolve([{ name: "orders", exchange_type: "direct" }]);
+      if (cmd === "fetch_bindings")
+        return Promise.reject(new Error("Management API authentication failed"));
+      return Promise.resolve([]);
+    });
+
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "unknown",
+      managementAuthError: null,
+      queues: [],
+      exchanges: [],
+    });
+
+    render(<PublishBar />);
+    fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
+    await waitFor(() => screen.getByRole("combobox"));
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "orders" } });
+
+    await waitFor(() => {
+      // Plain Input has placeholder="Routing key" — combobox should NOT be present
+      expect(screen.queryByLabelText("Routing key combobox")).not.toBeInTheDocument();
+      expect(screen.getByPlaceholderText("Routing key")).toBeInTheDocument();
+    });
+    // No destructive auth error badge should appear
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
