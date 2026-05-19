@@ -91,7 +91,10 @@ Plans:
   5. JSON editor has syntax highlighting and respects the active dark/light theme
 **Plans**: 2 plans
 Plans:
+**Wave 1**
 - [ ] 08-01-PLAN.md — Install packages, export buildDefaultValues, implement JsonEditor component (TDD) (Wave 1)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 08-02-PLAN.md — FormPanel JSON toggle integration (TDD) + human verify (Wave 2)
 **UI hint**: yes
 
