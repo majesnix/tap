@@ -29,7 +29,7 @@ interface ProtoFormRendererProps {
  * Builds default form values from a message schema.
  * Uses empty strings for scalars, null for messages/oneofs.
  */
-function buildDefaultValues(
+export function buildDefaultValues(
   message: MessageSchema
 ): Record<string, unknown> {
   const defaults: Record<string, unknown> = {};
