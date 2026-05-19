@@ -31,6 +31,7 @@ export function BlockLibraryPanel() {
   const [nameDraft, setNameDraft] = useState("");
   const [contentDraft, setContentDraft] = useState("{}");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveErrorKind, setSaveErrorKind] = useState<"validation" | "json-parse" | "persistence" | null>(null);
   const [blockToDelete, setBlockToDelete] = useState<Block | null>(null);
 
   // Lazy-load on mount — mirrors MessageHistoryPanel.tsx lines 19-23
@@ -40,11 +41,16 @@ export function BlockLibraryPanel() {
     }
   }, [blocksLoaded, loadBlocks]);
 
+  function clearSaveError() {
+    setSaveError(null);
+    setSaveErrorKind(null);
+  }
+
   function handleNewBlock() {
     setEditingBlock(null);
     setNameDraft("");
     setContentDraft("{}");
-    setSaveError(null);
+    clearSaveError();
     setView("editor");
   }
 
@@ -52,18 +58,19 @@ export function BlockLibraryPanel() {
     setEditingBlock(block);
     setNameDraft(block.name);
     setContentDraft(block.content);
-    setSaveError(null);
+    clearSaveError();
     setView("editor");
   }
 
   function handleBack() {
-    setSaveError(null);
+    clearSaveError();
     setView("list");
   }
 
   function handleSave() {
     if (!nameDraft.trim()) {
       setSaveError("Name is required");
+      setSaveErrorKind("validation");
       return;
     }
     let parsed: unknown;
@@ -71,13 +78,15 @@ export function BlockLibraryPanel() {
       parsed = JSON.parse(contentDraft);
     } catch (e) {
       setSaveError(e instanceof Error ? e.message : "Invalid JSON");
+      setSaveErrorKind("json-parse");
       return;
     }
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
       setSaveError("JSON must be an object");
+      setSaveErrorKind("validation");
       return;
     }
-    setSaveError(null);
+    clearSaveError();
     const op = editingBlock
       ? updateBlock(editingBlock.id, { name: nameDraft.trim(), content: contentDraft })
       : addBlock({ id: crypto.randomUUID(), name: nameDraft.trim(), content: contentDraft });
@@ -85,6 +94,7 @@ export function BlockLibraryPanel() {
       setView("list");
     }).catch((err: unknown) => {
       setSaveError(err instanceof Error ? err.message : "Failed to save block");
+      setSaveErrorKind("persistence");
     });
   }
 
@@ -128,11 +138,9 @@ export function BlockLibraryPanel() {
                 <TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-1" />
                 <div className="flex flex-col gap-1">
                   <span className="text-xs font-semibold text-destructive">
-                    {saveError === "Name is required" || saveError === "JSON must be an object"
-                      ? saveError
-                      : "Invalid JSON"}
+                    {saveErrorKind === "json-parse" ? "Invalid JSON" : saveError}
                   </span>
-                  {saveError !== "Name is required" && saveError !== "JSON must be an object" && (
+                  {saveErrorKind === "json-parse" && (
                     <p className="text-xs text-destructive mt-1">
                       {saveError}
                     </p>

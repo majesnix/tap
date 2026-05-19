@@ -279,7 +279,7 @@ describe("Save validation", () => {
     });
   });
 
-  test("persistence failure in handleSave shows error message and stays in editor view", async () => {
+  test("persistence failure in handleSave shows error message (not 'Invalid JSON') and stays in editor view", async () => {
     mockAddBlock.mockRejectedValueOnce(new Error("Disk full"));
     render(<BlockLibraryPanel />);
     fireEvent.click(screen.getByRole("button", { name: "New block" }));
@@ -293,6 +293,10 @@ describe("Save validation", () => {
     await waitFor(() => {
       expect(screen.getByText("Disk full")).toBeInTheDocument();
     });
+    // Header must NOT read "Invalid JSON" for a persistence error
+    expect(screen.queryByText("Invalid JSON")).not.toBeInTheDocument();
+    // role=alert container present
+    expect(screen.getByRole("alert")).toBeInTheDocument();
     // Must remain in editor view
     expect(screen.getByRole("button", { name: "Save block" })).toBeInTheDocument();
   });
