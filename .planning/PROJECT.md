@@ -42,7 +42,7 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 
 ### Active (v1.3)
 
-- [ ] Routing key autocomplete — fetch binding keys from Management API when exchange is selected; populate routing key input (PUBL-01)
+- ✓ Routing key autocomplete — fetch binding keys from Management API when exchange is selected; populate routing key combobox with D-10 silent fallback; exchange type badges; hint text for fanout/headers — v1.3 (Phase 09)
 - [ ] Publisher confirms badge — ephemeral ACK/NACK indicator in publish bar after each send, auto-dismisses ~3s (PUBL-02)
 - [ ] Message block library — collapsible panel beside the form listing saved blocks by name (BLK-01)
 - [ ] Block JSON editor — create/edit/delete blocks as named JSON key-value objects (BLK-02)
