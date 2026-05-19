@@ -19,13 +19,9 @@ import {
 import { toast } from "sonner";
 import { useBlockStore, type Block } from "@/stores/useBlockStore";
 
-interface BlockLibraryPanelProps {
-  onClose?: () => void; // optional — for future use; Plan 03 does not pass it currently
-}
-
 type PanelView = "list" | "editor";
 
-export function BlockLibraryPanel({ onClose: _onClose }: BlockLibraryPanelProps) {
+export function BlockLibraryPanel() {
   const { blocks, blocksLoaded, loadBlocks, addBlock, updateBlock, deleteBlock } =
     useBlockStore();
   const { resolvedTheme } = useTheme();
