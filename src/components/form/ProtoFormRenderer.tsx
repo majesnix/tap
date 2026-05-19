@@ -7,6 +7,7 @@ import { RepeatedField } from "./fields/RepeatedField";
 import { EnumField } from "./fields/EnumField";
 import { OneofField } from "./fields/OneofField";
 import { WellKnownTypeField } from "./fields/WellKnownTypeField";
+import { BytesField } from "./fields/BytesField";
 
 const MAX_DEPTH = 5;
 
@@ -139,6 +140,11 @@ export function ProtoFormRenderer({
           (max depth reached)
         </div>
       );
+    }
+
+    // Phase 6: bytes fields bypass ScalarField — ProtoFormRenderer switch is FROZEN (D-01)
+    if (field.kind.type === "scalar" && field.kind.scalar === "bytes") {
+      return <BytesField key={path} field={field} path={path} />;
     }
 
     switch (field.kind.type) {
