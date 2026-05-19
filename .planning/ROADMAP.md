@@ -73,7 +73,7 @@ Plans:
   5. A `map<K, V>` field with entries encodes correctly as binary protobuf wire format when sent (Value::Map path in encode.rs, not Value::List)
 **Plans**: 4 plans
 Plans:
-- [ ] 07-01-PLAN.md — Rust layer: FieldKind::Map variant, is_map() extractor guard, Value::Map encoder + 4 unit tests (Wave 1)
+- [x] 07-01-PLAN.md — Rust layer: FieldKind::Map variant, is_map() extractor guard, Value::Map encoder + 4 unit tests (Wave 1)
 - [ ] 07-02-PLAN.md — TypeScript wiring: FieldKind map union member, ProtoFormRenderer pre-dispatch branch, buildDefaultValues case (Wave 2)
 - [ ] 07-03-PLAN.md — MapField component: full TDD implementation — useFieldArray rows, key dispatch, duplicate detection, hidden guard, renderValue prop (Wave 3)
 - [ ] 07-04-PLAN.md — Human verify: live app verification of all MFLD-01 through MFLD-05 requirements (Wave 4)
