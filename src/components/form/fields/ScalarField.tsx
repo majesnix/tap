@@ -60,7 +60,6 @@ function getZodSchema(scalar: ScalarKind): z.ZodTypeAny {
       return z.boolean();
 
     case "string":
-    case "bytes":
     default:
       return z.string();
   }
@@ -79,7 +78,6 @@ function getInputType(scalar: ScalarKind): "text" | "number" | "checkbox" {
     "fixed64",
     "sfixed64",
     "string",
-    "bytes",
   ];
   if (textKinds.includes(scalar)) return "text";
   return "number";
@@ -101,7 +99,6 @@ function getFallbackDefault(inputType: "text" | "number" | "checkbox"): unknown 
  * Scalar-to-control mapping (from PATTERNS.md):
  *   bool           → Checkbox
  *   string         → Input type="text"
- *   bytes          → Input type="text" + "bytes (base64)" badge
  *   int32 / sint32 / sfixed32   → Input type="number", range [-2147483648, 2147483647]
  *   uint32 / fixed32            → Input type="number", range [0, 4294967295]
  *   int64 / sint64 / sfixed64   → Input type="text", regex /^-?\d+$/
@@ -143,11 +140,6 @@ export function ScalarField({ field, path }: ScalarFieldProps) {
         <Badge variant="outline" className="text-xs px-1.5 py-0 w-fit">
           {scalar}
         </Badge>
-        {scalar === "bytes" && (
-          <Badge variant="secondary" className="text-xs px-1.5 py-0">
-            bytes (base64)
-          </Badge>
-        )}
       </div>
 
       {/* Single Controller wraps both the input and the error display */}

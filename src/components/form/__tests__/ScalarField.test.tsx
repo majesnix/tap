@@ -191,21 +191,6 @@ test("double field renders number input", () => {
   expect(screen.getByRole("spinbutton")).toHaveAttribute("type", "number");
 });
 
-// ─── bytes ───────────────────────────────────────────────────────────────────
-
-test("bytes field renders text input with bytes badge", () => {
-  renderField({
-    name: "data",
-    label: "data",
-    kind: { type: "scalar", scalar: "bytes" },
-    repeated: false,
-    default_value: "",
-  });
-  expect(screen.getByRole("textbox")).toBeInTheDocument();
-  // The "bytes (base64)" badge annotation must be present
-  expect(screen.getByText("bytes (base64)")).toBeInTheDocument();
-});
-
 // ─── Inline validation errors ────────────────────────────────────────────────
 
 test("int32 shows validation error on out-of-range value", async () => {
