@@ -89,9 +89,10 @@ Plans:
   3. User sees an explicit error and a "Fix JSON / Discard" choice when switching back with invalid JSON — edits are never silently discarded
   4. User sees a non-blocking warning listing field names present in the JSON but absent from the proto schema before the values are applied
   5. JSON editor has syntax highlighting and respects the active dark/light theme
-**Plans**: 1 plan
+**Plans**: 2 plans
 Plans:
-- [ ] 08-01-PLAN.md — JSON Override Toggle (TBD — plan-phase not yet run)
+- [ ] 08-01-PLAN.md — Install packages, export buildDefaultValues, implement JsonEditor component (TDD) (Wave 1)
+- [ ] 08-02-PLAN.md — FormPanel JSON toggle integration (TDD) + human verify (Wave 2)
 **UI hint**: yes
 
 ---
@@ -107,7 +108,7 @@ Plans:
 | 5. Dark Mode | v1.1 | 3/3 | Complete | 2026-05-18 |
 | 6. BytesField | v1.2 | 0/1 | Not started | - |
 | 7. MapField | v1.2 | 0/4 | Not started | - |
-| 8. JSON Override Toggle | v1.2 | 0/? | Not started | - |
+| 8. JSON Override Toggle | v1.2 | 0/2 | Not started | - |
 
 ---
 
