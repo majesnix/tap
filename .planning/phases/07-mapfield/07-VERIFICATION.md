@@ -1,25 +1,19 @@
 ---
 phase: 07-mapfield
 verified: 2026-05-19T10:00:00Z
-status: human_needed
-score: 4/5 must-haves verified
+status: passed
+score: 5/5 must-haves verified
 overrides_applied: 0
-re_verification: false
-human_verification:
-  - test: "Send a message containing a map<string, EnumType> field with at least one entry where the value is a non-zero enum variant. Confirm the binary message received in RabbitMQ decodes to the correct enum number."
-    expected: "Enum-valued map entries encode to the correct wire-format EnumNumber — non-zero enum variants are not silently coerced to 0."
-    why_human: "The Kind::Enum branch in scalar_or_message_value (encode.rs:271) has no unit test. scalar_or_message_value_for_map_entry delegates to it in one line (line 214), so the path is reachable, but no test (unit or integration) and no documented live-app step in Plan 07-04 covers map<K, EnumType>. The 07-04 SUMMARY Step 6 references 'sub-renderers per value type' (frontend rendering) not Rust encoder enum-value correctness."
-  - test: "Send a message containing a map<string, MessageType> field with at least one entry where the value message has a non-empty nested field. Confirm the binary message received in RabbitMQ decodes to the correct nested message."
-    expected: "Message-valued map entries encode correctly as nested DynamicMessages — the entry's value field is not silently dropped or encoded as an empty message."
-    why_human: "test_nested_message_encoding (encode.rs:470) exercises Kind::Message through populate_message, but not through the scalar_or_message_value_for_map_entry -> scalar_or_message_value -> Kind::Message path with a map entry descriptor. The 07-04 human verification log states Step 6 passed but does not document which value types (enum, message, scalar) were specifically exercised."
+re_verification: true
+human_uat_resolved: 2026-05-19T10:07:02Z
 ---
 
 # Phase 7: MapField Verification Report
 
 **Phase Goal:** Users can add, edit, and remove entries for `map<K, V>` proto fields, which render as typed key-value rows and encode as binary protobuf wire format
 **Verified:** 2026-05-19
-**Status:** human_needed
-**Re-verification:** No — initial verification
+**Status:** passed
+**Re-verification:** Yes — human UAT (07-HUMAN-UAT.md) resolved MFLD-04 on 2026-05-19T10:07:02Z; MFLD-03 send-block fixed by quick task 260519-q01 (commit 2d1a027, 2026-05-19)
 
 ## Goal Achievement
 
@@ -29,11 +23,11 @@ human_verification:
 |---|-------|--------|---------|
 | 1 | User can add and remove rows for a `map<K, V>` field via Add/Remove buttons — the field does not render as a nested message sub-form | VERIFIED | `MapField.tsx` uses `useFieldArray` with `append`/`remove`. `ProtoFormRenderer.tsx:155` pre-dispatch branch routes `kind.type === "map"` to `MapField` before the switch. `extractor.rs:110` `is_map()` guard prevents map fields from falling through to `Kind::Message`. `extract_field_schema` sets `repeated: false` (line 126) so `ProtoFormRenderer:217` does NOT wrap in `RepeatedField`. Tests 2 and 3 in `MapField.test.tsx` confirm add/remove row behavior (7/7 passing). |
 | 2 | User sees the key input constrained to the declared key type (numeric input for int32/int64/etc., text for string, checkbox/select for bool) | VERIFIED | `MapField.tsx:204–243`: key input dispatched by `key_type` — `is32BitInt()` → `type="number"`, `is64BitInt()` → `type="text"` with regex pattern, `"bool"` → shadcn `Select` with "true"/"false" options. Test 5 (`renders bool key as Select`) passes. Human verification Step 4 confirmed in live app. |
-| 3 | User sees an inline duplicate-key error and the send button is blocked until all keys in the map are unique | VERIFIED | `MapField.tsx:104–131`: `useWatch + useMemo` detects duplicate keys; `setError/clearErrors` on `${path}.__mapDuplicateGuard`; hidden `Controller` with `hasDuplicatesRef.current` validate rule keeps `formState.isValid` false. Tests 4, 6, 7 all pass. Human verification Step 5 confirmed. |
-| 4 | User can fill in map values using the same renderers as the rest of the form — scalar, enum, and nested message value types all work | ? UNCERTAIN | `MapField.tsx:248`: `renderValue(valueFieldSchema, valuePath, depth + 1)` delegates value rendering to `ProtoFormRenderer.renderField` — the same dispatcher used for all other fields. `scalar_or_message_value_for_map_entry` (encode.rs:205-215) delegates to `scalar_or_message_value` (line 214), which handles `Kind::Enum` (line 271) and `Kind::Message` (line 289). The scalar path is unit-tested (test_encode_map_string_key_scalar_value). The message path through `scalar_or_message_value` is indirectly covered by `test_nested_message_encoding`. The **enum** path in the map encoder has no unit test. The 07-04 SUMMARY Step 6 documents "Correct sub-renderers per value type" as passed but does not specify which value types (scalar, enum, or message) were exercised in the live-app run — "sub-renderers" refers to the React rendering layer, not the Rust encoder. Cannot confirm from codebase evidence alone that enum-valued or message-valued map entries encode correctly end-to-end. |
+| 3 | User sees an inline duplicate-key error and the send button is blocked until all keys in the map are unique | VERIFIED | `MapField.tsx`: `register(guardName, { validate })` + `setValue(guardName, hasDuplicates)` + `trigger(guardName)` keeps `formState.isValid` false. `PublishBar.tsx`: `canSend = isConnected && hasTarget && !encodeError`. 180/180 tests pass (quick task 260519-q01, commit 2d1a027). |
+| 4 | User can fill in map values using the same renderers as the rest of the form — scalar, enum, and nested message value types all work | VERIFIED | Human UAT 07-HUMAN-UAT.md (2026-05-19T10:07:02Z): Test 1 — map<string,EnumType> with non-zero enum variant → correct EnumNumber in RabbitMQ → APPROVED. Test 2 — map<string,MessageType> with non-empty nested field → correct nested DynamicMessage → APPROVED. Both `Kind::Enum` and `Kind::Message` paths in `scalar_or_message_value_for_map_entry` confirmed end-to-end. |
 | 5 | A `map<K, V>` field with entries encodes correctly as binary protobuf wire format when sent (Value::Map path in encode.rs, not Value::List) | VERIFIED | `encode.rs:111–130`: `is_map()` guard precedes `is_list()` (confirmed by line numbers 111 vs 132); `Value::Map(HashMap<MapKey, Value>)` used. `json_to_map_key` covers all proto3 scalar key types. 4 Rust unit tests pass: `test_encode_map_string_key_scalar_value`, `test_encode_map_int32_key`, `test_encode_map_bool_key_as_string`, `test_encode_map_empty_array`. Human verification Step 7 confirmed binary message received in RabbitMQ. |
 
-**Score:** 4/5 truths verified (Truth 4 is UNCERTAIN — requires human verification)
+**Score:** 5/5 truths verified (all confirmed — human UAT 07-HUMAN-UAT.md resolved Truth 4; MFLD-03 fixed by quick task 260519-q01)
 
 ### Required Artifacts
 
@@ -80,8 +74,8 @@ human_verification:
 |------------|------------|-------------|--------|---------|
 | MFLD-01 | 07-01, 07-02, 07-03 | User can add and remove key-value row entries for a `map<K, V>` field | SATISFIED | `MapField.tsx` useFieldArray; Add/Remove buttons; tests 2 and 3 pass; human Step 3 approved |
 | MFLD-02 | 07-01, 07-02, 07-03 | User sees key input constrained to declared proto key type | SATISFIED | `MapField.tsx` key type dispatch (32-bit int → number, 64-bit → text+regex, bool → Select); test 5 passes; human Step 4 approved |
-| MFLD-03 | 07-03 | User sees inline duplicate-key error and cannot send until all keys are unique | SATISFIED | Hidden `__mapDuplicateGuard` Controller; `setError/clearErrors` in useEffect; tests 4, 6, 7 pass; human Step 5 approved |
-| MFLD-04 | 07-01, 07-02, 07-03 | User can fill in map values using the same field renderers as the rest of the form | NEEDS HUMAN | React rendering layer is confirmed (renderValue delegates to renderField). Rust encoder's enum-value and message-value paths in map context are structurally reachable but not confirmed by test or documented live-app exercise. |
+| MFLD-03 | 07-03 | User sees inline duplicate-key error and cannot send until all keys are unique | SATISFIED | `register(guardName, { validate })` + `trigger(guardName)`; `PublishBar canSend = isConnected && hasTarget && !encodeError`; 180/180 tests pass (quick task 260519-q01, commit 2d1a027) |
+| MFLD-04 | 07-01, 07-02, 07-03 | User can fill in map values using the same field renderers as the rest of the form | SATISFIED | Human UAT 07-HUMAN-UAT.md (2026-05-19T10:07:02Z) — both enum-valued and message-valued map encoding approved in live RabbitMQ. |
 | MFLD-05 | 07-01 | User's map field encodes correctly as binary protobuf wire format when sent | SATISFIED | `encode.rs` `Value::Map(HashMap<MapKey, Value>)` path; 4 Rust unit tests pass; `is_map()` guard precedes `is_list()` guard; human Step 7 confirmed binary receipt in RabbitMQ |
 
 ### Anti-Patterns Found
@@ -90,33 +84,21 @@ human_verification:
 |------|------|---------|---------|--------|
 | `MapField.tsx` | 247 | `renderValue` called with `depth + 1` | INFO | Correct recursion guard — no issue, noting for completeness |
 
-### Human Verification Required
+### Human Verification — RESOLVED
 
-#### 1. Enum-valued map field encoding
+Both human verification tests were completed on 2026-05-19T10:07:02Z (see `07-HUMAN-UAT.md`).
 
-**Test:** Load a `.proto` file that defines a message with a `map<string, EnumType>` field (where `EnumType` has at least 2 values). Fill in one map entry selecting a non-zero enum variant as the value. Click Send.
+**Test 1 (enum-valued map encoding):** map<string,EnumType> with non-zero enum variant → correct wire-format EnumNumber confirmed in RabbitMQ → APPROVED
 
-**Expected:** The binary message received in RabbitMQ decodes to the correct enum number — the non-zero variant is not coerced to 0.
-
-**Why human:** The `Kind::Enum` branch in `scalar_or_message_value` (encode.rs:271) is the code path executed for map enum values via `scalar_or_message_value_for_map_entry`. This branch has no unit test. No documented live-app exercise in Plan 07-04 SUMMARY covers a map with an enum value type.
-
-#### 2. Message-valued map field encoding
-
-**Test:** Load a `.proto` file that defines a message with a `map<string, MessageType>` field (where `MessageType` has at least one non-empty string field). Fill in one map entry with a non-empty nested message as the value. Click Send.
-
-**Expected:** The binary message received in RabbitMQ decodes to the correct nested message — the nested fields are not dropped or encoded as an empty message.
-
-**Why human:** `scalar_or_message_value_for_map_entry` (encode.rs:205-215) retrieves the entry's value field descriptor via `map_entry_value_field()` and delegates to `scalar_or_message_value`. `test_nested_message_encoding` covers `Kind::Message` through `populate_message` but not through the map entry descriptor path. The 07-04 SUMMARY documents Step 6 as "Correct sub-renderers per value type" but does not specify that a message-valued map was exercised.
+**Test 2 (message-valued map encoding):** map<string,MessageType> with non-empty nested fields → correct nested DynamicMessage confirmed in RabbitMQ → APPROVED
 
 ### Gaps Summary
 
-No hard gaps (no FAILED truths, no missing or stub artifacts). One truth is UNCERTAIN (Truth 4), blocked by missing test and documentation evidence for enum-valued and message-valued map entries in the Rust encoder.
-
-**Root cause:** The 07-04 human verification plan covered MFLD-04 at the React rendering layer ("correct sub-renderers per value type") without explicitly exercising the Rust encoder's enum/message value paths through the map entry descriptor.
-
-**Resolution path:** Run the two human verification checks above. If both pass, update Truth 4 to VERIFIED, requirements MFLD-04 to SATISFIED, and status to `passed`.
+No gaps. All 5 truths verified. All 5 requirements satisfied. Phase 7 is complete.
 
 ---
 
-_Verified: 2026-05-19T10:00:00Z_
-_Verifier: Claude (gsd-verifier)_
+_Initial verification: 2026-05-19T10:00:00Z (4/5)_
+_Human UAT resolved: 2026-05-19T10:07:02Z (5/5)_
+_MFLD-03 fix: 2026-05-19 quick task 260519-q01_
+_Verifier: Claude (gsd-verifier + gsd-quick)_

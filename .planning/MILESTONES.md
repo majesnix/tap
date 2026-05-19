@@ -47,3 +47,27 @@
 **Archive:** [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) | [milestones/v1.1-REQUIREMENTS.md](milestones/v1.1-REQUIREMENTS.md)
 
 ---
+
+## v1.2 Form Improvements
+
+**Shipped:** 2026-05-19
+**Phases:** 3 (Phases 6–8) | **Plans:** 7 | **Requirements:** 15/15
+
+**Delivered:** Extended the form renderer with bytes fields (RFC 4648 base64 + UTF-8 helper), map fields (typed key-value rows, duplicate-key blocking, binary wire format), and a JSON override toggle (two-way form ↔ CodeMirror sync, invalid-JSON error banner, unknown-field toast).
+
+**Key accomplishments:**
+1. BytesField — RFC 4648 base64 input with two-layer zod validation, UTF-8 text helper popover, byte count label, and inline error for URL-safe characters; ScalarField bytes handling removed (clean separation)
+2. MapField Rust layer — `FieldKind::Map` variant, `is_map()` extractor guard (precedes `is_list()`), `Value::Map(HashMap<MapKey, Value>)` encoder, `json_to_map_key` helper for all key types, 4 Rust unit tests
+3. MapField React component — `useFieldArray` rows, type-constrained key inputs (number / text+regex / Select), duplicate-key detection via `useWatch+useMemo`, `register+trigger` guard field keeps `formState.isValid` false while duplicates exist, `renderValue` delegates to `ProtoFormRenderer.renderField` for full value-type support; human UAT confirmed enum and message-valued map entries encode correctly
+4. JSON Override Toggle — Braces button in FormPanel header, CodeMirror editor with syntax highlighting and dark/light theme (reuses `resolvedTheme` from next-themes), point-in-time snapshot capture, two-way sync via `setPendingReplayValues` signal, Fix JSON / Discard choice for invalid JSON, unknown-field toast warning
+5. MFLD-03 regression fix (quick task 260519-q01) — restored `register+trigger` guard field after Phase 7 code review incorrectly replaced it with `setError`; added `!encodeError` to `PublishBar.canSend` for two-layer duplicate blocking
+
+**Stats:**
+- Timeline: 2026-05-19 (single day)
+- Commits: 83
+- Files changed: 57 (+10,173 / −93)
+- Known deferred items at close: 2 (see STATE.md Deferred Items — both false positives from audit-open tool)
+
+**Archive:** [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) | [milestones/v1.2-REQUIREMENTS.md](milestones/v1.2-REQUIREMENTS.md) | [milestones/v1.2-MILESTONE-AUDIT.md](milestones/v1.2-MILESTONE-AUDIT.md)
+
+---

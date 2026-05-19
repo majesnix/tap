@@ -4,7 +4,7 @@ milestone: v1.2
 milestone_name: Form Improvements
 status: milestone_complete
 stopped_at: Phase 8 UI-SPEC approved
-last_updated: "2026-05-19T11:37:11.712Z"
+last_updated: "2026-05-19T16:15:00.000Z"
 last_activity: 2026-05-19
 progress:
   total_phases: 3
@@ -25,10 +25,10 @@ Last activity: 2026-05-19
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
+See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 08 — json-override-toggle
+**Current focus:** v1.2 archived. Run /gsd-new-milestone to define next milestone.
 
 ## Phase History
 
@@ -146,6 +146,15 @@ See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 
 - Phase 4 added (2026-05-18): Response Queue Reader — select reply queue, consume + deserialize incoming protobuf message, ack to remove from queue (RESP-01 to RESP-05)
 - Phases 6-8 added (2026-05-19): v1.2 Form Improvements — BytesField (Phase 6), MapField (Phase 7), JSON Override Toggle (Phase 8)
+
+## Deferred Items
+
+Items acknowledged and deferred at milestone close on 2026-05-19:
+
+| Category | Item | Status | Note |
+|----------|------|--------|------|
+| uat_gaps | Phase 07: 07-HUMAN-UAT.md | resolved (0 pending scenarios) | False positive — UAT is resolved; SDK flags all HUMAN-UAT.md files |
+| quick_tasks | 260519-q01-mfld03-send-block-fix | complete (commit 2d1a027) | SDK shows `missing` due to prefixed SUMMARY filename convention |
 
 ## Quick Tasks Completed
 

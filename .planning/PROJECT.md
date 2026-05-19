@@ -36,13 +36,13 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ In-app toggle cycling system / light / dark modes — immediate effect, no reload — v1.1 (Phase 05)
 - ✓ Theme mode persists across app restarts via tauri-plugin-store — v1.1 (Phase 05)
 - ✓ All UI surfaces render correctly in dark mode — form panel, connection sidebar, publish bar, AMQP sheet, history panel, response tab, modals, shadcn/ui components — v1.1 (Phase 05)
-- ✓ Map field (`map<K, V>`) rendered as dynamic key-value row list with duplicate-key validation and binary protobuf encoding — v1.2 (Phase 07)
+- ✓ Bytes field with RFC 4648 base64 input, UTF-8 text helper, inline validation error for URL-safe chars, and byte count label — v1.2 (Phase 06)
+- ✓ Map field (`map<K, V>`) rendered as typed key-value rows with duplicate-key blocking (send disabled) and correct binary protobuf encoding via Value::Map path — v1.2 (Phase 07)
+- ✓ JSON override toggle — switch between form view and CodeMirror JSON editor with two-way sync, invalid JSON error banner, and unknown-field warning — v1.2 (Phase 08)
 
-### Active (v1.2 — Form Improvements)
+### Active (next milestone)
 
-- [ ] Bytes field with base64 input and UTF-8 text helper button (FORM-V2-01)
-- [ ] Map field (`map<K, V>`) rendered as dynamic key-value row list (FORM-V2-02) — Validated in Phase 07
-- [ ] JSON override toggle — switch between form view and raw JSON edit mode with two-way sync (FORM-V2-03)
+No active requirements — v1.2 is complete. Define next milestone via `/gsd-new-milestone`.
 
 ### Backlog (future milestones)
 
@@ -62,17 +62,19 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 
 - Shipped v1.0 with ~42,800 LOC (TypeScript + Rust), 50 commits, 4 phases, 18 plans, delivered in a single day.
 - v1.1 added dark mode: next-themes + ThemeBootstrap persistence bridge, ThemeToggle in sidebar, human UAT pass. +3,234 LOC, 36 commits, 3 plans.
-- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (next-themes 0.x, react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x).
+- v1.2 added bytes field, map field, and JSON override toggle. +10,173 LOC, 83 commits, 3 phases, 7 plans. Total ~9,936 TS/TSX + ~1,917 Rust lines.
+- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (next-themes 0.x, react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x, @uiw/react-codemirror 4.25.9, @codemirror/lang-json 6.x).
 - This is a developer productivity tool, analogous to Postman but for RabbitMQ + protobuf.
 - The proto parsing must happen at runtime (no pre-compilation step) — developers drop in `.proto` files.
 - Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
 - Team use means packaging/distribution matters — the app should be distributable as a binary.
 
-**Known issues / tech debt at v1.1:**
+**Known issues / tech debt at v1.2:**
 - Linux keychain (libsecret) install documentation needed for distribution.
 - No CI/CD pipeline — builds are manual.
 - No app distribution pipeline (notarization, signing) — binary not yet packaged for team.
 - No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
+- JSON mode + map field round-trip (Flow 4) has no automated test — FormPanel.test.tsx uses scalar-only schema.
 
 ## Constraints
 
@@ -101,15 +103,17 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | ThemeBootstrap child-of-ThemeProvider pattern | Async tauri-plugin-store read requires component after context is ready | ✓ Good — race guard via bootstrapped flag prevented Pitfall 6 stale localStorage clobber |
 | CYCLE_ORDER array for ThemeToggle progression | Stateless mode cycling — no state machine needed | ✓ Good — system → light → dark → system; no edge case where mode gets stuck |
 | DRK-04 verified by manual visual UAT only | No automated snapshot/visual regression tool was set up | ✓ Good — human UAT approved; sufficient for a dev tool in this phase |
+| Map rows stored as `Array<{key, value}>` via `useFieldArray` (not `Record<K,V>`) | JS object keys deduplicate silently — two rows with the same key would merge on form state read | ✓ Good — explicit row array with duplicate detection via useWatch+useMemo |
+| ProtoFormRenderer switch FROZEN; new field types as pre-dispatch branches | Switch body already has 10+ cases; modification risk outweighs benefit | ✓ Good — BytesField and MapField both added as pre-dispatch branches without touching the switch |
+| `register(name, { validate }) + trigger(name)` for virtual guard fields | `setError` on unregistered fields does not reliably affect `formState.isValid` in RHF `mode: onChange` — learned from MFLD-03 regression | ✓ Good — restored in quick task 260519-q01; 180/180 tests pass |
+| JSON toggle reuses `setPendingReplayValues` signal (not direct `resetRef`) | `resetRef.current` is null until ProtoFormRenderer remounts — direct call would throw | ✓ Good — HIST-02 replay path already handles form reset correctly |
+| JSON mode state is local React state (not Zustand) | JSON mode is a session-only power-user override; no cross-component sharing needed | ✓ Good — simple, no store pollution |
 
-## Current Milestone: v1.2 Form Improvements
+## Current Milestone
 
-**Goal:** Extend the dynamic form renderer to cover the remaining proto field types and add a JSON override mode for power users.
+v1.2 Form Improvements — **SHIPPED 2026-05-19**
 
-**Target features:**
-- Bytes field (FORM-V2-01) — base64 input with UTF-8 text helper button
-- Map field (FORM-V2-02) — `map<K, V>` rendered as a dynamic key-value row list
-- JSON override toggle (FORM-V2-03) — form ↔ raw JSON edit mode with two-way sync
+All 15 requirements delivered. Form renderer now covers bytes fields (BFLD-01–04), map fields (MFLD-01–05), and JSON override toggle (JSON-01–06). Next milestone: run `/gsd-new-milestone`.
 
 ## Evolution
 
@@ -127,11 +131,11 @@ This document evolves at phase transitions and milestone boundaries.
 
 v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 plans). The app is fully functional as a local dev tool: load a `.proto` file, fill out the form, connect to RabbitMQ, publish a binary-encoded protobuf message, and read back response messages from a reply queue.
 
-v1.1 shipped 2026-05-18. Phase 5 (dark-mode) delivered all 4 DRK requirements: OS preference detection via next-themes (DRK-01), in-app icon cycle toggle in sidebar footer (DRK-02), cross-restart persistence via tauri-plugin-store with race guard (DRK-03), and human UAT sign-off across all UI surfaces (DRK-04). Dark mode is complete.
+v1.1 shipped 2026-05-18. Phase 5 (dark-mode) delivered all 4 DRK requirements. Dark mode is complete across all UI surfaces.
 
-v1.2 in progress. Phase 6 (bytesfield) complete 2026-05-19 — BFLD-01 through BFLD-04 delivered. Phase 7 (mapfield) complete — MAP-01 through MAP-05 delivered. Phase 8 (json-override-toggle) complete 2026-05-19 — JSON-01 through JSON-06 delivered: Braces toggle button in FormPanel header, CodeMirror JSON editor with syntax highlighting and dark/light theme, point-in-time snapshot pre-fill, valid-JSON→form sync via pendingReplayValues signal, invalid-JSON error banner with Fix JSON / Discard, and unknown-field sonner toast warning.
+v1.2 shipped 2026-05-19. All 15 requirements delivered: bytes field (BFLD-01–04), map field (MFLD-01–05), JSON override toggle (JSON-01–06). The form renderer now covers all practical proto field types. One regression (MFLD-03 send-block) was introduced by a code review finding and fixed by quick task 260519-q01.
 
-The app now has 2 shipped milestones (v1.0, v1.1) and 1 complete milestone (v1.2 Form Improvements — all 3 phases done).
+The app is feature-complete for v1 scope: all major proto field types, full send/receive cycle, connection profiles, message history, and dark mode. Next focus area to be defined in `/gsd-new-milestone`.
 
 ---
-*Last updated: 2026-05-19 — Phase 8 (json-override-toggle) complete, v1.2 milestone finished*
+*Last updated: 2026-05-19 — v1.2 milestone archived*
