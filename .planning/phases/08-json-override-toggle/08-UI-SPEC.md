@@ -193,7 +193,7 @@ className="mx-4 mt-2 mb-3 rounded-md border border-destructive/40 bg-destructive
 |---------|------|
 | Icon | `<TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-0.5" />` (from lucide-react — already imported in sonner.tsx) |
 | Heading | `<span className="text-xs font-semibold text-destructive">Invalid JSON</span>` |
-| Parse error body | `<p className="text-xs text-destructive mt-0.5">{parseError}</p>` — verbatim from `JSON.parse()` catch `e.message` |
+| Parse error body | `<p className="text-xs text-destructive mt-0.5" role="alert">{parseError}</p>` — verbatim from `JSON.parse()` catch `e.message` |
 | Button row | `flex gap-2 mt-2` |
 | "Fix JSON" button | `<Button variant="outline" size="sm">Fix JSON</Button>` |
 | "Discard changes" button | `<Button variant="destructive" size="sm">Discard changes</Button>` |
