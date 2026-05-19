@@ -70,7 +70,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
   4. User has no active connection or the Management API is unreachable and the routing key input falls back to plain free-text entry with no error state shown
 **Plans**: 3 plans
 Plans:
-- [ ] 09-01-PLAN.md — Rust backend: ExchangeSummary struct + fetch_exchanges update + fetch_bindings command + lib.rs registration
+- [x] 09-01-PLAN.md — Rust backend: ExchangeSummary struct + fetch_exchanges update + fetch_bindings command + lib.rs registration
 - [x] 09-02-PLAN.md — Frontend contracts: install Command component, ExchangeSummary type, updated ipc.ts/store, RoutingKeyCombobox component + tests
 - [x] 09-03-PLAN.md — PublishBar integration: exchange type badges, bindings useEffect, conditional combobox/input, hint text, updated tests
 **UI hint**: yes
