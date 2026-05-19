@@ -118,6 +118,11 @@ fn set_field_value(
         for row in arr {
             let key_json = row.get("key").unwrap_or(&JsonValue::Null);
             let val_json = row.get("value").unwrap_or(&JsonValue::Null);
+            // Skip rows where the value field is absent/null — avoids inserting
+            // silent zero-value entries for incomplete form rows.
+            if val_json.is_null() {
+                continue;
+            }
             let map_key = json_to_map_key(field, key_json)?;
             if let Some(val) = scalar_or_message_value_for_map_entry(field, val_json)? {
                 map.insert(map_key, val);
