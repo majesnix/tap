@@ -56,7 +56,9 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full phase deta
   3. User sees an inline validation error when the input contains URL-safe base64 characters (`-` or `_`) — the input is not silently treated as empty bytes
   4. User sees a byte count label (e.g. "14 bytes") confirming the decoded length after a valid base64 value is entered
   5. User sees an error on send when the base64 value cannot be decoded — not silent empty bytes
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
 **UI hint**: yes
 
 ### Phase 7: MapField
@@ -69,7 +71,9 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full phase deta
   3. User sees an inline duplicate-key error and the send button is blocked until all keys in the map are unique
   4. User can fill in map values using the same renderers as the rest of the form — scalar, enum, and nested message value types all work
   5. A `map<K, V>` field with entries encodes correctly as binary protobuf wire format when sent (Value::Map path in encode.rs, not Value::List)
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
 **UI hint**: yes
 
 ### Phase 8: JSON Override Toggle
@@ -82,7 +86,9 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full phase deta
   3. User sees an explicit error and a "Fix JSON / Discard" choice when switching back with invalid JSON — edits are never silently discarded
   4. User sees a non-blocking warning listing field names present in the JSON but absent from the proto schema before the values are applied
   5. JSON editor has syntax highlighting and respects the active dark/light theme
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
 **UI hint**: yes
 
 ---
