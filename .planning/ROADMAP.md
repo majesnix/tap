@@ -73,7 +73,7 @@ Plans:
   5. A `map<K, V>` field with entries encodes correctly as binary protobuf wire format when sent (Value::Map path in encode.rs, not Value::List)
 **Plans**: 1 plan
 Plans:
-- [ ] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
+- [x] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
 **UI hint**: yes
 
 ### Phase 8: JSON Override Toggle
