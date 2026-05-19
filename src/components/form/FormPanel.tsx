@@ -99,7 +99,11 @@ export function FormPanel() {
   function handleToggle() {
     if (!isJsonMode) {
       // FORM → JSON: capture entry snapshot (D-06), pre-fill editor (D-03, D-09)
-      const snapshot = latestValues ?? {};
+      // Fall back to buildDefaultValues when latestValues is null/empty (D-09)
+      const snapshot =
+        latestValues && Object.keys(latestValues).length > 0
+          ? latestValues
+          : buildDefaultValues(message);
       setEntrySnapshot(snapshot);
       setJsonDraft(JSON.stringify(snapshot, null, 2));
       setIsJsonMode(true);
