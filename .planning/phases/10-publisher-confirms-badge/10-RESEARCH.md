@@ -44,7 +44,7 @@ None — discussion stayed within phase scope.
 | PUBL-05 | User sees a green ACK badge after broker confirms delivery; auto-dismisses after 3 seconds | `Confirmation::Ack(None)` → `PublishOutcome { status: "ack" }` → 3s timer |
 | PUBL-06 | User sees an amber Returned badge when published message has no route (mandatory=true); auto-dismisses after 5 seconds | `Confirmation::Ack(Some(BasicReturnMessage))` → `PublishOutcome { status: "returned" }` → 5s timer |
 | PUBL-07 | User sees a red NACK badge when broker negatively acknowledges; auto-dismisses after 5 seconds | `Confirmation::Nack(_)` → `PublishOutcome { status: "nack" }` → 5s timer |
-| PUBL-08 | User sees a gray Timeout badge when broker confirmation does not arrive within 5 seconds; badge requires manual dismiss | `tokio::time::timeout` wraps `confirm_future.await`; `Err(_)` → `PublishOutcome { status: "timeout" }` → no auto-dismiss |
+| PUBL-08 | User sees a gray Timeout badge when broker confirmation does not arrive within 5 seconds; badge requires manual dismiss | `tokio::time::timeout` wraps `confirm_future`; `Err(_)` → `PublishOutcome { status: "timeout" }` → no auto-dismiss |
 </phase_requirements>
 
 ## Architectural Responsibility Map
@@ -95,7 +95,7 @@ PublishBar.tsx (handleSend)
         ├─ create_channel()
         ├─ confirm_select()
         ├─ basic_publish(mandatory=true) → confirm_future
-        ├─ tokio::time::timeout(5s, confirm_future.await)
+        ├─ tokio::time::timeout(5s, confirm_future)
         │     ├─ Err (elapsed) → Ok(PublishOutcome { status: "timeout" })
         │     └─ Ok(Confirmation)
         │           ├─ Ack(None)      → Ok(PublishOutcome { status: "ack" })
@@ -146,7 +146,7 @@ use lapin::publisher_confirm::Confirmation;
 
 let confirm_result = tokio::time::timeout(
     Duration::from_secs(5),
-    confirm_future.await,
+    confirm_future,
 ).await;
 
 let outcome = match confirm_result {
@@ -343,7 +343,7 @@ src/
 ### Pitfall 5: confirm_future Double-Await Warning
 **What goes wrong:** Confusion about the double `.await` pattern from lapin.
 **Why it happens:** `channel.basic_publish(...).await` gives `Result<PublisherConfirm>`. The inner `.await` on `PublisherConfirm` gives `Result<Confirmation>`. The current code already does this correctly (`confirm_future.await`). The `tokio::time::timeout` wraps only the second await.
-**How to avoid:** Wrap timeout around `confirm_future.await` (the second await), not around `basic_publish(...).await` (the first).
+**How to avoid:** Pass `confirm_future` (the Future itself) as the second argument to `tokio::time::timeout`. Do NOT write `confirm_future.await` as the argument — that resolves the Future before the timeout can wrap it, producing a type error.
 
 ### Pitfall 6: Timeout Badge Has No Auto-Dismiss — Manual Dismiss Required
 **What goes wrong:** Developer adds auto-dismiss for all four statuses for simplicity.
@@ -388,7 +388,7 @@ pub enum Confirmation {
 
 **All claims in this research were verified or cited — no user confirmation needed.**
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 (none — all D-05 open questions resolved by research)
 

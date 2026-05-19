@@ -86,7 +86,10 @@ Plans:
   4. User sends a message and broker confirmation does not arrive within 5 seconds; user sees a gray Timeout badge that remains until manually dismissed
 **Plans**: 2 plans
 Plans:
+**Wave 1**
 - [ ] 10-01-PLAN.md — Rust backend: PublishOutcome struct, mandatory=true, tokio timeout, Confirmation match
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 10-02-PLAN.md — Frontend: PublishOutcome type, ipc.ts return type, badge state + JSX + tests in PublishBar
 **UI hint**: yes
 
