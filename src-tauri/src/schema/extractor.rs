@@ -44,12 +44,6 @@ pub fn extract_schema(pool: &DescriptorPool) -> ProtoSchema {
 }
 
 fn extract_message(msg: &MessageDescriptor) -> MessageSchema {
-    // Collect oneof groups first so we can mark fields
-    let oneof_names: Vec<String> = msg
-        .oneofs()
-        .map(|o| o.name().to_string())
-        .collect();
-
     // Build a set of field names that belong to a oneof group
     let mut oneof_field_names: HashMap<String, String> = HashMap::new();
     for oneof in msg.oneofs() {
@@ -92,9 +86,6 @@ fn extract_message(msg: &MessageDescriptor) -> MessageSchema {
             fields.push(extract_field_schema(&field, None));
         }
     }
-
-    // Suppress unused warning — oneof_names was used for doc purposes
-    let _ = oneof_names;
 
     MessageSchema {
         name: msg.name().to_string(),
