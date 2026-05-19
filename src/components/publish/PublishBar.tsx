@@ -141,6 +141,7 @@ export function PublishBar() {
   useEffect(() => {
     if (!activeProfileName || !isEligibleForCombobox) {
       setBindingKeys([]);
+      setIsLoadingBindings(false);
       setUseCombobox(false);
       return;
     }
