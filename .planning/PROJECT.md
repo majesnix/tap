@@ -143,5 +143,7 @@ v1.2 shipped 2026-05-19. All 15 requirements delivered: bytes field (BFLD-01–0
 
 The app is feature-complete for v1 scope: all major proto field types, full send/receive cycle, connection profiles, message history, and dark mode. Next focus area to be defined in `/gsd-new-milestone`.
 
+v1.3 milestone in progress. Phase 10 complete 2026-05-19 — publisher confirms badge (PUBL-05–08) delivered. `publish_message` returns `PublishOutcome { status }` (ack/nack/returned/timeout), with mandatory=true on all publishes, 5s broker timeout, and an ephemeral badge in PublishBar that auto-dismisses (3s ACK, 5s others) or requires manual dismissal (Timeout).
+
 ---
-*Last updated: 2026-05-19 — v1.3 milestone started*
+*Last updated: 2026-05-19 — Phase 10 complete*
