@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Publishing UX + Message Blocks
-status: planning
+status: in_progress
 last_updated: "2026-05-19T15:03:04.143Z"
 last_activity: 2026-05-19
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,9 +17,9 @@ progress:
 
 ## Current Phase
 
-Phase: 08
+Phase: 09 (not started)
 Plan: Not started
-Status: Milestone complete
+Status: Roadmap created — ready to plan Phase 9
 Last activity: 2026-05-19
 
 ## Project Reference
@@ -27,7 +27,7 @@ Last activity: 2026-05-19
 See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** v1.2 archived. Run /gsd-new-milestone to define next milestone.
+**Current focus:** v1.3 roadmap created. Next: `/gsd-plan-phase 9`
 
 ## Phase History
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
 
 - Plans completed: 15
 - Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01; PUBL-04 delivered by plan 03-02; HIST-01, HIST-03 delivered by plan 03-03; HIST-02, HIST-04 delivered by plan 03-04
-- Phases completed: 0/3 (v1.2 not yet started)
+- Phases completed: 0/4 (v1.3 not yet started)
 
 ## Accumulated Context
 
@@ -145,6 +145,7 @@ See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
 
 - Phase 4 added (2026-05-18): Response Queue Reader — select reply queue, consume + deserialize incoming protobuf message, ack to remove from queue (RESP-01 to RESP-05)
 - Phases 6-8 added (2026-05-19): v1.2 Form Improvements — BytesField (Phase 6), MapField (Phase 7), JSON Override Toggle (Phase 8)
+- Phases 9-12 added (2026-05-19): v1.3 Publishing UX + Message Blocks — Routing Key Autocomplete (Phase 9), Publisher Confirms Badge (Phase 10), Block Library Store+Editor+Persistence (Phase 11), Block Library DnD Layer (Phase 12)
 
 ## Deferred Items
 
@@ -163,7 +164,7 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 
 ### Active TODOs
 
-- Run `/gsd-plan-phase 6` to begin planning Phase 6 (BytesField)
+- Run `/gsd-plan-phase 9` to begin planning Phase 9 (Routing Key Autocomplete)
 
 ### Blockers
 
@@ -175,16 +176,18 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 - macOS arbitrary file read entitlements: Entitlements.plist approach confirmed (bundle.macOS.entitlements path string)
 - Linux keychain (libsecret): still needs install notes for distribution
 - v1.2 stack additions: @uiw/react-codemirror v4.x (CodeMirror 6 wrapper) + @codemirror/lang-json ^6.0.x — verified HIGH confidence on GitHub releases March 2025
+- v1.3 open questions: fetch_exchanges signature change strategy (Vec<String> → Vec<{name, exchange_type}>); mandatory:true default behavior change; BlockLibraryPanel toggle placement; topic wildcard annotation UX — all to resolve in Phase 9/11 plan
 
 ## Session Continuity
 
-Last updated: 2026-05-19 (v1.2 roadmap created)
-Stopped at: Phase 8 UI-SPEC approved
-Next action: `/gsd-plan-phase 6`
+Last updated: 2026-05-19 (v1.3 roadmap created)
+Stopped at: v1.3 roadmap complete, Phase 9 pending
+Next action: `/gsd-plan-phase 9`
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 09 (Routing Key Autocomplete) — pending
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-19 — Milestone v1.3 started
+Status: Roadmap created
+Last activity: 2026-05-19 — v1.3 roadmap written
+Progress: 0/4 phases complete [          ] 0%
