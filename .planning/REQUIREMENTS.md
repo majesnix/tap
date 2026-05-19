@@ -18,11 +18,11 @@
 
 ### Message Blocks
 
-- [ ] **BLK-01**: User can open and close a block library panel from a toggle button in the FormPanel header
-- [ ] **BLK-02**: User can create a named block by entering a name and writing a JSON object (key-value pairs) in a CodeMirror editor
-- [ ] **BLK-03**: User can edit an existing block's name and JSON content
-- [ ] **BLK-04**: User can delete a block with a confirmation prompt
-- [ ] **BLK-05**: Blocks persist across app restarts (saved via tauri-plugin-store)
+- [x] **BLK-01**: User can open and close a block library panel from a toggle button in the FormPanel header
+- [x] **BLK-02**: User can create a named block by entering a name and writing a JSON object (key-value pairs) in a CodeMirror editor
+- [x] **BLK-03**: User can edit an existing block's name and JSON content
+- [x] **BLK-04**: User can delete a block with a confirmation prompt
+- [x] **BLK-05**: Blocks persist across app restarts (saved via tauri-plugin-store)
 - [ ] **BLK-06**: User can apply a block to the current form by dragging it from the block library panel and dropping it onto the form
 - [ ] **BLK-07**: Block merge fills only empty (unmodified/not-dirty) form fields — never overwrites a field the user has already edited
 - [ ] **BLK-08**: User sees a warning toast listing field names from the block that had no matching field in the current form
@@ -62,11 +62,11 @@
 | PUBL-06 | Phase 10 | Complete |
 | PUBL-07 | Phase 10 | Complete |
 | PUBL-08 | Phase 10 | Complete |
-| BLK-01 | Phase 11 | Pending |
-| BLK-02 | Phase 11 | Pending |
-| BLK-03 | Phase 11 | Pending |
-| BLK-04 | Phase 11 | Pending |
-| BLK-05 | Phase 11 | Pending |
+| BLK-01 | Phase 11 | Complete |
+| BLK-02 | Phase 11 | Complete |
+| BLK-03 | Phase 11 | Complete |
+| BLK-04 | Phase 11 | Complete |
+| BLK-05 | Phase 11 | Complete |
 | BLK-06 | Phase 12 | Pending |
 | BLK-07 | Phase 12 | Pending |
 | BLK-08 | Phase 12 | Pending |
