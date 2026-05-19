@@ -101,14 +101,20 @@ fn extract_field_schema(field: &FieldDescriptor, oneof_group: Option<String>) ->
     if field.is_map() {
         let map_entry_msg = match field.kind() {
             Kind::Message(m) => m,
-            _ => unreachable!("map field always has Message kind"),
+            _ => unreachable!(
+                "BUG: map field '{}' has non-Message kind — prost-reflect invariant violated",
+                field.name()
+            ),
         };
         let key_field = map_entry_msg.map_entry_key_field();
         let val_field = map_entry_msg.map_entry_value_field();
         let value_kind = extract_field_kind(&val_field);
         let key_type = match extract_field_kind(&key_field) {
             FieldKind::Scalar { scalar } => scalar,
-            _ => unreachable!("proto3 spec: map key must be scalar"),
+            _ => unreachable!(
+                "BUG: map field '{}' has non-scalar key kind — proto3 spec violation",
+                field.name()
+            ),
         };
         return FieldSchema {
             name: field.name().to_string(),
