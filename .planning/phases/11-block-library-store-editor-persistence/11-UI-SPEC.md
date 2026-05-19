@@ -36,8 +36,9 @@ Declared values (must be multiples of 4):
 |-------|-------|-------|
 | xs | 4px | Icon gaps, inline padding within buttons |
 | sm | 8px | Gap between list row icon buttons |
-| md | 16px | Panel header horizontal padding (`px-4`) |
-| lg | 24px | Panel header vertical rhythm (combined `py-3` top + bottom) |
+| sm+ | 12px | Panel header vertical padding (`py-3`), list row horizontal/vertical padding (`px-3 py-2`) — matches existing `FormPanel.tsx` header (line 189) |
+| md | 16px | Panel header horizontal padding (`px-4`), editor view padding (`p-4`) |
+| lg | 24px | Not used as a standalone token in this phase (sm+ x2 appears as combined rhythm) |
 | xl | 32px | Not used in this phase |
 | 2xl | 48px | Not used in this phase |
 | 3xl | 64px | Not used in this phase |
@@ -48,7 +49,7 @@ Declared values (must be multiples of 4):
 - Editor view padding: `p-4`
 - Block name input and Save/Back buttons in editor view: standard shadcn `size="default"` spacing
 
-Exceptions: none
+Exceptions: 12px (`sm+`) is included in the scale because the existing `FormPanel.tsx` header uses `py-3` — this phase must match that established rhythm rather than deviate from it.
 
 ---
 
@@ -76,7 +77,7 @@ All values expressed as CSS variable references (from `src/index.css`).
 | Dominant (60%) | `--background` | Panel surface, list area background, editor view wrapper |
 | Secondary (30%) | `--muted` / `--border` | List row hover state (`hover:bg-muted`), panel right border (`border-r border-border`), editor chrome divider |
 | Accent (10%) | `--primary` (foreground via `--primary-foreground`) | "Save block" primary CTA button only, "+ New Block" button only |
-| Destructive | `--destructive` | Trash icon on list rows, Delete button in AlertDialog confirmation only |
+| Destructive | `--destructive` | Trash icon on list rows, Delete block button in AlertDialog confirmation only |
 
 **Accent reserved for:** The "Save block" primary action button in the editor view, and the "+ New Block" button in the list view header. No other interactive elements receive accent treatment.
 
@@ -139,6 +140,8 @@ Both use `variant="ghost" size="icon-sm"`.
 
 ### View 1 — List View (default)
 
+**Primary focal point: block name list** (the `<span class="text-sm truncate flex-1">` within each row — this is the primary scannable content the user reads to identify and select blocks).
+
 ```
 BlockLibraryPanel (h-full flex-col border-r border-border)
   ├── Header (px-4 py-3 border-b border-border shrink-0 flex items-center justify-between)
@@ -160,6 +163,8 @@ BlockLibraryPanel (h-full flex-col border-r border-border)
 **Hydration gate:** While `blocksLoaded === false`, render nothing in the scroll area (no empty state, no list). Prevents flash of empty state on app start.
 
 ### View 2 — Editor View (for New + Edit)
+
+**Primary focal point: Save block button** (`w-full mt-auto variant="default"` — the full-width placement at the bottom of the editor draws the eye as the terminal action after filling name + JSON content).
 
 ```
 BlockLibraryPanel (h-full flex-col border-r border-border)
@@ -202,8 +207,8 @@ BlockLibraryPanel (h-full flex-col border-r border-border)
 | JSON parse error title (inline banner) | `Invalid JSON` (matches existing `JsonEditor.tsx` pattern) |
 | Delete dialog title | `Delete "{name}"?` |
 | Delete dialog description | `This action cannot be undone.` |
-| Delete dialog confirm button | `Delete` (variant=destructive) |
-| Delete dialog cancel button | `Cancel` (variant=outline) |
+| Delete dialog confirm button | `Delete block` (variant=destructive) |
+| Delete dialog cancel button | `Keep block` (variant=outline) |
 
 ---
 
@@ -223,8 +228,8 @@ BlockLibraryPanel (h-full flex-col border-r border-border)
 | Save — non-object JSON | Save button | Inline error banner: "JSON must be an object"; stay in editor |
 | Save — valid | Save button | Commit to useBlockStore, return to list view |
 | Delete — trigger | Trash2 button | Open AlertDialog with block name in title |
-| Delete — confirm | Delete button in AlertDialog | Remove from store, close dialog, stay in list view |
-| Delete — cancel | Cancel button in AlertDialog | Close dialog, no change |
+| Delete — confirm | Delete block button in AlertDialog | Remove from store, close dialog, stay in list view |
+| Delete — cancel | Keep block button in AlertDialog | Close dialog, no change |
 
 ---
 
