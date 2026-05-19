@@ -1,3 +1,5 @@
+import { useState, useEffect } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { FileSection } from "@/components/sidebar/FileSection";
 import { ConnectionSection } from "@/components/sidebar/ConnectionSection";
@@ -10,9 +12,15 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/sidebar/ThemeToggle";
+import { RELEASE_NAME } from "@/lib/release";
 
 export function Sidebar() {
   const { schema, selectedMessageType, setSelectedType } = useProtoStore();
+  const [appVersion, setAppVersion] = useState<string>("");
+
+  useEffect(() => {
+    getVersion().then(setAppVersion).catch(() => {});
+  }, []);
 
   return (
     <div className="flex flex-col h-full p-4 gap-4">
@@ -57,7 +65,9 @@ export function Sidebar() {
 
       <div className="flex-1" />
       <div className="flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">v0.1.0 — Walking Skeleton</div>
+        <div className="text-xs text-muted-foreground">
+          {appVersion ? `v${appVersion}` : "v1.3.0"} — {RELEASE_NAME}
+        </div>
         <ThemeToggle />
       </div>
     </div>

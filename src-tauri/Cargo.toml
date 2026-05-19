@@ -1,6 +1,6 @@
 [package]
 name = "proto-sender"
-version = "0.1.0"
+version = "1.3.0"
 description = "Proto Sender — load .proto files and send protobuf messages to RabbitMQ"
 authors = ["you"]
 edition = "2021"
