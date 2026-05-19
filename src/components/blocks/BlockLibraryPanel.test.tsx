@@ -14,6 +14,11 @@ vi.mock("@uiw/react-codemirror", () => ({
 
 vi.mock("next-themes", () => ({ useTheme: vi.fn() }));
 
+const { mockToastError } = vi.hoisted(() => ({
+  mockToastError: vi.fn(),
+}));
+vi.mock("sonner", () => ({ toast: { error: mockToastError } }));
+
 // Mock useBlockStore — vi.hoisted required for Vitest hoisting
 const { mockLoadBlocks, mockAddBlock, mockUpdateBlock, mockDeleteBlock } = vi.hoisted(() => ({
   mockLoadBlocks: vi.fn().mockResolvedValue(undefined),
@@ -243,7 +248,9 @@ describe("Save validation", () => {
         expect.objectContaining({ name: "My Block", content: '{"key": "value"}' })
       );
     });
-    expect(screen.getByText("Block Library")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Block Library")).toBeInTheDocument();
+    });
   });
 
   test("clicking Save with valid JSON object (edit block) calls updateBlock with id + {name, content}", async () => {
@@ -264,7 +271,27 @@ describe("Save validation", () => {
         content: '{"new": 2}',
       });
     });
-    expect(screen.getByText("Block Library")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText("Block Library")).toBeInTheDocument();
+    });
+  });
+
+  test("persistence failure in handleSave shows error message and stays in editor view", async () => {
+    mockAddBlock.mockRejectedValueOnce(new Error("Disk full"));
+    render(<BlockLibraryPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "New block" }));
+    fireEvent.change(screen.getByPlaceholderText("Block name"), {
+      target: { value: "My Block" },
+    });
+    fireEvent.change(screen.getByTestId("codemirror-stub"), {
+      target: { value: '{"key": "value"}' },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save block" }));
+    await waitFor(() => {
+      expect(screen.getByText("Disk full")).toBeInTheDocument();
+    });
+    // Must remain in editor view
+    expect(screen.getByRole("button", { name: "Save block" })).toBeInTheDocument();
   });
 });
 

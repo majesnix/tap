@@ -16,6 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import { useBlockStore, type Block } from "@/stores/useBlockStore";
 
 interface BlockLibraryPanelProps {
@@ -81,12 +82,14 @@ export function BlockLibraryPanel({ onClose: _onClose }: BlockLibraryPanelProps)
       return;
     }
     setSaveError(null);
-    if (editingBlock) {
-      void updateBlock(editingBlock.id, { name: nameDraft.trim(), content: contentDraft });
-    } else {
-      void addBlock({ id: crypto.randomUUID(), name: nameDraft.trim(), content: contentDraft });
-    }
-    setView("list");
+    const op = editingBlock
+      ? updateBlock(editingBlock.id, { name: nameDraft.trim(), content: contentDraft })
+      : addBlock({ id: crypto.randomUUID(), name: nameDraft.trim(), content: contentDraft });
+    op.then(() => {
+      setView("list");
+    }).catch((err: unknown) => {
+      setSaveError(err instanceof Error ? err.message : "Failed to save block");
+    });
   }
 
   if (view === "editor") {
@@ -224,8 +227,13 @@ export function BlockLibraryPanel({ onClose: _onClose }: BlockLibraryPanelProps)
               variant="destructive"
               onClick={() => {
                 if (blockToDelete) {
-                  void deleteBlock(blockToDelete.id);
+                  const id = blockToDelete.id;
                   setBlockToDelete(null);
+                  deleteBlock(id).catch((err: unknown) => {
+                    toast.error(
+                      err instanceof Error ? err.message : "Failed to delete block"
+                    );
+                  });
                 }
               }}
             >
