@@ -1,12 +1,20 @@
 use lapin::{
     options::{BasicPublishOptions, ConfirmSelectOptions},
-    BasicProperties, Connection, ConnectionProperties,
+    BasicProperties, Confirmation, Connection, ConnectionProperties,
 };
 use std::time::Duration;
 use tauri::AppHandle;
 
 use crate::error::AppError;
 use crate::profiles::build_amqp_uri;
+
+/// Delivery outcome returned by publish_message.
+/// D-02: Flat serializable struct with a status string field.
+/// status values: "ack" | "nack" | "returned" | "timeout"
+#[derive(Debug, serde::Serialize)]
+pub struct PublishOutcome {
+    pub status: String,
+}
 
 /// Publish a binary protobuf message to RabbitMQ using an ephemeral connection.
 ///
@@ -31,7 +39,7 @@ pub async fn publish_message(
     correlation_id: Option<String>,
     reply_to: Option<String>,
     headers: Option<Vec<(String, String)>>,
-) -> Result<(), AppError> {
+) -> Result<PublishOutcome, AppError> {
     // T-03-02-05: Validate delivery_mode is 1 or 2 if provided
     if let Some(dm) = delivery_mode {
         if dm != 1 && dm != 2 {
@@ -135,7 +143,7 @@ pub async fn publish_message(
         .basic_publish(
             exchange.as_str().into(),
             routing_key.as_str().into(),
-            BasicPublishOptions::default(),
+            BasicPublishOptions { mandatory: true, ..Default::default() },
             &payload,
             props,
         )
@@ -148,24 +156,55 @@ pub async fn publish_message(
         }
     };
 
-    // Await the broker ack BEFORE closing — confirm channel lives on the connection
-    let confirm_result = confirm_future.await;
+    // D-03: 5-second timeout around broker confirmation — timeout returns Ok(timeout outcome),
+    // not Err, because broker non-response is a delivery outcome not a command error.
+    // CRITICAL: pass confirm_future (the Future itself) as the second argument — do NOT .await it
+    // before passing. The outer .await drives the timeout Future.
+    let confirm_result = tokio::time::timeout(
+        Duration::from_secs(5),
+        confirm_future,
+    ).await;
 
-    // CR-02: close connection after confirmation is received
+    // D-05: Match on Confirmation variant to produce PublishOutcome.
+    // Pitfall 2: Close connection BEFORE returning from the timeout branch.
+    let outcome = match confirm_result {
+        Err(_elapsed) => {
+            // Broker did not confirm within 5 seconds — close connection and surface as outcome.
+            let _ = conn.close(0, "".into()).await;
+            return Ok(PublishOutcome { status: "timeout".to_string() });
+        }
+        Ok(Err(e)) => {
+            // lapin internal error resolving the confirm future (not a delivery outcome).
+            let _ = conn.close(0, "".into()).await;
+            return Err(AppError::AmqpError(e.to_string()));
+        }
+        // D-05: Ack(None) = broker confirmed delivery, no return frame.
+        Ok(Ok(Confirmation::Ack(None))) => PublishOutcome { status: "ack".to_string() },
+        // D-05: Ack(Some(_)) = mandatory=true + no binding match → message returned by broker.
+        Ok(Ok(Confirmation::Ack(Some(_returned)))) => PublishOutcome { status: "returned".to_string() },
+        Ok(Ok(Confirmation::Nack(_))) => PublishOutcome { status: "nack".to_string() },
+        Ok(Ok(Confirmation::NotRequested)) => {
+            // Unreachable: confirm_select() is always called before publish (CR-01).
+            PublishOutcome { status: "ack".to_string() }
+        }
+    };
+
+    // CR-02: close connection after confirmation is received (non-timeout path).
     let _ = conn.close(0, "".into()).await;
 
-    confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))?;
-
     tracing::debug!(
-        "Published message to exchange='{}' routing_key='{}'",
+        "Published message to exchange='{}' routing_key='{}' outcome='{}'",
         exchange,
-        routing_key
+        routing_key,
+        outcome.status,
     );
-    Ok(())
+    Ok(outcome)
 }
 
 #[cfg(test)]
 mod tests {
+    use super::PublishOutcome;
+
     #[test]
     fn default_exchange_is_empty_string() {
         // Document the CRITICAL invariant: PUBL-01 requires exchange = "" not "amq.default"
@@ -190,5 +229,14 @@ mod tests {
         let ttl: u32 = 60000;
         let ttl_str = ttl.to_string();
         assert_eq!(ttl_str, "60000");
+    }
+
+    #[test]
+    fn publish_outcome_status_values_are_lowercase() {
+        // Document the IPC contract: status must match TypeScript union "ack"|"nack"|"returned"|"timeout"
+        assert_eq!(PublishOutcome { status: "ack".to_string() }.status, "ack");
+        assert_eq!(PublishOutcome { status: "nack".to_string() }.status, "nack");
+        assert_eq!(PublishOutcome { status: "returned".to_string() }.status, "returned");
+        assert_eq!(PublishOutcome { status: "timeout".to_string() }.status, "timeout");
     }
 }
