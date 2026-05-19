@@ -124,7 +124,10 @@ export function BlockLibraryPanel({ onClose: _onClose }: BlockLibraryPanelProps)
             />
           </div>
           {saveError && (
-            <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3">
+            <div
+              role="alert"
+              className="rounded-md border border-destructive/40 bg-destructive/10 p-3"
+            >
               <div className="flex items-start gap-2">
                 <TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-1" />
                 <div className="flex flex-col gap-1">
@@ -134,7 +137,7 @@ export function BlockLibraryPanel({ onClose: _onClose }: BlockLibraryPanelProps)
                       : "Invalid JSON"}
                   </span>
                   {saveError !== "Name is required" && saveError !== "JSON must be an object" && (
-                    <p className="text-xs text-destructive mt-1" role="alert">
+                    <p className="text-xs text-destructive mt-1">
                       {saveError}
                     </p>
                   )}

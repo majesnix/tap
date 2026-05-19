@@ -192,6 +192,8 @@ describe("Save validation", () => {
     fireEvent.click(screen.getByRole("button", { name: "New block" }));
     fireEvent.click(screen.getByRole("button", { name: "Save block" }));
     expect(screen.getByText("Name is required")).toBeInTheDocument();
+    // role=alert must be on the container so all validation errors are announced
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
   test("clicking Save with invalid JSON shows 'Invalid JSON' error", () => {
@@ -218,6 +220,7 @@ describe("Save validation", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save block" }));
     expect(screen.getByText("JSON must be an object")).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
   });
 
   test("clicking Save with valid JSON null shows 'JSON must be an object' error", () => {
