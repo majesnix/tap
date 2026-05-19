@@ -132,7 +132,7 @@ Plans:
 | 7. MapField | v1.2 | 4/4 | Complete | 2026-05-19 |
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
 | 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
-| 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete   | 2026-05-19 |
+| 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete    | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 0/? | Not started | — |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
 

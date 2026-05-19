@@ -11,10 +11,10 @@
 - [ ] **PUBL-02**: User sees no routing key suggestions for `headers` and `fanout` exchanges (autocomplete suppressed — routing key is always empty for these types)
 - [ ] **PUBL-03**: Topic exchange wildcard binding patterns (e.g. `orders.*.created`) are shown in suggestions labeled as patterns so the user knows to edit before sending
 - [ ] **PUBL-04**: Routing key input falls back to plain free-text when the Management API is unavailable — no error state shown
-- [ ] **PUBL-05**: User sees a green ACK badge in the publish bar after the broker confirms delivery; badge auto-dismisses after 3 seconds
-- [ ] **PUBL-06**: User sees an amber Returned badge when a published message has no route (mandatory=true, no binding match); badge auto-dismisses after 5 seconds
-- [ ] **PUBL-07**: User sees a red NACK badge when the broker negatively acknowledges a message; badge auto-dismisses after 5 seconds
-- [ ] **PUBL-08**: User sees a gray Timeout badge when broker confirmation does not arrive within 5 seconds; badge requires manual dismiss
+- [x] **PUBL-05**: User sees a green ACK badge in the publish bar after the broker confirms delivery; badge auto-dismisses after 3 seconds
+- [x] **PUBL-06**: User sees an amber Returned badge when a published message has no route (mandatory=true, no binding match); badge auto-dismisses after 5 seconds
+- [x] **PUBL-07**: User sees a red NACK badge when the broker negatively acknowledges a message; badge auto-dismisses after 5 seconds
+- [x] **PUBL-08**: User sees a gray Timeout badge when broker confirmation does not arrive within 5 seconds; badge requires manual dismiss
 
 ### Message Blocks
 
@@ -58,10 +58,10 @@
 | PUBL-02 | Phase 9 | Pending |
 | PUBL-03 | Phase 9 | Pending |
 | PUBL-04 | Phase 9 | Pending |
-| PUBL-05 | Phase 10 | Pending |
-| PUBL-06 | Phase 10 | Pending |
-| PUBL-07 | Phase 10 | Pending |
-| PUBL-08 | Phase 10 | Pending |
+| PUBL-05 | Phase 10 | Complete |
+| PUBL-06 | Phase 10 | Complete |
+| PUBL-07 | Phase 10 | Complete |
+| PUBL-08 | Phase 10 | Complete |
 | BLK-01 | Phase 11 | Pending |
 | BLK-02 | Phase 11 | Pending |
 | BLK-03 | Phase 11 | Pending |
