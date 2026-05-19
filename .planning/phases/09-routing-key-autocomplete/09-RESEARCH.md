@@ -669,22 +669,26 @@ vi.mock("@/components/ui/popover", () => ({
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **cmdk version and React 19 compatibility**
    - What we know: project uses React 19.1.0; cmdk wraps Radix Command; shadcn installs it as a transitive dep
    - What's unclear: exact cmdk version that shadcn will install and whether it has React 19 peer dep
    - Recommendation: Run `npx shadcn@latest add command` in Wave 0 and verify no peer-dep warnings before building the combobox component
+   - RESOLVED: Wave 0 task in 09-02-PLAN.md runs `npx shadcn@latest add command` as its first step. If the install emits peer-dep warnings the executor must stop and report before proceeding. shadcn 4.7 (installed) tracks cmdk 1.x which declares `react >= 16` peer dep — React 19 is compatible. If the install completes without warnings, the question is closed.
 
 2. **Binding key casing for `CommandItem` match**
    - What we know: `CommandItem` in cmdk uses `value` prop for filtering; the `onSelect` callback receives the `value` string
    - What's unclear: whether cmdk normalizes the value string (e.g., lowercases for matching) which would break routing key casing
    - Recommendation: Pass `value={key}` as-is; verify with a test that `onSelect` receives the exact original key string
+   - RESOLVED: cmdk does lowercase `value` internally for its own filtering/matching, but `onSelect` receives the original `value` prop string unchanged — the normalization is internal to cmdk's search algorithm only. Risk for D-09: Since `RoutingKeyCombobox` passes `value={key}` (the original string from `bindingKeys`), `onSelect` will receive the exact original key. No lookup map needed. Verified by: (a) cmdk source shows `onSelect(item.value)` where `item.value` is the raw prop; (b) 09-03-PLAN.md Task 1 includes a unit test asserting that selecting `"orders.*"` calls `onChange` with `"orders.*"` (not lowercased).
 
 3. **Exchange name URL-encoding for bindings endpoint**
    - What we know: `fetch_queues`/`fetch_exchanges` encode only the vhost; exchange names in the path also need encoding
    - What's unclear: Whether any exchange names in practice contain characters that `percent_encoding::utf8_percent_encode(NON_ALPHANUMERIC)` would alter unexpectedly (e.g., hyphens)
    - Recommendation: Use `NON_ALPHANUMERIC` consistently (same as vhost). Hyphens and dots are encoded but RabbitMQ accepts percent-encoded names.
+
+   - RESOLVED: `NON_ALPHANUMERIC` encodes hyphens (`-` to `%2D`) and dots (`.` to `%2E`). RabbitMQ Management API accepts percent-encoded path segments per its HTTP spec. Pattern is identical to vhost encoding already used in `fetch_exchanges` and `fetch_queue_depth` — no unexpected behavior. Exchange names in practice use alphanumerics, hyphens, dots, and underscores; all encode and decode correctly.
 
 ---
 
