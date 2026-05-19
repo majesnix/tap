@@ -40,7 +40,7 @@ Declared values (all multiples of 4, Tailwind 4 utilities):
 | lg | 24px | `p-6` | Not used in this phase |
 | xl | 32px | `p-8` | Not used in this phase |
 
-Exceptions: The FormPanel header uses `px-4 py-3` (16px horizontal, 12px vertical) — matches existing pattern exactly. The `py-3` (12px) is intentional for compact header density; no change to header geometry.
+Exceptions: The FormPanel header uses `px-4 py-3` (16px horizontal, 12px vertical) — matches existing pattern exactly. The `py-3` (12px), `mb-3` (12px), and `p-3` (12px) are intentional for compact header/banner density; these three 12px utilities preserve visual continuity with the existing header geometry and are not general-purpose spacing tokens.
 
 ---
 
@@ -75,6 +75,8 @@ Tokens from `src/index.css` (oklch dual-mode, shadcn nova preset):
 Accent (`--primary`) is reserved for: toggle button pressed state only (via `bg-primary text-primary-foreground` when `aria-pressed=true`).
 
 Destructive is reserved for: inline error banner (border, icon, error text) and "Discard changes" button.
+
+**Primary visual anchor:** CodeMirror editor (fills main content area, flex-1) — it is the dominant element when JSON mode is active.
 
 ---
 
@@ -191,9 +193,9 @@ className="mx-4 mt-2 mb-3 rounded-md border border-destructive/40 bg-destructive
 
 | Element | Spec |
 |---------|------|
-| Icon | `<TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-0.5" />` (from lucide-react — already imported in sonner.tsx) |
+| Icon | `<TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-1" />` (from lucide-react — already imported in sonner.tsx) |
 | Heading | `<span className="text-xs font-semibold text-destructive">Invalid JSON</span>` |
-| Parse error body | `<p className="text-xs text-destructive mt-0.5" role="alert">{parseError}</p>` — verbatim from `JSON.parse()` catch `e.message` |
+| Parse error body | `<p className="text-xs text-destructive mt-1" role="alert">{parseError}</p>` — verbatim from `JSON.parse()` catch `e.message` |
 | Button row | `flex gap-2 mt-2` |
 | "Fix JSON" button | `<Button variant="outline" size="sm">Fix JSON</Button>` |
 | "Discard changes" button | `<Button variant="destructive" size="sm">Discard changes</Button>` |
