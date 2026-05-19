@@ -22,8 +22,9 @@ import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useAmqpStore } from "@/stores/useAmqpStore";
 import { useHistoryStore } from "@/stores/useHistoryStore";
-import { fetchExchanges, fetchQueues, publishMessage } from "@/lib/ipc";
+import { fetchExchanges, fetchQueues, publishMessage, fetchBindings } from "@/lib/ipc";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
+import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
 
 type Mode = "queue" | "exchange";
 
@@ -64,6 +65,9 @@ export function PublishBar() {
   const [routingKey, setRoutingKey] = useState<string>("");
   const [isSending, setIsSending] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [bindingKeys, setBindingKeys] = useState<string[]>([]);
+  const [isLoadingBindings, setIsLoadingBindings] = useState(false);
+  const [useCombobox, setUseCombobox] = useState(false);
 
   const {
     activeProfileName,
@@ -77,6 +81,14 @@ export function PublishBar() {
     setManagementStatus,
     setManagementAuthError,
   } = useConnectionStore();
+
+  // Phase 9: Derived state for combobox eligibility and hint text
+  const selectedExchangeObj = exchanges.find((ex) => ex.name === selectedExchange);
+  const selectedExchangeType = selectedExchangeObj?.exchange_type ?? "";
+  const isHintExchange =
+    selectedExchangeType === "headers" || selectedExchangeType === "fanout";
+  const isEligibleForCombobox =
+    !isHintExchange && managementStatus === "live" && Boolean(selectedExchange);
 
   const { hexPreview, encodeError } = useProtoStore();
 
@@ -122,6 +134,43 @@ export function PublishBar() {
 
     fetchTargets();
   }, [activeProfileName, mode]);
+
+  // Phase 9: Fetch binding routing keys when eligible exchange is selected.
+  // Uses stale-request guard (cancelled flag) — see ResponseQueuePicker.tsx pattern.
+  // D-10: ALL errors fall back silently — never call setManagementAuthError here.
+  useEffect(() => {
+    if (!activeProfileName || !isEligibleForCombobox) {
+      setBindingKeys([]);
+      setUseCombobox(false);
+      return;
+    }
+
+    let cancelled = false; // stale-request guard: prevents race condition on rapid exchange switch
+    setIsLoadingBindings(true);
+    setUseCombobox(true); // show combobox optimistically while loading
+
+    fetchBindings(activeProfileName, selectedExchange)
+      .then((keys) => {
+        if (!cancelled) {
+          setBindingKeys(keys);
+          setIsLoadingBindings(false);
+        }
+      })
+      .catch(() => {
+        // D-10: silent fallback — ANY error (including 401) reverts to plain <Input>.
+        // CRITICAL: do NOT call setManagementAuthError here — that is reserved for
+        // fetch_exchanges / fetch_queues 401 errors only.
+        if (!cancelled) {
+          setBindingKeys([]);
+          setIsLoadingBindings(false);
+          setUseCombobox(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProfileName, selectedExchange, isEligibleForCombobox]);
 
   const isConnected = connectionStatus === "connected";
   const hasTarget = mode === "queue" ? Boolean(selectedQueue) : Boolean(selectedExchange);
@@ -267,15 +316,24 @@ export function PublishBar() {
               />
             </SelectTrigger>
             <SelectContent position="popper" className="max-h-60">
-              {mode === "queue"
-                ? queues.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
+              {/* Queue list (plain) or exchange list with type badge per D-05 */}
+              {mode === "exchange"
+                ? exchanges.map((ex) => (
+                    <SelectItem key={ex.name} value={ex.name}>
+                      <span className="flex items-center gap-2">
+                        {ex.name}
+                        <Badge
+                          variant="outline"
+                          className="text-xs text-muted-foreground font-semibold"
+                        >
+                          [{ex.exchange_type}]
+                        </Badge>
+                      </span>
                     </SelectItem>
                   ))
-                : exchanges.map((exchange) => (
-                    <SelectItem key={exchange.name} value={exchange.name}>
-                      {exchange.name}
+                : queues.map((name) => (
+                    <SelectItem key={name} value={name}>
+                      {name}
                     </SelectItem>
                   ))}
             </SelectContent>
@@ -311,16 +369,35 @@ export function PublishBar() {
         )}
       </div>
 
-      {/* Routing key — Exchange mode only */}
+      {/* Routing key — Exchange mode only (Phase 9: conditional combobox vs plain Input) */}
       {mode === "exchange" && (
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-semibold">Routing Key</label>
-          <Input
-            placeholder="Routing key"
-            className="w-48"
-            value={routingKey}
-            onChange={(e) => setRoutingKey(e.target.value)}
-          />
+        <div className="flex flex-col gap-0">
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-semibold">Routing Key</label>
+            {isEligibleForCombobox && useCombobox ? (
+              <RoutingKeyCombobox
+                value={routingKey}
+                onChange={setRoutingKey}
+                bindingKeys={bindingKeys}
+                isLoading={isLoadingBindings}
+              />
+            ) : (
+              <Input
+                placeholder="Routing key"
+                className="w-48"
+                value={routingKey}
+                onChange={(e) => setRoutingKey(e.target.value)}
+              />
+            )}
+          </div>
+          {/* D-06: Hint text for headers/fanout exchanges — routing key is irrelevant */}
+          {isHintExchange && (
+            <p className="text-xs text-muted-foreground mt-1">
+              {selectedExchangeType === "fanout"
+                ? "Routing key is ignored for fanout exchanges."
+                : "Headers exchanges route by message headers, not routing key."}
+            </p>
+          )}
         </div>
       )}
 
