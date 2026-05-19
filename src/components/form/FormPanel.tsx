@@ -1,9 +1,14 @@
-import { useCallback, useRef, useEffect } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { encodeMessage } from "@/lib/ipc";
 import { useDebounce } from "@/hooks/useDebounce";
-import { ProtoFormRenderer } from "./ProtoFormRenderer";
+import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
+import { JsonEditor } from "./JsonEditor";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
+import { Braces } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useTheme } from "next-themes";
 
 /**
  * Converts a byte array to a formatted hex string.
@@ -24,6 +29,8 @@ export function FormPanel() {
     setPendingReplayValues,
   } = useProtoStore();
 
+  const { resolvedTheme } = useTheme();
+
   // latestValues is now in Zustand store (D-07 / advisor Option A)
   const latestValues = useProtoStore((s) => s.latestValues);
   const debouncedValues = useDebounce(latestValues, 200);
@@ -32,6 +39,12 @@ export function FormPanel() {
   const resetRef = useRef<((values: Record<string, unknown>) => void) | null>(
     null
   );
+
+  // JSON Override Toggle state (D-01: local useState, not Zustand)
+  const [isJsonMode, setIsJsonMode] = useState(false);
+  const [entrySnapshot, setEntrySnapshot] = useState<Record<string, unknown> | null>(null);
+  const [jsonDraft, setJsonDraft] = useState<string>("");
+  const [parseError, setParseError] = useState<string | null>(null);
 
   // Mirror current form values into store for PublishBar / other consumers (D-07)
   const handleValuesChange = useCallback((values: unknown) => {
@@ -83,19 +96,109 @@ export function FormPanel() {
     );
   }
 
+  function handleToggle() {
+    if (!isJsonMode) {
+      // FORM → JSON: capture entry snapshot (D-06), pre-fill editor (D-03, D-09)
+      const snapshot = latestValues ?? {};
+      setEntrySnapshot(snapshot);
+      setJsonDraft(JSON.stringify(snapshot, null, 2));
+      setIsJsonMode(true);
+      return;
+    }
+
+    // JSON → FORM: parse the current draft
+    let parsedValues: Record<string, unknown>;
+    try {
+      parsedValues = JSON.parse(jsonDraft) as Record<string, unknown>;
+    } catch (e) {
+      // Invalid JSON (D-05): show banner, stay in JSON mode — NEVER switch modes here
+      setParseError(e instanceof Error ? e.message : "Invalid JSON");
+      return;
+    }
+
+    setParseError(null);
+
+    // Unknown field detection — top-level only (D-07/D-08)
+    const knownFieldNames = new Set(message.fields.map((f) => f.name));
+    const unknownKeys = Object.keys(parsedValues).filter(
+      (k) => !knownFieldNames.has(k)
+    );
+    if (unknownKeys.length > 0) {
+      const label = unknownKeys.length === 1 ? "field" : "fields";
+      toast.warning(
+        `${unknownKeys.length} unknown ${label} ignored: ${unknownKeys.join(", ")}`
+      );
+    }
+
+    const cleanedValues = Object.fromEntries(
+      Object.entries(parsedValues).filter(([k]) => knownFieldNames.has(k))
+    );
+
+    // Merge over defaults — prevents undefined fields after partial JSON edits (RESEARCH Pitfall 2)
+    const mergedValues = { ...buildDefaultValues(message), ...cleanedValues };
+
+    // CRITICAL: Use pendingReplayValues signal — NEVER call resetRef.current() directly here.
+    // resetRef.current is null until ProtoFormRenderer remounts (RESEARCH Pitfall 1).
+    // The existing useEffect (lines 62-67) handles timing correctly after remount.
+    setPendingReplayValues(mergedValues);
+    setIsJsonMode(false);
+  }
+
+  function handleFixJson() {
+    setParseError(null);
+    // Stay in JSON mode — user fixes the editor
+  }
+
+  function handleDiscard() {
+    if (entrySnapshot !== null) {
+      // Restore snapshot captured at JSON mode entry (D-06)
+      // CRITICAL: use entrySnapshot from local state — do NOT re-read latestValues from Zustand
+      setPendingReplayValues(entrySnapshot);
+    }
+    setParseError(null);
+    setIsJsonMode(false);
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="px-4 py-3 border-b border-border shrink-0">
-        <h2 className="text-sm font-semibold">{message.name}</h2>
-        <p className="text-xs text-muted-foreground">{message.full_name}</p>
+      <div className="px-4 py-3 border-b border-border shrink-0 flex items-start justify-between">
+        <div>
+          <h2 className="text-sm font-semibold">{message.name}</h2>
+          <p className="text-xs text-muted-foreground">{message.full_name}</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={isJsonMode ? "Return to form" : "Edit as JSON"}
+          aria-pressed={isJsonMode}
+          title={isJsonMode ? "Return to form" : "Edit as JSON"}
+          className={isJsonMode ? "bg-muted text-foreground" : ""}
+          onClick={handleToggle}
+        >
+          <Braces />
+        </Button>
       </div>
-      <ScrollArea className="flex-1 min-h-0">
-        <ProtoFormRenderer
-          message={message}
-          onValuesChange={handleValuesChange}
-          resetRef={resetRef}
-        />
-      </ScrollArea>
+      {isJsonMode ? (
+        // JSON mode: plain flex div — do NOT nest CodeMirror inside ScrollArea (RESEARCH Pitfall 4)
+        <div className="flex-1 flex flex-col min-h-0">
+          <JsonEditor
+            value={jsonDraft}
+            onChange={setJsonDraft}
+            resolvedTheme={resolvedTheme}
+            parseError={parseError}
+            onFixJson={handleFixJson}
+            onDiscard={handleDiscard}
+          />
+        </div>
+      ) : (
+        <ScrollArea className="flex-1 min-h-0">
+          <ProtoFormRenderer
+            message={message}
+            onValuesChange={handleValuesChange}
+            resetRef={resetRef}
+          />
+        </ScrollArea>
+      )}
     </div>
   );
 }
