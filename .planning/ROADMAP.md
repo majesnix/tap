@@ -58,7 +58,7 @@ See [milestones/v1.1-ROADMAP.md](milestones/v1.1-ROADMAP.md) for full phase deta
   5. User sees an error on send when the base64 value cannot be decoded — not silent empty bytes
 **Plans**: 1 plan
 Plans:
-- [ ] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
+- [x] 06-01-PLAN.md — Create BytesField component (TDD), wire into ProtoFormRenderer, remove bytes branch from ScalarField
 **UI hint**: yes
 
 ### Phase 7: MapField
