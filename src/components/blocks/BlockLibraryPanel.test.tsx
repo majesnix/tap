@@ -132,6 +132,15 @@ describe("Editor view", () => {
     expect(screen.getByRole("button", { name: "Save block" })).toBeInTheDocument();
   });
 
+  test("Save button is disabled and shows 'Loading…' when blocksLoaded===false", () => {
+    setupStore({ blocksLoaded: false, blocks: [] });
+    render(<BlockLibraryPanel />);
+    fireEvent.click(screen.getByRole("button", { name: "New block" }));
+    const saveBtn = screen.getByRole("button", { name: "Save block" });
+    expect(saveBtn).toBeDisabled();
+    expect(saveBtn).toHaveTextContent("Loading…");
+  });
+
   test("clicking '+ New Block' shows Back button", () => {
     render(<BlockLibraryPanel />);
     fireEvent.click(screen.getByRole("button", { name: "New block" }));

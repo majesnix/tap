@@ -144,8 +144,9 @@ export function BlockLibraryPanel({ onClose: _onClose }: BlockLibraryPanelProps)
             className="w-full mt-auto"
             aria-label="Save block"
             onClick={handleSave}
+            disabled={!blocksLoaded}
           >
-            Save block
+            {blocksLoaded ? "Save block" : "Loading…"}
           </Button>
         </div>
       </div>
