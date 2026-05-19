@@ -147,6 +147,12 @@ See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 - Phase 4 added (2026-05-18): Response Queue Reader — select reply queue, consume + deserialize incoming protobuf message, ack to remove from queue (RESP-01 to RESP-05)
 - Phases 6-8 added (2026-05-19): v1.2 Form Improvements — BytesField (Phase 6), MapField (Phase 7), JSON Override Toggle (Phase 8)
 
+## Quick Tasks Completed
+
+| ID | Slug | Description | Commit | Date |
+|----|------|-------------|--------|------|
+| 260519-q01 | mfld03-send-block-fix | Fix MFLD-03 — restore send-button blocking on duplicate map keys | 2d1a027 | 2026-05-19 |
+
 ### Active TODOs
 
 - Run `/gsd-plan-phase 6` to begin planning Phase 6 (BytesField)
