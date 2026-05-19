@@ -4,7 +4,7 @@ milestone: v1.2
 milestone_name: Form Improvements
 status: executing
 stopped_at: Phase 8 UI-SPEC approved
-last_updated: "2026-05-19T11:33:52.707Z"
+last_updated: "2026-05-19T11:37:11.712Z"
 last_activity: 2026-05-19
 progress:
   total_phases: 3
@@ -20,7 +20,7 @@ progress:
 
 Phase: 8
 Plan: Not started
-Status: Ready to execute
+Status: Executing Phase 08
 Last activity: 2026-05-19
 
 ## Project Reference
@@ -28,7 +28,7 @@ Last activity: 2026-05-19
 See: .planning/PROJECT.md (updated 2026-05-18 after v1.1 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 07 — mapfield
+**Current focus:** Phase 08 — json-override-toggle
 
 ## Phase History
 
@@ -170,7 +170,7 @@ Next action: `/gsd-plan-phase 6`
 
 ## Current Position
 
-Phase: 07 (mapfield) — EXECUTING
-Plan: 1 of 4
-Status: Ready to execute
-Last activity: 2026-05-19 -- Phase 8 planning complete
+Phase: 08 (json-override-toggle) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 08
+Last activity: 2026-05-19 -- Phase 08 execution started
