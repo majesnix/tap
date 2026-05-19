@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.2
-milestone_name: Form Improvements
-status: milestone_complete
-stopped_at: Phase 8 UI-SPEC approved
-last_updated: "2026-05-19T16:15:00.000Z"
+milestone: v1.3
+milestone_name: Publishing UX + Message Blocks
+status: planning
+last_updated: "2026-05-19T15:03:04.143Z"
 last_activity: 2026-05-19
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 7
-  completed_plans: 5
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Proto Sender
@@ -185,7 +184,7 @@ Next action: `/gsd-plan-phase 6`
 
 ## Current Position
 
-Phase: 08 (json-override-toggle) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 08
-Last activity: 2026-05-19 -- Phase 08 execution started
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-19 — Milestone v1.3 started

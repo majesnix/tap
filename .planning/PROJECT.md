@@ -40,14 +40,17 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Map field (`map<K, V>`) rendered as typed key-value rows with duplicate-key blocking (send disabled) and correct binary protobuf encoding via Value::Map path — v1.2 (Phase 07)
 - ✓ JSON override toggle — switch between form view and CodeMirror JSON editor with two-way sync, invalid JSON error banner, and unknown-field warning — v1.2 (Phase 08)
 
-### Active (next milestone)
+### Active (v1.3)
 
-No active requirements — v1.2 is complete. Define next milestone via `/gsd-new-milestone`.
+- [ ] Routing key autocomplete — fetch binding keys from Management API when exchange is selected; populate routing key input (PUBL-01)
+- [ ] Publisher confirms badge — ephemeral ACK/NACK indicator in publish bar after each send, auto-dismisses ~3s (PUBL-02)
+- [ ] Message block library — collapsible panel beside the form listing saved blocks by name (BLK-01)
+- [ ] Block JSON editor — create/edit/delete blocks as named JSON key-value objects (BLK-02)
+- [ ] Block persistence — blocks saved across restarts via tauri-plugin-store (BLK-03)
+- [ ] Apply block by drag-and-drop onto the form — merge fills empty fields only, global/type-agnostic (BLK-04)
 
 ### Backlog (future milestones)
 
-- [ ] Routing key autocomplete from exchange binding table (PUBL-V2-01)
-- [ ] Publisher confirms mode with per-message acknowledgment status (PUBL-V2-02)
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)
 - [ ] Full-text search across historical message field values (HIST-V2-02)
 
@@ -109,11 +112,14 @@ No active requirements — v1.2 is complete. Define next milestone via `/gsd-new
 | JSON toggle reuses `setPendingReplayValues` signal (not direct `resetRef`) | `resetRef.current` is null until ProtoFormRenderer remounts — direct call would throw | ✓ Good — HIST-02 replay path already handles form reset correctly |
 | JSON mode state is local React state (not Zustand) | JSON mode is a session-only power-user override; no cross-component sharing needed | ✓ Good — simple, no store pollution |
 
-## Current Milestone
+## Current Milestone: v1.3 Publishing UX + Message Blocks
 
-v1.2 Form Improvements — **SHIPPED 2026-05-19**
+**Goal:** Make the send workflow smarter — routing key discovery from live bindings, per-send delivery confirmation feedback, and reusable drag-and-drop message building blocks.
 
-All 15 requirements delivered. Form renderer now covers bytes fields (BFLD-01–04), map fields (MFLD-01–05), and JSON override toggle (JSON-01–06). Next milestone: run `/gsd-new-milestone`.
+**Target features:**
+- Routing key autocomplete from RabbitMQ exchange bindings
+- Publisher confirms ACK/NACK badge (ephemeral, auto-dismiss)
+- Message block library with JSON editor and drag-to-merge
 
 ## Evolution
 
@@ -138,4 +144,4 @@ v1.2 shipped 2026-05-19. All 15 requirements delivered: bytes field (BFLD-01–0
 The app is feature-complete for v1 scope: all major proto field types, full send/receive cycle, connection profiles, message history, and dark mode. Next focus area to be defined in `/gsd-new-milestone`.
 
 ---
-*Last updated: 2026-05-19 — v1.2 milestone archived*
+*Last updated: 2026-05-19 — v1.3 milestone started*
