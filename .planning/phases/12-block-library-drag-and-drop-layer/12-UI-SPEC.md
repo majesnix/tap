@@ -1,7 +1,7 @@
 ---
 phase: 12
 slug: block-library-drag-and-drop-layer
-status: draft
+status: approved
 shadcn_initialized: true
 preset: radix-nova
 created: 2026-05-19
