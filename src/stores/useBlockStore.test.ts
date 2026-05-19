@@ -56,6 +56,23 @@ describe("loadBlocks", () => {
     expect(blocks[0].id).toBe("saved-1");
     expect(blocks[1].id).toBe("saved-2");
   });
+
+  test("loadBlocks filters out malformed entries — only valid Block objects survive", async () => {
+    const validBlock = makeBlock({ id: "valid-1", name: "Valid Block", content: "{}" });
+    const malformed = [
+      { garbage: true },
+      { id: 123, name: "Wrong id type", content: "{}" },
+      { id: "ok", name: "Missing content" },
+      null,
+      "a string",
+    ];
+    mockGet.mockResolvedValueOnce([...malformed, validBlock]);
+    await useBlockStore.getState().loadBlocks();
+    const { blocks, blocksLoaded } = useBlockStore.getState();
+    expect(blocksLoaded).toBe(true);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].id).toBe("valid-1");
+  });
 });
 
 // ── addBlock ──────────────────────────────────────────────────────────────────

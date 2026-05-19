@@ -19,6 +19,16 @@ interface BlockStore {
   deleteBlock: (id: string) => Promise<void>;
 }
 
+function isBlock(value: unknown): value is Block {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as Block).id === "string" &&
+    typeof (value as Block).name === "string" &&
+    typeof (value as Block).content === "string"
+  );
+}
+
 // NEVER call load(path, { autoSave: false }) — requires 'defaults' field (Pitfall 2)
 async function persistBlocks(blocks: Block[]): Promise<void> {
   const store = await load(BLOCKS_STORE_PATH);
@@ -32,8 +42,9 @@ export const useBlockStore = create<BlockStore>((set, get) => ({
 
   loadBlocks: async () => {
     const store = await load(BLOCKS_STORE_PATH);
-    const saved = await store.get<Block[]>(BLOCKS_KEY);
-    set({ blocks: saved ?? [], blocksLoaded: true });
+    const saved = await store.get<unknown>(BLOCKS_KEY);
+    const blocks = Array.isArray(saved) ? saved.filter(isBlock) : [];
+    set({ blocks, blocksLoaded: true });
   },
 
   addBlock: async (block) => {
