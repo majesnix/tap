@@ -78,7 +78,7 @@ export function PublishBar() {
     setManagementAuthError,
   } = useConnectionStore();
 
-  const { hexPreview } = useProtoStore();
+  const { hexPreview, encodeError } = useProtoStore();
 
   // Fetch queues or exchanges on mount and whenever profile or mode changes.
   // Implements 401 discrimination: auth failure → destructive badge, NOT silent Manual fallback.
@@ -125,7 +125,7 @@ export function PublishBar() {
 
   const isConnected = connectionStatus === "connected";
   const hasTarget = mode === "queue" ? Boolean(selectedQueue) : Boolean(selectedExchange);
-  const canSend = isConnected && hasTarget;
+  const canSend = isConnected && hasTarget && !encodeError;
 
   const handleSend = async () => {
     if (!activeProfileName || !canSend) return;
