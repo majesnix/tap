@@ -46,6 +46,7 @@ pub fn run() {
             commands::connection::fetch_queues,
             commands::connection::fetch_queue_depth,
             commands::connection::fetch_exchanges,
+            commands::connection::fetch_bindings,
             commands::publish::publish_message,
             commands::consume::consume_message,
         ])
