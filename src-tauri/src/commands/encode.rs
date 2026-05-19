@@ -433,4 +433,67 @@ mod tests {
         assert_eq!(parse_duration_string("120"), 120);
         assert_eq!(parse_duration_string("invalid"), 0);
     }
+
+    #[test]
+    fn test_encode_map_string_key_scalar_value() {
+        let pool = make_pool_with_schema(
+            r#"syntax = "proto3"; message M { map<string, int32> labels = 1; }"#,
+            "map_string.proto",
+        );
+        let msg_desc = pool.get_message_by_name("M").unwrap();
+        let mut dyn_msg = DynamicMessage::new(msg_desc.clone());
+        let values = serde_json::json!({
+            "labels": [{"key": "a", "value": 1}, {"key": "b", "value": 2}]
+        });
+        populate_message(&mut dyn_msg, &msg_desc, &values).unwrap();
+        let mut buf = Vec::new();
+        dyn_msg.encode(&mut buf).unwrap();
+        assert!(!buf.is_empty(), "map with entries should encode to non-empty bytes");
+    }
+
+    #[test]
+    fn test_encode_map_int32_key() {
+        let pool = make_pool_with_schema(
+            r#"syntax = "proto3"; message M { map<int32, string> tags = 1; }"#,
+            "map_int32.proto",
+        );
+        let msg_desc = pool.get_message_by_name("M").unwrap();
+        let mut dyn_msg = DynamicMessage::new(msg_desc.clone());
+        let values = serde_json::json!({ "tags": [{"key": 42, "value": "hello"}] });
+        populate_message(&mut dyn_msg, &msg_desc, &values).unwrap();
+        let mut buf = Vec::new();
+        dyn_msg.encode(&mut buf).unwrap();
+        assert!(!buf.is_empty());
+    }
+
+    #[test]
+    fn test_encode_map_bool_key_as_string() {
+        let pool = make_pool_with_schema(
+            r#"syntax = "proto3"; message M { map<bool, string> flags = 1; }"#,
+            "map_bool.proto",
+        );
+        let msg_desc = pool.get_message_by_name("M").unwrap();
+        let mut dyn_msg = DynamicMessage::new(msg_desc.clone());
+        // Frontend stores bool Select as string "true"/"false" per D-11
+        let values = serde_json::json!({ "flags": [{"key": "true", "value": "yes"}] });
+        populate_message(&mut dyn_msg, &msg_desc, &values).unwrap();
+        let mut buf = Vec::new();
+        dyn_msg.encode(&mut buf).unwrap();
+        assert!(!buf.is_empty(), "bool key 'true' string should encode");
+    }
+
+    #[test]
+    fn test_encode_map_empty_array() {
+        let pool = make_pool_with_schema(
+            r#"syntax = "proto3"; message M { map<string, int32> labels = 1; }"#,
+            "map_empty.proto",
+        );
+        let msg_desc = pool.get_message_by_name("M").unwrap();
+        let mut dyn_msg = DynamicMessage::new(msg_desc.clone());
+        let values = serde_json::json!({ "labels": [] });
+        populate_message(&mut dyn_msg, &msg_desc, &values).unwrap();
+        let mut buf = Vec::new();
+        dyn_msg.encode(&mut buf).unwrap();
+        assert!(buf.is_empty(), "empty map array should encode as absent field (empty bytes)");
+    }
 }
