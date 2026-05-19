@@ -1,6 +1,6 @@
 use crate::error::AppError;
 use prost_reflect::prost::Message;
-use prost_reflect::{DynamicMessage, FieldDescriptor, Kind, MessageDescriptor, Value};
+use prost_reflect::{DynamicMessage, FieldDescriptor, Kind, MapKey, MessageDescriptor, Value};
 use serde_json::Value as JsonValue;
 use std::sync::Mutex;
 
@@ -103,6 +103,32 @@ fn set_field_value(
         return Ok(());
     }
 
+    // MAP FIELDS: must come before is_list() check.
+    // Frontend stores map rows as Array<{key, value}> via useFieldArray.
+    // Use as_array() — NOT as_object() (JsonValue::Array.as_object() returns None).
+    // Per D-03 (corrected by RESEARCH to HashMap from BTreeMap):
+    // Value::Map wraps HashMap<MapKey, Value> in prost-reflect 0.16.3.
+    if field.is_map() {
+        let arr = match json_val.as_array() {
+            Some(a) => a,
+            None => return Ok(()),
+        };
+        let mut map: std::collections::HashMap<MapKey, Value> =
+            std::collections::HashMap::new();
+        for row in arr {
+            let key_json = row.get("key").unwrap_or(&JsonValue::Null);
+            let val_json = row.get("value").unwrap_or(&JsonValue::Null);
+            let map_key = json_to_map_key(field, key_json)?;
+            if let Some(val) = scalar_or_message_value_for_map_entry(field, val_json)? {
+                map.insert(map_key, val);
+            }
+        }
+        if !map.is_empty() {
+            dyn_msg.set_field(field, Value::Map(map));
+        }
+        return Ok(());
+    }
+
     if field.is_list() {
         let arr = match json_val.as_array() {
             Some(a) => a,
@@ -127,6 +153,65 @@ fn set_field_value(
     }
 
     Ok(())
+}
+
+/// Convert a JSON key value to prost_reflect::MapKey.
+/// Bool keys: accepts both JsonValue::Bool and JsonValue::String "true"/"false"
+/// (the frontend stores bool Select values as strings per D-11).
+fn json_to_map_key(
+    field: &FieldDescriptor,
+    key_json: &JsonValue,
+) -> Result<MapKey, AppError> {
+    let map_entry = match field.kind() {
+        Kind::Message(m) => m,
+        _ => {
+            return Err(AppError::EncodeError {
+                field: field.name().to_string(),
+                message: "expected map entry message for map key".into(),
+            })
+        }
+    };
+    let key_field = map_entry.map_entry_key_field();
+    let map_key = match key_field.kind() {
+        Kind::String => MapKey::String(key_json.as_str().unwrap_or("").to_string()),
+        Kind::Bool => {
+            let b = match key_json {
+                JsonValue::Bool(b) => *b,
+                JsonValue::String(s) => s == "true",
+                _ => false,
+            };
+            MapKey::Bool(b)
+        }
+        Kind::Int32 | Kind::Sint32 | Kind::Sfixed32 => {
+            MapKey::I32(parse_i32(key_json).unwrap_or(0))
+        }
+        Kind::Int64 | Kind::Sint64 | Kind::Sfixed64 => {
+            MapKey::I64(parse_i64(key_json).unwrap_or(0))
+        }
+        Kind::Uint32 | Kind::Fixed32 => MapKey::U32(parse_u32(key_json).unwrap_or(0)),
+        Kind::Uint64 | Kind::Fixed64 => MapKey::U64(parse_u64(key_json).unwrap_or(0)),
+        _ => {
+            return Err(AppError::EncodeError {
+                field: field.name().to_string(),
+                message: format!("unsupported map key kind: {:?}", key_field.kind()),
+            })
+        }
+    };
+    Ok(map_key)
+}
+
+/// Get the prost_reflect Value for a map entry's value field.
+/// The value field is obtained from the map entry MessageDescriptor.
+fn scalar_or_message_value_for_map_entry(
+    field: &FieldDescriptor,
+    val_json: &JsonValue,
+) -> Result<Option<Value>, AppError> {
+    let map_entry = match field.kind() {
+        Kind::Message(m) => m,
+        _ => return Ok(None),
+    };
+    let val_field = map_entry.map_entry_value_field();
+    scalar_or_message_value(&val_field, val_json)
 }
 
 fn scalar_or_message_value(
