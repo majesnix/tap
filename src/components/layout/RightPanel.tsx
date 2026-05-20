@@ -4,7 +4,7 @@ import { HexPreviewPanel } from "@/components/preview/HexPreviewPanel";
 import { MessageHistoryPanel } from "@/components/history/MessageHistoryPanel";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useResponseStore } from "@/stores/useResponseStore";
-import { ResponseTab } from "@/components/response/ResponseTab";
+import { MessageFeedTab } from "@/components/response/MessageFeedTab";
 
 export function RightPanel() {
   // CRITICAL (Pitfall 6): activeTab MUST be local state, NOT in the global store.
@@ -69,7 +69,7 @@ export function RightPanel() {
         <MessageHistoryPanel />
       </TabsContent>
       <TabsContent value="response" className="flex-1 overflow-hidden m-0 p-0">
-        <ResponseTab />
+        <MessageFeedTab />
       </TabsContent>
     </Tabs>
   );

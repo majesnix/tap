@@ -1,6 +1,6 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, test, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useResponseStore } from "@/stores/useResponseStore";
 
@@ -20,6 +20,7 @@ vi.mock("@/components/ui/select", () => ({
       value={value ?? ""}
       onChange={(e) => onValueChange?.(e.target.value)}
       role="combobox"
+      aria-label="queue select"
     >
       {children}
     </select>
@@ -38,10 +39,15 @@ vi.mock("@/components/ui/select", () => ({
   }) => <option value={value}>{children}</option>,
 }));
 
-const { mockFetchQueues } = vi.hoisted(() => ({ mockFetchQueues: vi.fn() }));
+const { mockFetchQueues, mockFetchQueueDepth } = vi.hoisted(() => ({
+  mockFetchQueues: vi.fn(),
+  mockFetchQueueDepth: vi.fn(),
+}));
 vi.mock("@/lib/ipc", () => ({
   fetchQueues: mockFetchQueues,
+  fetchQueueDepth: mockFetchQueueDepth,
   consumeMessage: vi.fn(),
+  drainMessages: vi.fn(),
 }));
 
 import { ResponseQueuePicker } from "@/components/response/ResponseQueuePicker";
@@ -49,14 +55,16 @@ import { ResponseQueuePicker } from "@/components/response/ResponseQueuePicker";
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // Reset response store
+  // Reset response store — new schema (messages, selectedDecodeTypes)
   useResponseStore.setState({
-    selectedQueue: "",
+    selectedQueue: "test-queue",
     isLoading: false,
-    lastResult: null,
+    messages: [],
+    selectedDecodeTypes: ["MyMessage"],
     lastReadAt: null,
     queueList: [],
     isLiveMode: false,
+    queueDepth: null,
   });
 
   // Reset connection store with active profile + connected status
@@ -71,13 +79,14 @@ beforeEach(() => {
     exchanges: [],
   });
 
-  // Default mock: happy path returning a list of queues
+  // Default mock: happy path returning a list of queues + depth 0
   mockFetchQueues.mockResolvedValue(["queue-a", "queue-b"]);
+  mockFetchQueueDepth.mockResolvedValue(0);
 });
 
 describe("ResponseQueuePicker", () => {
   it("Test 1 (live mode): shows Select dropdown with Live badge when fetchQueues succeeds", async () => {
-    render(<ResponseQueuePicker onRead={vi.fn()} />);
+    render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByText("Live")).toBeInTheDocument();
@@ -91,7 +100,7 @@ describe("ResponseQueuePicker", () => {
   it("Test 2 (manual mode): shows Input + Manual badge when fetchQueues throws non-401 error", async () => {
     mockFetchQueues.mockRejectedValue(new Error("connection refused"));
 
-    render(<ResponseQueuePicker onRead={vi.fn()} />);
+    render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
     await waitFor(() => {
       expect(screen.getByText("Manual")).toBeInTheDocument();
@@ -106,7 +115,7 @@ describe("ResponseQueuePicker", () => {
       new Error("Management API authentication failed: wrong credentials (HTTP 401)")
     );
 
-    render(<ResponseQueuePicker onRead={vi.fn()} />);
+    render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
     await waitFor(() => {
       expect(
@@ -115,25 +124,50 @@ describe("ResponseQueuePicker", () => {
     });
   });
 
-  it("Test 4 (disabled read + tooltip): Read button is disabled when connectionStatus is disconnected", () => {
+  it("Test 4 (disabled drain + tooltip): Drain button is disabled when connectionStatus is disconnected", () => {
     useConnectionStore.setState({ connectionStatus: "disconnected" });
 
-    render(<ResponseQueuePicker onRead={vi.fn()} />);
+    render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
-    const readButton = screen.getByRole("button", { name: /read/i });
-    expect(readButton).toBeDisabled();
+    const drainButton = screen.getByRole("button", { name: /drain/i });
+    expect(drainButton).toBeDisabled();
   });
 
-  it("Test 5 (loading spinner): shows Loader2 spinner and disables Read when isLoading=true", () => {
+  it("Test 5 (loading spinner): shows Loader2 spinner and disables Drain when isLoading=true", () => {
     useResponseStore.setState({ isLoading: true });
 
-    render(<ResponseQueuePicker onRead={vi.fn()} />);
+    render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
-    // Read button should be disabled when loading
-    const readButton = screen.getByRole("button", { name: /read/i });
-    expect(readButton).toBeDisabled();
+    // Drain button should be disabled when loading
+    const drainButton = screen.getByRole("button", { name: /drain/i });
+    expect(drainButton).toBeDisabled();
 
     // Spinner should be visible
     expect(document.querySelector(".animate-spin")).not.toBeNull();
+  });
+
+  test("Drain button is disabled when selectedDecodeTypes is empty", () => {
+    useResponseStore.setState({ selectedDecodeTypes: [] });
+    useConnectionStore.setState({ connectionStatus: "connected" });
+    render(<ResponseQueuePicker onDrain={vi.fn()} />);
+    const drainButton = screen.getByRole("button", { name: /drain/i });
+    expect(drainButton).toBeDisabled();
+  });
+
+  test("calls onDrain with the drain count value", async () => {
+    const mockOnDrain = vi.fn();
+    render(<ResponseQueuePicker onDrain={mockOnDrain} />);
+    const countInput = screen.getByRole("spinbutton", { name: /drain count/i });
+    fireEvent.change(countInput, { target: { value: "5" } });
+    const drainButton = screen.getByRole("button", { name: /drain/i });
+    fireEvent.click(drainButton);
+    expect(mockOnDrain).toHaveBeenCalledWith(5);
+  });
+
+  test("calls onDrain with default count of 10 when unchanged", () => {
+    const mockOnDrain = vi.fn();
+    render(<ResponseQueuePicker onDrain={mockOnDrain} />);
+    fireEvent.click(screen.getByRole("button", { name: /drain/i }));
+    expect(mockOnDrain).toHaveBeenCalledWith(10);
   });
 });
