@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Braces, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
+import { useBlockStore } from "@/stores/useBlockStore";
 
 /**
  * Converts a byte array to a formatted hex string.
@@ -44,6 +45,11 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   const resetRef = useRef<((values: Record<string, unknown>) => void) | null>(
     null
   );
+
+  const applyBlockRef = useRef<((blockValues: Record<string, unknown>) => string[]) | null>(
+    null
+  );
+  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
 
   // JSON Override Toggle state (D-01: local useState, not Zustand)
   const [isJsonMode, setIsJsonMode] = useState(false);
@@ -189,6 +195,42 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     setIsJsonMode(false);
   }
 
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDraggingOver(true);
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDraggingOver(false);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    e.preventDefault();
+    setIsDraggingOver(false);
+
+    const blockId = e.dataTransfer.getData('blockId');
+    if (!blockId || !applyBlockRef.current) return;
+
+    const block = useBlockStore.getState().blocks.find(b => b.id === blockId);
+    if (!block) return;
+
+    let blockValues: Record<string, unknown>;
+    try {
+      blockValues = JSON.parse(block.content) as Record<string, unknown>;
+    } catch {
+      return;
+    }
+
+    const skipped = applyBlockRef.current(blockValues);
+    if (skipped.length > 0) {
+      const n = skipped.length;
+      const label = n === 1 ? 'field' : 'fields';
+      toast.warning(`${n} ${label} from block not in form: ${skipped.join(', ')}`);
+    }
+  }
+
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-4 py-3 border-b border-border shrink-0 flex items-start justify-between">
@@ -234,11 +276,17 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
           />
         </div>
       ) : (
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea
+          className={`flex-1 min-h-0${isDraggingOver ? ' ring-2 ring-primary/50' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
           <ProtoFormRenderer
             message={message}
             onValuesChange={handleValuesChange}
             resetRef={resetRef}
+            applyBlockRef={applyBlockRef}
           />
         </ScrollArea>
       )}
