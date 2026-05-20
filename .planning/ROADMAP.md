@@ -132,7 +132,7 @@ Plans:
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete | 2026-05-19 |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
-| 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete   | 2026-05-20 |
+| 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete    | 2026-05-20 |
 | 14. Live Subscribe Mode | v1.4 | 0/? | Not started | - |
 | 15. Filter + Export | v1.4 | 0/? | Not started | - |
 

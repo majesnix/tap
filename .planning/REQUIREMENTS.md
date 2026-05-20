@@ -8,11 +8,11 @@
 
 ### Message Feed Foundation
 
-- [ ] **CONS-01**: User can see AMQP metadata (routing key, exchange, content-type, timestamp) on each consumed message row
-- [ ] **CONS-02**: User can view consumed messages in a FIFO-500 scrollable list — newest on top, each row expandable to decoded payload and raw hex
-- [ ] **CONS-03**: User can drain up to N messages from a queue in one shot (single Rust command, streams into the list)
-- [ ] **CONS-04**: User can see the current queue depth (message count) before and during consumption
-- [ ] **CONS-08**: User can select one or more candidate message types (from loaded `.proto` files) for decoding consumed messages; the system tries them in the selected order and uses the first type that decodes without error
+- [x] **CONS-01**: User can see AMQP metadata (routing key, exchange, content-type, timestamp) on each consumed message row
+- [x] **CONS-02**: User can view consumed messages in a FIFO-500 scrollable list — newest on top, each row expandable to decoded payload and raw hex
+- [x] **CONS-03**: User can drain up to N messages from a queue in one shot (single Rust command, streams into the list)
+- [x] **CONS-04**: User can see the current queue depth (message count) before and during consumption
+- [x] **CONS-08**: User can select one or more candidate message types (from loaded `.proto` files) for decoding consumed messages; the system tries them in the selected order and uses the first type that decodes without error
 
 ### Live Subscribe
 
@@ -55,10 +55,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONS-01 | Phase 13 | Pending |
-| CONS-02 | Phase 13 | Pending |
-| CONS-03 | Phase 13 | Pending |
-| CONS-04 | Phase 13 | Pending |
+| CONS-01 | Phase 13 | Complete |
+| CONS-02 | Phase 13 | Complete |
+| CONS-03 | Phase 13 | Complete |
+| CONS-04 | Phase 13 | Complete |
 | CONS-05 | Phase 14 | Pending |
 | CONS-06 | Phase 14 | Pending |
 | CONS-07 | Phase 14 | Pending |
