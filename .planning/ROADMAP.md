@@ -83,7 +83,11 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
   3. User can drain up to N messages from a queue in one shot and see all of them appear in the list
   4. User can see the current queue message count before clicking drain, and the count updates after draining
   5. The list displays newest messages at the top and older messages are dropped when the list reaches capacity
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 13-01-PLAN.md — Rust drain_messages command + TypeScript IPC contract (DrainResult, DrainOutcome, FeedMessage types; drainMessages() IPC function)
+- [ ] 13-02-PLAN.md — Accordion install + ResponseHexSection props refactor (TS compilation bridge)
+- [ ] 13-03-PLAN.md — Store evolution + Drain UI + MessageFeedTab/Row + test migration
 **UI hint**: yes
 
 ### Phase 14: Live Subscribe Mode
@@ -127,7 +131,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete | 2026-05-19 |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
-| 13. Message Feed Foundation + Drain Mode | v1.4 | 0/? | Not started | - |
+| 13. Message Feed Foundation + Drain Mode | v1.4 | 0/3 | Planned | - |
 | 14. Live Subscribe Mode | v1.4 | 0/? | Not started | - |
 | 15. Filter + Export | v1.4 | 0/? | Not started | - |
 
