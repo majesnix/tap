@@ -1,7 +1,7 @@
 # Roadmap: Proto Sender
 
-**Last Milestone:** v1.2 Form Improvements — SHIPPED 2026-05-19
-**Current:** v1.3 Publishing UX + Message Blocks — IN PROGRESS
+**Last Milestone:** v1.3 Publishing UX + Message Blocks — SHIPPED 2026-05-20
+**Current:** Planning next milestone
 
 ---
 
@@ -10,7 +10,7 @@
 - ✅ **v1.0 MVP** — Phases 1–4 (shipped 2026-05-18)
 - ✅ **v1.1 Dark Mode** — Phase 5 (shipped 2026-05-18)
 - ✅ **v1.2 Form Improvements** — Phases 6–8 (shipped 2026-05-19)
-- 🔄 **v1.3 Publishing UX + Message Blocks** — Phases 9–12 (in progress)
+- ✅ **v1.3 Publishing UX + Message Blocks** — Phases 9–12 (shipped 2026-05-20)
 
 ---
 
@@ -48,90 +48,17 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 
 </details>
 
-### v1.3 Publishing UX + Message Blocks (Phases 9–12)
+<details>
+<summary>✅ v1.3 Publishing UX + Message Blocks (Phases 9–12) — SHIPPED 2026-05-20</summary>
 
 - [x] **Phase 9: Routing Key Autocomplete** — 3/3 plans — completed 2026-05-19
-- [x] **Phase 10: Publisher Confirms Badge** — 0/2 plans — not started (completed 2026-05-19)
-- [x] **Phase 11: Block Library — Store, Editor, Persistence** — 0/3 plans — not started (completed 2026-05-19)
-- [x] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/3 plans — not started (completed 2026-05-20)
+- [x] **Phase 10: Publisher Confirms Badge** — 2/2 plans — completed 2026-05-19
+- [x] **Phase 11: Block Library — Store, Editor, Persistence** — 3/3 plans — completed 2026-05-19
+- [x] **Phase 12: Block Library — Drag-and-Drop Layer** — 3/3 plans — completed 2026-05-20
 
----
+See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase details, decisions, and retrospective.
 
-## Phase Details
-
-### Phase 9: Routing Key Autocomplete
-**Goal**: Users get live routing key suggestions from RabbitMQ exchange bindings when targeting an exchange, replacing the blank free-text input
-**Depends on**: Phase 8 (foundation complete)
-**Requirements**: PUBL-01, PUBL-02, PUBL-03, PUBL-04
-**Success Criteria** (what must be TRUE):
-  1. User selects an exchange and sees a populated suggestions list in the routing key input drawn from live RabbitMQ bindings
-  2. User selects a `headers` or `fanout` exchange and the routing key input shows no suggestions (autocomplete suppressed)
-  3. User sees topic exchange wildcard patterns (e.g. `orders.*.created`) displayed in the suggestions list with a visible label indicating they are patterns and must be edited before sending
-  4. User has no active connection or the Management API is unreachable and the routing key input falls back to plain free-text entry with no error state shown
-**Plans**: 3 plans
-Plans:
-- [x] 09-01-PLAN.md — Rust backend: ExchangeSummary struct + fetch_exchanges update + fetch_bindings command + lib.rs registration
-- [x] 09-02-PLAN.md — Frontend contracts: install Command component, ExchangeSummary type, updated ipc.ts/store, RoutingKeyCombobox component + tests
-- [x] 09-03-PLAN.md — PublishBar integration: exchange type badges, bindings useEffect, conditional combobox/input, hint text, updated tests
-**UI hint**: yes
-
-### Phase 10: Publisher Confirms Badge
-**Goal**: Users receive an explicit per-send delivery outcome from the broker — ACK, Returned, NACK, or Timeout — displayed as an ephemeral badge in the publish bar
-**Depends on**: Phase 9
-**Requirements**: PUBL-05, PUBL-06, PUBL-07, PUBL-08
-**Success Criteria** (what must be TRUE):
-  1. User sends a message that the broker confirms delivered and sees a green ACK badge in the publish bar; the badge disappears automatically after 3 seconds
-  2. User sends a message with no matching binding (mandatory=true, unroutable) and sees an amber Returned badge; the badge disappears automatically after 5 seconds
-  3. User sends a message the broker negatively acknowledges and sees a red NACK badge; the badge disappears automatically after 5 seconds
-  4. User sends a message and broker confirmation does not arrive within 5 seconds; user sees a gray Timeout badge that remains until manually dismissed
-**Plans**: 2 plans
-Plans:
-**Wave 1**
-- [x] 10-01-PLAN.md — Rust backend: PublishOutcome struct, mandatory=true, tokio timeout, Confirmation match
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 10-02-PLAN.md — Frontend: PublishOutcome type, ipc.ts return type, badge state + JSX + tests in PublishBar
-**UI hint**: yes
-
-### Phase 11: Block Library — Store, Editor, Persistence
-**Goal**: Users can create, edit, delete, and persist named JSON message blocks, and apply them to the current form with a click
-**Depends on**: Phase 10
-**Requirements**: BLK-01, BLK-02, BLK-03, BLK-04, BLK-05
-**Success Criteria** (what must be TRUE):
-  1. User opens and closes the block library panel from a toggle button in the FormPanel header; the panel collapses and expands correctly
-  2. User creates a new block by entering a name and writing a JSON object in the CodeMirror editor; the block appears in the library list
-  3. User edits an existing block's name or JSON content and saves it; the updated block is reflected immediately in the library
-  4. User deletes a block after confirming a prompt; the block is removed from the library
-  5. User restarts the app and finds previously saved blocks still present in the library (persistence via tauri-plugin-store)
-**Plans**: 3 plans
-Plans:
-**Wave 1**
-- [x] 11-01-PLAN.md — useBlockStore: Block type, Zustand store, CRUD actions, blocksLoaded hydration gate, tauri-plugin-store persistence (TDD)
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 11-02-PLAN.md — BlockLibraryPanel: two-view component (list + editor), CodeMirror editor, AlertDialog delete confirmation, validation, tests
-
-**Wave 3** *(blocked on Wave 2 completion)*
-- [x] 11-03-PLAN.md — Integration: AppLayout flex restructure, FormPanel toggle button, App.tsx loadBlocks() mount call
-**UI hint**: yes
-
-### Phase 12: Block Library — Drag-and-Drop Layer
-**Goal**: Users can drag a block from the library panel onto the form to merge its values into empty fields, with a warning when block keys have no matching form field
-**Depends on**: Phase 11
-**Requirements**: BLK-06, BLK-07, BLK-08
-**Success Criteria** (what must be TRUE):
-  1. User drags a block card from the block library panel and drops it onto the form; fields in the form that are empty are populated with matching values from the block
-  2. User drags a block onto a form where some fields have already been edited; only unmodified (not-dirty) fields are filled — no field the user touched is overwritten
-  3. User drops a block whose keys include fields not present in the current form schema; a warning toast appears listing the skipped field names
-**Plans**: 3 plans
-Plans:
-**Wave 1** *(parallel — no file overlap)*
-- [x] 12-01-PLAN.md — ProtoFormRenderer: applyBlockRef prop + useEffect wiring, field eligibility check, dirtyFields guard, TDD
-- [x] 12-03-PLAN.md — BlockLibraryPanel: draggable="true" + onDragStart (blockId payload) + cursor-grab on block list rows, tests
-
-**Wave 2** *(blocked on Wave 1 completion)*
-- [x] 12-02-PLAN.md — FormPanel: drop zone on ScrollArea (onDragOver/onDragLeave/onDrop), isDraggingOver state, ring feedback, BLK-08 toast, tests
-**UI hint**: yes
+</details>
 
 ---
 
@@ -200,7 +127,7 @@ Plans:
 | JSON-05 | Phase 8 | ✅ Complete |
 | JSON-06 | Phase 8 | ✅ Complete |
 
-**v1.3 Publishing UX + Message Blocks — 16 requirements, 13 delivered**
+**v1.3 Publishing UX + Message Blocks — all 16 requirements delivered**
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -217,10 +144,10 @@ Plans:
 | BLK-03 | Phase 11 | ✅ Complete |
 | BLK-04 | Phase 11 | ✅ Complete |
 | BLK-05 | Phase 11 | ✅ Complete |
-| BLK-06 | Phase 12 | Pending |
-| BLK-07 | Phase 12 | Pending |
-| BLK-08 | Phase 12 | Pending |
+| BLK-06 | Phase 12 | ✅ Complete |
+| BLK-07 | Phase 12 | ✅ Complete |
+| BLK-08 | Phase 12 | ✅ Complete |
 
 - Total v1.3: 16
 - Mapped: 16
-- Unmapped: 0 ✓
+- Delivered: 16 ✓

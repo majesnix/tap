@@ -48,6 +48,29 @@
 
 ---
 
+## v1.3 Publishing UX + Message Blocks
+
+**Shipped:** 2026-05-20
+**Phases:** 4 (Phases 9–12) | **Plans:** 11 | **Requirements:** 16/16
+
+**Delivered:** Routing key autocomplete from live RabbitMQ exchange bindings, per-send delivery outcome badges (ACK/Returned/NACK/Timeout), a reusable named message block library with CodeMirror editor and tauri-plugin-store persistence, and drag-and-drop to merge block values into form fields.
+
+**Key accomplishments:**
+1. Routing key autocomplete — RoutingKeyCombobox pulls live bindings from `fetch_bindings` (RabbitMQ Management API), suppresses autocomplete for fanout/headers exchanges, shows exchange type badges, falls back silently to free-text when Management API is unavailable (PUBL-01–04)
+2. Publisher confirms badge — mandatory=true on every publish, tokio timeout guard, Confirmation match on ACK/NACK/Returned, ephemeral badge with per-outcome auto-dismiss timers (3s ACK, 5s Returned/NACK, manual Timeout) (PUBL-05–08)
+3. Block library store + editor — useBlockStore (Zustand 5.x with hydration gate + tauri-plugin-store persistence), BlockLibraryPanel two-view component (list ↔ editor), CodeMirror JSON editor, AlertDialog delete confirmation, optimistic state rollback on persistence failure (BLK-01–05)
+4. Drag-and-drop block apply — dnd-kit replaces HTML5 DnD (WKWebView restriction), applyBlockRef contract on ProtoFormRenderer, dirtyFields guard prevents overwriting user-edited fields, BLK-08 Sonner warning toast for unmatched keys (BLK-06–08)
+5. Phase 12 HTML5→dnd-kit mid-execution migration — HTML5 dataTransfer broken in macOS Tauri WKWebView; pivoted to dnd-kit PointerSensor after discovering the platform constraint during human UAT
+
+**Stats:**
+- Timeline: 2026-05-19 → 2026-05-20 (2 days)
+- Commits: 50
+- Files changed: 92 (+17,550 / -853)
+
+**Archive:** [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) | [milestones/v1.3-REQUIREMENTS.md](milestones/v1.3-REQUIREMENTS.md)
+
+---
+
 ## v1.2 Form Improvements
 
 **Shipped:** 2026-05-19

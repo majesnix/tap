@@ -144,15 +144,62 @@
 
 ---
 
+## Milestone: v1.3 — Publishing UX + Message Blocks
+
+**Shipped:** 2026-05-20
+**Phases:** 4 (Phases 9–12) | **Plans:** 11
+
+### What Was Built
+
+1. **Phase 09** — RoutingKeyCombobox component with live bindings from `fetch_bindings` Rust command, ExchangeSummary struct for type-aware display, exchange type badges, silent fallback for fanout/headers and Management API unavailability
+2. **Phase 10** — PublishOutcome Rust struct (ack/nack/returned/timeout), mandatory=true on all publishes, tokio 5s timeout guard, ephemeral ACK/Returned/NACK/Timeout badge in PublishBar with per-outcome auto-dismiss timers
+3. **Phase 11** — useBlockStore (Zustand 5.x + tauri-plugin-store persistence + hydration gate), BlockLibraryPanel two-view component (list ↔ CodeMirror editor), AlertDialog delete confirmation, optimistic state rollback on persistence failure, AppLayout integration with FormPanel toggle button
+4. **Phase 12** — applyBlockRef contract on ProtoFormRenderer, FormPanel drop zone with dnd-kit DndContext + DragOverlay at AppLayout level, dirtyFields guard for BLK-07, BLK-08 Sonner warning toast for unmatched keys; pivoted from HTML5 DnD to dnd-kit mid-execution due to WKWebView platform constraint
+
+### What Worked
+
+- **Mid-execution technology pivot** — discovered HTML5 dataTransfer is broken in WKWebView (macOS Tauri) during human UAT on Phase 12; replaced with dnd-kit PointerSensor in a single fix commit without revisiting the plan structure. The fact that applyBlockRef was a separate concern from the DnD mechanism made the swap clean.
+- **applyBlockRef as a decoupled contract** — wiring the block apply capability as a ref on ProtoFormRenderer (not a store action or prop drilling) kept the frozen switch untouched and the FormPanel drop zone independently testable
+- **Research front-loaded platform risks** — Phase 12 RESEARCH.md documented the WKWebView DnD issue; the fix was expected, just needed to be triggered by live UAT
+- **Optimistic rollback pattern (Phase 11)** — applying the pattern from the code review (WR-04) before shipping made the store's persistence contract correct from day one; no user would have seen a state desync
+
+### What Was Inefficient
+
+- **REQUIREMENTS.md traceability stale again** — fourth milestone in a row. PUBL-01–04 and BLK-06–08 remained "Pending" throughout all of Phases 9 and 12. The pattern is completely consistent: REQUIREMENTS.md is a pre-milestone artifact; it is never updated during execution. Should be either eliminated (rely on ROADMAP.md coverage table) or auto-updated by the execution hook.
+- **DnD pivot cost** — replacing HTML5 DnD with dnd-kit after execution cost ~2 fix commits and a Phase 12 code review pass. The WKWebView limitation was documented in RESEARCH.md and MEMORY.md but not caught before execution started. A platform-specific DnD smoke test in the wave gating could have triggered the pivot earlier.
+- **Shadcn close button in DragOverlay** — required a separate fix commit (a21e99c) after the overlay was wired. The close button's z-index interacts with the DragOverlay in a non-obvious way; this should be a documented pitfall for future DnD work.
+
+### Patterns Established
+
+- **dnd-kit PointerSensor pattern for Tauri/WKWebView** — use dnd-kit (not HTML5 DnD) for all drag-and-drop in Tauri apps; mount DndContext + DragOverlay at the layout root; use useDraggable/useDroppable in leaf components
+- **applyBlockRef pattern** — expose a `ref` on a frozen renderer component to wire external mutation capabilities (block apply, future: AI-fill) without modifying the frozen switch
+- **Optimistic CRUD with rollback** — apply store mutation optimistically, catch persistence errors, rollback to previous state and surface error UI; pattern is now established in useBlockStore and reusable for any store with tauri-plugin-store backend
+- **DragOverlay at layout root** — mount DndContext and DragOverlay at the AppLayout level (not inside a scroll container) to avoid z-index clipping; pass drag state down to leaf components via context
+
+### Key Lessons
+
+- **Platform-specific DnD constraints must be tested in the real Tauri window, not just jsdom** — HTML5 `dataTransfer.setData()` appears to work in jsdom/browser but is silently broken in WKWebView. Add a manual DnD smoke test to Phase UAT for any drag-related feature in Tauri.
+- **The REQUIREMENTS.md staleness pattern is now structural, not accidental** — four consecutive milestones with the same issue. The right fix is probably to remove the live-update expectation from the workflow and treat REQUIREMENTS.md as a pre-milestone definition artifact only, updated at archive time.
+- **dnd-kit DragOverlay must escape scroll container subtrees** — if DndContext is mounted inside a ScrollArea, the DragOverlay clips to the scroll boundary. Always mount at the layout root.
+
+### Cost Observations
+
+- Model mix: primary Sonnet 4.6
+- Sessions: 2 days (2026-05-19 → 2026-05-20)
+- Notable: 50 commits, 4 phases, 11 plans, 16 requirements — the block library (Phases 11–12) was the densest work; Phase 12 had a mid-execution platform pivot but recovered cleanly within the same day
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 |
-|--------|------|------|------|
-| Phases | 4 | 1 | 3 |
-| Plans | 18 | 3 | 7 |
-| Commits | 50 | 36 | 83 |
-| LOC added | ~42,800 | +3,234 | +10,173 |
-| Requirements delivered | 30/30 | 4/4 | 15/15 |
-| GAP/quick-task fixes | 2 | 0 | 1 |
-| Duration | 1 day | ~3 hours | ~7 hours |
-| Regression from code review | 0 | 0 | 1 (MFLD-03) |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 |
+|--------|------|------|------|------|
+| Phases | 4 | 1 | 3 | 4 |
+| Plans | 18 | 3 | 7 | 11 |
+| Commits | 50 | 36 | 83 | 50 |
+| LOC added | ~42,800 | +3,234 | +10,173 | +17,550 |
+| Requirements delivered | 30/30 | 4/4 | 15/15 | 16/16 |
+| GAP/quick-task fixes | 2 | 0 | 1 | 0 |
+| Duration | 1 day | ~3 hours | ~7 hours | 2 days |
+| Regression from code review | 0 | 0 | 1 (MFLD-03) | 0 |
+| Mid-execution pivot | 0 | 0 | 0 | 1 (HTML5→dnd-kit) |

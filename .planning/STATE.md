@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v1.3
 milestone_name: Publishing UX + Message Blocks
-status: complete
-stopped_at: Phase 12 UAT passed — milestone v1.3 complete
-last_updated: "2026-05-20T19:35:00.000Z"
+status: archived
+stopped_at: Milestone v1.3 archived — ready for /gsd-new-milestone
+last_updated: "2026-05-20T20:00:00.000Z"
 last_activity: 2026-05-20
 progress:
   total_phases: 4

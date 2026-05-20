@@ -40,16 +40,15 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Map field (`map<K, V>`) rendered as typed key-value rows with duplicate-key blocking (send disabled) and correct binary protobuf encoding via Value::Map path — v1.2 (Phase 07)
 - ✓ JSON override toggle — switch between form view and CodeMirror JSON editor with two-way sync, invalid JSON error banner, and unknown-field warning — v1.2 (Phase 08)
 
-### Active (v1.3)
+- ✓ Routing key autocomplete — RoutingKeyCombobox with live bindings from Management API, exchange type badges, silent fallback for fanout/headers and API unavailability — v1.3 (Phase 09)
+- ✓ Publisher confirms badge — mandatory=true on all publishes, tokio timeout guard, ephemeral ACK/Returned/NACK/Timeout badge with per-outcome auto-dismiss (3s/5s/5s/manual) — v1.3 (Phase 10)
+- ✓ Message block library — collapsible panel, CodeMirror editor, AlertDialog delete, optimistic rollback on persistence failure — v1.3 (Phase 11)
+- ✓ Block persistence — tauri-plugin-store persistence with hydration gate (`blocksLoaded` flag) — v1.3 (Phase 11)
+- ✓ Apply block by drag-and-drop — dnd-kit PointerSensor, dirtyFields guard, BLK-08 Sonner warning toast for unmatched keys — v1.3 (Phase 12)
 
-- ✓ Routing key autocomplete — fetch binding keys from Management API when exchange is selected; populate routing key combobox with D-10 silent fallback; exchange type badges; hint text for fanout/headers — v1.3 (Phase 09)
-- [ ] Publisher confirms badge — ephemeral ACK/NACK indicator in publish bar after each send, auto-dismisses ~3s (PUBL-02)
-- [ ] Message block library — collapsible panel beside the form listing saved blocks by name (BLK-01)
-- [ ] Block JSON editor — create/edit/delete blocks as named JSON key-value objects (BLK-02)
-- [ ] Block persistence — blocks saved across restarts via tauri-plugin-store (BLK-03)
-- [ ] Apply block by drag-and-drop onto the form — merge fills empty fields only, global/type-agnostic (BLK-04)
+### Active (v1.4 — to be defined)
 
-### Backlog (future milestones)
+### Backlog (future milestones — candidates for v1.4+)
 
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)
 - [ ] Full-text search across historical message field values (HIST-V2-02)
@@ -65,19 +64,22 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 
 - Shipped v1.0 with ~42,800 LOC (TypeScript + Rust), 50 commits, 4 phases, 18 plans, delivered in a single day.
 - v1.1 added dark mode: next-themes + ThemeBootstrap persistence bridge, ThemeToggle in sidebar, human UAT pass. +3,234 LOC, 36 commits, 3 plans.
-- v1.2 added bytes field, map field, and JSON override toggle. +10,173 LOC, 83 commits, 3 phases, 7 plans. Total ~9,936 TS/TSX + ~1,917 Rust lines.
-- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (next-themes 0.x, react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x, @uiw/react-codemirror 4.25.9, @codemirror/lang-json 6.x).
+- v1.2 added bytes field, map field, and JSON override toggle. +10,173 LOC, 83 commits, 3 phases, 7 plans.
+- v1.3 added routing key autocomplete, publisher confirms badge, block library with DnD. +17,550 / -853 LOC, 50 commits, 4 phases, 11 plans, 92 files changed.
+- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (next-themes 0.x, react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x, @uiw/react-codemirror 4.25.9, @codemirror/lang-json 6.x, dnd-kit 6.x).
 - This is a developer productivity tool, analogous to Postman but for RabbitMQ + protobuf.
 - The proto parsing must happen at runtime (no pre-compilation step) — developers drop in `.proto` files.
 - Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
 - Team use means packaging/distribution matters — the app should be distributable as a binary.
 
-**Known issues / tech debt at v1.2:**
+**Known issues / tech debt at v1.3:**
 - Linux keychain (libsecret) install documentation needed for distribution.
 - No CI/CD pipeline — builds are manual.
 - No app distribution pipeline (notarization, signing) — binary not yet packaged for team.
 - No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
 - JSON mode + map field round-trip (Flow 4) has no automated test — FormPanel.test.tsx uses scalar-only schema.
+- oneof / WellKnownType / map fields not eligible for block apply (skipped with toast) — complex field type support deferred to future milestone.
+- No automated browser-level DnD test for dnd-kit drag gestures — manual UAT is the current coverage.
 
 ## Constraints
 
@@ -111,15 +113,13 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | `register(name, { validate }) + trigger(name)` for virtual guard fields | `setError` on unregistered fields does not reliably affect `formState.isValid` in RHF `mode: onChange` — learned from MFLD-03 regression | ✓ Good — restored in quick task 260519-q01; 180/180 tests pass |
 | JSON toggle reuses `setPendingReplayValues` signal (not direct `resetRef`) | `resetRef.current` is null until ProtoFormRenderer remounts — direct call would throw | ✓ Good — HIST-02 replay path already handles form reset correctly |
 | JSON mode state is local React state (not Zustand) | JSON mode is a session-only power-user override; no cross-component sharing needed | ✓ Good — simple, no store pollution |
-
-## Current Milestone: v1.3 Publishing UX + Message Blocks
-
-**Goal:** Make the send workflow smarter — routing key discovery from live bindings, per-send delivery confirmation feedback, and reusable drag-and-drop message building blocks.
-
-**Target features:**
-- Routing key autocomplete from RabbitMQ exchange bindings
-- Publisher confirms ACK/NACK badge (ephemeral, auto-dismiss)
-- Message block library with JSON editor and drag-to-merge
+| percent-encode both vhost and resource name in Management API URLs | RabbitMQ API requires full URL encoding of path segments | ✓ Good — NON_ALPHANUMERIC encoding worked for all vhost characters |
+| mandatory=true unconditionally on every basic_publish | Dev tool should always confirm delivery — per-send toggle deferred | ✓ Good — aligns with RabbitMQ confirm-mode best practice |
+| Timeout outcome as Ok(PublishOutcome { status: 'timeout' }) not Err | Timeout is a delivery outcome, not a command error | ✓ Good — clean separation of IPC errors vs delivery outcomes |
+| dnd-kit PointerSensor over HTML5 DnD | WKWebView (macOS Tauri) breaks HTML5 dataTransfer API | ✓ Good — confirmed necessary; PointerSensor worked correctly in production window |
+| DndContext + DragOverlay mounted at AppLayout level | Overlay needs to escape DOM subtree for correct z-index | ✓ Good — prevents clipping inside nested scroll containers |
+| applyBlockRef contract (not store-integrated dirtyFields) | ProtoFormRenderer switch is frozen; ref wiring is the safe extension point | ✓ Good — no switch changes needed; form-level drop zone wires the ref |
+| Two-view local state (PanelView list/editor) in BlockLibraryPanel | Panel view is local UI state, not shared across components | ✓ Good — kept Zustand stores focused on persistent data |
 
 ## Evolution
 
@@ -143,9 +143,9 @@ v1.2 shipped 2026-05-19. All 15 requirements delivered: bytes field (BFLD-01–0
 
 The app is feature-complete for v1 scope: all major proto field types, full send/receive cycle, connection profiles, message history, and dark mode. Next focus area to be defined in `/gsd-new-milestone`.
 
-v1.3 milestone in progress. Phase 10 complete 2026-05-19 — publisher confirms badge (PUBL-05–08) delivered. `publish_message` returns `PublishOutcome { status }` (ack/nack/returned/timeout), with mandatory=true on all publishes, 5s broker timeout, and an ephemeral badge in PublishBar that auto-dismisses (3s ACK, 5s others) or requires manual dismissal (Timeout).
+v1.3 shipped 2026-05-20. All 16 requirements delivered across 4 phases (11 plans): routing key autocomplete from RabbitMQ exchange bindings (PUBL-01–04), per-send delivery outcome badges (PUBL-05–08), block library with CodeMirror editor and persistence (BLK-01–05), and drag-and-drop block apply to form (BLK-06–08). The HTML5 DnD API was replaced mid-execution with dnd-kit after discovering WKWebView's dataTransfer limitation.
 
-Phase 11 complete 2026-05-19 — block library store, editor, and persistence (BLK-01–05) delivered. `useBlockStore` Zustand store with full CRUD and `tauri-plugin-store` persistence, `BlockLibraryPanel` two-view component (list + editor with lazy hydration), and AppLayout integration with toggle button in FormPanel. All built TDD-style (RED→GREEN across all 3 plans). 41 new tests, 245 total passing.
+The app is feature-rich for the v1 scope. All proto field types supported, full send/receive cycle, connection profiles with OS keychain, message history, dark mode, block library. Next milestone scope to be defined via `/gsd-new-milestone`.
 
 ---
-*Last updated: 2026-05-19 — Phase 11 complete*
+*Last updated: 2026-05-20 after v1.3 milestone close*
