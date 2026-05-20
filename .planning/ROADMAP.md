@@ -125,12 +125,12 @@ Plans:
   3. User drops a block whose keys include fields not present in the current form schema; a warning toast appears listing the skipped field names
 **Plans**: 3 plans
 Plans:
-**Wave 1**
+**Wave 1** *(parallel — no file overlap)*
 - [ ] 12-01-PLAN.md — ProtoFormRenderer: applyBlockRef prop + useEffect wiring, field eligibility check, dirtyFields guard, TDD
+- [ ] 12-03-PLAN.md — BlockLibraryPanel: draggable="true" + onDragStart (blockId payload) + cursor-grab on block list rows, tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 12-02-PLAN.md — FormPanel: drop zone on ScrollArea (onDragOver/onDragLeave/onDrop), isDraggingOver state, ring feedback, BLK-08 toast, tests
-- [ ] 12-03-PLAN.md — BlockLibraryPanel: draggable="true" + onDragStart (blockId payload) + cursor-grab on block list rows, tests
 **UI hint**: yes
 
 ---
