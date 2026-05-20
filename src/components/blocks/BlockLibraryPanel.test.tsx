@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { vi, beforeEach, describe, test, expect } from "vitest";
 
 // CodeMirror mock — same pattern as FormPanel.test.tsx
@@ -51,6 +51,15 @@ function setupStore(overrides: Partial<ReturnType<typeof useBlockStore>> = {}) {
 
 function makeBlock(overrides: Partial<Block> = {}): Block {
   return { id: "block-1", name: "My Block", content: '{"foo": 1}', ...overrides };
+}
+
+function createDataTransfer(data: Record<string, string> = {}) {
+  const store: Record<string, string> = { ...data };
+  return {
+    getData: (key: string) => store[key] ?? '',
+    setData: vi.fn((key: string, value: string) => { store[key] = value; }),
+    types: Object.keys(data),
+  };
 }
 
 beforeEach(() => {
@@ -355,5 +364,47 @@ describe("Mount hydration", () => {
     setupStore({ blocksLoaded: true });
     render(<BlockLibraryPanel />);
     expect(mockLoadBlocks).not.toHaveBeenCalled();
+  });
+});
+
+describe('Drag source', () => {
+  test('block list row has draggable attribute', () => {
+    setupStore({ blocks: [makeBlock()] });
+    render(<BlockLibraryPanel />);
+    const row = screen.getByText('My Block').closest('div')!;
+    expect(row).toHaveAttribute('draggable', 'true');
+  });
+
+  test('block list row has cursor-grab class', () => {
+    setupStore({ blocks: [makeBlock()] });
+    render(<BlockLibraryPanel />);
+    const row = screen.getByText('My Block').closest('div')!;
+    expect(row).toHaveClass('cursor-grab');
+  });
+
+  test('dragStart on block row calls dataTransfer.setData with blockId', () => {
+    const block = makeBlock({ id: 'block-42', name: 'Test Block' });
+    setupStore({ blocks: [block] });
+    render(<BlockLibraryPanel />);
+    const row = screen.getByText('Test Block').closest('div')!;
+    const dataTransfer = createDataTransfer();
+    act(() => {
+      fireEvent.dragStart(row, { dataTransfer });
+    });
+    expect(dataTransfer.setData).toHaveBeenCalledWith('blockId', 'block-42');
+  });
+
+  test('dragStart on second block sets correct blockId', () => {
+    const block1 = makeBlock({ id: 'block-1', name: 'First Block' });
+    const block2 = makeBlock({ id: 'block-2', name: 'Second Block' });
+    setupStore({ blocks: [block1, block2] });
+    render(<BlockLibraryPanel />);
+    const row2 = screen.getByText('Second Block').closest('div')!;
+    const dataTransfer = createDataTransfer();
+    act(() => {
+      fireEvent.dragStart(row2, { dataTransfer });
+    });
+    expect(dataTransfer.setData).toHaveBeenCalledWith('blockId', 'block-2');
+    expect(dataTransfer.setData).not.toHaveBeenCalledWith('blockId', 'block-1');
   });
 });
