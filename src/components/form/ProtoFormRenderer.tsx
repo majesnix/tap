@@ -149,7 +149,11 @@ export function ProtoFormRenderer({
         const skipped: string[] = [];
         const eligibleFields = new Set(
           message.fields
-            .filter(f => !f.repeated && (f.kind.type === 'scalar' || f.kind.type === 'enum'))
+            .filter(f =>
+              f.kind.type === 'scalar' ||
+              f.kind.type === 'enum' ||
+              f.kind.type === 'message'
+            )
             .map(f => f.name)
         );
         for (const [key, value] of Object.entries(blockValues)) {

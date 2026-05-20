@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { FormPanel } from "@/components/form/FormPanel";
 import { RightPanel } from "@/components/layout/RightPanel";
@@ -7,6 +8,9 @@ import { BlockLibraryPanel } from "@/components/blocks/BlockLibraryPanel";
 
 export function AppLayout() {
   const [isBlockLibraryOpen, setIsBlockLibraryOpen] = useState(false);
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
@@ -18,15 +22,17 @@ export function AppLayout() {
       {/* Center: publish bar above, panel + form side by side below */}
       <main className="flex-1 flex flex-col overflow-hidden">
         <PublishBar />
-        <div className="flex-1 flex flex-row min-h-0">
-          {isBlockLibraryOpen && (
-            <BlockLibraryPanel />
-          )}
-          <FormPanel
-            isBlockLibraryOpen={isBlockLibraryOpen}
-            onToggleBlockLibrary={() => setIsBlockLibraryOpen((v) => !v)}
-          />
-        </div>
+        <DndContext sensors={sensors}>
+          <div className="flex-1 flex flex-row min-h-0">
+            {isBlockLibraryOpen && (
+              <BlockLibraryPanel />
+            )}
+            <FormPanel
+              isBlockLibraryOpen={isBlockLibraryOpen}
+              onToggleBlockLibrary={() => setIsBlockLibraryOpen((v) => !v)}
+            />
+          </div>
+        </DndContext>
       </main>
 
       {/* Right: hex preview + message history tabs */}

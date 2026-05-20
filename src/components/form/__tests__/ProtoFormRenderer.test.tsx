@@ -103,24 +103,24 @@ describe('applyBlockRef', () => {
     expect(skipped).toEqual(['unknown_key']);
   });
 
-  test('applyBlockRef.current skips nested message field and returns it in skipped', async () => {
+  test('applyBlockRef.current applies nested message field via setValue and does not add to skipped', async () => {
     const applyBlockRef = { current: null as ((v: Record<string, unknown>) => string[]) | null };
     const msg = makeMessage({ fields: [{ name: 'nested', label: 'nested', kind: { type: 'message', full_name: 'Other' }, repeated: false }] });
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     await waitFor(() => expect(applyBlockRef.current).not.toBeNull());
     let skipped: string[] = [];
-    act(() => { skipped = applyBlockRef.current!({ nested: {} }); });
-    expect(skipped).toEqual(['nested']);
+    act(() => { skipped = applyBlockRef.current!({ nested: { foo: 'bar' } }); });
+    expect(skipped).toEqual([]);
   });
 
-  test('applyBlockRef.current skips repeated scalar field and returns it in skipped', async () => {
+  test('applyBlockRef.current applies repeated scalar field via setValue and does not add to skipped', async () => {
     const applyBlockRef = { current: null as ((v: Record<string, unknown>) => string[]) | null };
     const msg = makeMessage({ fields: [{ name: 'tags', label: 'tags', kind: { type: 'scalar', scalar: 'string' }, repeated: true }] });
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     await waitFor(() => expect(applyBlockRef.current).not.toBeNull());
     let skipped: string[] = [];
     act(() => { skipped = applyBlockRef.current!({ tags: ['a', 'b'] }); });
-    expect(skipped).toEqual(['tags']);
+    expect(skipped).toEqual([]);
   });
 
   test('applyBlockRef.current does not overwrite a dirty field and does not add it to skipped', async () => {

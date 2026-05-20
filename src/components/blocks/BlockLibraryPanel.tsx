@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useDraggable } from "@dnd-kit/core";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
 import { Plus, Pencil, Trash2, ArrowLeft, TriangleAlertIcon } from "lucide-react";
@@ -20,6 +21,44 @@ import { toast } from "sonner";
 import { useBlockStore, type Block } from "@/stores/useBlockStore";
 
 type PanelView = "list" | "editor";
+
+interface DraggableBlockRowProps {
+  block: Block;
+  onEdit: (block: Block) => void;
+  onDelete: (block: Block) => void;
+}
+
+function DraggableBlockRow({ block, onEdit, onDelete }: DraggableBlockRowProps) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: block.id });
+  return (
+    <div
+      ref={setNodeRef}
+      {...listeners}
+      {...attributes}
+      className={`px-3 py-2 flex items-center justify-between hover:bg-muted rounded-sm cursor-grab active:cursor-grabbing${isDragging ? ' opacity-50' : ''}`}
+    >
+      <span className="text-sm truncate flex-1">{block.name}</span>
+      <div className="flex items-center gap-2 shrink-0">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Edit ${block.name}`}
+          onClick={() => onEdit(block)}
+        >
+          <Pencil size={14} />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete ${block.name}`}
+          onClick={() => onDelete(block)}
+        >
+          <Trash2 size={14} />
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function BlockLibraryPanel() {
   const { blocks, blocksLoaded, loadBlocks, addBlock, updateBlock, deleteBlock } =
@@ -190,34 +229,12 @@ export function BlockLibraryPanel() {
         )}
         {blocksLoaded &&
           blocks.map((block) => (
-            <div
+            <DraggableBlockRow
               key={block.id}
-              draggable="true"
-              onDragStart={(e) => {
-                e.dataTransfer.setData('blockId', block.id);
-              }}
-              className="px-3 py-2 flex items-center justify-between hover:bg-muted rounded-sm cursor-grab active:cursor-grabbing"
-            >
-              <span className="text-sm truncate flex-1">{block.name}</span>
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Edit ${block.name}`}
-                  onClick={() => handleEditBlock(block)}
-                >
-                  <Pencil size={14} />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={`Delete ${block.name}`}
-                  onClick={() => setBlockToDelete(block)}
-                >
-                  <Trash2 size={14} />
-                </Button>
-              </div>
-            </div>
+              block={block}
+              onEdit={handleEditBlock}
+              onDelete={(b) => setBlockToDelete(b)}
+            />
           ))}
       </ScrollArea>
       {/* AlertDialog for delete — rendered outside ScrollArea, always in tree */}

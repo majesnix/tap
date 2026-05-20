@@ -1,4 +1,5 @@
 import { useCallback, useRef, useEffect, useState } from "react";
+import { useDroppable, useDndMonitor } from "@dnd-kit/core";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { encodeMessage } from "@/lib/ipc";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -49,7 +50,37 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   const applyBlockRef = useRef<((blockValues: Record<string, unknown>) => string[]) | null>(
     null
   );
-  const [isDraggingOver, setIsDraggingOver] = useState<boolean>(false);
+
+  const { isOver, setNodeRef: setDropZoneRef } = useDroppable({ id: 'form-drop-zone' });
+
+  useDndMonitor({
+    onDragEnd(event) {
+      if (event.over?.id !== 'form-drop-zone' || isJsonMode) return;
+
+      const blockId = event.active.id as string;
+      if (!applyBlockRef.current) return;
+
+      const block = useBlockStore.getState().blocks.find(b => b.id === blockId);
+      if (!block) return;
+
+      let blockValues: Record<string, unknown>;
+      try {
+        const parsed: unknown = JSON.parse(block.content);
+        if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
+        blockValues = parsed as Record<string, unknown>;
+      } catch {
+        toast.warning('Block content is not valid JSON — could not apply');
+        return;
+      }
+
+      const skipped = applyBlockRef.current(blockValues);
+      if (skipped.length > 0) {
+        const n = skipped.length;
+        const label = n === 1 ? 'field' : 'fields';
+        toast.warning(`${n} ${label} from block not in form: ${skipped.join(', ')}`);
+      }
+    },
+  });
 
   // JSON Override Toggle state (D-01: local useState, not Zustand)
   const [isJsonMode, setIsJsonMode] = useState(false);
@@ -195,47 +226,6 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     setIsJsonMode(false);
   }
 
-  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
-    // Only accept drags that carry a blockId (HTML5 spec lowercases setData keys → 'blockid')
-    if (!e.dataTransfer.types.includes('blockid')) return;
-    e.preventDefault();
-    setIsDraggingOver(true);
-  }
-
-  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
-      setIsDraggingOver(false);
-    }
-  }
-
-  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault();
-    setIsDraggingOver(false);
-
-    const blockId = e.dataTransfer.getData('blockId');
-    if (!blockId || !applyBlockRef.current) return;
-
-    const block = useBlockStore.getState().blocks.find(b => b.id === blockId);
-    if (!block) return;
-
-    let blockValues: Record<string, unknown>;
-    try {
-      const parsed: unknown = JSON.parse(block.content);
-      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
-      blockValues = parsed as Record<string, unknown>;
-    } catch {
-      toast.warning('Block content is not valid JSON — could not apply');
-      return;
-    }
-
-    const skipped = applyBlockRef.current(blockValues);
-    if (skipped.length > 0) {
-      const n = skipped.length;
-      const label = n === 1 ? 'field' : 'fields';
-      toast.warning(`${n} ${label} from block not in form: ${skipped.join(', ')}`);
-    }
-  }
-
   return (
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-4 py-3 border-b border-border shrink-0 flex items-start justify-between">
@@ -281,19 +271,20 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
           />
         </div>
       ) : (
-        <ScrollArea
-          className={`flex-1 min-h-0${isDraggingOver ? ' ring-2 ring-primary/50' : ''}`}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={handleDrop}
+        <div
+          data-testid="drop-zone"
+          ref={setDropZoneRef}
+          className={`flex-1 min-h-0${isOver ? ' ring-2 ring-primary/50' : ''}`}
         >
-          <ProtoFormRenderer
-            message={message}
-            onValuesChange={handleValuesChange}
-            resetRef={resetRef}
-            applyBlockRef={applyBlockRef}
-          />
-        </ScrollArea>
+          <ScrollArea className="h-full">
+            <ProtoFormRenderer
+              message={message}
+              onValuesChange={handleValuesChange}
+              resetRef={resetRef}
+              applyBlockRef={applyBlockRef}
+            />
+          </ScrollArea>
+        </div>
       )}
     </div>
   );
