@@ -50,10 +50,10 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 
 ### v1.3 Publishing UX + Message Blocks (Phases 9–12)
 
-- [ ] **Phase 9: Routing Key Autocomplete** — 0/3 plans — not started
+- [x] **Phase 9: Routing Key Autocomplete** — 3/3 plans — completed 2026-05-19
 - [x] **Phase 10: Publisher Confirms Badge** — 0/2 plans — not started (completed 2026-05-19)
 - [x] **Phase 11: Block Library — Store, Editor, Persistence** — 0/3 plans — not started (completed 2026-05-19)
-- [ ] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/? plans — not started
+- [ ] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/3 plans — not started
 
 ---
 
@@ -123,7 +123,14 @@ Plans:
   1. User drags a block card from the block library panel and drops it onto the form; fields in the form that are empty are populated with matching values from the block
   2. User drags a block onto a form where some fields have already been edited; only unmodified (not-dirty) fields are filled — no field the user touched is overwritten
   3. User drops a block whose keys include fields not present in the current form schema; a warning toast appears listing the skipped field names
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+**Wave 1**
+- [ ] 12-01-PLAN.md — ProtoFormRenderer: applyBlockRef prop + useEffect wiring, field eligibility check, dirtyFields guard, TDD
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 12-02-PLAN.md — FormPanel: drop zone on ScrollArea (onDragOver/onDragLeave/onDrop), isDraggingOver state, ring feedback, BLK-08 toast, tests
+- [ ] 12-03-PLAN.md — BlockLibraryPanel: draggable="true" + onDragStart (blockId payload) + cursor-grab on block list rows, tests
 **UI hint**: yes
 
 ---
@@ -140,10 +147,10 @@ Plans:
 | 6. BytesField | v1.2 | 1/1 | Complete | 2026-05-19 |
 | 7. MapField | v1.2 | 4/4 | Complete | 2026-05-19 |
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
-| 9. Routing Key Autocomplete | v1.3 | 0/3 | Not started | — |
+| 9. Routing Key Autocomplete | v1.3 | 3/3 | Complete    | 2026-05-19 |
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete    | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete    | 2026-05-19 |
-| 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/? | Not started | — |
+| 12. Block Library — Drag-and-Drop Layer | v1.3 | 0/3 | Not started | — |
 
 ---
 
@@ -193,23 +200,23 @@ Plans:
 | JSON-05 | Phase 8 | ✅ Complete |
 | JSON-06 | Phase 8 | ✅ Complete |
 
-**v1.3 Publishing UX + Message Blocks — 16 requirements, 0 delivered**
+**v1.3 Publishing UX + Message Blocks — 16 requirements, 13 delivered**
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PUBL-01 | Phase 9 | Pending |
-| PUBL-02 | Phase 9 | Pending |
-| PUBL-03 | Phase 9 | Pending |
-| PUBL-04 | Phase 9 | Pending |
-| PUBL-05 | Phase 10 | Pending |
-| PUBL-06 | Phase 10 | Pending |
-| PUBL-07 | Phase 10 | Pending |
-| PUBL-08 | Phase 10 | Pending |
-| BLK-01 | Phase 11 | Pending |
-| BLK-02 | Phase 11 | Pending |
-| BLK-03 | Phase 11 | Pending |
-| BLK-04 | Phase 11 | Pending |
-| BLK-05 | Phase 11 | Pending |
+| PUBL-01 | Phase 9 | ✅ Complete |
+| PUBL-02 | Phase 9 | ✅ Complete |
+| PUBL-03 | Phase 9 | ✅ Complete |
+| PUBL-04 | Phase 9 | ✅ Complete |
+| PUBL-05 | Phase 10 | ✅ Complete |
+| PUBL-06 | Phase 10 | ✅ Complete |
+| PUBL-07 | Phase 10 | ✅ Complete |
+| PUBL-08 | Phase 10 | ✅ Complete |
+| BLK-01 | Phase 11 | ✅ Complete |
+| BLK-02 | Phase 11 | ✅ Complete |
+| BLK-03 | Phase 11 | ✅ Complete |
+| BLK-04 | Phase 11 | ✅ Complete |
+| BLK-05 | Phase 11 | ✅ Complete |
 | BLK-06 | Phase 12 | Pending |
 | BLK-07 | Phase 12 | Pending |
 | BLK-08 | Phase 12 | Pending |
