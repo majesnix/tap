@@ -415,7 +415,7 @@ toast.warning(`${n} ${label}(s) from block not in form: ${skipped.join(', ')}`);
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 ### Open Question 1: D-03 — `dirtyFields` vs `touchedFields` for field protection
 
@@ -434,6 +434,8 @@ toast.warning(`${n} ${label}(s) from block not in form: ${skipped.join(', ')}`);
 
 This is a one-line change: `formState.dirtyFields[key]` → `formState.touchedFields[key]`, but the user-visible behavior differs.
 
+**RESOLVED:** Plans use `dirtyFields` per D-03's explicit choice. The behavioral trade-off is accepted: a field cleared back to its default value becomes fillable again by a subsequent block drop. This is acceptable for a dev tool — users who clear a field intend to reset it. If the "touched forever" semantic proves necessary, switching to `touchedFields` is a one-line change.
+
 ### Open Question 2: `bytes` field eligibility for block apply
 
 **What we know:** D-05 says "top-level scalar and enum fields only." `bytes` is a sub-kind of `scalar` (kind.type === "scalar", kind.scalar === "bytes").
@@ -441,6 +443,8 @@ This is a one-line change: `formState.dirtyFields[key]` → `formState.touchedFi
 **What's unclear:** Is a bytes field intended to be fillable by a block? Block content is JSON — bytes in JSON must be base64 strings. The form's BytesField uses base64. So the block value would need to be a valid base64 string.
 
 **Recommendation:** Include bytes in the eligibility set (consistent with D-05 "scalar"). If it causes issues, the user can exclude it in a follow-up. Document this assumption clearly in the task.
+
+**RESOLVED:** `bytes` IS eligible for block apply. D-05 specifies "top-level scalar and enum fields only", and `bytes` has `kind.type === 'scalar'` — it falls squarely within the scalar category. The block content (JSON) stores bytes as base64 strings, which the BytesField already handles. No special exclusion is needed.
 
 ---
 
