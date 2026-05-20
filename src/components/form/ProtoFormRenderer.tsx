@@ -23,6 +23,19 @@ interface ProtoFormRendererProps {
   resetRef?: React.MutableRefObject<
     ((values: Record<string, unknown>) => void) | null
   >;
+  /**
+   * Optional ref that will be populated with a function to apply block values
+   * to unfilled form fields. FormPanel uses this to merge a block on drop.
+   * Returns the array of block key names that were skipped (no matching eligible field).
+   *
+   * Eligibility: top-level scalar or enum fields only (not repeated, not message/map/oneof/well_known).
+   * Protection: fields where formState.dirtyFields[key] is truthy are not overwritten (BLK-07).
+   * Note: uses dirtyFields per D-03 (value-based semantics). A field typed back to its default
+   * is NOT protected. For interaction-history semantics, use formState.touchedFields instead.
+   */
+  applyBlockRef?: React.MutableRefObject<
+    ((blockValues: Record<string, unknown>) => string[]) | null
+  >;
 }
 
 /**
@@ -94,6 +107,7 @@ export function ProtoFormRenderer({
   message,
   onValuesChange,
   resetRef,
+  applyBlockRef,
 }: ProtoFormRendererProps) {
   const methods = useForm({
     defaultValues: buildDefaultValues(message),
@@ -126,6 +140,37 @@ export function ProtoFormRenderer({
       }
     };
   }, [resetRef, methods]);
+
+  // Wire up applyBlockRef so FormPanel can call applyBlock() on drop (BLK-06/BLK-07).
+  // Dependency array [applyBlockRef, methods, message] — message.fields drives the eligible set.
+  useEffect(() => {
+    if (applyBlockRef) {
+      applyBlockRef.current = (blockValues: Record<string, unknown>): string[] => {
+        const skipped: string[] = [];
+        const eligibleFields = new Set(
+          message.fields
+            .filter(f => !f.repeated && (f.kind.type === 'scalar' || f.kind.type === 'enum'))
+            .map(f => f.name)
+        );
+        for (const [key, value] of Object.entries(blockValues)) {
+          if (!eligibleFields.has(key)) {
+            skipped.push(key);
+          } else if (methods.formState.dirtyFields[key]) {
+            // Field is dirty (user has edited it) — do not overwrite. Not added to skipped
+            // because this is intentional protection, not a missing-field warning (BLK-08).
+          } else {
+            methods.setValue(key, value as Parameters<typeof methods.setValue>[1]);
+            // shouldDirty defaults to false — block-filled fields remain non-dirty so a
+            // subsequent block drop can still fill them (Pitfall 3 in RESEARCH.md).
+          }
+        }
+        return skipped;
+      };
+    }
+    return () => {
+      if (applyBlockRef) applyBlockRef.current = null;
+    };
+  }, [applyBlockRef, methods, message]);
 
   /**
    * Main dispatch function. Determines which field component to render
