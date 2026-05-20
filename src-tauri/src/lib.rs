@@ -49,6 +49,7 @@ pub fn run() {
             commands::connection::fetch_bindings,
             commands::publish::publish_message,
             commands::consume::consume_message,
+            commands::consume::drain_messages,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
