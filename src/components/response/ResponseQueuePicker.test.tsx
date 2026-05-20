@@ -146,6 +146,14 @@ describe("ResponseQueuePicker", () => {
     expect(document.querySelector(".animate-spin")).not.toBeNull();
   });
 
+  test("Drain button is disabled when selectedDecodeTypes is empty", () => {
+    useResponseStore.setState({ selectedDecodeTypes: [] });
+    useConnectionStore.setState({ connectionStatus: "connected" });
+    render(<ResponseQueuePicker onDrain={vi.fn()} />);
+    const drainButton = screen.getByRole("button", { name: /drain/i });
+    expect(drainButton).toBeDisabled();
+  });
+
   test("calls onDrain with the drain count value", async () => {
     const mockOnDrain = vi.fn();
     render(<ResponseQueuePicker onDrain={mockOnDrain} />);
