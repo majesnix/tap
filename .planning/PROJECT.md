@@ -46,7 +46,19 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Block persistence — tauri-plugin-store persistence with hydration gate (`blocksLoaded` flag) — v1.3 (Phase 11)
 - ✓ Apply block by drag-and-drop — dnd-kit PointerSensor, dirtyFields guard, BLK-08 Sonner warning toast for unmatched keys — v1.3 (Phase 12)
 
-### Active (v1.4 — to be defined)
+## Current Milestone: v1.4 Advanced Response Consumer
+
+**Goal:** Replace the one-at-a-time basic_get reader with a full consume experience — drain mode, live subscribe mode, filtering, queue depth visibility, and export.
+
+**Target features:**
+- Drain mode — fetch up to N messages in one shot, display all at once
+- Live subscribe mode — persistent consumer, messages arrive in a scrollable list (newest on top), each row expandable
+- Ack immediately on consume in both modes
+- Queue depth indicator — show message count before consuming
+- Filter received messages by routing key or content-type in the live feed
+- Export received messages to JSON or CSV
+
+### Active (v1.4)
 
 ### Backlog (future milestones — candidates for v1.4+)
 
@@ -148,4 +160,4 @@ v1.3 shipped 2026-05-20. All 16 requirements delivered across 4 phases (11 plans
 The app is feature-rich for the v1 scope. All proto field types supported, full send/receive cycle, connection profiles with OS keychain, message history, dark mode, block library. Next milestone scope to be defined via `/gsd-new-milestone`.
 
 ---
-*Last updated: 2026-05-20 after v1.3 milestone close*
+*Last updated: 2026-05-20 — Milestone v1.4 started*

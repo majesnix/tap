@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.3
-milestone_name: Publishing UX + Message Blocks
-status: archived
-stopped_at: Milestone v1.3 archived — ready for /gsd-new-milestone
-last_updated: "2026-05-20T20:00:00.000Z"
+milestone: v1.4
+milestone_name: Advanced Response Consumer
+status: planning
+last_updated: "2026-05-20T18:27:12.429Z"
 last_activity: 2026-05-20
 progress:
-  total_phases: 4
-  completed_phases: 4
-  total_plans: 11
-  completed_plans: 11
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Proto Sender
@@ -187,8 +186,7 @@ Next action: `/gsd-execute-phase 12`
 
 ## Current Position
 
-Phase: 12 (block-library-drag-and-drop-layer) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 12
-Last activity: 2026-05-20 -- Phase 12 execution started
-Progress: 0/4 phases complete [          ] 0%
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-20 — Milestone v1.4 started
