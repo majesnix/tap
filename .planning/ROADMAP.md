@@ -76,13 +76,14 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 ### Phase 13: Message Feed Foundation + Drain Mode
 **Goal**: Users can drain messages from a queue and see them all in a scrollable, expandable list with full AMQP metadata and queue depth
 **Depends on**: Phase 12
-**Requirements**: CONS-01, CONS-02, CONS-03, CONS-04
+**Requirements**: CONS-01, CONS-02, CONS-03, CONS-04, CONS-08
 **Success Criteria** (what must be TRUE):
   1. User can see routing key, exchange, content-type, and timestamp on each consumed message row in the list
   2. User can expand any message row to reveal the decoded protobuf payload and raw hex
   3. User can drain up to N messages from a queue in one shot and see all of them appear in the list
   4. User can see the current queue message count before clicking drain, and the count updates after draining
   5. The list displays newest messages at the top and older messages are dropped when the list reaches capacity
+  6. User can select one or more candidate message types for decoding; the first type that decodes without error is used and shown on each row
 **Plans**: 3 plans
 Plans:
 - [ ] 13-01-PLAN.md — Rust drain_messages command + TypeScript IPC contract (DrainResult, DrainOutcome, FeedMessage types; drainMessages() IPC function)
@@ -216,6 +217,7 @@ Plans:
 | CONS-02 | Phase 13 | Pending |
 | CONS-03 | Phase 13 | Pending |
 | CONS-04 | Phase 13 | Pending |
+| CONS-08 | Phase 13 | Pending |
 | CONS-05 | Phase 14 | Pending |
 | CONS-06 | Phase 14 | Pending |
 | CONS-07 | Phase 14 | Pending |
@@ -223,6 +225,6 @@ Plans:
 | FILT-02 | Phase 15 | Pending |
 | XPRT-01 | Phase 15 | Pending |
 
-- Total v1.4: 10
-- Mapped: 10
+- Total v1.4: 11
+- Mapped: 11
 - Delivered: 0 (in progress)

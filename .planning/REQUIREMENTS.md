@@ -12,6 +12,7 @@
 - [ ] **CONS-02**: User can view consumed messages in a FIFO-500 scrollable list — newest on top, each row expandable to decoded payload and raw hex
 - [ ] **CONS-03**: User can drain up to N messages from a queue in one shot (single Rust command, streams into the list)
 - [ ] **CONS-04**: User can see the current queue depth (message count) before and during consumption
+- [ ] **CONS-08**: User can select one or more candidate message types (from loaded `.proto` files) for decoding consumed messages; the system tries them in the selected order and uses the first type that decodes without error
 
 ### Live Subscribe
 

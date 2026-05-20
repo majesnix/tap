@@ -53,6 +53,11 @@ Requirements covered: CONS-01, CONS-02, CONS-03, CONS-04.
 ### Return Type (resolved during planning)
 - **D-18:** `drain_messages` returns **`DrainOutcome { messages: Vec<DrainResult>, partial_error: Option<String> }`** instead of the bare `Vec<DrainResult>` specified in D-13. The wrapper handles mid-loop AMQP errors without discarding already-acked messages: if `basic_get` errors on iteration 7 of 10, the 6 already-acked messages are returned with `partial_error` set. D-13 is superseded by this decision.
 
+### Decode Type Selection
+- **D-19:** `drain_messages` Rust command accepts **`message_type_names: Vec<String>`** (ordered candidate list, minimum 1 entry) instead of a single `message_type_name: String`. For each received message, the backend iterates the list using the existing descriptor pool; the **first type that decodes without error wins**. `DrainResult` gains a new field `decoded_as: Option<String>` — the winning type name, or `null` if no candidate succeeded.
+- **D-20:** The consumer toolbar includes a **"Decode as" multi-select combobox** listing all message types from all currently loaded `.proto` files in `useProtoStore`. The user selects and orders candidates. Selection stored in `useResponseStore.selectedDecodeTypes: string[]`. Default on first render: the single message type of the currently active proto file (from `useProtoStore`). If no proto is loaded yet, `selectedDecodeTypes` is empty and drain is disabled.
+- **D-21:** If `selectedDecodeTypes` is empty or all candidate types fail to decode, `decoded` and `decoded_as` are both `null`; hex is always preserved. The collapsed row metadata shows `[unknown]` for the type. Existing D-11 error display (expanded view shows error + hex) applies when `decoded_as` is null.
+
 ### Claude's Discretion
 - Exact drain input widget style (spinbox vs plain `<input type="number">`)
 - Drain button label ("Drain" vs "Fetch" vs "Get N")
