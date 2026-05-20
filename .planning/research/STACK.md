@@ -1,137 +1,266 @@
-# Stack Research: Proto Sender v1.3 Publishing UX + Message Blocks
+# Stack Research: Proto Sender v1.4 Advanced Response Consumer
 
-**Researched:** 2026-05-19
-**Milestone:** v1.3 — Routing Key Autocomplete, Publisher Confirms Badge, Message Block Library
-**Overall confidence:** HIGH — all findings verified against source code, npm registry, GitHub issues, and official RabbitMQ API docs
+**Researched:** 2026-05-20
+**Milestone:** v1.4 — Drain Mode, Live Subscribe, Queue Depth, Export
+**Overall confidence:** HIGH — all findings verified against docs.rs, official Tauri docs, crates.io, and project source
 
 ---
 
 ## Context: What is Already Shipped
 
-The stack below is already in place and working. Do NOT re-add or re-research it.
+The stack below is fully in place and working. Do NOT re-add or re-research any of it.
 
-| Layer | Libraries |
-|-------|-----------|
-| Rust backend | `protox 0.9`, `prost-reflect 0.16` (with `serde` feature), `base64 0.22`, `lapin 4.x` (with `tokio` feature), `reqwest 0.13` (with `json`, `rustls` features), `percent-encoding 2`, `serde 1.x`, `serde_json 1.x` |
-| Frontend form | `react-hook-form 7.76`, `@hookform/resolvers 5.x`, `zod 3.25`, `zustand 5.x` |
-| Frontend UI | `shadcn/ui` nova preset, `Tailwind 4.x`, `radix-ui 1.x`, `lucide-react 1.x`, `sonner 2.x` |
-| Frontend editor | `@uiw/react-codemirror 4.25.9`, `@codemirror/lang-json 6.x` |
-| Tauri | `@tauri-apps/api 2.x`, `tauri-plugin-store 2.x`, `tauri-plugin-dialog 2.x`, `tauri-plugin-fs 2.x` |
+| Layer | Libraries / Versions |
+|-------|----------------------|
+| Rust backend | `lapin 4.7.4` (version constraint `"4"`), `reqwest 0.13`, `tokio 1.x` (features: `rt`, `time`), `serde 1.x`, `serde_json 1.x`, `percent-encoding 2`, `tauri 2.x` |
+| Tauri plugins (Rust) | `tauri-plugin-store 2.x`, `tauri-plugin-dialog 2.x`, `tauri-plugin-fs 2.x` |
+| Frontend | `@tauri-apps/api 2.11.0`, `zustand 5.x`, `react-hook-form 7.x`, `shadcn/ui`, `tailwindcss 4.x`, `sonner 2.x` |
+| Already implemented | `fetch_queue_depth` Tauri command (uses `messages` field from `/api/queues/{vhost}/{queue}`), `useResponseStore.queueDepth: number | null` |
+
+Note: `lapin 4.7.4` is the current latest — confirmed via docs.rs/crate/lapin/latest (released 2026-05-12). The `"4"` constraint in `Cargo.toml` picks it up automatically.
 
 ---
 
 ## Summary
 
-Three new capabilities are needed for v1.3. The research findings below are ordered by feature.
+Four new capabilities are needed for v1.4. Research by feature:
 
-**Routing key autocomplete (PUBL-01):** No new Rust crates. One new Rust command (`fetch_binding_keys`) following the exact `fetch_queues` pattern with reqwest. One new shadcn/ui Combobox component installed via `pnpm dlx shadcn@latest add combobox command popover`. The shadcn Combobox is a recipe (Command + Popover composition, cmdk-based in the current shadcn releases). Async data is handled by managing the items list in local state and disabling client-side filtering.
+**Drain mode** (basic_get loop): No new deps. Ephemeral connection pattern, returns `Vec<ConsumedMessage>` in one IPC call.
 
-**Publisher confirms badge (PUBL-02):** Zero new dependencies — Rust or npm. `publish.rs` already implements `confirm_select` + the confirm future pattern fully (verified in source). The Tauri command already returns `Ok(())` on ACK and `Err(AppError::AmqpError)` on NACK or timeout. The frontend only needs to display a success/failure badge in `PublishBar.tsx` using the existing `Badge` component and a 3-second `setTimeout` dismiss — both already in the installed stack.
+**Live subscribe mode** (persistent consumer): Two new Rust deps — `tokio-util` for `CancellationToken` (cooperative task stopping) and a `tokio::sync` feature flag on the existing `tokio` entry. No new npm deps — `Channel<T>` is already in `@tauri-apps/api/core`.
 
-**Message block library (BLK-01–04):** One new npm package: `@dnd-kit/core`. The PointerSensor (not HTML5 DnD) works reliably across Tauri's WebKit on macOS and Linux. Block persistence uses the already-installed `tauri-plugin-store`. Block editing uses the already-installed `@uiw/react-codemirror` + `@codemirror/lang-json`. No new Rust crates required.
+**Queue depth**: Already implemented. Zero stack work.
+
+**Export** (JSON + CSV): One new Rust dep — `csv 1.4` for CSV writing. JSON export uses `serde_json` (already present). No new npm deps.
 
 ---
 
 ## New Dependencies
 
-### npm (Frontend)
+### Rust (`Cargo.toml`)
 
-| Library | Version | Purpose | Why this, not alternatives |
-|---------|---------|---------|---------------------------|
-| `@dnd-kit/core` | `^6.3.1` | Drag-and-drop for block-to-form merge | PointerSensor uses Pointer Events (not HTML5 DnD), which works in all Tauri WebKit targets. HTML5 DnD has open webkit2gtk Linux bugs in Tauri (#6695). react-dnd is in maintenance mode since 2023. |
-| shadcn `Combobox` + `Command` + `Popover` | (source-copied, no version pin) | Routing key autocomplete input | shadcn Combobox is a recipe built on Command (cmdk) + Popover; consistent with shadcn patterns; async data handled via controlled state + `shouldFilter={false}` to disable client-side filtering. |
+| Crate | Version | Purpose | Why this, not alternatives |
+|-------|---------|---------|---------------------------|
+| `tokio-util` | `0.7` | `CancellationToken` for cooperative cancellation of the live consumer loop | Purpose-built for this pattern. `cancel()` + `select!` stops a `while let Some(delivery) = consumer.next().await` loop cleanly from a separate `stop_consume` command. More composable than `oneshot` (can cancel multiple sub-tasks, exposes `is_cancelled()` guard). Maintained by the tokio-rs team at 0.7.18 as of Jan 2026. |
+| `csv` | `1.4` | Write CSV rows for export | BurntSushi's `csv` crate is the de facto standard (183M+ downloads, 1.4.0 released 2025-10-17). `wtr.serialize(&msg)` with Serde derives maps a `ConsumedMessage` struct to a row with one call. No other CSV writer has meaningful adoption in the Rust ecosystem. |
 
-Install commands:
+Also update the existing `tokio` entry to add the `sync` feature:
 
-```bash
-pnpm add @dnd-kit/core
-pnpm dlx shadcn@latest add combobox command popover
+```toml
+# BEFORE
+tokio = { version = "1", features = ["rt", "time"] }
+
+# AFTER
+tokio = { version = "1", features = ["rt", "time", "sync"] }
 ```
 
-Note: `command` and `popover` may already be pulled in as transitive shadcn components — run the add command and let shadcn skip any already-installed components.
+`tokio::sync::Mutex` is required for `ConsumerState` because the mutex guard must be held across `.await` points when starting a session. `std::sync::Mutex` cannot be held across `.await` — using it here would require dropping before every await, which defeats the purpose of guarded optional state.
 
-### Rust (Backend)
+**Full Cargo.toml additions:**
 
-No new crates. All three features are served by the existing `lapin 4.x` and `reqwest 0.13` already in `Cargo.toml`.
+```toml
+tokio-util = { version = "0.7", features = ["rt"] }
+csv = "1.4"
+```
+
+Feature flag verification: `tokio-util`'s `rt` feature enables `tokio/sync` + `futures-util` (confirmed in `tokio-util/Cargo.toml`). The `sync` module containing `CancellationToken` is unconditionally compiled in `tokio-util` — it has no `cfg(feature)` gate. So `features = ["rt"]` is both sufficient (no extra flag needed) and correct (also makes `futures-util` + `StreamExt` available for the consumer loop — see note below).
+
+### JavaScript (none)
+
+`Channel<T>` is exported from `@tauri-apps/api/core`, which is part of the already-installed `@tauri-apps/api 2.11.0`. No new npm packages.
 
 ---
 
-## Integration Notes
+## Integration Notes by Feature
 
-### PUBL-01: Routing Key Autocomplete
+### Drain Mode (basic_get loop)
 
-**Rust side:** Add a new `fetch_binding_keys` Tauri command to `connection.rs`. The endpoint is:
+Remains ephemeral — one `drain_messages` Tauri command, loop `basic_get` up to N times, close connection, return `Vec<ConsumedMessage>`.
 
-```
-GET /api/exchanges/{vhost}/{exchange}/bindings/source
-```
+- No new deps needed.
+- Array return is correct for a dev tool at N <= 500 — single IPC response, no partial-load UI state.
+- Reuses the existing `consume_message` pattern from `commands/consume.rs`.
+- `no_ack` does not apply to `basic_get` — `basic_get` always requires explicit ack per message. Ack each delivery before continuing the loop (consistent with existing ack-before-decode decision D-10).
 
-Response is an array of binding objects, each containing a `routing_key` string field. The pattern follows `fetch_queues` exactly: build URL with `percent_encoding::utf8_percent_encode` on both vhost and exchange name, call `reqwest` with `basic_auth`, deserialize with a minimal struct, return `Vec<String>`.
+---
+
+### Live Subscribe Mode (persistent consumer)
+
+**This is the architecturally significant change in v1.4.** The existing Key Decision "Ephemeral lapin connections per operation" cannot apply here.
+
+**Rust managed state:**
 
 ```rust
-#[derive(Deserialize)]
-struct BindingApiInfo {
-    routing_key: String,
+use tokio_util::sync::CancellationToken;
+use tokio::sync::Mutex;
+
+pub struct ConsumerSession {
+    pub token: CancellationToken,
+}
+
+pub type ConsumerState = Mutex<Option<ConsumerSession>>;
+```
+
+Register in `lib.rs` builder setup alongside the existing `DescriptorPool` state:
+
+```rust
+.manage(ConsumerState::new(None))
+```
+
+**`start_consume` command signature:**
+
+```rust
+#[tauri::command]
+pub async fn start_consume(
+    app: tauri::AppHandle,
+    profile_name: String,
+    queue_name: String,
+    message_type_name: String,
+    on_message: tauri::ipc::Channel<ConsumedMessage>,
+    consumer_state: tauri::State<'_, ConsumerState>,
+    pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
+) -> Result<(), crate::error::AppError>
+```
+
+The command opens a lapin connection, starts `basic_consume` with `no_ack: true`, stores a `ConsumerSession` in managed state, then spawns a background task via `tauri::async_runtime::spawn` (not `tokio::spawn` — see constraint below). The command returns `Ok(())` immediately after spawning. The task drives the consumer loop and sends each delivery via `on_message.send(msg)`.
+
+**Consumer loop pattern:**
+
+```rust
+// Required import — consumer.next() comes from StreamExt, not the Consumer type itself.
+// lapin::Consumer implements futures_core::Stream; .next() is the extension method.
+// futures_util::StreamExt is available because tokio-util's "rt" feature pulls in futures-util.
+use futures_util::StreamExt;
+
+tauri::async_runtime::spawn(async move {
+    loop {
+        tokio::select! {
+            _ = token.cancelled() => break,
+            delivery = consumer.next() => {
+                match delivery {
+                    Some(Ok(d)) => { let _ = on_message.send(encode_delivery(d)); }
+                    Some(Err(_)) => break,
+                    None => break,
+                }
+            }
+        }
+    }
+    let _ = conn.close(0, "".into()).await;
+});
+```
+
+**`stop_consume` command:**
+
+```rust
+#[tauri::command]
+pub async fn stop_consume(
+    consumer_state: tauri::State<'_, ConsumerState>,
+) -> Result<(), crate::error::AppError> {
+    let mut guard = consumer_state.lock().await;
+    if let Some(session) = guard.take() {
+        session.token.cancel();
+    }
+    Ok(())
 }
 ```
 
-Deduplicate the returned keys (topic exchanges may have multiple bindings with the same routing key to different queues) before returning to the frontend. The default exchange (`""`) has no bindings — return `Vec::new()` immediately without calling the API.
+`guard.take()` removes the session from state. `token.cancel()` wakes the `select!` branch in the background task, which then breaks the loop and drops the connection.
 
-Error handling: follow the existing 401 / is_connect discrimination pattern from `fetch_queues`. Management API unavailability is a non-fatal fallback — if the call fails, the routing key input falls back to plain `<Input>` (same fallback pattern already used for queue/exchange dropdowns in `PublishBar.tsx`).
+**BasicConsumeOptions for live subscribe:**
 
-**Frontend side:** The existing routing key `<Input>` in `PublishBar.tsx` (exchange mode only) becomes a shadcn `Combobox` when Management API is live and `selectedExchange` is non-empty. Fetch binding keys on exchange selection change via `useEffect`. Set `shouldFilter={false}` on the `Command` component inside the Combobox recipe to disable cmdk's client-side filtering — the full list from the API is always shown. The user can still type a free-form routing key not in the suggestions list (use a controlled open/close pattern with a plain `Input` value).
-
-**No new Zustand store needed** — binding keys are local state in `PublishBar.tsx` alongside `selectedExchange`. They are ephemeral (not persisted) and only needed in this component.
-
----
-
-### PUBL-02: Publisher Confirms Badge
-
-**Rust side: already done.** `publish.rs` already calls `channel.confirm_select(ConfirmSelectOptions::default())` before publish, then awaits the confirm future. The command returns `Ok(())` on broker ACK and `Err(AppError::AmqpError(...))` on NACK. No changes needed in Rust.
-
-**Frontend side only.** After `publishMessage(...)` resolves, show a `<Badge>` in `PublishBar.tsx`:
-- `Ok(())` path → green "ACK" badge using `variant="outline"` + emerald dot (matches the existing Live badge style)
-- `Err(...)` path → already handled by the existing `toast.error(...)` call; optionally also show a red "NACK" badge inline
-
-Badge state: local `useState` in `PublishBar.tsx` (not Zustand — this is session-only, single-component ephemeral state). Auto-dismiss: `useEffect` + `setTimeout(3000)` clearing the badge state. Clear on dismiss, on next send start, and on mode change.
-
-The `Badge` component (`src/components/ui/badge.tsx`) is already installed. No new component or library needed.
-
-**The existing `sonner` toast for send success can coexist with the inline badge** — they serve different UX purposes (toast confirms the action happened; inline badge confirms broker acknowledgment specifically).
-
----
-
-### BLK-01–04: Message Block Library
-
-**Block data model:** A block is `{ id: string; name: string; fields: Record<string, unknown> }`. The `fields` object is free-form JSON (the user edits it in the block editor). Stored as an array in `tauri-plugin-store` under a new key (e.g., `"message_blocks"`).
-
-**Persistence:** `tauri-plugin-store` is already installed and used for theme and connection profiles. Add a new `useBlockStore` (Zustand) that reads/writes from the store on the `"message_blocks"` key. No new Rust command needed — the store plugin is JS-accessible directly from `@tauri-apps/plugin-store`.
-
-**Block JSON editor:** Reuse `@uiw/react-codemirror` + `@codemirror/lang-json` (already installed). Same pattern as `JsonOverlay.tsx` from v1.2. No new library needed.
-
-**Block panel layout:** A collapsible panel beside the form. The `Collapsible` component (`src/components/ui/collapsible.tsx`) is already installed.
-
-**Drag-and-drop with @dnd-kit/core:**
-
-Use `DndContext` + `useDraggable` (block item) + `useDroppable` (form drop zone). The PointerSensor is the correct sensor for Tauri WebView:
-
-```tsx
-import { DndContext, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
-
-// In the parent layout component wrapping both BlockPanel and FormPanel:
-const sensors = useSensors(useSensor(PointerSensor));
-
-<DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-  <BlockPanel />   {/* contains useDraggable items */}
-  <FormPanel />    {/* contains useDroppable zone */}
-</DndContext>
+```rust
+BasicConsumeOptions {
+    no_ack: true,   // server acks implicitly — no ack roundtrip per message
+    no_local: false,
+    exclusive: false,
+    nowait: false,
+}
 ```
 
-The `handleDragEnd` callback receives `active.data.current` (block data) and `over.id` (drop zone id). Merge logic: iterate the dropped block's `fields`, and for each key, call `rhf.setValue(key, value)` only if the current form value for that key is empty/null/undefined (merge fills empty fields only, per BLK-04).
+`no_ack: true` is correct here. Consistent with the milestone requirement "ack immediately on consume". Eliminates per-message ack roundtrips, which matters for a streaming consumer.
 
-**Critical Tauri integration note:** Do NOT set `"dragDropEnabled": false` in `tauri.conf.json`. That flag controls Tauri's own native file-drop system and is only relevant for HTML5 DnD (`dragstart`/`drop` events). @dnd-kit's PointerSensor uses Pointer Events (`pointerdown`/`pointermove`/`pointerup`), which are independent of the HTML5 DnD API and work in all WebKit targets including webkit2gtk on Linux.
+**Backpressure (explicit non-decision):** `tauri::ipc::Channel<T>` is unbounded — if the broker delivers messages faster than the frontend can render them, the Rust task will accumulate sends without throttling. For a dev tool where message rates are low (developer-level traffic, not production load), this is acceptable. If the UI freezes under load, add a bounded `tokio::sync::mpsc` channel between the consumer task and the `on_message.send()` call, and drop messages when the channel is full.
 
-**@dnd-kit/sortable is NOT needed** — BLK-04 specifies drag onto form only, not reordering the block list.
+---
+
+### Streaming to Frontend via `tauri::ipc::Channel<T>`
+
+Use `Channel<T>`, not `AppHandle::emit`. Official Tauri 2 documentation is explicit: "The Tauri channel is the recommended mechanism for streaming data... The event system is not designed for low latency or high throughput situations."
+
+| Mechanism | Type-safe | Throughput | Verdict |
+|-----------|-----------|------------|---------|
+| `tauri::ipc::Channel<T>` | Yes | High, ordered | **Use for message stream** |
+| `AppHandle::emit` | No (JSON only) | Low | Avoid for per-message delivery |
+
+**Rust:** Command receives `on_message: tauri::ipc::Channel<ConsumedMessage>` as a parameter. Calls `on_message.send(msg)` per delivery. The command spawns and returns immediately; the channel stays open until the task exits.
+
+**JavaScript (`@tauri-apps/api/core`, already installed):**
+
+```typescript
+import { invoke, Channel } from '@tauri-apps/api/core';
+
+const onMessage = new Channel<ConsumedMessage>();
+onMessage.onmessage = (msg) => {
+  // prepend to messages array in Zustand store
+};
+await invoke('start_consume', { profileName, queueName, messageTypeName, onMessage });
+```
+
+`Channel` is part of `@tauri-apps/api` 2.x and available from `@tauri-apps/api/core`. No new npm install needed.
+
+**Channel lifecycle:** The `Channel` is garbage-collected on the JS side when `onMessage` goes out of scope (or the component unmounts). Call `stop_consume` explicitly in the component cleanup (`useEffect` return / unmount) to cancel the Rust task and close the lapin connection. Do not rely on GC to stop the Rust side.
+
+---
+
+### Queue Depth Indicator
+
+**Already implemented.** `fetch_queue_depth` is a registered Tauri command in `lib.rs`, implemented in `connection.rs`. It calls `GET /api/queues/{vhost}/{queue}` and deserializes the `messages` field (total = ready + unacknowledged). `useResponseStore` already has `queueDepth: number | null` with a `setQueueDepth` action.
+
+No stack work needed. Phase implementation work only: wire the existing command to the UI before/during consume.
+
+If the frontend needs to show `messages_ready` and `messages_unacknowledged` separately, extend `QueueDepthApiInfo` in `connection.rs`:
+
+```rust
+#[derive(Deserialize)]
+struct QueueDepthApiInfo {
+    messages: u64,
+    messages_ready: u64,              // add if needed
+    messages_unacknowledged: u64,     // add if needed
+}
+```
+
+No new dep, no API change.
+
+---
+
+### Export (JSON and CSV)
+
+**JSON export:** No new deps.
+
+```rust
+let json = serde_json::to_string_pretty(&messages)
+    .map_err(|e| AppError::ExportError(e.to_string()))?;
+std::fs::write(&dest_path, json)
+    .map_err(|e| AppError::ExportError(e.to_string()))?;
+```
+
+**CSV export:** Requires `csv 1.4`.
+
+```rust
+use csv::Writer;
+
+let mut wtr = Writer::from_path(&dest_path)
+    .map_err(|e| AppError::ExportError(e.to_string()))?;
+for msg in &messages {
+    wtr.serialize(msg)
+        .map_err(|e| AppError::ExportError(e.to_string()))?;
+}
+wtr.flush().map_err(|e| AppError::ExportError(e.to_string()))?;
+```
+
+**File path from save dialog:** `tauri-plugin-dialog` is already installed. Use the existing JS dialog API to get a user-chosen path, pass it to an `export_messages` Rust command as a `String`. On the Rust side, `std::fs::write` (JSON) or `csv::Writer::from_path` (CSV) do not need `tauri-plugin-fs` — the path is already user-approved by the dialog, and `std::fs` has no sandbox restrictions in a Tauri Rust command.
+
+**No `tauri-plugin-fs` needed for export.** The plugin is for JavaScript-side file access; Rust-side writes use `std::fs` directly.
 
 ---
 
@@ -139,15 +268,17 @@ The `handleDragEnd` callback receives `active.data.current` (block data) and `ov
 
 | Rejected | Reason |
 |----------|--------|
-| `react-dnd` | In maintenance mode since 2023. No new features. HTML5 backend has the same Linux webkit2gtk bugs. |
-| Native HTML5 DnD (`dragstart`/`dragover`) | Two Tauri bugs (#6695, #12052) confirm HTML5 DnD does not work in webkit2gtk on Linux. Issue #6695 is still open with "status: upstream" label — no fix timeline. @dnd-kit's PointerSensor is the correct escape hatch. |
-| `@dnd-kit/sortable` | Block list reordering is not in scope for BLK-01–04. Adds ~5KB for no benefit. |
-| `downshift` | An alternative combobox primitive with async data support. Unnecessary — shadcn's Command + Popover recipe handles the use case with fewer lines and is consistent with existing shadcn components. |
-| `react-select` | Heavy (50KB+), hard to theme with Tailwind, not shadcn-consistent. Binding keys are a small list (tens of items), not a paginated async search. |
-| Any new Rust crate for binding fetch | `reqwest 0.13` + existing percent-encoding pattern is sufficient for the bindings endpoint. |
-| `rabbitmq-management-client` crate | Already rejected in v1.0 for same reason — thin wrapper over two endpoints; `reqwest` is simpler. |
-| `immer` | No new mutation patterns introduced. RHF + Zustand already manage state. Speculative addition. |
-| Additional CodeMirror packages | Block editor reuses already-installed `@uiw/react-codemirror` + `@codemirror/lang-json`. No new language extensions or themes needed. |
+| `amqprs` | Would replace working `lapin 4.7.4`. No throughput benefit for a dev tool. Breaking API change. |
+| `tokio::spawn` | Panics on Windows in Tauri 2 event listeners (confirmed: tauri-apps/tauri#10289). Always use `tauri::async_runtime::spawn`. |
+| `AppHandle::emit` for message streaming | Official Tauri docs: "not designed for low latency or high throughput situations." Use `Channel<T>`. |
+| `rabbitmq-management-client` crate | Thin wrapper over two endpoints; `reqwest` already in place. Already rejected in v1.0. |
+| `tauri-plugin-fs` for export | Only needed for JS-side file writes. Rust `std::fs` is sufficient after a dialog-approved path. |
+| `@dnd-kit` additions | Sorting or reordering consume results is not in v1.4 scope. |
+| `async_std` runtime | Tauri manages the tokio runtime. Do not add a second async runtime. |
+| `#[tokio::main]` in `main.rs` | Creates nested runtime conflict with Tauri's embedded runtime. |
+| `std::sync::Mutex` for `ConsumerState` | Cannot be held across `.await`. Use `tokio::sync::Mutex` for the consumer session state. |
+| `lapin::basic_cancel` as the only stop mechanism | Stops the server consumer but the Rust task loop is still running. Pair with `CancellationToken` or rely on connection drop from `token.cancel()` + task exit. |
+| `futures` crate (direct dep) | `futures_util::StreamExt` is available transitively via `tokio-util`'s `rt` feature. Adding the full `futures` crate is unnecessary. |
 
 ---
 
@@ -155,23 +286,41 @@ The `handleDragEnd` callback receives `active.data.current` (block data) and `ov
 
 | Constraint | Detail |
 |------------|--------|
-| `@dnd-kit/core` | Use `^6.3.1` (latest as of May 2026). Do NOT use `@dnd-kit/sortable` unless block list reordering is added in a future milestone. |
-| shadcn Combobox | Installed via `pnpm dlx shadcn@latest add combobox command popover` — source-copied into `src/components/ui/`. The recipe is Command (cmdk) + Popover. Use `shouldFilter={false}` on `<Command>` when displaying async data from the bindings API. |
-| `lapin 4.x` confirm-select | `ConfirmSelectOptions::default()` is the correct call. The confirm future returned by `basic_publish` MUST be awaited BEFORE closing the connection — closing first causes "invalid connection state: Closed" panic. This is already correctly implemented in `publish.rs`. |
-| Tauri `dragDropEnabled` | Do NOT set to `false` unless native file-drop is needed elsewhere. @dnd-kit uses PointerSensor (Pointer Events), not HTML5 DnD events. |
-| Block store key | Use a distinct store key (e.g., `"message_blocks"`) in `tauri-plugin-store` — separate from `"proto-sender-profiles"` and `"theme"`. Do not merge into existing store keys. |
+| `tokio-util 0.7` | Must match `tokio 1.x`. Both maintained by tokio-rs. `tokio-util = "0.7"` resolves cleanly against `tokio = "1"`. |
+| `tokio-util "rt"` feature | Enables `tokio/sync` + `futures-util`. `CancellationToken` has no feature gate in tokio-util's source (verified in `tokio-util/src/sync/mod.rs`). `"rt"` is the minimum feature needed and is sufficient. |
+| `csv 1.4` | Uses `serde 1` for `serialize()` — no conflict with existing `serde = "1"`. |
+| `tokio "sync"` feature | Add `"sync"` to the existing `tokio` `features` array. Currently `["rt", "time"]`; must become `["rt", "time", "sync"]`. |
+| `futures_util::StreamExt` import | Required for `consumer.next()`. Available as a transitive dep; explicitly in scope when `tokio-util` `rt` feature is active. Import: `use futures_util::StreamExt;` |
+| `tauri::ipc::Channel<T>` | Tauri 2.x only. Already on Tauri 2. |
+| `@tauri-apps/api` `Channel` export | Available from `@tauri-apps/api/core` in version 2.x. Already at 2.11.0. |
+| `tauri::async_runtime::spawn` | Required for all background tasks — do not use `tokio::spawn` directly. |
+| `BasicConsumeOptions.no_ack` | Set `true` for live subscribe to skip server-side ack roundtrips. Per lapin docs: "The server implicitly acknowledges each message after it has been sent." |
+
+---
+
+## Architecture Note: Connection Lifecycle Shift
+
+The existing Key Decision "Ephemeral lapin connections per operation" cannot apply to live subscribe mode. This is the only architectural delta in v1.4.
+
+**Drain mode** stays ephemeral (one command, returns array, closes connection).
+
+**Live subscribe** uses Tauri managed state (`ConsumerState`) holding an `Option<ConsumerSession>`. Two new commands are registered: `start_consume` (opens connection, spawns task, returns immediately) and `stop_consume` (cancels token, task exits and drops connection). The frontend calls `start_consume` with a `Channel<ConsumedMessage>` argument and receives messages via `onmessage` until it calls `stop_consume` or the component unmounts.
 
 ---
 
 ## Sources
 
-- `publish.rs` source (already shipped): `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/publish.rs`
-- `connection.rs` `fetch_queues` pattern: `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/connection.rs`
-- `PublishBar.tsx` routing key input: `/Users/majesnix/gits/proto-sender/src/components/publish/PublishBar.tsx`
-- Tauri HTML5 DnD Linux bug (open, status: upstream): https://github.com/tauri-apps/tauri/issues/6695
-- Tauri HTML5 DnD Linux bug duplicate (closed as dupe of above): https://github.com/tauri-apps/tauri/issues/12052
-- @dnd-kit PointerSensor docs: https://dndkit.com/api-documentation/sensors/pointer
-- @dnd-kit/core 6.3.1 on npm: https://www.npmjs.com/package/@dnd-kit/core
-- RabbitMQ HTTP API bindings/source endpoint: https://www.rabbitmq.com/docs/http-api-reference
-- shadcn Combobox: https://ui.shadcn.com/docs/components/combobox
-- shadcn Combobox async pattern issue: https://github.com/shadcn-ui/ui/issues/1391
+- `lapin` 4.7.4 (current): https://docs.rs/crate/lapin/latest
+- `lapin` `Consumer` + `basic_consume` + `BasicConsumeOptions.no_ack`: https://docs.rs/lapin/latest/lapin/struct.Consumer.html
+- `lapin` `basic_cancel`: https://docs.rs/lapin/latest/lapin/struct.Channel.html
+- `tokio-util` `CancellationToken`: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
+- `tokio-util` feature flags (rt covers sync + futures-util): https://docs.rs/crate/tokio-util/latest/features
+- `tokio-util` sync module (no feature gate): https://github.com/tokio-rs/tokio/blob/master/tokio-util/src/sync/mod.rs
+- `csv` 1.4.0: https://docs.rs/csv/latest/csv/
+- Tauri 2 `Channel<T>` as streaming recommendation: https://v2.tauri.app/develop/calling-frontend/
+- Tauri 2 `Channel<T>` Rust command API: https://v2.tauri.app/develop/calling-rust/
+- Tauri 2 State Management + `tokio::sync::Mutex` guidance: https://v2.tauri.app/develop/state-management/
+- Tauri async background task pattern (rfdonnelly): https://rfdonnelly.github.io/posts/tauri-async-rust-process/
+- Tauri `tokio::spawn` panic on Windows (issue #10289): https://github.com/tauri-apps/tauri/issues/10289
+- `fetch_queue_depth` already implemented: `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/connection.rs` (lines 266–318)
+- `consume_message` ephemeral pattern: `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/consume.rs`

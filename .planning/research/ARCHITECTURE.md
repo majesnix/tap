@@ -1,459 +1,577 @@
-# Architecture Research: Proto Sender v1.3
+# Architecture Research: v1.4 Advanced Response Consumer
 
-**Researched:** 2026-05-19
-**Milestone:** v1.3 — Routing key autocomplete, Publisher confirms badge, Message block library
-**Overall Confidence:** HIGH (all integration points verified against existing codebase and official docs)
+**Domain:** Long-lived AMQP consumer integrated into a Tauri 2 desktop app
+**Researched:** 2026-05-20
+**Confidence:** HIGH
 
----
+## Standard Architecture
 
-## Integration Overview
+### System Overview
 
-Three features land on an already-proven Tauri 2.x + React architecture. The v1.0–v1.2 patterns are stable:
-
-- Rust commands handle all credentials and broker communication; React never holds passwords or makes direct AMQP/HTTP calls.
-- `useConnectionStore` holds Management API state (queues, exchanges, status).
-- `PublishBar` is the single component that orchestrates publish-mode UI.
-- `FormPanel` owns the react-hook-form context via `ProtoFormRenderer`; `resetRef` is the only safe way to push values into the form.
-- `useHistoryStore` is the established pattern for persisted in-memory data via `tauri-plugin-store` + zustand.
-
-Each v1.3 feature integrates at a clearly-scoped contact surface. None requires a change to the core form rendering pipeline or `ProtoFormRenderer`.
-
----
-
-## Feature Integration
-
-### Feature 1: Routing Key Autocomplete (PUBL-01)
-
-#### Decision: New Tauri command required
-
-Credentials live in the OS keychain. The existing Management API pattern (`fetch_queues`, `fetch_exchanges` in `connection.rs`) never exposes passwords to the React side — the Rust command builds the Authorization header. Routing key autocomplete requires the same Management API credentials. Making reqwest calls from React is not an option here: it would require shipping plaintext credentials over IPC to the frontend, re-implementing the 401 vs port-unreachable error discrimination in JS, and bypassing the security boundary that the existing pattern deliberately enforces.
-
-**New command: `get_exchange_bindings(profile_name: String, exchange: String) -> Result<Vec<String>, AppError>`**
-
-- Endpoint: `GET /api/exchanges/{vhost}/{exchange}/bindings/source`
-- Response: array of binding objects; extract `routing_key` field, deduplicate, return `Vec<String>`
-- Error handling: same pattern as `fetch_exchanges` — `is_connect()` → `ManagementApiUnavailable(0)`, HTTP 401 → `ManagementApiAuthFailed`, 404 → `ManagementApiUnavailable(404)`
-- Filters: exclude blank routing keys (topic exchange wildcard-only bindings may have empty routing_key); deduplicate (multiple queues can be bound with the same key)
-- File: `src-tauri/src/commands/connection.rs` (extend existing file, same pattern as `fetch_exchanges`)
-
-#### State: local component state, NOT a new zustand store
-
-Binding keys are per-exchange-selection. They are UI-local autocomplete data, not cross-component shared state. Adding them to `useConnectionStore` would couple unrelated components to a cache that only `PublishBar` ever reads.
-
-**Pattern in `PublishBar.tsx`:**
-
-```typescript
-// Local state keyed by exchange name
-const [bindingKeys, setBindingKeys] = useState<string[]>([]);
-const [bindingsLoading, setBindingsLoading] = useState(false);
-
-useEffect(() => {
-  if (mode !== "exchange" || !selectedExchange || !activeProfileName) {
-    setBindingKeys([]);
-    return;
-  }
-  setBindingsLoading(true);
-  getExchangeBindings(activeProfileName, selectedExchange)
-    .then(setBindingKeys)
-    .catch(() => setBindingKeys([]))  // silent fallback: no suggestions
-    .finally(() => setBindingsLoading(false));
-}, [mode, selectedExchange, activeProfileName]);
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                       React Frontend                             │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌──────────────┐  ┌──────────────────────────────────────────┐  │
+│  │  Sidebar /   │  │              Right Panel                  │  │
+│  │  PublishBar  │  │  ┌──────────────────────────────────────┐ │  │
+│  │  (unchanged) │  │  │  ResponseTab (extended)              │ │  │
+│  │              │  │  │  ┌──────────┐ ┌──────┐ ┌──────────┐ │ │  │
+│  │              │  │  │  │  Single  │ │Drain │ │Subscribe │ │ │  │
+│  │              │  │  │  │  (prev.) │ │mode  │ │  mode    │ │ │  │
+│  │              │  │  │  └──────────┘ └──────┘ └──────────┘ │ │  │
+│  │              │  │  │  ┌──────────────────────────────────┐ │ │  │
+│  │              │  │  │  │  ConsumedMessageList (new)       │ │ │  │
+│  │              │  │  │  │  FilterBar (new)                 │ │ │  │
+│  │              │  │  │  │  ExportButton (new)              │ │ │  │
+│  │              │  │  │  └──────────────────────────────────┘ │ │  │
+│  │              │  │  └──────────────────────────────────────┘ │  │
+│  └──────────────┘  └──────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │          useResponseStore (extended)                      │    │
+│  │  mode | messages[] | subscribeStatus | filter            │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────────────┐     │
+│  │     Channel<ConsumedMessage> onMessage callback         │     │
+│  │     listen('consume-stopped') / listen('consume-error') │     │
+│  └─────────────────────────────────────────────────────────┘     │
+├─────────────────────────────────────────────────────────────────┤
+│                     Tauri IPC Boundary                           │
+├─────────────────────────────────────────────────────────────────┤
+│                       Rust Backend                               │
+│                                                                   │
+│  ┌──────────────────────┐  ┌──────────────────────────────────┐  │
+│  │  New Commands        │  │  Managed State                   │  │
+│  │  drain_messages      │  │  Mutex<Option<ConsumerHandle>>   │  │
+│  │  start_consume       │  │  (registered in lib.rs setup)    │  │
+│  │  stop_consume        │  └──────────────────────────────────┘  │
+│  │  (+ existing cmds)   │                                        │
+│  └──────────────────────┘                                        │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │  Background Task (tauri::async_runtime::spawn)           │    │
+│  │  tokio::select! { consumer.next() | token.cancelled() }  │    │
+│  │  Long-lived lapin::Connection + Channel                  │    │
+│  └──────────────────────────────────────────────────────────┘    │
+│                                                                   │
+│  ┌──────────────────────────────────────────────────────────┐    │
+│  │  RabbitMQ (lapin 4.x / AMQP 0-9-1)                      │    │
+│  └──────────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-Binding fetch is fire-and-forget on exchange selection change. Empty result or error → no suggestions shown, routing key input remains fully editable (no blocking). This matches the Management API unavailability graceful degradation pattern already in place.
+### Component Responsibilities
 
-#### Component change: `PublishBar.tsx`
+| Component | Responsibility | Tauri 2 Pattern |
+|-----------|----------------|-----------------|
+| `drain_messages` command | basic_get loop up to N times; streams each result via Channel<ConsumedMessage>; uses ephemeral connection | Standard Tauri command with Channel param |
+| `start_consume` command | Opens long-lived lapin connection; spawns background task; stores CancellationToken in managed state | Spawns tauri::async_runtime task |
+| `stop_consume` command | Takes ConsumerHandle from managed state; calls cancel(); returns immediately | Reads Mutex<Option<ConsumerHandle>> |
+| Background consumer task | Runs tokio::select! loop; calls channel.basic_cancel on stop; closes connection; emits lifecycle events | tauri::async_runtime::spawn |
+| `ConsumerState` managed state | Single-slot for one active consumer handle at a time | Mutex<Option<ConsumerHandle>> registered at startup |
+| `useResponseStore` | Extended with mode, messages[], subscribeStatus, filter | Zustand store, addMessage action |
+| `ResponseTab` | Mode toggle (Single/Drain/Subscribe); delegates to mode-specific sub-panels | React component, reads store |
+| `ConsumedMessageList` | Virtualized list of ConsumedMessage rows; newest first; expandable rows | New component, shadcn/ui Collapsible |
+| `FilterBar` | Client-side filter inputs for routingKey / contentType; writes to store.filter | New component, controlled inputs |
+| `ExportButton` | Reads filtered messages from store; writes JSON/CSV via tauri-plugin-fs save dialog | New component |
 
-The current routing key field is a plain `<Input>`. Replace with a combobox that shows `bindingKeys` as suggestions while remaining freely editable (not a constrained select — routing keys for topic exchanges are patterns, not exhaustive lists).
+## New vs Modified: Explicit Map
 
-**Combobox implementation:** Use a `<Popover>` + `<Input>` combination (shadcn/ui `Popover` is already installed). Do NOT use `<Select>` — that forces a choice from the list and blocks free-text entry. The popover opens when the input is focused and `bindingKeys.length > 0`, filters suggestions as the user types, closes on blur or selection.
+### New Rust Files
 
-**IPC wrapper in `ipc.ts`:**
+| File | What |
+|------|------|
+| `src-tauri/src/commands/drain.rs` | `drain_messages` command — basic_get loop, Channel streaming |
+| `src-tauri/src/commands/subscribe.rs` | `start_consume` + `stop_consume` commands |
+| `src-tauri/src/commands/consumer_state.rs` | `ConsumerHandle` struct, `ConsumerState` type alias |
 
-```typescript
-export async function getExchangeBindings(
-  profileName: string,
-  exchange: string
-): Promise<string[]> {
-  return invoke<string[]>("get_exchange_bindings", { profileName, exchange });
-}
+### Modified Rust Files
+
+| File | What Changes |
+|------|--------------|
+| `src-tauri/src/commands/mod.rs` | Add `pub mod drain; pub mod subscribe; pub mod consumer_state;` |
+| `src-tauri/src/lib.rs` | Register `ConsumerState` with `.manage()`; add 3 new commands to `invoke_handler!` |
+
+### New React Files
+
+| File | What |
+|------|------|
+| `src/components/response/ConsumedMessageList.tsx` | Scrollable list of ConsumedMessage rows, expandable, newest-first |
+| `src/components/response/ConsumedMessageRow.tsx` | Single expandable message row (routing key, content-type, decoded/hex toggle) |
+| `src/components/response/FilterBar.tsx` | Routing key + content-type filter inputs |
+| `src/components/response/ExportButton.tsx` | Export to JSON/CSV via tauri-plugin-fs |
+| `src/components/response/QueueDepthBadge.tsx` | Fetches and displays queue depth via existing fetch_queue_depth |
+| `src/hooks/useConsumeChannel.ts` | Wires Channel<ConsumedMessage> and lifecycle event listeners; returns startConsume / stopConsume |
+
+### Modified React Files
+
+| File | What Changes |
+|------|--------------|
+| `src/stores/useResponseStore.ts` | Add: `mode`, `messages[]`, `subscribeStatus`, `filter`, `addMessage`, `setMode`, `setSubscribeStatus`, `setFilter`, `clearMessages` |
+| `src/lib/ipc.ts` | Add: `drainMessages()`, `startConsume()`, `stopConsume()` wrappers |
+| `src/lib/types.ts` | Add: `ConsumedMessage` interface, `SubscribeStatus` union type |
+| `src/components/response/ResponseTab.tsx` | Add mode toggle; render mode-specific sub-panel; Single mode keeps existing path |
+
+## Recommended Project Structure After v1.4
+
+```
+src-tauri/src/commands/
+├── consume.rs              # existing: single basic_get (unchanged)
+├── drain.rs                # new: drain_messages (basic_get loop + Channel)
+├── subscribe.rs            # new: start_consume + stop_consume
+├── consumer_state.rs       # new: ConsumerHandle struct + ConsumerState alias
+├── connection.rs           # unchanged
+├── encode.rs               # unchanged
+├── mod.rs                  # add new modules
+├── proto.rs                # unchanged
+└── publish.rs              # unchanged
+
+src/components/response/
+├── ResponseTab.tsx         # modified: add mode toggle
+├── ResponseQueuePicker.tsx # reuse unchanged
+├── ResponseDecodedView.tsx # reuse unchanged
+├── ResponseHexSection.tsx  # reuse unchanged
+├── ConsumedMessageList.tsx # new
+├── ConsumedMessageRow.tsx  # new
+├── FilterBar.tsx           # new
+├── ExportButton.tsx        # new
+└── QueueDepthBadge.tsx     # new
+
+src/hooks/
+├── useDebounce.ts          # unchanged
+└── useConsumeChannel.ts    # new: Channel + lifecycle event wiring
 ```
 
-#### Capability file update required
+## Architectural Patterns
 
-`src-tauri/capabilities/` must list `get_exchange_bindings` (Pitfall 7 from PITFALLS.md — every new command must be added immediately or `invoke()` silently returns null).
+### Pattern 1: Tauri Channel for Message Streaming (Drain + Subscribe)
 
----
+**What:** The `drain_messages` and `start_consume` commands accept a `Channel<ConsumedMessage>` parameter. Each message is sent over the channel as it arrives. The frontend creates a `Channel` object and wires its `onmessage` callback before invoking the command.
 
-### Feature 2: Publisher Confirms Badge (PUBL-02)
+**When to use:** Any time Rust needs to push an ordered stream of structured data to the frontend during a command's lifetime. Channel is preferred over `app.emit()` for streaming because: (1) it is tied to the specific invocation scope, (2) it preserves delivery order with an index, (3) it is faster than the global event bus.
 
-#### Current state: confirm-select is already wired; NACK is silently swallowed
+**Trade-offs:** Channel is bound to the command invocation. For drain mode the command returns when the loop ends. For subscribe mode, the command returns immediately after spawning the background task, but the task holds the Channel clone and can continue sending until the task exits.
 
-`publish.rs` already calls `channel.confirm_select(ConfirmSelectOptions::default())` before publish and awaits the confirmation future. This is correct.
-
-**The existing bug:** `confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))?` handles only the transport-level `Err` case. In lapin, `confirm_future.await` returns `Result<Confirmation, lapin::Error>`. The `Confirmation` enum has three variants: `Ack(Option<Box<BasicReturnMessage>>)`, `Nack(Option<Box<BasicReturnMessage>>)`, and `NotRequested`. The current code unwraps `Ok(Confirmation::Nack(...))` without inspecting it — a broker NACK silently becomes `Ok(())` and the frontend shows a success toast. This is a correctness bug that PUBL-02 must fix as part of implementing the badge.
-
-#### Required Rust change: new return type
-
-Change `publish_message` from `Result<(), AppError>` to `Result<PublishOutcome, AppError>`.
-
+**Rust signature:**
 ```rust
-// src-tauri/src/commands/publish.rs — add new type
+use tauri::ipc::Channel;
 
-#[derive(serde::Serialize)]
-pub struct PublishOutcome {
-    pub acked: bool,
-    pub nack_reason: Option<String>,
-}
-```
-
-The command returns:
-- `Ok(PublishOutcome { acked: true, nack_reason: None })` on broker ACK
-- `Ok(PublishOutcome { acked: false, nack_reason: Some(...) })` on broker NACK (the reason is extracted from `BasicReturnMessage` if present, otherwise a generic "broker rejected message")
-- `Err(AppError::AmqpError(...))` on transport/protocol failure (existing behavior preserved)
-
-**Replace the existing confirm handling in `publish.rs`:**
-
-```rust
-// Replace:
-confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))?;
-Ok(())
-
-// With:
-match confirm_result {
-    Ok(confirmation) => {
-        if confirmation.is_ack() {
-            Ok(PublishOutcome { acked: true, nack_reason: None })
-        } else {
-            let reason = confirmation
-                .take_message()
-                .map(|m| format!("broker returned message: reply_text={}", m.reply_text))
-                .unwrap_or_else(|| "broker NACKed message (no return message)".to_string());
-            Ok(PublishOutcome { acked: false, nack_reason: Some(reason) })
+#[tauri::command]
+pub async fn drain_messages(
+    app: tauri::AppHandle,
+    profile_name: String,
+    queue_name: String,
+    max_messages: u32,
+    message_type_name: String,
+    on_message: Channel<ConsumedMessage>,
+    pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
+) -> Result<DrainSummary, crate::error::AppError> {
+    let pool = { /* clone before any .await — guard not Send */ };
+    // ephemeral connection loop
+    for _ in 0..max_messages {
+        match channel.basic_get(queue_name.as_str().into(), BasicGetOptions::default()).await? {
+            None => break,
+            Some(msg) => {
+                // ack, decode, send
+                on_message.send(consumed_message)?;
+            }
         }
     }
-    Err(e) => Err(AppError::AmqpError(e.to_string())),
+    Ok(DrainSummary { count })
 }
 ```
 
-#### Ephemeral connection: no change needed
-
-`confirm_select` is a per-channel flag called at channel-open time before any publish. The ephemeral connection pattern (new connection per `publish_message` call) supports this cleanly — no persistent channel state is needed. This is confirmed by the existing code structure.
-
-#### IPC wrapper change: `ipc.ts`
-
+**TypeScript invocation:**
 ```typescript
-export interface PublishOutcome {
-  acked: boolean;
-  nackReason?: string | null;
+import { invoke, Channel } from '@tauri-apps/api/core';
+
+const onMessage = new Channel<ConsumedMessage>();
+onMessage.onmessage = (msg) => store.addMessage(msg);
+await invoke('drain_messages', { profileName, queueName, maxMessages: 50, messageTypeName, onMessage });
+```
+
+### Pattern 2: Managed State for Consumer Lifecycle (Subscribe Mode)
+
+**What:** A single `ConsumerState = Mutex<Option<ConsumerHandle>>` is registered at app startup. `start_consume` stores a `ConsumerHandle` (holding a `CancellationToken` and the consumer tag) when it spawns the background task. `stop_consume` takes the handle out of the slot and calls `cancel()`. If `start_consume` is called while a handle already exists, it returns an error — single-consumer-at-a-time is the invariant.
+
+**When to use:** Any cross-command state that a background task needs to be stopped from the outside.
+
+**State shape:**
+```rust
+// consumer_state.rs
+use tokio_util::sync::CancellationToken;
+
+pub struct ConsumerHandle {
+    pub cancel: CancellationToken,
+    pub consumer_tag: String,
+    pub queue_name: String,
 }
 
-export async function publishMessage(
-  profileName: string,
-  exchange: string,
-  routingKey: string,
-  payload: number[],
-  amqpProps?: AmqpPropsIpc
-): Promise<PublishOutcome> {  // return type changes from Promise<void>
-  return invoke<PublishOutcome>("publish_message", { ... });
-}
+pub type ConsumerState = std::sync::Mutex<Option<ConsumerHandle>>;
 ```
 
-#### Frontend: PublishBar.tsx — badge state
-
-```typescript
-type ConfirmState = { status: "ack" | "nack" | "none"; reason?: string };
-const [confirmState, setConfirmState] = useState<ConfirmState>({ status: "none" });
+**Registration in lib.rs:**
+```rust
+.manage(crate::commands::consumer_state::ConsumerState::new(None))
 ```
 
-In `handleSend`, after `await publishMessage(...)`:
-- `outcome.acked === true` → `setConfirmState({ status: "ack" })` + existing success toast
-- `outcome.acked === false` → `setConfirmState({ status: "nack", reason: outcome.nackReason })` + `toast.error(...)` replacing the success toast
-
-Auto-dismiss via `useEffect`:
-
-```typescript
-useEffect(() => {
-  if (confirmState.status === "none") return;
-  const id = setTimeout(() => setConfirmState({ status: "none" }), 3000);
-  return () => clearTimeout(id);
-}, [confirmState.status]);
-```
-
-Badge renders inline in `PublishBar` beside the Send button:
-
-```tsx
-{confirmState.status !== "none" && (
-  <Badge variant={confirmState.status === "ack" ? "outline" : "destructive"}>
-    {confirmState.status === "ack" ? "ACK" : `NACK${confirmState.reason ? `: ${confirmState.reason}` : ""}`}
-  </Badge>
-)}
-```
-
-#### HistoryStore impact
-
-The `HistoryEntry.status` field is already `"sent" | "failed"`. NACK does not map cleanly to either. Options:
-1. Add `"nacked"` as a third status value — requires `HistoryEntry` type change.
-2. Record NACK as `"failed"` with `errorMessage: "Broker NACKed: ..."` — no type change.
-
-Recommendation: option 2 for v1.3 (simplest, backward-compatible with existing history display). A NACK is effectively a delivery failure from the developer's perspective.
-
----
-
-### Feature 3: Message Block Library (BLK-01 through BLK-04)
-
-#### State: useBlocksStore (zustand) + tauri-plugin-store (persistence)
-
-This mirrors the `useHistoryStore` pattern exactly. `tauri-plugin-store` is persistence, not state. The in-memory list for UI rendering lives in zustand.
-
-**Store file: `src/stores/useBlocksStore.ts`** (new file)
-
-**Block data model:**
-
-```typescript
-export interface MessageBlock {
-  id: string;                          // crypto.randomUUID()
-  name: string;                        // user-defined label
-  values: Record<string, unknown>;     // form getValues() snapshot — schema-agnostic
-  updatedAt: string;                   // new Date().toISOString()
-}
-```
-
-`values` is the same shape as `latestValues` in `useProtoStore` and `fieldValues` in `HistoryEntry` — a flat-ish `Record<string, unknown>` from react-hook-form's `getValues()`. It is schema-agnostic per PROJECT.md ("global/type-agnostic" BLK-04 requirement).
-
-**Store shape:**
-
-```typescript
-interface BlocksStore {
-  blocks: MessageBlock[];
-  blocksLoaded: boolean;
-  loadBlocks: () => Promise<void>;
-  addBlock: (name: string, values: Record<string, unknown>) => Promise<void>;
-  updateBlock: (id: string, name: string, values: Record<string, unknown>) => Promise<void>;
-  deleteBlock: (id: string) => Promise<void>;
-}
-```
-
-Persistence path: `blocks.json` (separate from `history.json` and `proto-sender.json` — follows existing pattern of one concern per store file).
-
-Hydration: `loadBlocks()` called in `App.tsx` at startup alongside `loadHistory()` (existing startup sequence).
-
-#### Block JSON editor component
-
-**New component: `src/components/blocks/BlockEditor.tsx`**
-
-Reuses the existing `JsonEditor` component (`src/components/form/JsonEditor.tsx`) — the CodeMirror wrapper is already generic enough. `BlockEditor` wraps `JsonEditor` with:
-- A `name` text input (block label)
-- Save / Cancel buttons
-- Validation: name must be non-empty; JSON must be valid object
-
-This is a distinct component from `JsonEditor` in the form because its lifecycle (create/edit named block) is different from the form's JSON override toggle (ephemeral per-session).
-
-#### Collapsible block library panel: layout decision
-
-`AppLayout.tsx` currently is three columns: `aside(sidebar) | main(PublishBar + FormPanel) | aside(RightPanel)`.
-
-The block library is most analogous to the right panel (persistent content beside the form) but adding a fourth column makes the layout too wide on typical developer screens (1440px).
-
-**Recommended approach: collapsible sub-panel inside `main`, to the left of `FormPanel`.**
-
-`main` becomes a horizontal split:
-```
-main
-  ├── [optional] BlockLibraryPanel (collapsible, ~240px, left side)
-  └── FormPanel (fills remaining space)
-```
-
-This keeps the layout at 3 logical columns. `BlockLibraryPanel` is hidden by default and shown when the user activates it (toggle button in `PublishBar` or `FormPanel` header). Its open/closed state is local React state in `AppLayout` or `main`'s component.
-
-**No change to AppLayout's outer structure** — the sidebar and RightPanel stay unchanged. Only the center `main` column gains an internal split.
-
-**New file: `src/components/blocks/BlockLibraryPanel.tsx`**
-
-Renders inside `main` as a flex sibling of `FormPanel`. Contains:
-- Block list (name + "Apply" button + edit/delete controls)
-- "New block" button that opens `BlockEditor`
-- Collapsible (uses existing `Collapsible` component from shadcn/ui, already installed)
-
-#### Drag-and-drop integration
-
-DnD requires a library decision. The HTML5 native drag-and-drop API is hostile in React + Tailwind (flickering, poor touch support, no accessible keyboard). **`@dnd-kit/core`** (~10KB gzip) is the modern standard: composable, accessible, no peer dependency conflicts, works in Tauri's WebView.
-
-**Stack addition required in STACK.md:** `@dnd-kit/core` + `@dnd-kit/utilities`. This is flagged as a needed addition.
-
-DnD interaction:
-1. Each block row in `BlockLibraryPanel` is a drag source (`useDraggable`).
-2. `ProtoFormRenderer`'s scroll container becomes a drop target (`useDroppable`).
-3. On drop, a `handleBlockApply` callback is called in `FormPanel`.
-
-#### Block merge logic in FormPanel
-
-The "merge fills empty fields only" rule requires a decision on what "empty" means. Recommendation for each field type:
-- `string`: `""` or `undefined`
-- `number`/`int32` etc.: `0` or `undefined`
-- `bool`: `false` or `undefined`
-- `repeated`: empty array `[]` or `undefined`
-- `map rows`: empty array `[]` or `undefined`
-- `oneof._selected`: `""` or `undefined`
-
-"Empty" = proto3 default value or `undefined`. A field already set to a non-default value by the user is preserved.
-
-**Merge implementation in `FormPanel.tsx`:**
-
-```typescript
-function mergeBlockIntoForm(
-  currentValues: Record<string, unknown>,
-  blockValues: Record<string, unknown>,
-  defaultValues: Record<string, unknown>
-): Record<string, unknown> {
-  const merged: Record<string, unknown> = { ...currentValues };
-  for (const [key, blockVal] of Object.entries(blockValues)) {
-    const current = currentValues[key];
-    const defaultVal = defaultValues[key];
-    // Only overwrite if current === default (field is "empty")
-    if (JSON.stringify(current) === JSON.stringify(defaultVal)) {
-      merged[key] = blockVal;
+**start_consume guard:**
+```rust
+#[tauri::command]
+pub async fn start_consume(
+    app: tauri::AppHandle,
+    profile_name: String,
+    queue_name: String,
+    message_type_name: String,
+    on_message: Channel<ConsumedMessage>,
+    consumer_state: tauri::State<'_, ConsumerState>,
+    pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
+) -> Result<(), crate::error::AppError> {
+    // Guard: reject if already consuming
+    {
+        let guard = consumer_state.lock().unwrap();
+        if guard.is_some() {
+            return Err(AppError::AmqpError(
+                "Already consuming — call stop_consume first".to_string()
+            ));
+        }
     }
-  }
-  return merged;
+    let pool = { /* clone before any .await */ };
+    let token = CancellationToken::new();
+    let child_token = token.child_token();
+    let consumer_tag = format!("proto-sender-{}", epoch_ms());
+
+    // Store handle BEFORE spawning
+    {
+        let mut guard = consumer_state.lock().unwrap();
+        *guard = Some(ConsumerHandle {
+            cancel: token,
+            consumer_tag: consumer_tag.clone(),
+            queue_name: queue_name.clone(),
+        });
+    }
+
+    let app_clone = app.clone();
+    tauri::async_runtime::spawn(async move {
+        run_consumer_task(app_clone, conn, channel, consumer, child_token, on_message, pool).await;
+    });
+
+    Ok(())
 }
 ```
 
-After merge: call `setPendingReplayValues(merged)` — the existing `useEffect` in `FormPanel.tsx` (line 85–95) handles `resetRef.current(mergedValues)` correctly. Do NOT call `resetRef.current()` directly (the null-before-mount pitfall is documented in PITFALLS.md #21 and in `FormPanel.tsx` line 165).
+### Pattern 3: tokio::select! Consumer Loop with CancellationToken
 
-#### Block creation from current form values
+**What:** The background task uses `tokio::select!` to race between the next consumer message and the cancellation signal. On cancellation, it calls `channel.basic_cancel()` to tell the broker to stop delivering, then closes the connection cleanly.
 
-"Save as block" can be triggered from `FormPanel`'s header (a "Save block" button). This reads `useFormContext().getValues()` at click time (not `watch()` — same reason as JSON mode entry). Opens `BlockEditor` in create mode pre-populated with the current values.
+**Why not JoinHandle.abort():** Aborting drops the task at the next `.await` without issuing `basic_cancel`. The broker retains the subscription until its TCP keepalive expires (~60s). `CancellationToken` enables a graceful protocol-level cancel.
 
----
+**Rust pattern:**
+```rust
+async fn run_consumer_task(
+    app: tauri::AppHandle,
+    conn: lapin::Connection,
+    channel: lapin::Channel,
+    mut consumer: lapin::Consumer,
+    cancel: CancellationToken,
+    on_message: Channel<ConsumedMessage>,
+    pool: prost_reflect::DescriptorPool,
+) {
+    use futures_lite::StreamExt;
+    use tauri::Emitter;
 
-## New Components
+    loop {
+        tokio::select! {
+            _ = cancel.cancelled() => {
+                let _ = channel.basic_cancel(
+                    consumer.tag().as_str().into(),
+                    lapin::options::BasicCancelOptions::default(),
+                ).await;
+                break;
+            }
+            maybe_delivery = consumer.next() => {
+                match maybe_delivery {
+                    None => break,
+                    Some(Err(e)) => {
+                        let _ = app.emit("consume-error", e.to_string());
+                        break;
+                    }
+                    Some(Ok(delivery)) => {
+                        let msg = decode_delivery(&delivery, &pool);
+                        let _ = on_message.send(msg);
+                    }
+                }
+            }
+        }
+    }
 
-| Component | File | Purpose |
-|-----------|------|---------|
-| `BlockLibraryPanel` | `src/components/blocks/BlockLibraryPanel.tsx` | Collapsible panel listing named blocks with apply/edit/delete |
-| `BlockEditor` | `src/components/blocks/BlockEditor.tsx` | Create/edit a named block — name input + CodeMirror JSON editor |
+    let _ = conn.close(0, "".into()).await;
+    let _ = app.emit("consume-stopped", ());
+}
+```
 
-## New Commands (Rust)
+### Pattern 4: Hybrid Channel + Events for Lifecycle
 
-| Command | File | Purpose |
-|---------|------|---------|
-| `get_exchange_bindings` | `src-tauri/src/commands/connection.rs` | Fetch routing keys for a selected exchange via Management API |
+**What:** The message stream goes through `Channel<ConsumedMessage>` (fast, ordered, scoped to the invocation). Lifecycle signals (`consume-stopped`, `consume-error`) go through `app.emit()` global events. This separation is deliberate: the Channel is tied to the `start_consume` invocation's lifetime. Global events survive component remounts and are the right primitive for "something ended" notifications.
 
-## New Stores
+**Frontend wiring:**
+```typescript
+// useConsumeChannel.ts
+import { invoke, Channel } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
+import { useResponseStore } from '@/stores/useResponseStore';
 
-| Store | File | Purpose |
-|-------|------|---------|
-| `useBlocksStore` | `src/stores/useBlocksStore.ts` | In-memory block list + CRUD + persistence via `blocks.json` |
+export function useConsumeChannel() {
+  const { addMessage, setSubscribeStatus } = useResponseStore();
 
-## New IPC wrappers
+  const startConsume = async (params: StartConsumeParams) => {
+    const onMessage = new Channel<ConsumedMessage>();
+    onMessage.onmessage = (msg) => addMessage({ ...msg, receivedAt: Date.now() });
 
-| Function | File | Purpose |
-|----------|------|---------|
-| `getExchangeBindings` | `src/lib/ipc.ts` | Wrapper for `get_exchange_bindings` Tauri command |
+    const unlistenStopped = await listen('consume-stopped', () => {
+      setSubscribeStatus('idle');
+      unlistenStopped();
+      unlistenError();
+    });
+    const unlistenError = await listen<string>('consume-error', (e) => {
+      setSubscribeStatus('errored');
+      unlistenStopped();
+      unlistenError();
+    });
 
----
+    setSubscribeStatus('running');
+    await invoke('start_consume', { ...params, onMessage });
+  };
 
-## Modified Components/Commands
+  const stopConsume = async () => {
+    setSubscribeStatus('stopping');
+    await invoke('stop_consume');
+    // Do NOT set 'idle' here — wait for 'consume-stopped' event
+  };
 
-### `src-tauri/src/commands/publish.rs`
+  return { startConsume, stopConsume };
+}
+```
 
-- Add `PublishOutcome` struct (`#[derive(serde::Serialize)]`)
-- Change return type from `Result<(), AppError>` to `Result<PublishOutcome, AppError>`
-- Replace confirm result handling: inspect `Confirmation::is_ack()` / `is_nack()` instead of map_err-only
+## Critical Architectural Shift: Ephemeral to Long-Lived Connection
 
-### `src/lib/ipc.ts`
+Every existing AMQP command uses an ephemeral connection: open, operate, close within the command's async fn. Subscribe mode breaks this invariant by design. The `lapin::Connection` and its `lapin::Channel` are moved into the background task and live for the duration of the consume session.
 
-- Add `getExchangeBindings` function
-- Add `PublishOutcome` interface
-- Change `publishMessage` return type from `Promise<void>` to `Promise<PublishOutcome>`
+**Implications:**
+- The background task owns the connection; no other code can reference it after the move
+- If the background task panics, `conn.close()` is not called — the TCP socket will timeout via the broker's heartbeat. Acceptable for a dev tool.
+- The `start_consume` command function returns `Ok(())` immediately after spawning the task. The `on_message` Channel stays alive because the spawned task holds the clone.
+- Drain mode retains the ephemeral pattern: the command function owns the connection and returns when the loop finishes.
 
-### `src/components/publish/PublishBar.tsx`
+## Data Flow
 
-- Add `bindingKeys: string[]` and `bindingsLoading: boolean` local state
-- Add `useEffect` to call `getExchangeBindings` when `selectedExchange` changes in exchange mode
-- Replace plain `<Input>` routing key field with a combobox (Popover + Input + suggestion list)
-- Add `confirmState: ConfirmState` local state
-- Add `useEffect` for auto-dismiss (3s timeout)
-- Add ACK/NACK ephemeral badge beside Send button
-- Update `handleSend` to use `PublishOutcome` return value
+### Drain Mode
 
-### `src/components/layout/AppLayout.tsx`
+```
+User: click "Drain (N)"
+    ↓
+ResponseTab → invoke('drain_messages', { maxMessages: N, onMessage: Channel })
+    ↓
+Rust: drain_messages opens ephemeral lapin connection
+    ↓ basic_get loop (up to N iterations)
+    ↓ each message: ack → decode → on_message.send(ConsumedMessage)
+    ↓ loop exits (empty queue or N reached)
+    ↓ command returns DrainSummary { count }
+    ↓
+Channel.onmessage callbacks → store.addMessage() (one per message, in order)
+invoke() resolves → setIsLoading(false)
+```
 
-- Wrap the center `main` content area to accommodate the optional `BlockLibraryPanel`
-- Add a flex row container inside `main`: `[BlockLibraryPanel?] + FormPanel`
-- `BlockLibraryPanel` is hidden by default; toggled by a button (location TBD in plan phase — candidate: FormPanel header, or a dedicated "Blocks" icon in Sidebar)
+### Subscribe Mode
 
-### `src/App.tsx` (or startup bootstrap)
+```
+User: click "Start Subscribe"
+    ↓
+useConsumeChannel.startConsume()
+    ↓ create Channel.onmessage, listen('consume-stopped'), listen('consume-error')
+    ↓ setSubscribeStatus('running')
+    ↓ invoke('start_consume', { onMessage })
+    ↓
+Rust start_consume:
+    ↓ guard: reject if ConsumerState is Some
+    ↓ clone pool (before .await)
+    ↓ open lapin connection
+    ↓ create channel, basic_consume (no_ack: true)
+    ↓ store ConsumerHandle { cancel, consumer_tag, queue_name }
+    ↓ tauri::async_runtime::spawn(run_consumer_task)
+    ↓ return Ok(()) immediately
 
-- Add `useBlocksStore.getState().loadBlocks()` call at startup alongside existing `loadHistory()`
+Background task (run_consumer_task):
+    ↓ tokio::select! loop
+    ↓ delivery → decode → on_message.send()
 
-### `src-tauri/capabilities/` (capability file)
+User: click "Stop"
+    ↓
+invoke('stop_consume')
+    ↓ lock ConsumerState, take ConsumerHandle, call cancel.cancel()
+    ↓ return Ok(())
+    ↓ setSubscribeStatus('stopping') (already set by hook)
 
-- Add `get_exchange_bindings` to allowed commands
+Background task receives cancellation:
+    ↓ basic_cancel → conn.close()
+    ↓ app.emit('consume-stopped', ())
 
----
+Frontend listen('consume-stopped'):
+    ↓ setSubscribeStatus('idle')
+    ↓ remove listeners
+```
 
-## Suggested Build Order
+### State Management
 
-### 1. Routing Key Autocomplete (PUBL-01) — first
+```
+useResponseStore
+  mode: 'single' | 'drain' | 'subscribe'
+  messages: ConsumedMessage[]     (newest first, capped at 500)
+  subscribeStatus: 'idle' | 'running' | 'stopping' | 'errored'
+  filter: { routingKey?: string; contentType?: string }
+  lastResult: ...                 (legacy single-mode, unchanged)
 
-**Why first:** Single new Rust command + single component change scoped to `PublishBar`. No type changes to existing IPC contracts. No new stores. Validates the `GET /api/exchanges/{vhost}/{exchange}/bindings/source` endpoint is reachable on the team's RabbitMQ instances before depending on it for other features. Small blast radius: if this phase has issues, nothing else is broken.
+  addMessage(msg) → [msg, ...prev].slice(0, 500)
+  setMode(m)
+  setSubscribeStatus(s)
+  setFilter(f)
+  clearMessages()
+```
 
-**What it touches:** `connection.rs` (new command), `ipc.ts` (new function), `PublishBar.tsx` (combobox), capability file.
+## Integration Points
 
-### 2. Publisher Confirms Badge (PUBL-02) — second
+### Existing Rust Commands: Unchanged
 
-**Why second:** Modifies the `publish_message` return type — a cross-cutting change that affects `publish.rs`, `ipc.ts`, and `PublishBar.tsx`. Doing this after PUBL-01 means both `PublishBar.tsx` changes land in sequence (avoid editing the same component in two concurrent phases). The return type change is backward-compatible in spirit but is an API break: any code reading `void` from `publishMessage` must be updated. Doing this early (before BLK-03/04) means the block library's "apply and send" flow (if added later) inherits the correct ACK/NACK feedback.
+The three new Rust commands (`drain_messages`, `start_consume`, `stop_consume`) slot in alongside existing commands with no changes to `consume.rs`, `publish.rs`, `connection.rs`, or `encode.rs`.
 
-**Also fixes the existing NACK-silently-passes bug** — this is a correctness improvement bundled with the visual feature.
+### Pool State: Same Clone Pattern
 
-**What it touches:** `publish.rs` (PublishOutcome type + confirm handling), `ipc.ts` (return type + interface), `PublishBar.tsx` (badge + handleSend update).
+All three new commands clone the `DescriptorPool` from `Mutex<Option<DescriptorPool>>` before any `.await`, identical to the existing `consume_message` pattern. The spawned background task receives an owned `DescriptorPool` clone — no lock held across await.
 
-### 3. Message Block Library (BLK-01 through BLK-04) — last
+### tauri::async_runtime::spawn Requirement
 
-**Why last:** The largest feature by surface area. New store, new persistence, new components, DnD library, layout change, FormPanel integration. The DnD library (`@dnd-kit/core`) is a new npm dependency that needs vetting. The block merge logic interacts with `FormPanel.tsx`'s `setPendingReplayValues` / `resetRef` machinery, which is complex (see PITFALLS.md #21). Building this last keeps the PUBL-01/02 phases clean and avoids DnD library setup contaminating a simpler feature's plan.
+The background consumer task MUST use `tauri::async_runtime::spawn`, NOT `tokio::spawn`. Hard constraint from Tauri issue #10289: `tokio::spawn` inside Tauri event listeners panics on Windows in Tauri 2. This is already enforced codebase-wide (documented in CLAUDE.md).
 
-**Internal order within BLK:**
-1. BLK-01 + BLK-02 + BLK-03: Store + persistence + JSON editor UI (no DnD yet — blocks can be applied via an "Apply" button)
-2. BLK-04: DnD layer on top of a working apply mechanism
+### Ack Policy: no_ack: true (Server Auto-Ack)
 
-This allows early validation of the merge logic before adding DnD complexity.
+`basic_consume` is called with `BasicConsumeOptions { no_ack: true, .. }`. This is the generalization of the existing D-10 "ack-before-decode" doctrine. The broker removes messages from the queue as it delivers them. Consequences:
 
----
+- No stuck unacked messages if the app crashes mid-session
+- No prefetch count management needed
+- No client-side ack calls in the message loop
+- Matches dev-tool intent: consume = remove
 
-## Architecture Constraints for Implementation Plans
+### New IPC Surface
 
-### Constraint 1: FormPanel reset pathway
+```typescript
+// New type in types.ts
+export interface ConsumedMessage {
+  routingKey: string;
+  contentType: string | null;
+  decoded: Record<string, unknown> | null;
+  hexString: string;
+  error: string | null;
+  receivedAt: number;  // ms timestamp, added client-side in onmessage callback
+}
 
-All "push values into form" operations must go through `setPendingReplayValues(values)`, never `resetRef.current(values)` directly. `resetRef.current` is `null` until `ProtoFormRenderer` mounts. The `useEffect` in `FormPanel.tsx` (lines 85–95) is the safe sequenced pathway.
+export type SubscribeStatus = 'idle' | 'running' | 'stopping' | 'errored';
 
-### Constraint 2: "Empty" field definition for block merge
+// New in ipc.ts
+export async function drainMessages(
+  profileName: string,
+  queueName: string,
+  maxMessages: number,
+  messageTypeName: string,
+  onMessage: Channel<ConsumedMessage>,
+): Promise<{ count: number }>;
 
-The block merge implementation must decide what constitutes "empty" per field type before the plan phase. The recommended definition is: a field is empty if and only if its current value deep-equals the `buildDefaultValues()` output for that field. This is safe because `buildDefaultValues` already exists in `ProtoFormRenderer.tsx` and is used for JSON mode and replay.
+export async function startConsume(
+  profileName: string,
+  queueName: string,
+  messageTypeName: string,
+  onMessage: Channel<ConsumedMessage>,
+): Promise<void>;
 
-### Constraint 3: DnD library dependency
+export async function stopConsume(): Promise<void>;
+```
 
-`@dnd-kit/core` is not yet installed. The BLK phase plan must include an npm install step. Version: `@dnd-kit/core ^6.x` (latest stable; compatible with React 18 and Tauri WebView). Also install `@dnd-kit/utilities` for coordinate utilities used in drop detection.
+## Scalability Considerations
 
-### Constraint 4: Confirm-select is per-channel, not per-connection
+This is a local dev tool. Meaningful limits are:
 
-`confirm_select` is called on the lapin `Channel` object, not the `Connection`. The ephemeral connection pattern creates a new connection AND a new channel per `publish_message` call. `confirm_select` is called on the new channel — this is correct and is already what the existing code does. No architectural change to the connection pattern is needed.
+| Concern | Design decision |
+|---------|----------------|
+| Memory: messages in store | Cap at 500 entries; `addMessage` prepends and slices |
+| Broker backpressure | `no_ack: true` removes messages on delivery; no buildup |
+| Multiple consumers | Single-slot `ConsumerState` — second `start_consume` returns error |
+| App crash during subscribe | Broker closes consumer within heartbeat window (~60s) |
 
-### Constraint 5: Management API bindings endpoint graceful degradation
+## Build Order
 
-The binding keys endpoint (`/api/exchanges/{vhost}/{exchange}/bindings/source`) uses the same Management API base URL and credentials as `fetch_exchanges`. If the Management API is unavailable (i.e., `managementStatus === "manual"`), the binding fetch will also fail. In that case, `bindingKeys` stays empty and the routing key input is a plain text field with no suggestions. This is correct behavior — degrade to manual entry, same as the existing queue/exchange picker degradation.
+1. **`ConsumedMessage` type + `useResponseStore` extension** — no new commands; enables all downstream. Add mode, messages, subscribeStatus, filter, addMessage, clearMessages, setFilter.
 
----
+2. **`QueueDepthBadge` component** — uses existing `fetch_queue_depth` unchanged. Zero new backend code.
+
+3. **`drain_messages` Rust command + `drainMessages` IPC wrapper + `ConsumedMessageList` + `ConsumedMessageRow` + mode toggle in `ResponseTab` (Drain mode only)** — validates Channel streaming with an ephemeral connection; no managed state. `FilterBar` can appear here as client-side only (it reads from store, not from Rust).
+
+4. **`consumer_state.rs` + `start_consume` + `stop_consume` + `useConsumeChannel` hook + Subscribe mode in `ResponseTab`** — adds managed state and long-lived connection. Channel pattern already proven in step 3.
+
+5. **`FilterBar` integration** — client-side filter of `messages[]` from store. No new backend.
+
+6. **`ExportButton`** — reads filtered messages from store; writes JSON/CSV via `tauri-plugin-fs` save dialog.
+
+## Anti-Patterns
+
+### Anti-Pattern 1: tokio::spawn for the Background Consumer Task
+
+**What people do:** `tokio::spawn(async move { ... })` looks identical to `tauri::async_runtime::spawn`.
+
+**Why it's wrong:** Panics on Windows in Tauri 2 event-listener contexts. See Tauri issue #10289.
+
+**Do this instead:** `tauri::async_runtime::spawn(async move { ... })` — always, without exception.
+
+### Anti-Pattern 2: Holding the DescriptorPool MutexGuard Across an Await
+
+**What people do:** Lock `pool_state`, then `.await` on a lapin call while holding the guard.
+
+**Why it's wrong:** `MutexGuard` is not `Send`. The Rust compiler rejects this. Even if it compiled, it would block the pool for the entire connection lifetime.
+
+**Do this instead:** Clone the pool inside a tight block before any `.await`. `DescriptorPool` is `Arc`-backed; clone is O(1). Identical pattern to existing `consume_message`.
+
+### Anti-Pattern 3: Using app.emit() for the Message Stream
+
+**What people do:** Replace Channel with `app.emit("consume-message", msg)` for each delivery.
+
+**Why it's wrong:** Global events fan out to all listeners, have no ordering guarantee under load, and are slower. Channel is explicitly recommended by Tauri 2 docs for streaming operations.
+
+**Do this instead:** Channel for message delivery (scoped to invocation). Reserve `app.emit()` for lifecycle signals (`consume-stopped`, `consume-error`) where global fan-out is correct.
+
+### Anti-Pattern 4: Aborting the Task via JoinHandle
+
+**What people do:** Store a `JoinHandle<()>` and call `handle.abort()` from `stop_consume`.
+
+**Why it's wrong:** `abort()` drops the future at the next `.await` without running cleanup. The broker keeps the subscription active until its TCP keepalive expires (~60s). During that window the queue cannot have a replacement consumer.
+
+**Do this instead:** `CancellationToken` + `tokio::select!` — task exits cleanly and issues `basic_cancel` before closing the connection.
+
+### Anti-Pattern 5: Setting subscribeStatus to 'idle' on stop_consume Resolution
+
+**What people do:** `stop_consume` resolves → frontend immediately sets `subscribeStatus: 'idle'`.
+
+**Why it's wrong:** The background task is still running between `cancel.cancel()` and the actual `basic_cancel` + `conn.close()`. UI shows idle but broker is still subscribed.
+
+**Do this instead:** `stop_consume` returns `Ok(())` immediately (it only cancels the token). The frontend sets `subscribeStatus: 'stopping'` on invoke, then `'idle'` only on receipt of the `'consume-stopped'` global event.
 
 ## Sources
 
-- `src/components/publish/PublishBar.tsx` — existing state model, IPC call pattern, Management API error discrimination (HIGH confidence — primary source)
-- `src-tauri/src/commands/publish.rs` — existing confirm_select + confirm_future.await; confirmed NACK-swallowing bug (HIGH confidence — primary source)
-- `src-tauri/src/commands/connection.rs` — existing fetch_exchanges pattern; template for get_exchange_bindings (HIGH confidence — primary source)
-- `src/components/form/FormPanel.tsx` — resetRef pattern, setPendingReplayValues pathway, layout structure (HIGH confidence — primary source)
-- `src/stores/useHistoryStore.ts` — pattern for zustand + tauri-plugin-store persistence (HIGH confidence — primary source)
-- `src/stores/useConnectionStore.ts` — confirms binding keys should NOT go here (HIGH confidence — primary source)
-- lapin `Confirmation` enum: `Ack(Option<Box<BasicReturnMessage>>)`, `Nack(...)`, `NotRequested`; `is_ack()` / `is_nack()` methods (HIGH confidence — docs.rs 1.4.3 and lapin examples verified)
-- RabbitMQ Management API: `GET /api/exchanges/{vhost}/{exchange}/bindings/source` returns binding list with `routing_key` field (HIGH confidence — official RabbitMQ API reference)
-- `@dnd-kit/core` v6.x — modern accessible React DnD (MEDIUM confidence — ecosystem consensus; verify version compatibility with Tauri WebView during install)
+- Tauri 2 Channel API for streaming from Rust to frontend: https://v2.tauri.app/develop/calling-frontend/
+- Tauri 2 managed state with Mutex: https://v2.tauri.app/develop/state-management/
+- lapin Consumer struct (basic_consume, StreamExt, basic_cancel, consumer tag): https://docs.rs/lapin/latest/lapin/struct.Consumer.html
+- tokio-util CancellationToken: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
+- Tauri issue #10289 (tokio::spawn panic on Windows in Tauri 2): https://github.com/tauri-apps/tauri/issues/10289
+
+---
+*Architecture research for: Tauri 2 long-lived AMQP consumer (v1.4 Advanced Response Consumer)*
+*Researched: 2026-05-20*

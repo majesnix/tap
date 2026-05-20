@@ -954,3 +954,392 @@ For v1.3, the block schema is simple enough that a Zod parse with defaults cover
 - Existing codebase: `PublishBar.tsx` — managementStatus gating pattern, isSending as local state
 - Existing codebase: `connection.rs` fetch_exchanges — returns Vec<String>, not Vec<{name, type}>
 - Existing codebase: `tauri.conf.json` — dragDropEnabled not set (defaults to OS-level handling)
+
+
+---
+
+## v1.4 Advanced Response Consumer Pitfalls
+
+The following pitfalls are specific to the v1.4 milestone: replacing the one-at-a-time `basic_get` reader with drain mode and live subscribe mode using `basic_consume`. All findings are grounded in the existing v1.3 codebase — `consume.rs`, `lib.rs`, `useResponseStore.ts`, `ResponseTab.tsx`.
+
+---
+
+## Long-Lived Consumer Lifecycle
+
+### 46. Prefetch count defaults to unlimited — broker dumps entire queue into client buffer
+
+**What goes wrong:**
+`lapin` starts a consumer with `basic_consume` and no prior `basic_qos` call. By default, RabbitMQ delivers an unlimited number of messages to the client before any are acked. On a queue with 50,000 messages, the broker pushes all 50,000 into the TCP buffers immediately. The Rust task accumulates them faster than the UI can process and emit events, leading to heap exhaustion (OOM kill of the app) or multi-second UI freeze.
+
+**Why it happens:**
+The existing `basic_get` pattern fetches one message at a time — there is no prefetch concept because the caller controls the loop. Switching to `basic_consume` without reading the prefetch documentation replicates the old mental model but breaks under the new delivery model.
+
+**Prevention:**
+Always call `channel.basic_qos(prefetch_count, BasicQosOptions::default()).await` before `basic_consume`. For this dev tool, 100–500 is the right range: enough to keep the pipe fed without buffering the whole queue. Drain mode should set prefetch to the requested drain count (e.g., drain-50 → prefetch 50) so the broker stops sending after N messages. Live subscribe mode should use a fixed low prefetch (100–200).
+
+**Warning signs:**
+App memory climbs rapidly on subscribe start. UI thread blocks for several seconds before showing the first message.
+
+**Phase to address:** Live subscribe phase — drain mode phase must also set prefetch if using `basic_consume` as the underlying primitive.
+
+---
+
+### 47. `tauri::ipc::Channel<T>` not `app.emit()` for streaming to React
+
+**What goes wrong:**
+Developer reaches for `app.emit("amqp-message", payload)` (the global event system) to push each arriving message to the frontend. This creates four interacting problems:
+
+1. **No per-invocation routing.** Global events are broadcast to all windows. If two subscribe calls are active (impossible in v1.4 but easy to hit in future), both listeners receive each other's messages.
+2. **Ghost listeners on re-mount.** Every time `ResponseTab` mounts, it calls `listen("amqp-message", handler)`. If the previous unlisten cleanup did not run (component unmounted abnormally, fast re-mount), the handler from the previous mount is still registered. Each arriving message fires the handler twice (or more), producing duplicate rows in the list.
+3. **String-keyed routing.** Unique event names per session (e.g., `"amqp-message-"`) are needed to avoid crosstalk — a pattern that introduces a coordination contract between Rust and TypeScript that must be kept in sync.
+4. **No backpressure.** `app.emit()` is fire-and-forget with no ordering guarantee under high load.
+
+`tauri::ipc::Channel<T>` is the correct primitive. It is per-invocation (the frontend creates a `new Channel<MsgType>()` and passes it as a command argument), ordered, typed, and automatically scoped to the one invoke call. There are no global event names, no ghost listener risk, and no session ID coordination needed.
+
+**Prevention:**
+Design the `start_consume` command signature to accept a `tauri::ipc::Channel<ConsumedMessage>` argument:
+```rust
+#[tauri::command]
+pub async fn start_consume(
+    ...,
+    on_message: tauri::ipc::Channel<ConsumedMessage>,
+) -> Result<(), AppError> { ... }
+```
+Frontend passes it in invoke:
+```typescript
+import { invoke, Channel } from '@tauri-apps/api/core';
+const onMessage = new Channel<ConsumedMessage>();
+onMessage.onmessage = (msg) => addToList(msg);
+await invoke('start_consume', { ..., onMessage });
+```
+The Channel is closed automatically when the command future resolves or the connection is cancelled.
+
+**Warning signs:**
+Duplicate rows appearing in the message list. Messages from a previous subscribe session appearing in a new one. Event listener count in DevTools grows on each mount.
+
+**Phase to address:** Live subscribe phase — use Channel<T> from the first implementation; retrofitting from global events is disruptive.
+
+---
+
+### 48. `std::sync::Mutex` on consumer handle state panics when guard is held across await
+
+**What goes wrong:**
+The existing `lib.rs` stores the `DescriptorPool` behind a `std::sync::Mutex` (line 33: `Mutex::new(Option::<prost_reflect::DescriptorPool>::None)`). This pattern works because the lock is taken, the pool is cloned (O(1), Arc-backed), and the guard is dropped before any `.await`. The same pattern applied naively to a long-lived consumer handle fails.
+
+A new `Mutex<Option<ConsumerHandle>>` stored in Tauri managed state, with a command that locks the mutex, reads the handle, and then `.await`s a stop signal — holds the `std::sync::MutexGuard` across an async boundary. `std::sync::MutexGuard` is `!Send`. The compiler rejects this with "future is not `Send`" pointing at the guard.
+
+The attempted fix — cloning the handle out before the await — does not work if the handle itself is not cheaply cloneable (e.g., a `lapin::Consumer` stream is not `Clone`).
+
+**Prevention:**
+Use `tokio::sync::Mutex` for any state that must be locked across an async boundary (the stop-signal sender, a consumer join handle). Alternatively, store the cancel token (`tokio_util::CancellationToken`) and a task JoinHandle separately:
+```rust
+// In lib.rs managed state:
+Mutex::new(Option::<tokio_util::CancellationToken>::None)
+```
+The `CancellationToken` is `Clone + Send + Sync`, so it can be taken out of the mutex before the await — no lock held across the async boundary. The consumer task holds its own copy; the stop command holds another.
+
+**Warning signs:**
+Compile error: "future is not `Send`" in any command that touches `Mutex<ConsumerState>`. Runtime deadlock if `std::sync::Mutex` is used inside a tokio task that yields.
+
+**Phase to address:** Live subscribe phase — state shape is the first decision.
+
+---
+
+### 49. Stop/cancel design: `basic_cancel` alone does not drain buffered messages
+
+**What goes wrong:**
+When user clicks Stop, the command calls `channel.basic_cancel(consumer_tag, BasicCancelOptions::default()).await`. This sends a `basic.cancel` frame to the broker, which stops new deliveries. But the lapin `Consumer` stream is backed by an internal channel that may already hold dozens of messages that the broker delivered before the cancel frame was processed. The consumer task loop is still blocked in `consumer.next().await` and will continue yielding those buffered messages — emitting them to the UI — for an indeterminate period after the user clicked Stop.
+
+The cancel is not instantaneous: messages already in-flight on the TCP connection or buffered in lapin's internal queue are delivered before the stream yields `None`.
+
+**Prevention:**
+Use a `tokio_util::CancellationToken` as the primary stop signal. Wrap the consumer loop with `tokio::select!`:
+```rust
+loop {
+    tokio::select! {
+        biased;
+        _ = token.cancelled() => { break; }
+        msg = consumer.next() => {
+            match msg { ... }
+        }
+    }
+}
+// Drop consumer here — releases the channel
+drop(consumer);
+let _ = channel.close(0, "consumer stopped").await;
+```
+The `biased;` directive checks the cancellation branch first on each iteration, so the loop exits as soon as the token is cancelled even if messages are buffered. Messages that were already delivered and are in the `consumer.next()` buffer are discarded after cancellation — document this as "in-flight messages at stop time may not be displayed." For a dev tool, this is acceptable.
+
+**Warning signs:**
+Messages continue appearing in the UI 1–2 seconds after Stop is clicked. Stop appears laggy.
+
+**Phase to address:** Live subscribe phase — the select! pattern must be designed before the consumer loop is written.
+
+---
+
+### 50. Race between stop and in-flight ack: already-acked messages lost on stop
+
+**What goes wrong:**
+The existing `consume.rs` uses D-10: ack before decode, immediately after receiving the delivery. The same pattern applied in the consumer loop means the broker acks each message the instant `consumer.next().await` resolves — before the message is decoded or emitted to the UI.
+
+If the user clicks Stop between ack and emit (the decode + channel send window), the message is acked (removed from broker queue) but never shown in the UI. From the user's perspective, the queue lost a message.
+
+**Prevention:**
+This race is narrow (microseconds) and acceptable for a developer tool. Document explicitly: "Messages acked by the consumer but not yet displayed may be lost if Stop is clicked mid-flight. This is by design — consistent with D-10 ack-before-decode." Do not attempt to buffer acked messages to guarantee display — the complexity outweighs the benefit for this use case.
+
+If the stricter guarantee is needed in a future milestone, reverse the order: decode first, emit to UI via Channel, then ack. This makes decode failure recoverable (re-deliver) but reintroduces the poison-pill problem that D-10 was designed to prevent.
+
+**Warning signs:**
+Rare: user reports queue count decreasing by more than the displayed message count when Stop is clicked.
+
+**Phase to address:** Live subscribe phase — document the accepted race at code review time.
+
+---
+
+### 51. Connection drop silently kills the consumer — no UI feedback
+
+**What goes wrong:**
+The lapin `Consumer` stream yields `None` when the underlying channel is closed — either explicitly or due to a connection error (broker restart, network drop, TCP timeout). The consumer loop exits normally with no error. If the loop exit is not translated into a UI notification, the live feed just silently stops with no indication to the user.
+
+The app appears stuck: the live feed shows old messages, the Stop button is still enabled, and new messages being published to the queue are not appearing.
+
+**Why it happens:**
+Developers implement `while let Some(delivery) = consumer.next().await` loops correctly for the happy path but do not handle the `None` case (stream end).
+
+**Prevention:**
+After the consumer loop exits (either by cancellation or by stream end), emit a status event to the frontend. Distinguish the two exit paths:
+- Cancelled by user: emit `{ status: "stopped" }` via the Channel before it closes.
+- Stream ended unexpectedly: emit `{ status: "disconnected", reason: "AMQP connection lost" }`.
+
+The frontend should transition the UI to a "Disconnected" state that requires the user to re-connect and re-subscribe. Do not auto-reconnect — surfacing the error is sufficient for a dev tool.
+
+Monitor `conn.on_error()` in the consumer task (lapin provides an `on_error` callback on `Connection`) as an alternative signal for network-level failures that do not propagate through the consumer stream immediately.
+
+**Warning signs:**
+Live feed stops updating. No error shown. Stop button remains active. Queue depth counter (if implemented) continues rising.
+
+**Phase to address:** Live subscribe phase — exit-path handling must be a first-class concern, not an afterthought.
+
+---
+
+## Tauri Event Streaming to React
+
+### 52. React useEffect event listener not cleaned up — ghost handlers on re-mount
+
+**What goes wrong:**
+If `app.emit()` + `listen()` is used despite pitfall #47, every `ResponseTab` mount registers a new handler. If the component unmounts without calling `unlisten()` — either because the cleanup function was omitted from the `useEffect` return or because `listen()` resolves asynchronously and the unlisten promise is not awaited — the previous handler keeps firing. On each re-mount, a new handler stacks on top. After 3 re-mounts, each message produces 3 appends to the list.
+
+This is the single most commonly reported Tauri+React integration bug across the community.
+
+**Why it happens:**
+`listen()` returns a `Promise<UnlistenFn>`. Developers write the unlisten in the `useEffect` return but forget that the returned cleanup runs synchronously while the `UnlistenFn` is async-resolved. Naive cleanup:
+```typescript
+useEffect(() => {
+  const unlistenP = listen('amqp-message', handler);
+  return () => { unlistenP.then(fn => fn()); }; // WRONG: cleanup is fire-and-forget
+}, []);
+```
+The cleanup fires the unlisten but does not wait for it — if the component remounts before the promise resolves, the old handler is still active.
+
+**Prevention:**
+Use `tauri::ipc::Channel<T>` (pitfall #47) to eliminate this entire class of issue. If global events are used for any reason, follow this pattern:
+```typescript
+useEffect(() => {
+  let unlisten: (() => void) | null = null;
+  let cancelled = false;
+  listen('amqp-message', handler).then(fn => {
+    if (cancelled) fn(); // already unmounted
+    else unlisten = fn;
+  });
+  return () => {
+    cancelled = true;
+    unlisten?.();
+  };
+}, []);
+```
+
+**Warning signs:**
+Console shows the handler firing multiple times per message. List row count grows faster than expected.
+
+**Phase to address:** Live subscribe phase — architectural choice (Channel vs emit) prevents this entirely.
+
+---
+
+### 53. Unbounded React list state causes progressive UI freeze at high message rates
+
+**What goes wrong:**
+Each arriving AMQP message appends to a `messages: ConsumedMessage[]` array in `useResponseStore`. React re-renders the list on every append. At 100 messages/sec, this is 100 full re-renders per second. At 500 messages/sec, the React scheduler cannot keep up — the UI drops frames and the app becomes unresponsive. The list grows indefinitely: at 10,000 messages, serializing the Zustand state for devtools or persistence alone takes significant CPU.
+
+**Why it happens:**
+The single-message pattern (`setLastResult`) in `useResponseStore` does not need a cap. The transition to a list-based store for v1.4 introduces an unbounded accumulation that was not a problem before.
+
+**Prevention:**
+Cap the in-memory list at a hard limit (recommended: 500 messages). Apply FIFO truncation on each append:
+```typescript
+setMessages: (msg) => set((s) => ({
+  messages: s.messages.length >= MAX_MESSAGES
+    ? [...s.messages.slice(1), msg]  // drop oldest
+    : [...s.messages, msg]
+})),
+```
+Show a "Capped at 500 — oldest messages removed" banner when the limit is reached. For high-frequency queues (hundreds/sec), add a UI message rate indicator and recommend enabling filtering to reduce the ingest rate.
+
+For list virtualization: use `react-window` (FixedSizeList or VariableSizeList) for the message list. Without virtualization, rendering 500 DOM rows of expandable message cards becomes slow to scroll. The existing app already has a precedent concern for large lists — message history is capped at 100 (`HIST-CAP-01`). Apply the same philosophy here.
+
+**Warning signs:**
+UI frame rate drops below 30fps with more than ~200 messages in the list. Chrome DevTools Performance panel shows long React reconciliation tasks.
+
+**Phase to address:** Both drain mode and live subscribe phases — the list and its cap must exist before either mode appends to it.
+
+---
+
+## Drain Mode Pitfalls
+
+### 54. Drain mode implemented as a `basic_get` loop re-opens a new connection per message
+
+**What goes wrong:**
+The simplest drain implementation loops N times calling the existing `consume_message` IPC command (which creates a new lapin connection, fetches one message, acks it, closes the connection). For drain-50, this opens and closes 50 TCP connections to the RabbitMQ broker. On a remote broker, each connection takes 50–300ms to establish. Draining 50 messages takes 2.5–15 seconds instead of under 1 second.
+
+**Why it happens:**
+The existing `consume_message` command is already implemented and tested. Calling it in a loop from the frontend is the path of least resistance.
+
+**Prevention:**
+Implement drain mode as a single backend command that opens one connection, sets prefetch to N, starts a `basic_consume`, collects up to N messages, stops, and returns all results (or streams them via `Channel<T>`). One connection, one channel, N message deliveries. This is the same infrastructure as live subscribe — drain is just subscribe-with-auto-stop-after-N.
+
+If the frontend-loop approach is kept for simplicity (only acceptable for very small drain counts like ≤5), add a clear comment documenting the connection-per-message overhead and the threshold at which it becomes unacceptable.
+
+**Warning signs:**
+Drain of 20+ messages takes noticeably longer than expected. RabbitMQ management UI shows connection count spiking during drain.
+
+**Phase to address:** Drain mode phase — implement as a proper backend command, not a frontend loop.
+
+---
+
+### 55. Drain mode acks all N messages before any are displayed — no partial failure recovery
+
+**What goes wrong:**
+Drain command acks each message immediately after receipt (D-10 pattern: ack-before-decode). If the frontend call succeeds but the app crashes before the user sees the results (e.g., process kill mid-drain), all N messages are gone from the queue — unrecoverable.
+
+**Prevention:**
+For a developer tool, this risk is acceptable — the same as the existing single-message D-10 behavior. Document it explicitly in the drain mode UI: "Messages are acked immediately. If this session closes before results are displayed, messages will not be re-delivered." Do not reverse the ack-after-decode order to solve this — it reintroduces poison-pill blocking.
+
+For extra resilience (optional, not required for v1.4): after all N messages are acked and decoded, write results to a temporary `drain-session.json` via `tauri-plugin-store` before displaying them. This acts as a crash recovery buffer. Clear it when the user dismisses the drain results or starts a new operation.
+
+**Warning signs:**
+User reports messages disappearing from the queue after a drain that showed no results (app crashed between ack and display).
+
+**Phase to address:** Drain mode phase — document the D-10 extension at design time.
+
+---
+
+## DescriptorPool Snapshot Pitfalls
+
+### 56. DescriptorPool snapshot taken at subscribe start — proto schema changes not reflected
+
+**What goes wrong:**
+`consume.rs` clones the `DescriptorPool` at command start (line 40-54 pattern). For a long-lived consumer, this snapshot is taken when `start_consume` is invoked. If the user loads a new `.proto` file while the consumer is running, the consumer task continues decoding with the old schema. Messages that use the new schema are decoded incorrectly (fields mapped to wrong names, unknown fields silently ignored) without any error.
+
+**Why it happens:**
+The existing pool-clone pattern is correct and efficient for ephemeral commands. Extending it unchanged to long-lived commands silently creates a stale-schema risk.
+
+**Prevention:**
+Snapshot the pool at subscribe start. This is the correct behavior for a dev tool — the user chose a schema when they started the subscribe session. Document in the UI: "Schema snapshot taken at subscribe start. Load a new .proto file and re-subscribe to use the updated schema." When a new proto is loaded while the consumer is running, show a warning banner: "Proto schema changed — active consumer is using the old schema. Stop and re-subscribe to decode with the new schema."
+
+This is simpler than re-fetching the pool on each decode and avoids a second lock acquisition per message in the hot path.
+
+**Warning signs:**
+User loads a new proto, consumer is still running, decoded fields start showing wrong names or missing fields.
+
+**Phase to address:** Live subscribe phase — add the schema-changed warning at the proto-load command level.
+
+---
+
+## App Shutdown Pitfalls
+
+### 57. App quit while consumer is running leaves tokio task running until OS kills the process
+
+**What goes wrong:**
+User closes the app window while a live subscribe session is active. The Tauri window is destroyed, but the tokio task running the consumer loop is still alive, holding a lapin `Connection` and an open TCP socket to the broker. The task continues reading from the consumer stream (and trying to emit to the now-closed Channel or AppHandle). Eventually the task errors out, but the TCP connection may remain open on the broker side until the keep-alive timeout (default: 60s in RabbitMQ).
+
+On the Rust side: if the task panics after the AppHandle is dropped, the panic output goes to stderr but may not be visible to the user. The process exits cleanly but leaves behind a ghost consumer registration in RabbitMQ (visible in management UI as a dangling consumer).
+
+**Prevention:**
+Register a `RunEvent::ExitRequested` handler in `lib.rs` that cancels the active consumer token before allowing the process to exit:
+```rust
+.on_window_event(|_window, event| {
+    if let tauri::WindowEvent::Destroyed = event {
+        // cancel active consumer if running
+    }
+})
+```
+Alternatively, store the `CancellationToken` in managed state and cancel it in the `RunEvent::ExitRequested` callback. The consumer task detects cancellation, closes the channel, and the task future resolves cleanly before the runtime shuts down.
+
+For a developer tool, the impact is low (ghost consumer visible in RabbitMQ management), but it is easy to prevent.
+
+**Warning signs:**
+RabbitMQ management UI shows a consumer registered on a queue even after the app is closed. The consumer disappears only after the broker's heartbeat timeout expires.
+
+**Phase to address:** Live subscribe phase — add shutdown hook when the consumer state is first introduced to managed state.
+
+---
+
+## v1.4 Technical Debt Patterns
+
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Re-use existing `consume_message` in a frontend loop for drain | No new Rust code | 1 connection per message — unusably slow for drain > 5 | Never for drain > 5 messages |
+| Use `app.emit()` instead of `Channel<T>` | Familiar pattern | Ghost listeners, session crosstalk, no per-invocation typing | Never — use Channel<T> from the start |
+| Skip `basic_qos` prefetch | Simpler code | OOM on large queues, entire queue buffered in memory | Never |
+| Extend `std::sync::Mutex` to consumer handle | Consistent with pool pattern | Compile error on any await holding the guard | Never — use CancellationToken (Clone+Send) |
+| Unbounded messages array in store | Simple append logic | Progressive UI freeze past ~200 messages | Never — cap at 500 from day one |
+
+---
+
+## v1.4 Integration Gotchas
+
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| lapin `basic_consume` | No `basic_qos` before consume | Always set prefetch_count before `basic_consume` |
+| lapin Consumer stream | `basic_cancel` alone as stop mechanism | `CancellationToken` + `tokio::select! biased` to exit loop, then drop Consumer |
+| lapin Consumer stream end | Not handling `None` yield | Translate stream-end to "disconnected" UI state |
+| Tauri streaming | `app.emit()` + `listen()` | `tauri::ipc::Channel<T>` passed as command argument |
+| Zustand message list | Unbounded array append | FIFO-capped array at 500 + react-window virtualization |
+| DescriptorPool in long-lived task | Re-locking mutex per message | Snapshot Arc-clone at task start, warn on proto reload |
+| App shutdown | Ignoring exit event | `on_window_event Destroyed` cancels CancellationToken |
+
+---
+
+## v1.4 Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| #46 Prefetch unlimited | Drain phase + Live subscribe phase | Test with a queue containing 1000+ messages — app memory stays stable |
+| #47 emit() vs Channel<T> | Live subscribe phase — architectural decision | No duplicate rows on component re-mount; no event name strings in Rust streaming code |
+| #48 std::sync::Mutex + await | Live subscribe phase — state design | Compile succeeds; no deadlock under concurrent stop + message arrival |
+| #49 basic_cancel + buffered messages | Live subscribe phase — loop design | Stop responds within one consumer.next() iteration (< 1s on idle queue) |
+| #50 ack/display race | Live subscribe phase — accepted, document | Code review comment at the ack call site; no "fix" needed |
+| #51 Silent connection drop | Live subscribe phase — exit path | Kill broker mid-subscribe; UI shows "Disconnected" within heartbeat interval |
+| #52 Ghost listeners | Live subscribe phase — use Channel<T> | Handler fires exactly once per message after 3 rapid tab remounts |
+| #53 Unbounded list freeze | Drain + live subscribe phases | UI stays responsive at 500 messages; cap banner appears at limit |
+| #54 Loop of basic_get for drain | Drain phase — backend command | Drain-20 completes in < 1 second on local broker |
+| #55 Drain ack before display | Drain phase — accepted, document | D-10 extended: code comment + UI tooltip |
+| #56 Stale schema snapshot | Live subscribe phase — proto reload warning | Load new proto while consuming; warning banner appears |
+| #57 App quit with live consumer | Live subscribe phase — shutdown hook | Close app window; RabbitMQ consumer count returns to 0 immediately |
+
+---
+
+## v1.4 Sources
+
+- Tauri 2 Channel<T> IPC streaming — command argument pattern: https://v2.tauri.app/develop/calling-frontend/ (confirmed: `new Channel<T>()` on frontend, `tauri::ipc::Channel<T>` as command param)
+- lapin basic_qos + prefetch_count: https://docs.rs/lapin/latest/lapin/struct.Channel.html#method.basic_qos
+- lapin Consumer stream + basic_cancel: https://docs.rs/lapin/latest/lapin/struct.Consumer.html
+- tokio_util CancellationToken: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
+- tokio::select! biased: https://docs.rs/tokio/latest/tokio/macro.select.html (biased directive — checks branches in order)
+- Tauri listen() + UnlistenFn cleanup: https://v2.tauri.app/develop/calling-frontend/#event-system
+- RabbitMQ prefetch (basic.qos) documentation: https://www.rabbitmq.com/docs/confirms#channel-qos-prefetch
+- Tauri RunEvent::ExitRequested / WindowEvent::Destroyed: https://docs.rs/tauri/latest/tauri/enum.RunEvent.html
+- Existing codebase: `consume.rs` — D-10 ack-before-decode, DescriptorPool clone pattern (lines 40–54)
+- Existing codebase: `lib.rs` — `std::sync::Mutex<Option<DescriptorPool>>` managed state pattern (line 33)
+- Existing codebase: `useResponseStore.ts` — `lastResult` single-result store shape
+- Existing codebase: `useHistoryStore.ts` — FIFO cap at 100 (HIST-CAP-01 precedent)
+- react-window (FixedSizeList, VariableSizeList): https://react-window.vercel.app/
