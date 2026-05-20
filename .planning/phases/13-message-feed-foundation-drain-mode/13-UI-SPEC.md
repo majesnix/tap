@@ -53,11 +53,12 @@ Exceptions:
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
 | Metadata row | 12px (`text-xs`) | 400 (regular) | 1.5 | Collapsed accordion row: routing_key • exchange • content-type • timestamp; monospace class `font-mono` |
-| Body / label | 14px (`text-sm`) | 400 (regular) | 1.5 | Feed header labels (message count), queue picker labels, toast copy |
+| Body / label | 14px (`text-sm`) | 400 (regular) | 1.5 | Feed header labels (message count), queue picker labels, toast copy, Drain button, Clear button |
 | Section label | 14px (`text-sm`) | 600 (semibold) | 1.25 | Feed header "N messages" count label; empty-state heading |
-| Button / CTA | 14px (`text-sm`) | 500 (medium) | 1 | Drain button, Clear button — inherited from shadcn Button component |
 
-Weights declared: 400 (regular) + 600 (semibold). Button inherits shadcn's `font-medium` (500), which is an in-between already in the type scale; no additional weight token is introduced.
+Declared weights: **400 (regular) + 600 (semibold)** — exactly 2 tokens.
+
+Note: shadcn's `Button` component internally applies `font-medium` (`font-weight: 500`) via its own class. This is an internal component implementation detail, not a declared type scale token. The spec does not enumerate weight 500 — executor must not add a `font-medium` override outside of the Button component itself.
 
 Font stack: `'Geist Variable', sans-serif` (declared in `--font-sans` CSS variable).
 
@@ -241,3 +242,4 @@ No third-party registries declared. Registry vetting gate: not applicable.
 | UI-04 | Clear button: no confirmation dialog | Feed is in-memory and cheap to refill; AlertDialog would add friction | Yes — add AlertDialog if user feedback requests it |
 | UI-05 | Metadata separator: bullet `•` | Compact log-line convention; distinguishable from field content | No — consistent with CONTEXT.md D-07 |
 | UI-06 | Accordion hover: `hover:no-underline` + `hover:bg-muted/50` | shadcn AccordionTrigger defaults add underline; suppress for log-line aesthetic | No |
+| UI-07 | Button weight not enumerated in type scale | shadcn Button's `font-medium` is an internal component class, not a declared token; type scale stays at 2 weights (400 + 600) | No — keeps scale at max 2 weights |
