@@ -2,16 +2,18 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { useResponseStore } from "@/stores/useResponseStore";
 
-export function ResponseHexSection() {
-  const lastResult = useResponseStore((s) => s.lastResult);
+interface ResponseHexSectionProps {
+  hexString: string;
+  decoded: Record<string, unknown> | null;
+}
 
-  if (!lastResult || lastResult.empty || !lastResult.hexString) return null;
+export function ResponseHexSection({ hexString, decoded }: ResponseHexSectionProps) {
+  if (!hexString) return null;
 
   const handleCopyHex = async () => {
     try {
-      await navigator.clipboard.writeText(lastResult.hexString);
+      await navigator.clipboard.writeText(hexString);
       toast("Hex copied", { duration: 2000 });
     } catch {
       toast.error("Copy failed — clipboard access denied", { duration: 2000 });
@@ -19,9 +21,9 @@ export function ResponseHexSection() {
   };
 
   const handleCopyJson = async () => {
-    if (!lastResult.decoded) return;
+    if (!decoded) return;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(lastResult.decoded, null, 2));
+      await navigator.clipboard.writeText(JSON.stringify(decoded, null, 2));
       toast("JSON copied", { duration: 2000 });
     } catch {
       toast.error("Copy failed — clipboard access denied", { duration: 2000 });
@@ -34,16 +36,16 @@ export function ResponseHexSection() {
       <div className="px-4 py-2">
         {/* Copy action buttons (UI-SPEC: Copy icon + variant="ghost" size="sm") */}
         <div className="flex items-center gap-2 mb-2">
-          <Button variant="ghost" size="sm" className="text-xs" onClick={handleCopyHex}>
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => void handleCopyHex()}>
             <Copy className="w-3 h-3 mr-1" />
             Copy hex
           </Button>
-          {lastResult.decoded !== null && (
+          {decoded !== null && (
             <Button
               variant="ghost"
               size="sm"
               className="text-xs"
-              onClick={handleCopyJson}
+              onClick={() => void handleCopyJson()}
             >
               <Copy className="w-3 h-3 mr-1" />
               Copy decoded JSON
@@ -52,7 +54,7 @@ export function ResponseHexSection() {
         </div>
         {/* Hex string display (UI-SPEC: text-xs font-mono break-all whitespace-pre-wrap) */}
         <pre className="text-xs font-mono break-all whitespace-pre-wrap text-foreground">
-          {lastResult.hexString}
+          {hexString}
         </pre>
       </div>
     </>

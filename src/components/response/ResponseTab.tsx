@@ -74,7 +74,10 @@ export function ResponseTab() {
               decoded={lastResult.decoded}
               error={lastResult.error}
             />
-            <ResponseHexSection />
+            <ResponseHexSection
+                hexString={lastResult.hexString}
+                decoded={lastResult.decoded}
+              />
           </>
         )}
       </ScrollArea>
