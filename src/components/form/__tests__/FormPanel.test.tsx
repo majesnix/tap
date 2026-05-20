@@ -1,4 +1,4 @@
-import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, act, fireEvent } from "@testing-library/react";
 import { vi, beforeEach, afterEach } from "vitest";
 import * as ipc from "@/lib/ipc";
 import { FormPanel } from "@/components/form/FormPanel";
