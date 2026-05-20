@@ -192,7 +192,11 @@ export function BlockLibraryPanel() {
           blocks.map((block) => (
             <div
               key={block.id}
-              className="px-3 py-2 flex items-center justify-between hover:bg-muted rounded-sm"
+              draggable="true"
+              onDragStart={(e) => {
+                e.dataTransfer.setData('blockId', block.id);
+              }}
+              className="px-3 py-2 flex items-center justify-between hover:bg-muted rounded-sm cursor-grab active:cursor-grabbing"
             >
               <span className="text-sm truncate flex-1">{block.name}</span>
               <div className="flex items-center gap-2 shrink-0">
