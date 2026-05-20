@@ -547,18 +547,18 @@ import {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Timestamp display format (Claude's Discretion)**
    - What we know: `timestamp` is `Option<u64>` seconds since epoch; `null` when not set.
    - What's unclear: Show absolute "14:32:05" vs relative "2s ago" for non-null values.
-   - Recommendation: Use absolute `HH:MM:SS` format via `new Date(ts * 1000).toLocaleTimeString()`. Relative formats require a timer to stay current; absolute is simpler and sufficient for a dev tool.
+   - RESOLVED: Use absolute `HH:MM:SS` format via `new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })`. Relative formats require a running timer; absolute is simpler and sufficient for a dev tool. UI-SPEC.md §Accordion Feed confirms this choice.
 
 2. **Drain button label (Claude's Discretion)**
-   - Recommendation: Use "Drain" as the label — it matches the `drain_messages` command and CONTEXT.md terminology.
+   - RESOLVED: Label is **"Drain"** — matches the `drain_messages` command name and CONTEXT.md D-04 terminology. Confirmed in UI-SPEC.md §Copywriting Contract.
 
 3. **Count input widget style (Claude's Discretion)**
-   - Recommendation: Plain `<input type="number" min={1} max={500} defaultValue={10}>` — aligns with existing `Input` component usage. No spinbox library needed.
+   - RESOLVED: Plain `<input type="number" min={1} max={500} defaultValue={10}>` with class `w-12 h-9 text-sm text-center rounded-md border border-input bg-background px-1`. No spinbox library needed. Confirmed in UI-SPEC.md §Toolbar Layout.
 
 ---
 

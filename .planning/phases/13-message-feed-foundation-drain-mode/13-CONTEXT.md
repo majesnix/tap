@@ -50,6 +50,9 @@ Requirements covered: CONS-01, CONS-02, CONS-03, CONS-04.
 - **D-16:** `useResponseStore` evolves: `lastResult` field is replaced by `messages: FeedMessage[]`. `FeedMessage` adds AMQP metadata fields (`routingKey`, `exchange`, `contentType`, `timestamp`) to the existing `decoded`, `hexString`, `error` fields. `lastReadAt` is retained (queue depth refresh hook depends on it). `isLoading` is retained.
 - **D-17:** FIFO-500 cap is enforced in the Zustand `appendMessages` action: prepend new items to the array, then slice to 500 if over cap. Cap is a named constant `FEED_MAX_SIZE = 500`.
 
+### Return Type (resolved during planning)
+- **D-18:** `drain_messages` returns **`DrainOutcome { messages: Vec<DrainResult>, partial_error: Option<String> }`** instead of the bare `Vec<DrainResult>` specified in D-13. The wrapper handles mid-loop AMQP errors without discarding already-acked messages: if `basic_get` errors on iteration 7 of 10, the 6 already-acked messages are returned with `partial_error` set. D-13 is superseded by this decision.
+
 ### Claude's Discretion
 - Exact drain input widget style (spinbox vs plain `<input type="number">`)
 - Drain button label ("Drain" vs "Fetch" vs "Get N")
