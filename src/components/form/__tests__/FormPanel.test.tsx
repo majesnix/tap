@@ -319,11 +319,13 @@ describe("JSON Override Toggle", () => {
 });
 
 function createDataTransfer(data: Record<string, string>) {
-  const store: Record<string, string> = { ...data };
+  // Browser lowercases dataTransfer format keys (HTML5 spec) — mirror that here
+  const store: Record<string, string> = {};
+  for (const [k, v] of Object.entries(data)) store[k.toLowerCase()] = v;
   return {
-    getData: (key: string) => store[key] ?? '',
-    setData: vi.fn((key: string, value: string) => { store[key] = value; }),
-    types: Object.keys(data),
+    getData: (key: string) => store[key.toLowerCase()] ?? '',
+    setData: vi.fn((key: string, value: string) => { store[key.toLowerCase()] = value; }),
+    types: Object.keys(store),
   };
 }
 
@@ -370,7 +372,7 @@ describe("Drop zone (DnD)", () => {
     const { container } = render(<FormPanel />);
     const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
     act(() => {
-      fireEvent.dragOver(scrollArea, { dataTransfer: createDataTransfer({}) });
+      fireEvent.dragOver(scrollArea, { dataTransfer: createDataTransfer({ blockId: 'block-1' }) });
     });
     expect(scrollArea.className).toContain('ring-2');
   });
@@ -379,7 +381,7 @@ describe("Drop zone (DnD)", () => {
     const { container } = render(<FormPanel />);
     const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
     act(() => {
-      fireEvent.dragOver(scrollArea, { dataTransfer: createDataTransfer({}) });
+      fireEvent.dragOver(scrollArea, { dataTransfer: createDataTransfer({ blockId: 'block-1' }) });
     });
     expect(scrollArea.className).toContain('ring-2');
     act(() => {
@@ -420,10 +422,13 @@ describe("Drop zone (DnD)", () => {
     );
   });
 
-  test("drop with unknown blockId is silent no-op (no toast)", () => {
+  test("drop with unknown blockId is silent no-op (no toast)", async () => {
     const { container } = render(<FormPanel />);
     const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
     const dataTransfer = createDataTransfer({ blockId: 'nonexistent' });
+    // Flush ProtoFormRenderer's useEffect so applyBlockRef.current is set — this test
+    // must reach the block-not-found guard, not the earlier null-ref guard
+    await act(async () => {});
     act(() => {
       fireEvent.drop(scrollArea, { dataTransfer });
     });

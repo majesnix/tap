@@ -196,12 +196,14 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   }
 
   function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    // Only accept drags that carry a blockId (HTML5 spec lowercases setData keys → 'blockid')
+    if (!e.dataTransfer.types.includes('blockid')) return;
     e.preventDefault();
     setIsDraggingOver(true);
   }
 
   function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
-    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
       setIsDraggingOver(false);
     }
   }
@@ -218,8 +220,11 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
 
     let blockValues: Record<string, unknown>;
     try {
-      blockValues = JSON.parse(block.content) as Record<string, unknown>;
+      const parsed: unknown = JSON.parse(block.content);
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return;
+      blockValues = parsed as Record<string, unknown>;
     } catch {
+      toast.warning('Block content is not valid JSON — could not apply');
       return;
     }
 
