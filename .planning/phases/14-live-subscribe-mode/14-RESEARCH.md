@@ -558,22 +558,24 @@ export function stopSubscribe(): Promise<void> {
 
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed. (A2 upgraded to VERIFIED after Cargo.lock check.)
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Error sentinel in DrainResult**
-   - What we know: `DrainResult` has an `error` field (`Option<String>`) — usable as an error sentinel
-   - What's unclear: Is there a canonical way to construct a "broker closed" error DrainResult, or should a separate error type be used?
-   - Recommendation: Add a `DrainResult::error(msg: String)` constructor method in `consume.rs` for consistency; reuse for broker-close and lapin error cases
+1. **Error sentinel in DrainResult** — RESOLVED
+   - Decision: Reuse the existing `DrainResult.error` field (`Option<String>`) as the error sentinel.
+     No separate error type is needed. Construct error results by setting `error: Some(msg)` directly
+     in the consumer loop; no new constructor method required. The existing `DrainResult` shape
+     handles both lapin errors and broker-close (None) cases.
 
-2. **Consumer tag uniqueness**
-   - What we know: Consumer tag `"proto-sender-subscriber"` is hardcoded in the pattern above
-   - What's unclear: If a user starts subscribe twice rapidly (race before stop completes), the same tag could collide
-   - Recommendation: Generate a UUID consumer tag per session (`format!("proto-sender-{}", uuid::new_v4())`) — safer
+2. **Consumer tag uniqueness** — RESOLVED
+   - Decision: Use hardcoded tag `"proto-sender-subscriber"`. The D-08 double-start guard in Rust
+     (start_subscribe takes ownership of the SubscribeState slot and cancels any prior session before
+     spawning a new one) prevents two concurrent sessions from ever holding the same tag simultaneously.
+     UUID-based tags are not needed for this use case.
 
-3. **Badge component location**
-   - What we know: `src/components/ui/` is the shadcn component directory
-   - What's unclear: Whether a Badge component already exists (it was not read during research)
-   - Recommendation: Wave 0 task should check `ls src/components/ui/` before creating
+3. **Badge component location** — RESOLVED
+   - Decision: `badge.tsx` already exists at `src/components/ui/badge.tsx` (size 1.8K, confirmed
+     via PATTERNS.md and the interfaces block in this plan set). No creation task is needed;
+     import directly as `import { Badge } from "@/components/ui/badge"`.
 
 ## Environment Availability
 
