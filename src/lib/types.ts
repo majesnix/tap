@@ -88,6 +88,48 @@ export interface ConsumeResult {
   error: string | null;
 }
 
+// ── Phase 13: Message feed + drain types ─────────────────────────────────────
+
+/**
+ * Per-message result from drain_messages Rust command.
+ * decodedAs: winning type name from the candidate list (D-19), null if no candidate succeeded.
+ */
+export interface DrainResult {
+  routingKey: string;
+  exchange: string;
+  contentType: string | null;
+  timestamp: number | null;        // seconds since epoch; null if publisher did not set it
+  decoded: Record<string, unknown> | null;
+  hexString: string;
+  error: string | null;
+  decodedAs: string | null;        // D-19: first type name that decoded successfully
+}
+
+/**
+ * Wrapper returned by drain_messages (D-18).
+ * partialError is set when basic_get errors mid-loop; messages contains already-acked results.
+ */
+export interface DrainOutcome {
+  messages: DrainResult[];
+  partialError: string | null;
+}
+
+/**
+ * Feed message with stable ID for Accordion key and FIFO-500 store (D-16, D-17, D-21).
+ * id is generated at append time via crypto.randomUUID() — never from server (RESEARCH Pitfall 2).
+ */
+export interface FeedMessage {
+  id: string;                      // crypto.randomUUID() at append time
+  routingKey: string;
+  exchange: string;
+  contentType: string | null;
+  timestamp: number | null;        // seconds since epoch; null = not set by publisher
+  decoded: Record<string, unknown> | null;
+  hexString: string;
+  error: string | null;
+  decodedAs: string | null;        // D-21: winning type name shown in collapsed metadata row
+}
+
 // ── Phase 9: Routing key autocomplete types ───────────────────────────────────
 
 /**

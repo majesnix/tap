@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome } from "./types";
+import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -110,5 +110,24 @@ export async function consumeMessage(
     profileName,
     queueName,
     messageTypeName,
+  });
+}
+
+/**
+ * Drain up to count messages from queueName in one shot.
+ * messageTypeNames: ordered candidate list — Rust tries each in order, first success wins (D-19).
+ * Returns DrainOutcome { messages: DrainResult[], partialError: string | null }.
+ */
+export async function drainMessages(
+  profileName: string,
+  queueName: string,
+  messageTypeNames: string[],
+  count: number,
+): Promise<DrainOutcome> {
+  return invoke<DrainOutcome>("drain_messages", {
+    profileName,
+    queueName,
+    messageTypeNames,
+    count,
   });
 }
