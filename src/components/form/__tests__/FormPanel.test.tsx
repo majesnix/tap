@@ -1,4 +1,4 @@
-import { render, screen, act, fireEvent } from "@testing-library/react";
+import { render, screen, act, fireEvent, waitFor } from "@testing-library/react";
 import { vi, beforeEach, afterEach } from "vitest";
 import * as ipc from "@/lib/ipc";
 import { FormPanel } from "@/components/form/FormPanel";
@@ -7,6 +7,13 @@ import { useTheme } from "next-themes";
 import type { ProtoSchema } from "@/lib/types";
 
 vi.mock("@/lib/ipc");
+
+vi.mock("@/stores/useBlockStore", () => ({
+  useBlockStore: {
+    getState: vi.fn(),
+  },
+}));
+import { useBlockStore } from "@/stores/useBlockStore";
 
 vi.mock("@uiw/react-codemirror", () => ({
   default: ({
@@ -311,6 +318,15 @@ describe("JSON Override Toggle", () => {
   });
 });
 
+function createDataTransfer(data: Record<string, string>) {
+  const store: Record<string, string> = { ...data };
+  return {
+    getData: (key: string) => store[key] ?? '',
+    setData: vi.fn((key: string, value: string) => { store[key] = value; }),
+    types: Object.keys(data),
+  };
+}
+
 describe("Block Library Toggle", () => {
   test("Library button renders with aria-label 'Block library'", () => {
     render(<FormPanel />);
@@ -338,5 +354,79 @@ describe("Block Library Toggle", () => {
     render(<FormPanel isBlockLibraryOpen={false} />);
     const btn = screen.getByRole("button", { name: "Block library" });
     expect(btn).not.toHaveClass("bg-muted");
+  });
+});
+
+describe("Drop zone (DnD)", () => {
+  beforeEach(() => {
+    // DnD tests don't need fake timers; real timers allow async effects to flush correctly
+    vi.useRealTimers();
+    vi.mocked(useBlockStore.getState).mockReturnValue({
+      blocks: [{ id: 'block-1', name: 'My Block', content: '{"ghost": "value"}' }],
+    } as ReturnType<typeof useBlockStore.getState>);
+  });
+
+  test("dragOver on scroll area adds ring class", () => {
+    const { container } = render(<FormPanel />);
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
+    act(() => {
+      fireEvent.dragOver(scrollArea, { dataTransfer: createDataTransfer({}) });
+    });
+    expect(scrollArea.className).toContain('ring-2');
+  });
+
+  test("dragLeave on scroll area removes ring class", () => {
+    const { container } = render(<FormPanel />);
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
+    act(() => {
+      fireEvent.dragOver(scrollArea, { dataTransfer: createDataTransfer({}) });
+    });
+    expect(scrollArea.className).toContain('ring-2');
+    act(() => {
+      fireEvent.dragLeave(scrollArea, { relatedTarget: document.body });
+    });
+    expect(scrollArea.className).not.toContain('ring-2');
+  });
+
+  test("drop with unknown block key fires toast.warning with correct singular copy", async () => {
+    const { container } = render(<FormPanel />);
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
+    const dataTransfer = createDataTransfer({ blockId: 'block-1' });
+    // Flush ProtoFormRenderer's useEffect that wires applyBlockRef.current
+    await act(async () => {});
+    act(() => {
+      fireEvent.dragOver(scrollArea, { dataTransfer });
+      fireEvent.drop(scrollArea, { dataTransfer });
+    });
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      '1 field from block not in form: ghost'
+    );
+  });
+
+  test("drop with multi-key block fires toast.warning with correct plural copy", async () => {
+    vi.mocked(useBlockStore.getState).mockReturnValue({
+      blocks: [{ id: 'block-1', name: 'My Block', content: '{"ghost": "x", "phantom": "y"}' }],
+    } as ReturnType<typeof useBlockStore.getState>);
+    const { container } = render(<FormPanel />);
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
+    const dataTransfer = createDataTransfer({ blockId: 'block-1' });
+    await act(async () => {});
+    act(() => {
+      fireEvent.dragOver(scrollArea, { dataTransfer });
+      fireEvent.drop(scrollArea, { dataTransfer });
+    });
+    expect(mockToastWarning).toHaveBeenCalledWith(
+      '2 fields from block not in form: ghost, phantom'
+    );
+  });
+
+  test("drop with unknown blockId is silent no-op (no toast)", () => {
+    const { container } = render(<FormPanel />);
+    const scrollArea = container.querySelector('[data-slot="scroll-area"]') as HTMLElement;
+    const dataTransfer = createDataTransfer({ blockId: 'nonexistent' });
+    act(() => {
+      fireEvent.drop(scrollArea, { dataTransfer });
+    });
+    expect(mockToastWarning).not.toHaveBeenCalled();
   });
 });
