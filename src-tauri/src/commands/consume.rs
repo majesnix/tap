@@ -235,4 +235,51 @@ mod tests {
         assert!(r.hex_string.is_empty());
         assert!(r.error.is_none());
     }
+
+    // TDD RED: These tests reference DrainResult and DrainOutcome structs with all
+    // required fields including decoded_as (D-19). They will fail to compile until
+    // the structs are added in Task 1 GREEN phase.
+    #[test]
+    fn drain_result_construction_sentinel() {
+        let r = super::DrainResult {
+            routing_key: "test.key".to_string(),
+            exchange: "my-exchange".to_string(),
+            content_type: Some("application/protobuf".to_string()),
+            timestamp: Some(1_700_000_000u64),
+            decoded: None,
+            hex_string: "0a 05".to_string(),
+            error: None,
+            decoded_as: Some("MyMessage".to_string()), // D-19: winning type name
+        };
+        assert_eq!(r.routing_key, "test.key");
+        assert_eq!(r.decoded_as, Some("MyMessage".to_string()));
+        assert!(r.error.is_none());
+    }
+
+    #[test]
+    fn drain_outcome_construction_sentinel() {
+        let outcome = super::DrainOutcome {
+            messages: vec![],
+            partial_error: None,
+        };
+        assert!(outcome.messages.is_empty());
+        assert!(outcome.partial_error.is_none());
+    }
+
+    #[test]
+    fn drain_result_no_decode_sentinel() {
+        let r = super::DrainResult {
+            routing_key: String::new(),
+            exchange: String::new(),
+            content_type: None,
+            timestamp: None,
+            decoded: None,
+            hex_string: String::new(),
+            error: Some("Decode failed: bad wire type. Showing raw bytes.".to_string()),
+            decoded_as: None, // D-19: None when no candidate succeeded
+        };
+        assert!(r.decoded.is_none());
+        assert!(r.decoded_as.is_none());
+        assert!(r.error.is_some());
+    }
 }
