@@ -60,6 +60,8 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 
 ### Active (v1.4)
 
+- ✓ Drain mode — drain up to 500 messages with multi-type first-success decode (decodedAs), FIFO-500 accordion feed, Decode-as multi-select combobox — v1.4 (Phase 13)
+
 ### Backlog (future milestones — candidates for v1.4+)
 
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)
