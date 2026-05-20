@@ -1,7 +1,7 @@
 # Roadmap: Proto Sender
 
 **Last Milestone:** v1.3 Publishing UX + Message Blocks — SHIPPED 2026-05-20
-**Current:** Planning next milestone
+**Current:** v1.4 Advanced Response Consumer — In progress
 
 ---
 
@@ -11,6 +11,7 @@
 - ✅ **v1.1 Dark Mode** — Phase 5 (shipped 2026-05-18)
 - ✅ **v1.2 Form Improvements** — Phases 6–8 (shipped 2026-05-19)
 - ✅ **v1.3 Publishing UX + Message Blocks** — Phases 9–12 (shipped 2026-05-20)
+- 🚧 **v1.4 Advanced Response Consumer** — Phases 13–15 (in progress)
 
 ---
 
@@ -60,6 +61,54 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 
 </details>
 
+### 🚧 v1.4 Advanced Response Consumer (In Progress)
+
+**Milestone Goal:** Replace the one-at-a-time basic_get reader with a full consume experience — drain mode, live subscribe, filtering, queue depth visibility, and export.
+
+- [ ] **Phase 13: Message Feed Foundation + Drain Mode** — Scrollable message list with AMQP metadata, queue depth indicator, and batch drain
+- [ ] **Phase 14: Live Subscribe Mode** — Persistent consumer streaming messages into the feed with status badge and auto-stop on profile change
+- [ ] **Phase 15: Filter + Export** — Client-side filtering by routing key and content-type, plus JSON export of the feed
+
+---
+
+## Phase Details
+
+### Phase 13: Message Feed Foundation + Drain Mode
+**Goal**: Users can drain messages from a queue and see them all in a scrollable, expandable list with full AMQP metadata and queue depth
+**Depends on**: Phase 12
+**Requirements**: CONS-01, CONS-02, CONS-03, CONS-04
+**Success Criteria** (what must be TRUE):
+  1. User can see routing key, exchange, content-type, and timestamp on each consumed message row in the list
+  2. User can expand any message row to reveal the decoded protobuf payload and raw hex
+  3. User can drain up to N messages from a queue in one shot and see all of them appear in the list
+  4. User can see the current queue message count before clicking drain, and the count updates after draining
+  5. The list displays newest messages at the top and older messages are dropped when the list reaches capacity
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 14: Live Subscribe Mode
+**Goal**: Users can start a persistent subscribe session that streams messages into the feed continuously until they stop it, with a visible status badge and automatic shutdown on profile change
+**Depends on**: Phase 13
+**Requirements**: CONS-05, CONS-06, CONS-07
+**Success Criteria** (what must be TRUE):
+  1. User can click Start and messages published to the selected queue arrive in the feed in real time without manual polling
+  2. User can click Stop and the stream halts cleanly with no further messages arriving
+  3. User can see a status badge showing Running, Stopping, Idle, or Error reflecting the current subscribe state
+  4. When the user switches to a different connection profile, any running subscribe session stops automatically
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 15: Filter + Export
+**Goal**: Users can narrow the message feed by routing key or content-type and export the current feed to a JSON file
+**Depends on**: Phase 14
+**Requirements**: FILT-01, FILT-02, XPRT-01
+**Success Criteria** (what must be TRUE):
+  1. User can type a routing key substring and the feed list narrows to only matching messages without clearing the underlying data
+  2. User can select a content-type from a dropdown and the feed shows only messages with that content-type
+  3. User can click Export and receive a JSON file containing all messages currently visible in the feed
+**Plans**: TBD
+**UI hint**: yes
+
 ---
 
 ## Progress Table
@@ -74,10 +123,13 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 | 6. BytesField | v1.2 | 1/1 | Complete | 2026-05-19 |
 | 7. MapField | v1.2 | 4/4 | Complete | 2026-05-19 |
 | 8. JSON Override Toggle | v1.2 | 2/2 | Complete | 2026-05-19 |
-| 9. Routing Key Autocomplete | v1.3 | 3/3 | Complete    | 2026-05-19 |
-| 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete    | 2026-05-19 |
-| 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete    | 2026-05-19 |
-| 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete   | 2026-05-20 |
+| 9. Routing Key Autocomplete | v1.3 | 3/3 | Complete | 2026-05-19 |
+| 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete | 2026-05-19 |
+| 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete | 2026-05-19 |
+| 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
+| 13. Message Feed Foundation + Drain Mode | v1.4 | 0/? | Not started | - |
+| 14. Live Subscribe Mode | v1.4 | 0/? | Not started | - |
+| 15. Filter + Export | v1.4 | 0/? | Not started | - |
 
 ---
 
@@ -151,3 +203,22 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 - Total v1.3: 16
 - Mapped: 16
 - Delivered: 16 ✓
+
+**v1.4 Advanced Response Consumer — 10 requirements**
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CONS-01 | Phase 13 | Pending |
+| CONS-02 | Phase 13 | Pending |
+| CONS-03 | Phase 13 | Pending |
+| CONS-04 | Phase 13 | Pending |
+| CONS-05 | Phase 14 | Pending |
+| CONS-06 | Phase 14 | Pending |
+| CONS-07 | Phase 14 | Pending |
+| FILT-01 | Phase 15 | Pending |
+| FILT-02 | Phase 15 | Pending |
+| XPRT-01 | Phase 15 | Pending |
+
+- Total v1.4: 10
+- Mapped: 10
+- Delivered: 0 (in progress)

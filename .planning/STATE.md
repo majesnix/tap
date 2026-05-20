@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Advanced Response Consumer
 status: planning
-last_updated: "2026-05-20T18:27:12.429Z"
+last_updated: "2026-05-20T18:40:00.000Z"
 last_activity: 2026-05-20
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,17 +17,17 @@ progress:
 
 ## Current Phase
 
-Phase: 12
-Plan: All plans complete
-Status: Complete — UAT passed 2026-05-20
-Last activity: 2026-05-20
+Phase: 13 (Message Feed Foundation + Drain Mode)
+Plan: —
+Status: Ready to plan
+Last activity: 2026-05-20 — v1.4 roadmap created (Phases 13–15)
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
+See: .planning/PROJECT.md (updated 2026-05-20 after v1.4 milestone start)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 12 — block-library-drag-and-drop-layer
+**Current focus:** Phase 13 — Message Feed Foundation + Drain Mode
 
 ## Phase History
 
@@ -56,7 +56,7 @@ See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
 
 - Plans completed: 15
 - Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01; PUBL-04 delivered by plan 03-02; HIST-01, HIST-03 delivered by plan 03-03; HIST-02, HIST-04 delivered by plan 03-04
-- Phases completed: 0/4 (v1.3 not yet started)
+- Phases completed: 0/3 (v1.4 not yet started)
 
 ## Accumulated Context
 
@@ -146,6 +146,7 @@ See: .planning/PROJECT.md (updated 2026-05-19 after v1.2 milestone)
 - Phase 4 added (2026-05-18): Response Queue Reader — select reply queue, consume + deserialize incoming protobuf message, ack to remove from queue (RESP-01 to RESP-05)
 - Phases 6-8 added (2026-05-19): v1.2 Form Improvements — BytesField (Phase 6), MapField (Phase 7), JSON Override Toggle (Phase 8)
 - Phases 9-12 added (2026-05-19): v1.3 Publishing UX + Message Blocks — Routing Key Autocomplete (Phase 9), Publisher Confirms Badge (Phase 10), Block Library Store+Editor+Persistence (Phase 11), Block Library DnD Layer (Phase 12)
+- Phases 13-15 added (2026-05-20): v1.4 Advanced Response Consumer — Message Feed + Drain (Phase 13), Live Subscribe (Phase 14), Filter + Export (Phase 15)
 
 ## Deferred Items
 
@@ -164,7 +165,7 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 
 ### Active TODOs
 
-- Run `/gsd-execute-phase 12` to execute Phase 12 (Block Library DnD Layer) — 3 plans ready
+- Run `/gsd-plan-phase 13` to plan Phase 13 (Message Feed Foundation + Drain Mode)
 
 ### Blockers
 
@@ -177,16 +178,18 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 - Linux keychain (libsecret): still needs install notes for distribution
 - v1.2 stack additions: @uiw/react-codemirror v4.x (CodeMirror 6 wrapper) + @codemirror/lang-json ^6.0.x — verified HIGH confidence on GitHub releases March 2025
 - v1.3 open questions: resolved during Phase 9/11 execution — fetch_exchanges returns ExchangeSummary{name,exchange_type}, mandatory=true on publish, BlockLibraryPanel toggle in FormPanel header
+- v1.4 stack additions: tokio-util 0.7 (CancellationToken), csv 1.4 (export), tokio "sync" feature for Mutex<ConsumerState> — no new npm deps (Channel<T> already in @tauri-apps/api 2.11.0)
+- v1.4 critical pitfalls: basic_qos prefetch before basic_consume; use Channel<T> not app.emit(); FIFO-500 cap from day one; single drain_messages Rust command (not frontend loop); CancellationToken + tokio::select! for stop; handle consumer.next() returning None; WindowEvent::Destroyed shutdown hook; tokio::sync::Mutex (not std::sync::Mutex) for ConsumerState
 
 ## Session Continuity
 
-Last updated: 2026-05-20 (Phase 12 planned — 3 plans, 2 waves)
-Stopped at: Phase 12 plans verified and ready to execute
-Next action: `/gsd-execute-phase 12`
+Last updated: 2026-05-20 — v1.4 roadmap created (3 phases, 10 requirements)
+Stopped at: ROADMAP.md written with Phases 13-15; ready to plan Phase 13
+Next action: `/gsd-plan-phase 13`
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 13 of 15 (Message Feed Foundation + Drain Mode)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-20 — Milestone v1.4 started
+Status: Ready to plan
+Last activity: 2026-05-20 — Roadmap created for v1.4
