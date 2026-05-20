@@ -366,7 +366,7 @@ during the store migration:
 
 | File | Change Required |
 |------|----------------|
-| `ResponseTab.test.tsx` | Replace with `MessageFeedTab.test.tsx`; seed `messages[]` not `lastResult` |
+| `ResponseTab.test.tsx` | Replace with `MessageFeedTab.test.tsx`; seed `messages[]` not `lastResult`; **behavioral shift**: current Test 2 asserts DOM text "Queue empty" — new behavior is Sonner toast; migrate to toast mock assertion |
 | `ResponseHexSection.test.tsx` | Migrate from `setState({lastResult})` to prop-based rendering |
 | `ResponseQueuePicker.test.tsx` | Update "Read" button assertions to "Drain"; add drain count input test |
 | `ResponseDecodedView.test.tsx` | No change required — already prop-based |
@@ -429,17 +429,23 @@ pub async fn drain_messages(
     profile_name: String,
     queue_name: String,
     message_type_name: String,
-    count: u32,   // valid range 1–500; validated frontend-side
+    count: u32,   // valid range 1–500; validated frontend-side AND backend-side
+    // CLAUDE.md: validate at system boundaries — Rust must reject count == 0 or count > 500
+    // with AppError::InvalidInput before opening the connection
     pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<DrainOutcome, crate::error::AppError> {
     // 1. Clone pool before any .await (MutexGuard is not Send)
-    // 2. Load credentials
-    // 3. Open one connection
+    // 2. Load credentials — load_profile_with_password (same as consume_message)
+    // 3. Open one connection with tokio::time::timeout(Duration::from_secs(10), ...)
+    //    SECURITY: URI scope + password drop before inspect (mirrors consume.rs)
     // 4. Loop 0..count:
-    //      basic_get → None: break
+    //      basic_get → None: break (queue empty)
     //      basic_get → Err:  set partial_error, break
-    //      Some(msg): extract metadata → ack → decode → push DrainResult
-    // 5. Close connection
+    //      Some(msg): extract routing_key/exchange/content_type/timestamp → ack → decode → push DrainResult
+    //      DECODE: must mirror consume.rs SerializeOptions:
+    //        .use_proto_field_name(true)       — preserve .proto snake_case names
+    //        .stringify_64_bit_integers(true)  — JS precision safety for int64/uint64
+    // 5. Close connection (even on partial error)
     // 6. Return DrainOutcome { messages, partial_error }
 }
 ```
@@ -536,7 +542,7 @@ import {
 
 | # | Claim | Section | Risk if Wrong |
 |---|-------|---------|---------------|
-| A1 | `DrainOutcome` with `partial_error` field is the correct partial-failure shape | Pitfall 4, Code Examples | Low — if user prefers full failure on any error, change to early `Err` return and discard partial |
+| A1 | `DrainOutcome` with `partial_error` field is the correct partial-failure shape | Pitfall 4, Code Examples | MEDIUM — **conflicts with D-13 which specifies `Vec<DrainResult>` return type**. Needs user confirmation before planner commits to DrainOutcome shape. Alternative: fail fast (return `Err`) on any mid-loop error |
 | A2 | Radix Accordion works in jsdom without portal mocking (unlike Select/Popover) | Standard Stack | Low — ResizeObserver already polyfilled; if issues arise, add `vi.mock` for Accordion content as escape hatch |
 
 ---
