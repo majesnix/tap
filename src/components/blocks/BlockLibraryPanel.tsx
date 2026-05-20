@@ -33,12 +33,12 @@ function DraggableBlockRow({ block, onEdit, onDelete }: DraggableBlockRowProps) 
   return (
     <div
       ref={setNodeRef}
-      className={`px-2 py-2 flex items-center gap-1 hover:bg-muted rounded-sm${isDragging ? ' opacity-40' : ''}`}
+      {...listeners}
+      {...attributes}
+      className={`px-2 py-2 flex items-center gap-1 hover:bg-muted rounded-sm cursor-grab active:cursor-grabbing${isDragging ? ' opacity-40' : ''}`}
     >
       <div
-        {...listeners}
-        {...attributes}
-        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0 p-0.5 rounded"
+        className="text-muted-foreground shrink-0 p-0.5"
         aria-label={`Drag ${block.name}`}
       >
         <GripVertical size={14} />

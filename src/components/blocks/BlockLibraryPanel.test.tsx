@@ -378,11 +378,11 @@ describe('Drag source', () => {
     expect(useDraggable).toHaveBeenCalledWith({ id: 'block-1' });
   });
 
-  test('block list row has a grip handle with cursor-grab class', () => {
+  test('block list row has cursor-grab class', () => {
     setupStore({ blocks: [makeBlock()] });
     render(<BlockLibraryPanel />);
-    const handle = screen.getByLabelText('Drag My Block');
-    expect(handle).toHaveClass('cursor-grab');
+    const row = screen.getByText('My Block').closest('div')!;
+    expect(row).toHaveClass('cursor-grab');
   });
 
   test('useDraggable is called with the correct block id', () => {
