@@ -239,7 +239,10 @@ export function ResponseQueuePicker({ onDrain }: ResponseQueuePickerProps) {
         min={1}
         max={500}
         value={drainCount}
-        onChange={(e) => setDrainCount(Number(e.target.value))}
+        onChange={(e) => {
+          const n = Number(e.target.value);
+          setDrainCount(isNaN(n) ? 10 : n);
+        }}
         onBlur={() => {
           const clamped =
             isNaN(drainCount) || drainCount < 1
@@ -258,7 +261,11 @@ export function ResponseQueuePicker({ onDrain }: ResponseQueuePickerProps) {
         <Button
           variant="default"
           disabled={!canDrain}
-          onClick={() => onDrain(drainCount)}
+          onClick={() => {
+            const safe = isNaN(drainCount) || drainCount < 1 ? 10 : Math.min(drainCount, 500);
+            if (safe !== drainCount) setDrainCount(safe);
+            onDrain(safe);
+          }}
           aria-label="Drain"
         >
           {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}

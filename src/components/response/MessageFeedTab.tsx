@@ -55,16 +55,18 @@ export function MessageFeedTab() {
       }
 
       if (outcome.messages.length > 0) {
+        const totalAfterPrepend = outcome.messages.length + messages.length;
+        if (totalAfterPrepend > 500) {
+          toast.info(`Feed capped at 500 — ${totalAfterPrepend - 500} older message(s) removed`);
+        }
         appendMessages(outcome.messages);
       }
-
-      // Always trigger queue depth refresh (CONS-04)
-      setLastReadAt(Date.now());
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       toast.error(`Drain failed: ${message}`);
     } finally {
       setIsLoading(false);
+      setLastReadAt(Date.now()); // CONS-04: always refresh queue depth, even on error
     }
   };
 

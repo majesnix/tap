@@ -92,8 +92,11 @@ pub async fn consume_message(
     let channel = match conn.create_channel().await {
         Ok(ch) => ch,
         Err(e) => {
+            tracing::warn!("consume_message: channel creation failed: {}", e);
             let _ = conn.close(0, "".into()).await;
-            return Err(crate::error::AppError::AmqpError(e.to_string()));
+            return Err(crate::error::AppError::AmqpError(
+                "Failed to open AMQP channel — check broker permissions".to_string(),
+            ));
         }
     };
 
@@ -106,8 +109,11 @@ pub async fn consume_message(
         .await;
     let msg = match get_result {
         Err(e) => {
+            tracing::warn!("consume_message: basic_get failed: {}", e);
             let _ = conn.close(0, "".into()).await;
-            return Err(crate::error::AppError::AmqpError(e.to_string()));
+            return Err(crate::error::AppError::AmqpError(
+                "Failed to read from queue — queue may have been deleted or connection was interrupted".to_string(),
+            ));
         }
         Ok(None) => {
             // PITFALL 7: close connection even on empty queue — prevents TCP leak
@@ -136,11 +142,11 @@ pub async fn consume_message(
         )
         .await
     {
+        tracing::warn!("consume_message: ack failed: {}", e);
         let _ = conn.close(0, "".into()).await;
-        return Err(crate::error::AppError::AmqpError(format!(
-            "Ack failed: {}",
-            e
-        )));
+        return Err(crate::error::AppError::AmqpError(
+            "Failed to acknowledge message — message may be requeued by the broker".to_string(),
+        ));
     }
 
     // Step 8: Close connection AFTER ack
@@ -293,8 +299,11 @@ pub async fn drain_messages(
     let channel = match conn.create_channel().await {
         Ok(ch) => ch,
         Err(e) => {
+            tracing::warn!("drain_messages: channel creation failed: {}", e);
             let _ = conn.close(0, "".into()).await;
-            return Err(crate::error::AppError::AmqpError(e.to_string()));
+            return Err(crate::error::AppError::AmqpError(
+                "Failed to open AMQP channel — check broker permissions".to_string(),
+            ));
         }
     };
 
@@ -310,7 +319,8 @@ pub async fn drain_messages(
         match get_result {
             Err(e) => {
                 // Mid-loop error — preserve already-acked messages (D-18)
-                partial_error = Some(e.to_string());
+                tracing::warn!("drain_messages: basic_get failed mid-loop: {}", e);
+                partial_error = Some("Queue read interrupted — partial results returned".to_string());
                 break;
             }
             Ok(None) => {
@@ -336,7 +346,8 @@ pub async fn drain_messages(
                     .basic_ack(delivery_tag, lapin::options::BasicAckOptions::default())
                     .await
                 {
-                    partial_error = Some(format!("Ack failed: {}", e));
+                    tracing::warn!("drain_messages: ack failed mid-loop: {}", e);
+                    partial_error = Some("Failed to acknowledge a message — partial results returned, message may be requeued".to_string());
                     break;
                 }
 
