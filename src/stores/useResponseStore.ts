@@ -1,50 +1,76 @@
 import { create } from "zustand";
-import type { ConsumeResult } from "@/lib/types";
+import type { DrainResult, FeedMessage } from "@/lib/types";
 
-export interface ResponseResult {
-  decoded: Record<string, unknown> | null;
-  hexString: string;
-  error: string | null;
-}
+const FEED_MAX_SIZE = 500; // FIFO cap (D-17)
 
 interface ResponseStore {
   queueList: string[];
   isLiveMode: boolean;
   selectedQueue: string;
   isLoading: boolean;
-  lastResult: (ResponseResult & { empty: boolean }) | null;
-  lastReadAt: number | null;
-  queueDepth: number | null;
+  messages: FeedMessage[];              // D-16: replaces lastResult
+  selectedDecodeTypes: string[];        // D-20: candidate message types for decode
+  lastReadAt: number | null;            // retained — triggers queue depth refresh (CONS-04)
+  queueDepth: number | null;            // retained
 
   setQueueList: (queues: string[], isLive: boolean) => void;
   setSelectedQueue: (queue: string) => void;
   setIsLoading: (loading: boolean) => void;
-  setLastResult: (result: (ResponseResult & { empty: boolean }) | null) => void;
+  appendMessages: (incoming: DrainResult[]) => void;  // maps DrainResult→FeedMessage + FIFO cap
+  clearMessages: () => void;
+  setSelectedDecodeTypes: (types: string[]) => void;
   setLastReadAt: (ts: number | null) => void;
   setQueueDepth: (depth: number | null) => void;
   reset: () => void;
 }
 
-const INITIAL_STATE = {
-  queueList: [] as string[],
+const INITIAL_STATE: Pick<
+  ResponseStore,
+  | "queueList"
+  | "isLiveMode"
+  | "selectedQueue"
+  | "isLoading"
+  | "messages"
+  | "selectedDecodeTypes"
+  | "lastReadAt"
+  | "queueDepth"
+> = {
+  queueList: [],
   isLiveMode: false,
   selectedQueue: "",
   isLoading: false,
-  lastResult: null as (ResponseResult & { empty: boolean }) | null,
-  lastReadAt: null as number | null,
-  queueDepth: null as number | null,
-} as const;
+  messages: [],
+  selectedDecodeTypes: [],
+  lastReadAt: null,
+  queueDepth: null,
+};
 
 export const useResponseStore = create<ResponseStore>((set) => ({
   ...INITIAL_STATE,
   setQueueList: (queueList, isLiveMode) => set({ queueList, isLiveMode }),
   setSelectedQueue: (selectedQueue) => set({ selectedQueue }),
   setIsLoading: (isLoading) => set({ isLoading }),
-  setLastResult: (lastResult) => set({ lastResult }),
+  appendMessages: (incoming) =>
+    set((state) => {
+      // Map DrainResult → FeedMessage: add stable id + decodedAs (D-16, D-17, D-21)
+      const newMessages: FeedMessage[] = incoming.map((result) => ({
+        id: crypto.randomUUID(),                    // stable key for Accordion (Pitfall 2)
+        routingKey: result.routingKey,
+        exchange: result.exchange,
+        contentType: result.contentType,
+        timestamp: result.timestamp,
+        decoded: result.decoded,
+        hexString: result.hexString,
+        error: result.error,
+        decodedAs: result.decodedAs ?? null,        // D-21
+      }));
+      // Prepend new messages (newest first), then enforce FIFO cap
+      const combined = [...newMessages, ...state.messages];
+      return { messages: combined.slice(0, FEED_MAX_SIZE) };
+    }),
+  clearMessages: () => set({ messages: [] }),
+  setSelectedDecodeTypes: (selectedDecodeTypes) => set({ selectedDecodeTypes }),
   setLastReadAt: (lastReadAt) => set({ lastReadAt }),
   setQueueDepth: (queueDepth) => set({ queueDepth }),
   reset: () => set({ ...INITIAL_STATE }),
 }));
-
-// Re-export ConsumeResult for consumers that need the IPC type
-export type { ConsumeResult };

@@ -55,11 +55,12 @@ import { ResponseQueuePicker } from "@/components/response/ResponseQueuePicker";
 beforeEach(() => {
   vi.clearAllMocks();
 
-  // Reset response store
+  // Reset response store — new schema (messages, selectedDecodeTypes)
   useResponseStore.setState({
     selectedQueue: "test-queue",
     isLoading: false,
-    lastResult: null,
+    messages: [],
+    selectedDecodeTypes: ["MyMessage"],
     lastReadAt: null,
     queueList: [],
     isLiveMode: false,
