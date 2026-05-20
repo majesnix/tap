@@ -21,11 +21,12 @@ import { useResponseStore } from "@/stores/useResponseStore";
 import { fetchQueues, fetchQueueDepth } from "@/lib/ipc";
 
 interface ResponseQueuePickerProps {
-  onRead: () => void;
+  onDrain: (count: number) => void;
 }
 
-export function ResponseQueuePicker({ onRead }: ResponseQueuePickerProps) {
+export function ResponseQueuePicker({ onDrain }: ResponseQueuePickerProps) {
   const [managementAuthError, setManagementAuthError] = useState<string | null>(null);
+  const [drainCount, setDrainCount] = useState<number>(10);
 
   const { activeProfileName, connectionStatus } = useConnectionStore();
   const {
@@ -89,6 +90,11 @@ export function ResponseQueuePicker({ onRead }: ResponseQueuePickerProps) {
     };
   }, [activeProfileName, selectedQueue, lastReadAt, setQueueDepth]);
 
+  const canDrain =
+    connectionStatus === "connected" &&
+    selectedQueue.trim().length > 0 &&
+    !isLoading;
+
   return (
     <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
       {/* Live dropdown vs Manual text input */}
@@ -138,15 +144,36 @@ export function ResponseQueuePicker({ onRead }: ResponseQueuePickerProps) {
         </Badge>
       )}
 
-      {/* Read button — disabled+tooltip when disconnected */}
+      {/* Drain count input */}
+      <input
+        type="number"
+        min={1}
+        max={500}
+        value={drainCount}
+        onChange={(e) => setDrainCount(Number(e.target.value))}
+        onBlur={() => {
+          const clamped =
+            isNaN(drainCount) || drainCount < 1
+              ? 10
+              : drainCount > 500
+              ? 500
+              : drainCount;
+          setDrainCount(clamped);
+        }}
+        className="w-12 h-9 text-sm text-center rounded-md border border-input bg-background px-1"
+        aria-label="Drain count"
+      />
+
+      {/* Drain button — disabled+tooltip when disconnected */}
       {connectionStatus === "connected" ? (
         <Button
           variant="default"
-          disabled={!selectedQueue.trim() || isLoading}
-          onClick={onRead}
+          disabled={!canDrain}
+          onClick={() => onDrain(drainCount)}
+          aria-label="Drain"
         >
           {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-          Read
+          Drain
         </Button>
       ) : (
         <TooltipProvider>
@@ -154,11 +181,11 @@ export function ResponseQueuePicker({ onRead }: ResponseQueuePickerProps) {
             <TooltipTrigger asChild>
               <span>
                 <Button variant="default" disabled>
-                  Read
+                  Drain
                 </Button>
               </span>
             </TooltipTrigger>
-            <TooltipContent>Connect to a RabbitMQ profile to read.</TooltipContent>
+            <TooltipContent>Connect to a RabbitMQ profile to drain.</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       )}

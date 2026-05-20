@@ -58,7 +58,7 @@ export function ResponseTab() {
 
   return (
     <div className="flex flex-col h-full">
-      <ResponseQueuePicker onRead={() => void handleRead()} />
+      <ResponseQueuePicker onDrain={(_count) => void handleRead()} />
       <ScrollArea className="flex-1 overflow-hidden">
         {lastResult === null && (
           <p className="text-xs text-muted-foreground p-4">
