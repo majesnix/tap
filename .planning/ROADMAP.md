@@ -65,7 +65,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 
 **Milestone Goal:** Replace the one-at-a-time basic_get reader with a full consume experience — drain mode, live subscribe, filtering, queue depth visibility, and export.
 
-- [ ] **Phase 13: Message Feed Foundation + Drain Mode** — Scrollable message list with AMQP metadata, queue depth indicator, and batch drain
+- [x] **Phase 13: Message Feed Foundation + Drain Mode** — Scrollable message list with AMQP metadata, queue depth indicator, and batch drain (completed 2026-05-20)
 - [ ] **Phase 14: Live Subscribe Mode** — Persistent consumer streaming messages into the feed with status badge and auto-stop on profile change
 - [ ] **Phase 15: Filter + Export** — Client-side filtering by routing key and content-type, plus JSON export of the feed
 
@@ -88,7 +88,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 Plans:
 - [x] 13-01-PLAN.md — Rust drain_messages command + TypeScript IPC contract (DrainResult, DrainOutcome, FeedMessage types; drainMessages() IPC function)
 - [x] 13-02-PLAN.md — Accordion install + ResponseHexSection props refactor (TS compilation bridge)
-- [ ] 13-03-PLAN.md — Store evolution + Drain UI + MessageFeedTab/Row + test migration
+- [x] 13-03-PLAN.md — Store evolution + Drain UI + MessageFeedTab/Row + test migration
 **UI hint**: yes
 
 ### Phase 14: Live Subscribe Mode
@@ -132,7 +132,7 @@ Plans:
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete | 2026-05-19 |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
-| 13. Message Feed Foundation + Drain Mode | v1.4 | 2/3 | In Progress|  |
+| 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete   | 2026-05-20 |
 | 14. Live Subscribe Mode | v1.4 | 0/? | Not started | - |
 | 15. Filter + Export | v1.4 | 0/? | Not started | - |
 
