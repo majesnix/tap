@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Loader2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,8 +16,19 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useResponseStore } from "@/stores/useResponseStore";
+import { useProtoStore } from "@/stores/useProtoStore";
 import { fetchQueues, fetchQueueDepth } from "@/lib/ipc";
 
 interface ResponseQueuePickerProps {
@@ -27,6 +38,7 @@ interface ResponseQueuePickerProps {
 export function ResponseQueuePicker({ onDrain }: ResponseQueuePickerProps) {
   const [managementAuthError, setManagementAuthError] = useState<string | null>(null);
   const [drainCount, setDrainCount] = useState<number>(10);
+  const [decodeOpen, setDecodeOpen] = useState(false);
 
   const { activeProfileName, connectionStatus } = useConnectionStore();
   const {
@@ -36,10 +48,14 @@ export function ResponseQueuePicker({ onDrain }: ResponseQueuePickerProps) {
     isLoading,
     lastReadAt,
     queueDepth,
+    selectedDecodeTypes,
     setQueueList,
     setSelectedQueue,
     setQueueDepth,
+    setSelectedDecodeTypes,
   } = useResponseStore();
+
+  const { openFiles, selectedMessageType } = useProtoStore();
 
   // Queue fetch on tab focus — useEffect with [activeProfileName] dep (D-06: populates on tab focus)
   useEffect(() => {
@@ -90,10 +106,43 @@ export function ResponseQueuePicker({ onDrain }: ResponseQueuePickerProps) {
     };
   }, [activeProfileName, selectedQueue, lastReadAt, setQueueDepth]);
 
+  // Seed selectedDecodeTypes with active message type on first render (D-20)
+  useEffect(() => {
+    if (selectedDecodeTypes.length === 0 && selectedMessageType) {
+      setSelectedDecodeTypes([selectedMessageType]);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMessageType]); // intentionally fires once when selectedMessageType becomes available
+
+  // Derive all available type names from all loaded proto files (deduplicated)
+  const allTypeNames = useMemo(() => {
+    const names = openFiles.flatMap((f) =>
+      f.schema.messages.map((m) => m.full_name)
+    );
+    return [...new Set(names)];
+  }, [openFiles]);
+
+  // Toggle a type in/out of selectedDecodeTypes (immutable update)
+  const toggleType = (typeName: string) => {
+    const next = selectedDecodeTypes.includes(typeName)
+      ? selectedDecodeTypes.filter((t) => t !== typeName)
+      : [...selectedDecodeTypes, typeName];
+    setSelectedDecodeTypes(next);
+  };
+
+  // Combobox trigger label
+  const decodeLabel =
+    selectedDecodeTypes.length === 0
+      ? "Select types…"
+      : selectedDecodeTypes.length === 1
+      ? selectedDecodeTypes[0]
+      : `${selectedDecodeTypes.length} types`;
+
   const canDrain =
     connectionStatus === "connected" &&
     selectedQueue.trim().length > 0 &&
-    !isLoading;
+    !isLoading &&
+    selectedDecodeTypes.length > 0;
 
   return (
     <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
@@ -143,6 +192,46 @@ export function ResponseQueuePicker({ onDrain }: ResponseQueuePickerProps) {
           {queueDepth === 0 ? "empty" : `${queueDepth} msg${queueDepth === 1 ? "" : "s"}`}
         </Badge>
       )}
+
+      {/* Decode-as multi-select combobox (D-20) */}
+      <Popover open={decodeOpen} onOpenChange={setDecodeOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={decodeOpen}
+            className="h-9 min-w-[8rem] justify-between border-input bg-background font-normal text-sm"
+          >
+            <span className="truncate text-left flex-1">{decodeLabel}</span>
+            <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-0">
+          <Command>
+            <CommandInput placeholder="Filter types…" />
+            <CommandList>
+              <CommandEmpty>No types loaded.</CommandEmpty>
+              <CommandGroup>
+                {allTypeNames.map((name) => (
+                  <CommandItem
+                    key={name}
+                    value={name}
+                    onSelect={() => toggleType(name)}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        selectedDecodeTypes.includes(name) ? "opacity-100" : "opacity-0"
+                      )}
+                    />
+                    <span className="flex-1 truncate">{name}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
 
       {/* Drain count input */}
       <input
