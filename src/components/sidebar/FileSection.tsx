@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { load } from "@tauri-apps/plugin-store";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { IncludePathDialog } from "@/components/include-paths/IncludePathDialog";
 import { parseProto } from "@/lib/ipc";
 import { useProtoStore } from "@/stores/useProtoStore";
@@ -115,36 +117,39 @@ export function FileSection() {
             value={String(activeIndex)}
             onValueChange={(v) => setActiveIndex(Number(v))}
           >
-            <TabsList className="flex flex-col h-auto w-full items-stretch gap-0.5 p-1">
-              {openFiles.map((file, index) => {
-                // WR-04: split on the OS separator to extract the file name
-                const fileSep = file.filePath.includes("\\") ? "\\" : "/";
-                const fileName =
-                  file.filePath.split(fileSep).pop() ?? file.filePath;
-                return (
-                  <div key={file.filePath} className="flex items-center">
-                    <TabsTrigger
-                      value={String(index)}
-                      className="flex-1 text-left justify-start text-xs truncate"
-                      title={file.filePath}
-                    >
-                      {fileName}
-                    </TabsTrigger>
-                    <button
-                      type="button"
-                      aria-label={`Close ${fileName}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        closeFile(index);
-                      }}
-                      className="ml-1 flex items-center justify-center rounded-sm px-1 py-0.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                    >
-                      ×
-                    </button>
-                  </div>
-                );
-              })}
-            </TabsList>
+            <ScrollArea className="max-h-48">
+              <TabsList className="flex flex-col h-auto w-full items-stretch gap-0.5 p-1">
+                {openFiles.map((file, index) => {
+                  // WR-04: split on the OS separator to extract the file name
+                  const fileSep = file.filePath.includes("\\") ? "\\" : "/";
+                  const fileName =
+                    file.filePath.split(fileSep).pop() ?? file.filePath;
+                  return (
+                    <div key={file.filePath} className="flex items-center gap-0.5">
+                      <TabsTrigger
+                        value={String(index)}
+                        className="flex-1 text-left justify-start text-xs truncate"
+                        title={file.filePath}
+                      >
+                        {fileName}
+                      </TabsTrigger>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Close ${fileName}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeFile(index);
+                        }}
+                      >
+                        <X size={12} />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </TabsList>
+            </ScrollArea>
           </Tabs>
         )}
 

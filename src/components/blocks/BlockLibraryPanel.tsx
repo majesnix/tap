@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useDraggable } from "@dnd-kit/core";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
-import { Plus, Pencil, Trash2, ArrowLeft, TriangleAlertIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, ArrowLeft, TriangleAlertIcon, GripVertical } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,12 +33,18 @@ function DraggableBlockRow({ block, onEdit, onDelete }: DraggableBlockRowProps) 
   return (
     <div
       ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={`px-3 py-2 flex items-center justify-between hover:bg-muted rounded-sm cursor-grab active:cursor-grabbing${isDragging ? ' opacity-50' : ''}`}
+      className={`px-2 py-2 flex items-center gap-1 hover:bg-muted rounded-sm${isDragging ? ' opacity-40' : ''}`}
     >
+      <div
+        {...listeners}
+        {...attributes}
+        className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground shrink-0 p-0.5 rounded"
+        aria-label={`Drag ${block.name}`}
+      >
+        <GripVertical size={14} />
+      </div>
       <span className="text-sm truncate flex-1">{block.name}</span>
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex items-center gap-1 shrink-0">
         <Button
           variant="ghost"
           size="icon-sm"
