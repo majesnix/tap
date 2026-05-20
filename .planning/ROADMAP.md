@@ -53,7 +53,7 @@ See [milestones/v1.2-ROADMAP.md](milestones/v1.2-ROADMAP.md) for full phase deta
 - [x] **Phase 9: Routing Key Autocomplete** — 3/3 plans — completed 2026-05-19
 - [x] **Phase 10: Publisher Confirms Badge** — 0/2 plans — not started (completed 2026-05-19)
 - [x] **Phase 11: Block Library — Store, Editor, Persistence** — 0/3 plans — not started (completed 2026-05-19)
-- [ ] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/3 plans — not started
+- [x] **Phase 12: Block Library — Drag-and-Drop Layer** — 0/3 plans — not started (completed 2026-05-20)
 
 ---
 
@@ -130,7 +130,7 @@ Plans:
 - [x] 12-03-PLAN.md — BlockLibraryPanel: draggable="true" + onDragStart (blockId payload) + cursor-grab on block list rows, tests
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 12-02-PLAN.md — FormPanel: drop zone on ScrollArea (onDragOver/onDragLeave/onDrop), isDraggingOver state, ring feedback, BLK-08 toast, tests
+- [x] 12-02-PLAN.md — FormPanel: drop zone on ScrollArea (onDragOver/onDragLeave/onDrop), isDraggingOver state, ring feedback, BLK-08 toast, tests
 **UI hint**: yes
 
 ---
@@ -150,7 +150,7 @@ Plans:
 | 9. Routing Key Autocomplete | v1.3 | 3/3 | Complete    | 2026-05-19 |
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete    | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete    | 2026-05-19 |
-| 12. Block Library — Drag-and-Drop Layer | v1.3 | 2/3 | In Progress|  |
+| 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete   | 2026-05-20 |
 
 ---
 
