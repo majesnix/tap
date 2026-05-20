@@ -1,71 +1,78 @@
-# Research Summary: Proto Sender v1.3 — Publishing UX + Message Blocks
+# Research Summary: Proto Sender v1.4 — Advanced Response Consumer
 
 **Project:** Proto Sender
-**Milestone:** v1.3
-**Researched:** 2026-05-19
+**Milestone:** v1.4
+**Researched:** 2026-05-20
 **Confidence:** HIGH
+
+---
+
+## Executive Summary
+
+Proto Sender v1.3 ships a working one-at-a-time `basic_get` consumer. v1.4 replaces this with a full consumer suite: batch drain (N messages, one command), live subscribe (persistent streaming consumer), client-side filtering by routing key and content type, and JSON/CSV export.
+
+The existing stack (Tauri 2 + Rust + React + lapin + zustand + react-hook-form + shadcn/ui) is fully in place. Only two new Rust crates needed: `tokio-util 0.7` and `csv 1.4`. No new npm packages — `Channel<T>` is already in `@tauri-apps/api 2.11.0`.
+
+The central architectural decision is a deliberate break from "ephemeral lapin connections per operation": live subscribe holds a long-lived `lapin::Connection` in a background tokio task, controlled by a `CancellationToken` in Tauri managed state. Build drain mode first to validate `ConsumedMessage` type and the list component before introducing the background task complexity.
 
 ---
 
 ## Stack Additions
 
-New dependencies only — all other libraries are already installed.
-
 | Library | Version | Purpose |
 |---------|---------|---------|
-| `@dnd-kit/core` | `^6.3.1` | Drag-and-drop for block-to-form merge. PointerSensor (not HTML5 DnD) — required for webkit2gtk Linux compatibility. |
-| shadcn `Combobox` + `Command` + `Popover` | source-copied | Routing key autocomplete input. `pnpm dlx shadcn@latest add combobox command popover` — components copied into `src/components/ui/`. |
+| `tokio-util` | `0.7` | `CancellationToken` for subscribe stop; pulls `futures-util::StreamExt` transitively |
+| `csv` | `1.4` | CSV export — `wtr.serialize(&msg)` with serde derives |
+| `tokio` | existing | Add `"sync"` feature for `tokio::sync::Mutex<ConsumerState>` |
 
-Zero new Rust crates. All three features use already-installed `lapin 4.x` and `reqwest 0.13`.
+**No new npm deps** — `Channel<T>` is already exported from `@tauri-apps/api 2.11.0`.
+
+**Already built (zero backend work):** `fetch_queue_depth` command, `useResponseStore.queueDepth` state, depth pill in `ResponseQueuePicker` — only UI refresh wiring needed.
 
 ---
 
 ## Feature Table Stakes
 
-### PUBL-01: Routing Key Autocomplete
+### Must-Have (P1)
+- `ConsumedMessage` extended with AMQP metadata (routing key, exchange, content-type, timestamp)
+- Scrollable FIFO-500 list — newest on top, per-row expand/collapse
+- Drain mode — batch `basic_get` up to N messages, single Rust command
+- Live subscribe — persistent `basic_consume` consumer, streaming via `Channel<T>`
+- Stop subscribe — `CancellationToken` + `stop_consume` command
+- Ack immediately on consume (D-10 extended)
+- Queue depth live refresh during subscribe
 
-- Selecting an exchange fetches `GET /api/exchanges/{vhost}/{name}/bindings/source` and displays unique non-empty `routing_key` values as suggestions
-- Autocomplete suppressed for `headers` and `fanout` exchanges (routing key is always empty for these types — would mislead users)
-- Topic exchange wildcard patterns (`orders.*.created`) shown labeled as patterns; user must edit before sending
-- Input remains free-text; suggestions are non-binding
-- When Management API is unavailable, plain text input with no suggestions, no error shown
-- `fetch_exchanges` Rust command must return `Vec<{name, exchange_type}>` — prerequisite for per-type suppression logic
+### Should-Have (P2)
+- Client-side filter by routing key (text match)
+- Client-side filter by content-type (dropdown)
+- Export to JSON
+- Export to CSV (`decoded_json` string column for nested proto fields)
 
-### PUBL-02: Publisher Confirms Badge
-
-- `publish_message` returns `PublishOutcome { acked: bool, returned: bool }` instead of `()`
-- `Confirmation::Nack` explicitly matched and returned as `acked: false` (currently silently passes as `Ok(())` — pre-existing correctness bug that PUBL-02 must fix)
-- `confirm_future.await` wrapped in 5s `tokio::time::timeout`; timeout is a distinct badge state
-- `BasicPublishOptions::mandatory = true` so unroutable messages produce `Ack(Some(BasicReturnMessage))` (amber "Returned") instead of silent ACK
-- Badge states: green ACK (auto-dismiss 3s), amber Returned (5s), red NACK (5s), gray Timeout (manual dismiss)
-- Badge state lives in local `useState` in `PublishBar.tsx` — not in any Zustand store
-
-### BLK-01–04: Message Block Library
-
-- Block data model: `{ id: string, name: string, values: Record<string, unknown>, updatedAt: string }` persisted in `blocks.json` (separate store file, not mixed with `proto-sender.json`)
-- CRUD: create, edit, delete with confirmation; persists across restarts via `tauri-plugin-store`
-- `useBlocksStore` has a `blocksLoaded` guard; write operations reject until hydration completes
-- Block editor reuses existing `@uiw/react-codemirror` + `@codemirror/lang-json` (already installed)
-- Block library panel is collapsible; inside center `main` column as a flex sibling of `FormPanel` — no fourth column added to `AppLayout`
-- DnD uses `PointerSensor` only; single `DndContext` at `AppLayout` level; entire `FormPanel` registered as one `useDroppable` zone (not per-field)
-- Merge uses `getFieldState(path).isDirty === false` to detect "empty" — proto3 defaults pre-populate all fields; value comparison would overwrite user inputs that match defaults
-- Merge: `setValue(path, coercedValue, { shouldDirty: false })` for scalars; `useFieldArray.replace()` for repeated/map fields; never calls `reset()`
-- Type coercion before each `setValue`: int64 family → string, enum → number, bytes → base64 string, bool → Boolean
-- Unmatched block keys produce a warning toast listing skipped fields
+### Out of Scope
+- Broker-side filtering (AMQP 0-9-1 architectural constraint — impossible)
+- Real-time monitoring as a separate product surface
+- Dead-letter queue inspector (future milestone)
+- Message replay from consumed feed (use existing history replay)
 
 ---
 
-## Critical Pitfalls (Top 5)
+## Critical Pitfalls (Watch Out For)
 
-1. **NACK silently passes as success:** `confirm_result.map_err(...)` only catches `Err(lapin::Error)` — `Confirmation::Nack` is `Ok(Confirmation::Nack(...))` and currently produces a false green badge. Fix: match the full `Confirmation` enum after awaiting the confirm future.
+1. **No `basic_qos` prefetch before `basic_consume`** — broker dumps entire queue into memory; can OOM the app on large queues. Always call `channel.basic_qos(0, prefetch, false).await` first.
 
-2. **Unroutable messages ACK with `mandatory: false`:** No binding match → broker discards silently → green badge for a dropped message. Fix: set `mandatory: true` and handle `Ack(Some(BasicReturnMessage))` as amber "Returned" badge state.
+2. **`app.emit()` for message stream** — causes ghost listeners on re-mount, session crosstalk. Use `tauri::ipc::Channel<T>` exclusively for message delivery.
 
-3. **`DndContext` scope error produces `over: null` on every drop:** Both `useDraggable` and `useDroppable` must be inside the same `DndContext`. Placing context inside either panel only will cause all drops to report `over: null`. Fix: single `DndContext` at `AppLayout` level, above both panels.
+3. **Unbounded Zustand messages array** — UI freeze starts past ~200 messages. FIFO cap at 500 from day one (same pattern as history cap 100).
 
-4. **Value comparison for "empty" overwrites user input:** Proto3 pre-populates every field with type defaults — comparing values would treat unmodified defaults as empty and overwrite fields the user filled in with a default value. Fix: use `getFieldState(path).isDirty === false`.
+4. **Frontend loop calling `consume_message` for drain** — 1 TCP connection per message, unusably slow. Single `drain_messages` Rust command loops inside one connection.
 
-5. **`fetch_exchanges` must return exchange type before Phase 1 starts:** Currently returns `Vec<String>`. PUBL-01 needs `exchange_type` to suppress misleading suggestions for headers/fanout exchanges. Miss this and the autocomplete shows `x-match` binding keys for headers exchanges. Fix: update `fetch_exchanges` to `Vec<{name, exchange_type}>` as the first task in Phase 1.
+5. **`basic_cancel` alone as stop mechanism** — buffered messages keep emitting after cancel. Use `tokio::select! biased` with `CancellationToken` to stop cleanly.
+
+6. **`consumer.next()` returning `None` unhandled** — silent connection drop with no UI feedback. Detect `None`, emit `consume-error` event, transition state to `errored`.
+
+7. **No `WindowEvent::Destroyed` shutdown hook** — ghost consumer left in RabbitMQ after app quit. Register Tauri window event handler to call `stop_consume` on close.
+
+8. **`std::sync::Mutex` held across `.await`** — compile error (`MutexGuard` is `!Send`). Use `tokio::sync::Mutex` for `ConsumerState` managed state.
 
 ---
 
@@ -73,22 +80,23 @@ Zero new Rust crates. All three features use already-installed `lapin 4.x` and `
 
 | Phase | Feature | Rationale |
 |-------|---------|-----------|
-| Phase 9 | PUBL-01 Routing Key Autocomplete | Smallest scope; validates Management API bindings endpoint; `fetch_exchanges` signature change lands here first |
-| Phase 10 | PUBL-02 Publisher Confirms Badge | Fixes pre-existing NACK bug; stabilizes `publish_message` IPC contract before block library builds on top |
-| Phase 11 | BLK-01/02/03 Block Library (no DnD) | Store + persistence + editor + click-to-apply button; validates merge algorithm before DnD complexity added |
-| Phase 12 | BLK-04 Drag-and-Drop Layer | `@dnd-kit/core` + `DndContext` at `AppLayout` level; wires `onDragEnd` to already-tested merge function from Phase 11 |
+| Phase 13 | Message Feed Foundation + Drain Mode | Validates `ConsumedMessage` type + FIFO list + Channel streaming at low complexity; no background task yet |
+| Phase 14 | Live Subscribe Mode + Stop | Introduces the only architecturally novel piece: `ConsumerState` managed state, long-lived lapin connection, background task, shutdown hook |
+| Phase 15 | Filter + Export | Pure frontend work on populated feed; independent of Phase 14 (can defer if scope is tight) |
 
 ---
 
-## Open Questions
+## Open Questions (Resolved in Research)
 
-1. **`fetch_exchanges` signature change strategy:** Breaking IPC change (`Vec<String>` → `Vec<{name, exchange_type}>`). Update all call sites in one step at Phase 9 start, or introduce a parallel `fetch_exchange_details` command to avoid touching existing call sites?
+- **Subscribe auto-stop behavior:** Auto-stop on profile disconnect/switch — follows existing "ephemeral lapin connections per operation" Key Decision.
+- **CSV nested fields:** `decoded_json` string column — flattening proto oneofs/repeated is undefined; string is lossless.
+- **Filter broker-side vs client-side:** Client-side only — AMQP 0-9-1 architectural constraint, not a design preference.
 
-2. **`mandatory: true` as v1.3 default:** Flips existing behavior — teams now see amber "Returned" where they previously saw silent green ACK for unroutable messages. New default for all sends, or opt-in toggle in the AMQP properties sheet?
-
-3. **`BlockLibraryPanel` toggle location:** Panel is hidden by default. Toggle button placement (FormPanel header button, Sidebar icon, or keyboard shortcut) not yet decided. Must resolve before Phase 11 UI work.
-
-4. **Topic exchange wildcard annotation UX:** Exact label text and post-selection behavior (editable template or copy-as-is?) unspecified. Decide in Phase 9 plan.
+**Open at implementation time:**
+- Exact prefetch count for subscribe (100 vs 200) — decide during Phase 14 planning
+- `react-window` for list virtualization — likely deferrable at 500-row cap
+- `conn.on_error()` robustness — decide during Phase 14 whether to add alongside stream-end `None` handling
 
 ---
-*Generated: 2026-05-19*
+
+*Generated: 2026-05-20*
