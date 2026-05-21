@@ -1,5 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome } from "./types";
+import { Channel, invoke } from "@tauri-apps/api/core";
+import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome, DrainResult } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -130,4 +130,29 @@ export async function drainMessages(
     messageTypeNames,
     count,
   });
+}
+
+// ── Phase 14: Live subscribe IPC wrappers ──────────────────────────────────────
+
+/**
+ * Start a persistent AMQP consumer on queueName.
+ * Messages are delivered one-at-a-time via the channel callback as DrainResult objects.
+ * Returns immediately after spawning the consumer task (D-02).
+ * Frontend must call stopSubscribe() or the connection profile must change to stop the loop.
+ */
+export function startSubscribe(
+  profileName: string,
+  queueName: string,
+  decodeTypes: string[],
+  channel: Channel<DrainResult>,
+): Promise<void> {
+  return invoke("start_subscribe", { profileName, queueName, decodeTypes, channel });
+}
+
+/**
+ * Cancel the running AMQP consumer by triggering the CancellationToken (D-09).
+ * Returns immediately; the consumer task exits asynchronously and the channel closes.
+ */
+export function stopSubscribe(): Promise<void> {
+  return invoke("stop_subscribe");
 }

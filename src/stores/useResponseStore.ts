@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DrainResult, FeedMessage } from "@/lib/types";
+import type { DrainResult, FeedMessage, SubscribeStatus } from "@/lib/types";
 
 const FEED_MAX_SIZE = 500; // FIFO cap (D-17)
 
@@ -12,6 +12,8 @@ interface ResponseStore {
   selectedDecodeTypes: string[];        // D-20: candidate message types for decode
   lastReadAt: number | null;            // retained — triggers queue depth refresh (CONS-04)
   queueDepth: number | null;            // retained
+  subscribeStatus: SubscribeStatus;     // D-10: Phase 14 — live subscribe state
+  subscribeError: string | null;        // D-10: error message when status is "Error", null otherwise
 
   setQueueList: (queues: string[], isLive: boolean) => void;
   setSelectedQueue: (queue: string) => void;
@@ -21,6 +23,7 @@ interface ResponseStore {
   setSelectedDecodeTypes: (types: string[]) => void;
   setLastReadAt: (ts: number | null) => void;
   setQueueDepth: (depth: number | null) => void;
+  setSubscribeStatus: (status: SubscribeStatus, error?: string) => void;
   reset: () => void;
 }
 
@@ -34,6 +37,8 @@ const INITIAL_STATE: Pick<
   | "selectedDecodeTypes"
   | "lastReadAt"
   | "queueDepth"
+  | "subscribeStatus"
+  | "subscribeError"
 > = {
   queueList: [],
   isLiveMode: false,
@@ -43,6 +48,8 @@ const INITIAL_STATE: Pick<
   selectedDecodeTypes: [],
   lastReadAt: null,
   queueDepth: null,
+  subscribeStatus: "Idle" as SubscribeStatus,
+  subscribeError: null,
 };
 
 export const useResponseStore = create<ResponseStore>((set) => ({
@@ -72,5 +79,7 @@ export const useResponseStore = create<ResponseStore>((set) => ({
   setSelectedDecodeTypes: (selectedDecodeTypes) => set({ selectedDecodeTypes }),
   setLastReadAt: (lastReadAt) => set({ lastReadAt }),
   setQueueDepth: (queueDepth) => set({ queueDepth }),
+  setSubscribeStatus: (status, error) =>
+    set({ subscribeStatus: status, subscribeError: error ?? null }),
   reset: () => set({ ...INITIAL_STATE }),
 }));

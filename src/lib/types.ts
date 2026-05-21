@@ -79,6 +79,10 @@ export interface ConnectionProfile {
 export type ConnectionStatus = "connected" | "error" | "disconnected";
 export type ManagementStatus = "live" | "manual" | "unknown";
 
+// ── Phase 14: Live subscribe status ──────────────────────────────────────────
+
+export type SubscribeStatus = "Idle" | "Running" | "Stopping" | "Error";
+
 // ── Phase 4: Response queue reader types ─────────────────────────────────────
 
 export interface ConsumeResult {
