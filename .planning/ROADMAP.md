@@ -142,7 +142,10 @@ Plans:
   2. Rust build cache is active — a second workflow_dispatch run completes in under 8 minutes on macOS (vs 15–20 min cold)
   3. `Entitlements.plist` contains `cs.allow-jit`, `cs.allow-unsigned-executable-memory`, and `cs.allow-dyld-environment-variables`; the old sandbox exception entitlement is absent
   4. App version reads 1.5.0 in `Cargo.toml` and `tauri.conf.json`
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
+- [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
 
 ### Phase 17: macOS Signing + Notarization
 **Goal**: A tagged release produces a signed, notarized Universal .dmg that passes Gatekeeper on a clean Mac without quarantine warning
@@ -153,7 +156,10 @@ Plans:
   2. `codesign -dv --verbose=4 Tap.dmg` (or the .app inside it) shows `Authority=Developer ID Application` and `Universal` in the architecture field (`lipo -info` confirms arm64 + x86_64)
   3. `spctl --assess --type execute -vvv Tap.app` returns `accepted source=Notarized Developer ID` on a clean Mac that has never seen this binary
   4. Opening the downloaded .dmg on a clean Mac shows no Gatekeeper quarantine warning and the app launches successfully
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
+- [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
 
 ### Phase 18: Auto-Update + Linux + Docs
 **Goal**: Installed users receive an in-app update notification when a new version is tagged, Linux users can install and run the AppImage, and the libsecret prerequisite is documented
@@ -165,7 +171,10 @@ Plans:
   3. User clicks the update notification, the app downloads and installs the update, and offers to relaunch — after relaunch the version number reflects the new release
   4. The Linux AppImage built on ubuntu-22.04 launches and runs on both Ubuntu 22.04 and Ubuntu 24.04
   5. `docs/linux-keychain.md` exists and contains instructions for installing `libsecret-1-0` / `gnome-keyring` on Debian/Ubuntu and Fedora/RHEL
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
+- [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
 **UI hint**: yes
 
 ---
@@ -189,7 +198,7 @@ Plans:
 | 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete | 2026-05-20 |
 | 14. Live Subscribe Mode | v1.4 | 3/3 | Complete | 2026-05-21 |
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
-| 16. Pipeline Foundation | v1.5 | 0/TBD | Not started | - |
+| 16. Pipeline Foundation | v1.5 | 0/2 | Not started | - |
 | 17. macOS Signing + Notarization | v1.5 | 0/TBD | Not started | - |
 | 18. Auto-Update + Linux + Docs | v1.5 | 0/TBD | Not started | - |
 
