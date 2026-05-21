@@ -1,6 +1,5 @@
 import { describe, beforeEach, test, expect, vi } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
-import React from "react";
 
 // ── Hoist mocks for vitest ─────────────────────────────────────────────────────
 
@@ -64,10 +63,10 @@ describe("Start button", () => {
     expect(screen.getByRole("button", { name: /start/i })).not.toBeDisabled();
   });
 
-  test("is disabled when subscribeStatus is Running", () => {
+  test("is not rendered when subscribeStatus is Running (Stop button replaces it)", () => {
     useResponseStore.getState().setSubscribeStatus("Running");
     render(<SubscribePanel {...DEFAULT_PROPS} />);
-    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+    expect(screen.queryByRole("button", { name: /start/i })).not.toBeInTheDocument();
   });
 
   test("clicking Start calls startSubscribe", async () => {
