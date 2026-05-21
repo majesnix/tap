@@ -3641,35 +3641,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "proto-sender"
-version = "1.3.0"
-dependencies = [
- "apple-native-keyring-store",
- "base64 0.22.1",
- "dbus-secret-service-keyring-store",
- "futures-util",
- "keyring-core",
- "lapin",
- "percent-encoding",
- "prost-reflect",
- "protox",
- "reqwest",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tauri-plugin-store",
- "thiserror 2.0.18",
- "tokio",
- "tokio-util",
- "tracing",
- "windows-native-keyring-store",
-]
-
-[[package]]
 name = "protox"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4785,6 +4756,35 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "tap"
+version = "1.3.0"
+dependencies = [
+ "apple-native-keyring-store",
+ "base64 0.22.1",
+ "dbus-secret-service-keyring-store",
+ "futures-util",
+ "keyring-core",
+ "lapin",
+ "percent-encoding",
+ "prost-reflect",
+ "protox",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tauri-plugin-store",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "windows-native-keyring-store",
 ]
 
 [[package]]

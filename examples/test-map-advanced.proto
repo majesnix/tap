@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+  enum Priority { LOW = 0; HIGH = 1; CRITICAL = 2; }
+  message Inner { string label = 1; int32 count = 2; }
+
+  message TestMapAdvanced {
+    map<string, Priority> priorities = 1;
+    map<string, Inner> items = 2;
+  }

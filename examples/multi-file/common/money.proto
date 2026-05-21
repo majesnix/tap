@@ -1,0 +1,11 @@
+syntax = "proto3";
+
+package common;
+
+// Monetary amount — currency_code is ISO 4217 (e.g. "USD"), units is the
+// whole-number part, nanos is the fractional part (0–999_999_999).
+message Money {
+  string currency_code = 1;
+  int64  units         = 2;
+  int32  nanos         = 3;
+}

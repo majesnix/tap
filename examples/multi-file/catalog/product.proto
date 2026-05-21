@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package catalog;
+
+import "common/money.proto";
+
+message Product {
+  string       product_id = 1;
+  string       name       = 2;
+  string       sku        = 3;
+  common.Money unit_price = 4;
+  int32        stock      = 5;
+}

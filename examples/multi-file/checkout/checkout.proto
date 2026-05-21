@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package checkout;
+
+import "catalog/product.proto";
+import "common/address.proto";
+import "common/money.proto";
+
+// Covers: cross-package message references, two levels of import depth,
+// repeated nested messages, and an enum field.
+//
+// To load in Proto Sender:
+//   1. Add include path: examples/multi-file  (or the absolute path to it)
+//   2. Open:             examples/multi-file/checkout/checkout.proto
+//
+// The include path must be the root of the multi-file/ tree so that
+// "catalog/product.proto" and "common/money.proto" resolve correctly.
+
+message CartItem {
+  catalog.Product product  = 1;
+  int32           quantity = 2;
+  common.Money    subtotal = 3;
+}
+
+message CheckoutRequest {
+  string               order_ref        = 1;
+  string               customer_id      = 2;
+  repeated CartItem    items            = 3;
+  common.Address       shipping_address = 4;
+  common.Address       billing_address  = 5;
+  common.Money         total            = 6;
+  ShippingMethod       shipping_method  = 7;
+}
+
+enum ShippingMethod {
+  SHIPPING_METHOD_UNSPECIFIED = 0;
+  SHIPPING_METHOD_STANDARD    = 1;
+  SHIPPING_METHOD_EXPRESS     = 2;
+  SHIPPING_METHOD_OVERNIGHT   = 3;
+}
+
+message CheckoutResponse {
+  string       order_id = 1;
+  string       status   = 2;
+  common.Money charged  = 3;
+}
