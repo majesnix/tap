@@ -22,12 +22,12 @@
 
 ### Filter
 
-- [ ] **FILT-01**: User can filter the message feed by routing key (text match, client-side)
-- [ ] **FILT-02**: User can filter the message feed by content-type (dropdown, client-side)
+- [x] **FILT-01**: User can filter the message feed by routing key (text match, client-side)
+- [x] **FILT-02**: User can filter the message feed by content-type (dropdown, client-side)
 
 ### Export
 
-- [ ] **XPRT-01**: User can export all messages in the current feed to a JSON file
+- [x] **XPRT-01**: User can export all messages in the current feed to a JSON file
 
 ## Future Requirements
 
@@ -62,9 +62,9 @@
 | CONS-05 | Phase 14 | Complete |
 | CONS-06 | Phase 14 | Complete |
 | CONS-07 | Phase 14 | Complete |
-| FILT-01 | Phase 15 | Pending |
-| FILT-02 | Phase 15 | Pending |
-| XPRT-01 | Phase 15 | Pending |
+| FILT-01 | Phase 15 | Complete |
+| FILT-02 | Phase 15 | Complete |
+| XPRT-01 | Phase 15 | Complete |
 
 **Coverage:**
 - v1.4 requirements: 10 total

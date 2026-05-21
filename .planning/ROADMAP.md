@@ -143,7 +143,7 @@ Plans:
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
 | 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete    | 2026-05-20 |
 | 14. Live Subscribe Mode | v1.4 | 4/4 | Complete    | 2026-05-21 |
-| 15. Filter + Export | v1.4 | 1/1 | Complete   | 2026-05-21 |
+| 15. Filter + Export | v1.4 | 1/1 | Complete    | 2026-05-21 |
 
 ---
 
