@@ -46,8 +46,8 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run frontend tests (Vitest)
-        run: pnpm test
+      - name: Run frontend tests with coverage
+        run: pnpm exec vitest run --coverage --reporter=verbose
 
       - name: Type-check frontend
         run: pnpm build
