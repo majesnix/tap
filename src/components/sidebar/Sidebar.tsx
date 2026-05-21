@@ -25,7 +25,7 @@ export function Sidebar() {
   return (
     <div className="flex flex-col h-full p-4 gap-4">
       <div className="flex flex-col gap-2">
-        <h1 className="text-lg font-semibold">Proto Sender</h1>
+        <h1 className="text-lg font-semibold">Tap</h1>
         <p className="text-xs text-muted-foreground">
           Load a .proto file to get started
         </p>

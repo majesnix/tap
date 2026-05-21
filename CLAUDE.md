@@ -1,7 +1,7 @@
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
-**Proto Sender**
+**Tap**
 
 A Tauri desktop application (Rust backend + React frontend) that lets developers load `.proto` files, generates a dynamic form from the schema, connects to RabbitMQ, and sends binary-encoded protobuf messages to a selected queue or exchange — without writing any code. Built as a team dev-tool: each developer installs it locally and uses their own saved connection profiles.
 

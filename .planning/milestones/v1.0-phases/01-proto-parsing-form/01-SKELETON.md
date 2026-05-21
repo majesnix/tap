@@ -1,4 +1,4 @@
-# Walking Skeleton — Proto Sender
+# Walking Skeleton — Tap
 
 **Phase:** 1
 **Generated:** 2026-05-17

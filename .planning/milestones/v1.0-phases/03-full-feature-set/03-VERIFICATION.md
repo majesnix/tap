@@ -27,7 +27,7 @@ human_verification:
 
 # Phase 3: Full Feature Set Verification Report
 
-**Phase Goal:** Complete the full feature set for Proto Sender v1.0 — multi-file proto tabs, AMQP message properties, message history with persistence and hex preview, and history filtering/replay/resend
+**Phase Goal:** Complete the full feature set for Tap v1.0 — multi-file proto tabs, AMQP message properties, message history with persistence and hex preview, and history filtering/replay/resend
 **Verified:** 2026-05-18T00:00:00Z
 **Status:** HUMAN_NEEDED
 **Re-verification:** No — initial verification
@@ -66,7 +66,7 @@ All truths verified against actual source files. SUMMARY.md claims were not used
 |---|-------|--------|----------|
 | 11 | Every sent message (success or failure) is appended to persistent history | VERIFIED | `PublishBar.tsx`: `appendEntry()` called on both success and failure paths; `useHistoryStore.ts`: `appendEntry()` prepends, slices to 100, persists to `history.json` |
 | 12 | History is capped at 100 entries (FIFO) | VERIFIED | `useHistoryStore.ts`: `MAX_ENTRIES = 100`; `slice(0, MAX_ENTRIES)` in `appendEntry()` |
-| 13 | History persists across app restarts via tauri-plugin-store to history.json | VERIFIED | `useHistoryStore.ts`: `historyStore.get("entries")` on init; `historyStore.set("entries", ...)` on every mutation; separate from `proto-sender.json` |
+| 13 | History persists across app restarts via tauri-plugin-store to history.json | VERIFIED | `useHistoryStore.ts`: `historyStore.get("entries")` on init; `historyStore.set("entries", ...)` on every mutation; separate from `tap.json` |
 | 14 | Right panel auto-switches to History tab after a successful send | VERIFIED | `RightPanel.tsx`: `prevLastSendAt` ref tracks previous `lastSendAt`; `useEffect` fires `setActiveTab("history")` when value changes from previous |
 | 15 | Hex preview tab shows binary payload and switches to Hex when replay is triggered | VERIFIED | `RightPanel.tsx`: `prevPendingReplay` ref; `useEffect` fires `setActiveTab("hex")` when `pendingReplayValues` transitions from null to non-null |
 

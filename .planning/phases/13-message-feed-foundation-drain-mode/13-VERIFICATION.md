@@ -159,7 +159,7 @@ The following behaviors require a running Tauri application connected to a live 
 
 #### 1. Real Drain Against Live Broker with Ack-Before-Decode
 
-**Test:** Publish 3–5 protobuf messages to a test queue. Open Proto Sender, select a proto file, select the queue, set drain count to 5, click Drain.
+**Test:** Publish 3–5 protobuf messages to a test queue. Open Tap, select a proto file, select the queue, set drain count to 5, click Drain.
 **Expected:** Messages appear in the accordion feed. Verify in RabbitMQ Management UI that the messages are fully consumed (queue depth reaches 0 or drops by the drained count). If the proto decode fails for one message, it should still be consumed (acked) and appear in the feed with the error field populated.
 **Why human:** AMQP commands require AppHandle+State and a live broker; integration tests are explicitly out of scope per plan note D-19.
 

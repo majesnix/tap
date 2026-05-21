@@ -157,7 +157,7 @@ This resolves the HIST-03 hex view collision: HIST-03 (hex string of a history e
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │  Sidebar (w-60)         │  Main (flex-1)           │  Right Panel (w-80)   │
 │  ─────────────────────  │  ──────────────────────  │  ──────────────────── │
-│  "Proto Sender"         │  PublishBar              │  Tabs: [Hex][History] │
+│  "Tap"         │  PublishBar              │  Tabs: [Hex][History] │
 │  ─────────────────────  │   + [AMQP Properties]   │                       │
 │  [Proto file tabs]      │    btn (Sheet trigger)   │  Active tab content:  │
 │   Tab1 | Tab2 | +       │  ──────────────────────  │  - Hex: HexPreview    │

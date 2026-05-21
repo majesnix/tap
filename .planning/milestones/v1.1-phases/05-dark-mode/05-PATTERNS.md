@@ -154,7 +154,7 @@ await store.save();
 
 ```ts
 // FileSection.tsx lines 10-11
-const STORE_PATH = "proto-sender.json";
+const STORE_PATH = "tap.json";
 const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
 
 // useHistoryStore.ts lines 4-6
@@ -163,7 +163,7 @@ const HISTORY_KEY = "entries";
 const MAX_ENTRIES = 100;
 
 // ThemeBootstrap should follow the same top-of-file constant convention:
-const THEME_STORE_PATH = "proto-sender.json"; // same store file as FileSection
+const THEME_STORE_PATH = "tap.json"; // same store file as FileSection
 const THEME_MODE_KEY = "theme-mode";
 ```
 

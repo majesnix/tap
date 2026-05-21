@@ -234,7 +234,7 @@ ThemeProvider (attribute="class", defaultTheme="system", enableSystem)
 - On theme change: only mirror to `tauri-plugin-store` when `bootstrapped === true` and `theme !== undefined`
 - The `bootstrapped` guard is non-negotiable (prevents the startup race described in RESEARCH.md Pitfall 6)
 
-Store file: `"proto-sender.json"` (same file used by connection profiles — established project pattern).
+Store file: `"tap.json"` (same file used by connection profiles — established project pattern).
 Store key: `"theme-mode"`.
 
 ---

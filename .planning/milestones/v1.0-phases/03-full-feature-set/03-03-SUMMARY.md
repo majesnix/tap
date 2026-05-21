@@ -71,7 +71,7 @@ metrics:
 
 ### useHistoryStore (src/stores/useHistoryStore.ts)
 
-Zustand store backed by `tauri-plugin-store` at `history.json` (separate from `proto-sender.json`).
+Zustand store backed by `tauri-plugin-store` at `history.json` (separate from `tap.json`).
 
 Key behaviors:
 - `appendEntry` prepends new entries (newest-first), caps at 100 via `slice(0, MAX_ENTRIES)` (D-02)

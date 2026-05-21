@@ -431,7 +431,7 @@ mod tests {
 
     fn make_pool_with_schema(proto_content: &str, file_name: &str) -> prost_reflect::DescriptorPool {
         // Write the proto content to a temp file
-        let tmp_dir = std::env::temp_dir().join("proto_sender_tests");
+        let tmp_dir = std::env::temp_dir().join("tap_tests");
         std::fs::create_dir_all(&tmp_dir).unwrap();
         let proto_path = tmp_dir.join(file_name);
         std::fs::write(&proto_path, proto_content).unwrap();

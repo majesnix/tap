@@ -31,7 +31,7 @@ key-decisions:
   - "ThemeBootstrap exported as named export for direct unit test imports"
   - "bootstrapped flag gates mirror effect — prevents Pitfall 6 race where stale localStorage value clobbers tauri-plugin-store before bootstrap read completes"
   - "eslint-disable-line on bootstrap useEffect exhaustive-deps is intentional (one-shot mount effect)"
-  - "Store path proto-sender.json and key theme-mode are top-level constants per project convention"
+  - "Store path tap.json and key theme-mode are top-level constants per project convention"
 
 patterns-established:
   - "ThemeBootstrap pattern: child of ThemeProvider, reads tauri-plugin-store on mount, gates mirror writes on bootstrapped flag"

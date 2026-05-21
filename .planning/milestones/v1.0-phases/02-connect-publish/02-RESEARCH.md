@@ -157,7 +157,7 @@ User Action (React)
     │
     ├─ Profile Save ──────────► Tauri Command: save_profile
     │                              │
-    │                              ├─ Non-secret fields → tauri-plugin-store (proto-sender.json)
+    │                              ├─ Non-secret fields → tauri-plugin-store (tap.json)
     │                              ├─ Password → keyring-core::Entry::new("dev.protosender.app", profile_name)
     │                              └─ test_connection (lapin connect+close) → result → UI
     │

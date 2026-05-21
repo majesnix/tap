@@ -119,7 +119,7 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
 **Persistence pattern** (`src/components/sidebar/FileSection.tsx` lines 9, 48–51, 67–69):
 ```typescript
 // Line 9
-const STORE_PATH = "proto-sender.json";
+const STORE_PATH = "tap.json";
 
 // Lines 48–51 (load + get)
 const store = await load(STORE_PATH);
@@ -1068,7 +1068,7 @@ toast.error(`Resend failed: ${message}`, { duration: 5000 });
 **Source:** `src/components/sidebar/FileSection.tsx` lines 9, 48–51, 67–69
 **Apply to:** `useHistoryStore.ts` persistence helpers
 ```typescript
-const STORE_PATH = "proto-sender.json";  // Note: history uses "history.json" (separate)
+const STORE_PATH = "tap.json";  // Note: history uses "history.json" (separate)
 // Load:
 const store = await load(STORE_PATH);
 // Get:

@@ -214,5 +214,5 @@ These are stated choices that should not be revisited during phase planning with
 - RabbitMQ management plugin capabilities: https://www.rabbitmq.com/docs/management
 
 ---
-*Feature research for: Advanced Response Consumer (v1.4 — Proto Sender)*
+*Feature research for: Advanced Response Consumer (v1.4 — Tap)*
 *Researched: 2026-05-20*

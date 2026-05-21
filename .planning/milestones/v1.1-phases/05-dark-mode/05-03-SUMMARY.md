@@ -55,7 +55,7 @@ The dark mode CSS variables were already complete in `src/index.css` (`.dark {}`
 
 ## Prerequisites for UAT
 
-1. Run the app: `npm run tauri dev` (from project root `/Users/majesnix/gits/proto-sender`)
+1. Run the app: `npm run tauri dev` (from project root `/Users/majesnix/gits/tap`)
 2. Switch to dark mode using the ThemeToggle button in the sidebar footer (click to cycle: Monitor → Sun → Moon — click twice to reach Moon/dark)
 
 ## DRK-04 Surface Checklist

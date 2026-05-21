@@ -27,7 +27,7 @@ status: issues_found
 
 ## Summary
 
-Phase 12 adds HTML5 drag-and-drop to the proto-sender app: block library rows as drag sources, `applyBlockRef` merge engine in `ProtoFormRenderer`, and a drop zone with BLK-08 toast in `FormPanel`. The implementation is structurally sound — toast copy is correct (singular/plural, no "(s)"), ref lifecycle cleanup is correct, and `dragStart` data transfer encoding is correct. Five warnings were found: a crash-path when block content parses to `null`, a misleading type cast in the drag-leave containment guard, a missing user-facing error when block content is unparseable, an affordance shown for non-block drags (fix includes an important case-sensitivity note about the HTML5 DnD spec), and a test that passes for the wrong reason (null ref guard instead of unknown-id guard). No blockers were found.
+Phase 12 adds HTML5 drag-and-drop to the tap app: block library rows as drag sources, `applyBlockRef` merge engine in `ProtoFormRenderer`, and a drop zone with BLK-08 toast in `FormPanel`. The implementation is structurally sound — toast copy is correct (singular/plural, no "(s)"), ref lifecycle cleanup is correct, and `dragStart` data transfer encoding is correct. Five warnings were found: a crash-path when block content parses to `null`, a misleading type cast in the drag-leave containment guard, a missing user-facing error when block content is unparseable, an affordance shown for non-block drags (fix includes an important case-sensitivity note about the HTML5 DnD spec), and a test that passes for the wrong reason (null ref guard instead of unknown-id guard). No blockers were found.
 
 ## Warnings
 

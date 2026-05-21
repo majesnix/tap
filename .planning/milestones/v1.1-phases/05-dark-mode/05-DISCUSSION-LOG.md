@@ -29,7 +29,7 @@
 | Option | Description | Selected |
 |--------|-------------|----------|
 | Sidebar footer | Bottom of left sidebar, next to version string | ✓ |
-| Sidebar header | Next to "Proto Sender" h1 title | |
+| Sidebar header | Next to "Tap" h1 title | |
 | You decide | Claude picks sidebar footer | |
 
 **User's choice:** Sidebar footer

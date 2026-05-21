@@ -47,7 +47,7 @@ pub(crate) fn load_profile_with_password(
     profile_name: &str,
 ) -> Result<(crate::profiles::ConnectionProfile, String), AppError> {
     let store = app
-        .store("proto-sender.json")
+        .store("tap.json")
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
     let profiles: Vec<crate::profiles::ConnectionProfile> = store
@@ -79,7 +79,7 @@ pub async fn save_profile(
 
     // 2. Load existing profiles from store
     let store = app
-        .store("proto-sender.json")
+        .store("tap.json")
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
     let mut profiles: Vec<ConnectionProfile> = store
@@ -109,7 +109,7 @@ pub async fn save_profile(
 #[tauri::command]
 pub async fn list_profiles(app: AppHandle) -> Result<Vec<ConnectionProfile>, AppError> {
     let store = app
-        .store("proto-sender.json")
+        .store("tap.json")
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
     let profiles: Vec<ConnectionProfile> = store
@@ -125,7 +125,7 @@ pub async fn list_profiles(app: AppHandle) -> Result<Vec<ConnectionProfile>, App
 pub async fn delete_profile(app: AppHandle, profile_name: String) -> Result<(), AppError> {
     // 1. Remove from store
     let store = app
-        .store("proto-sender.json")
+        .store("tap.json")
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
     let mut profiles: Vec<ConnectionProfile> = store
@@ -157,7 +157,7 @@ pub async fn delete_profile(app: AppHandle, profile_name: String) -> Result<(), 
 pub async fn test_connection(app: AppHandle, profile_name: String) -> Result<(), AppError> {
     // Load profile from store
     let store = app
-        .store("proto-sender.json")
+        .store("tap.json")
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
     let profiles: Vec<ConnectionProfile> = store

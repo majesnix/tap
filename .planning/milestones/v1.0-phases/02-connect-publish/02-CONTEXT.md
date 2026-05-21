@@ -6,7 +6,7 @@
 <domain>
 ## Phase Boundary
 
-Phase 2 delivers: connect Proto Sender to a live RabbitMQ broker via saved named connection profiles, select a target queue or exchange, and publish the binary-encoded protobuf message produced by Phase 1.
+Phase 2 delivers: connect Tap to a live RabbitMQ broker via saved named connection profiles, select a target queue or exchange, and publish the binary-encoded protobuf message produced by Phase 1.
 
 Specifically, Phase 2 completes requirements CONN-01 through CONN-04 (profile management + keychain password storage) and PUBL-01 through PUBL-03 (queue/exchange picker + message send). Message history, advanced AMQP properties, and multi-proto-file support are Phase 3.
 

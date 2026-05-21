@@ -223,7 +223,7 @@ User action (click "Open .proto file")
 ### Recommended Project Structure
 
 ```
-proto-sender/
+tap/
 ├── src-tauri/
 │   ├── src/
 │   │   ├── lib.rs              # Tauri builder, plugin registration, invoke_handler
@@ -513,7 +513,7 @@ useEffect(() => {
 // Source: https://v2.tauri.app/plugin/store
 import { load } from "@tauri-apps/plugin-store";
 
-const STORE_PATH = "proto-sender.json";
+const STORE_PATH = "tap.json";
 
 export async function loadIncludePaths(filePath: string): Promise<string[]> {
   const store = await load(STORE_PATH, { autoSave: false });
@@ -535,7 +535,7 @@ export async function saveIncludePaths(filePath: string, paths: string[]): Promi
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for Proto Sender",
+  "description": "Default capabilities for Tap",
   "windows": ["main"],
   "permissions": [
     "core:default",

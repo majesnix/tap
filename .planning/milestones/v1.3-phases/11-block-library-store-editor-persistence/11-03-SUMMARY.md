@@ -78,8 +78,8 @@ metrics:
 **1. [Rule 3 - Blocking] Vitest resolved @/ alias to main repo src, not worktree src**
 
 - **Found during:** Task 3 (GREEN) — all 4 new tests kept failing after FormPanel.tsx was correctly updated
-- **Issue:** The plan's `<verify>` command runs `cd /Users/majesnix/gits/proto-sender && npx vitest run src/...`. From the main repo directory, vitest uses the main repo's `vite.config.ts` which resolves `@/` to `/Users/majesnix/gits/proto-sender/src` — the un-modified main repo version of FormPanel.tsx. The worktree has a separate checkout at `.claude/worktrees/agent-a28f12c82723a7229/src/`.
-- **Fix:** Used `--config /Users/majesnix/gits/proto-sender/.claude/worktrees/agent-a28f12c82723a7229/vite.config.ts` flag so vitest resolves `@/` to the worktree's `src` directory where the changes live.
+- **Issue:** The plan's `<verify>` command runs `cd /Users/majesnix/gits/tap && npx vitest run src/...`. From the main repo directory, vitest uses the main repo's `vite.config.ts` which resolves `@/` to `/Users/majesnix/gits/tap/src` — the un-modified main repo version of FormPanel.tsx. The worktree has a separate checkout at `.claude/worktrees/agent-a28f12c82723a7229/src/`.
+- **Fix:** Used `--config /Users/majesnix/gits/tap/.claude/worktrees/agent-a28f12c82723a7229/vite.config.ts` flag so vitest resolves `@/` to the worktree's `src` directory where the changes live.
 - **Files modified:** None — this was a test runner invocation fix, no code changes.
 
 ## Known Stubs

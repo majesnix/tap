@@ -14,7 +14,7 @@ progress:
   percent: 100
 ---
 
-# Project State: Proto Sender
+# Project State: Tap
 
 ## Current Phase
 

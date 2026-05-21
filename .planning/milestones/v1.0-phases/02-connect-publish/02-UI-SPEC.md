@@ -91,7 +91,7 @@ Weights: exactly 2 — 400 regular and 600 semibold. The "medium" (500) weight i
 
 | Role | Size | Weight | Line Height | Usage |
 |------|------|--------|-------------|-------|
-| Display | 18px (`text-lg`) | 600 semibold (`font-semibold`) | 1.2 | Section headings: "Proto Sender" app title, modal titles |
+| Display | 18px (`text-lg`) | 600 semibold (`font-semibold`) | 1.2 | Section headings: "Tap" app title, modal titles |
 | Label | 14px (`text-sm`) | 600 semibold (`font-semibold`) | 1.4 | Form section labels, publish bar labels ("Queue", "Exchange", "Routing Key") |
 | Body | 14px (`text-sm`) | 400 regular | 1.5 | Form field values, dropdown options, profile list items |
 | Hint | 12px (`text-xs`) | 400 regular | 1.4 | Muted helper text: "Add connection", "Connect to a RabbitMQ profile to send.", status messages |

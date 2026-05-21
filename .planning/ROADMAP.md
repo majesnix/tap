@@ -1,4 +1,4 @@
-# Roadmap: Proto Sender
+# Roadmap: Tap
 
 **Last Milestone:** v1.3 Publishing UX + Message Blocks — SHIPPED 2026-05-20
 **Current:** v1.4 Response Stream — In progress

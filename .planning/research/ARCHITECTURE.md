@@ -241,7 +241,7 @@ pub async fn start_consume(
     let pool = { /* clone before any .await */ };
     let token = CancellationToken::new();
     let child_token = token.child_token();
-    let consumer_tag = format!("proto-sender-{}", epoch_ms());
+    let consumer_tag = format!("tap-{}", epoch_ms());
 
     // Store handle BEFORE spawning
     {

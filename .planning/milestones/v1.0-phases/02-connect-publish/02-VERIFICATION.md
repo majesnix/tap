@@ -15,8 +15,8 @@ human_verification:
   - test: "Create a new connection profile (host, port, vhost, username, password, management port), click Save & Connect. Observe the inline spinner, then green checkmark and 'Connected' label."
     expected: "Spinner appears while test runs; green checkmark + 'Connected' text displayed on success. Status dot in sidebar turns green. Modal stays open, user can close manually."
     why_human: "Requires live RabbitMQ broker. Cannot verify AMQP handshake result programmatically without a running service."
-  - test: "After saving a successful profile, close the modal. Inspect the OS keychain (macOS: Keychain Access, service = 'dev.protosender.app'). Inspect app data proto-sender.json on disk."
-    expected: "Password appears in Keychain Access under service 'dev.protosender.app'. The proto-sender.json file contains the profile's host/port/vhost/username/managementPort but NO password field."
+  - test: "After saving a successful profile, close the modal. Inspect the OS keychain (macOS: Keychain Access, service = 'dev.protosender.app'). Inspect app data tap.json on disk."
+    expected: "Password appears in Keychain Access under service 'dev.protosender.app'. The tap.json file contains the profile's host/port/vhost/username/managementPort but NO password field."
     why_human: "Cannot inspect the OS keychain or the filesystem app-data directory programmatically in this verification context."
   - test: "Fill out the proto form, select a queue from the live dropdown, click Send."
     expected: "Success toast 'Message sent to [queue]' appears for 3 seconds. Message is visible in RabbitMQ Management UI or consumable by a test consumer. The form retains all field values after send."
@@ -167,7 +167,7 @@ All programmatically verifiable truths pass. Six truths from ROADMAP SCs and pla
 | CONN-01 | 02-01-PLAN, 02-GAP-PLAN, 02-GAP2-PLAN | User can create and save named connection profiles (6 fields); test independently via "Test Connection" button; modal does not overflow viewport | SATISFIED | ProfileManagementModal all 6 fields wired; save_profile persists non-secret fields; password to keychain; standalone Test Connection button present; max-h-[85vh] scroll layout implemented |
 | CONN-02 | 02-02-PLAN | User can switch between saved profiles with a single click | SATISFIED | ConnectionSection Select dropdown triggers handleProfileChange -> activateProfile |
 | CONN-03 | 02-02-PLAN | App tests connection reachability and credential validity when user saves a profile | SATISFIED | handleSave calls testConnection after saveProfile; ConnectionTestResult shows spinner -> result; handleTestOnly provides standalone test path |
-| CONN-04 | 02-01-PLAN | Passwords stored in OS keychain, never in plain config files | SATISFIED (needs human for keychain inspection) | store_password/get_password use keyring-core Entry; ConnectionProfile struct has no password field; proto-sender.json stores only non-secret fields |
+| CONN-04 | 02-01-PLAN | Passwords stored in OS keychain, never in plain config files | SATISFIED (needs human for keychain inspection) | store_password/get_password use keyring-core Entry; ConnectionProfile struct has no password field; tap.json stores only non-secret fields |
 | PUBL-01 | 02-04-PLAN | User can publish directly to named queue via default exchange | SATISFIED | buildPublishArgs queue mode -> exchange="", routingKey=queueName; publish_message basic_publish |
 | PUBL-02 | 02-04-PLAN | User can publish to named exchange with routing key | SATISFIED | buildPublishArgs exchange mode -> exchange=selectedExchange, routingKey=explicit key |
 | PUBL-03 | 02-03-PLAN | Live dropdown from Management API; falls back to manual text input when unavailable | SATISFIED | fetchQueues/fetchExchanges from Management API; ManagementStatus "live"->Select, else->Input; 401 surfaces as auth error, not silent fallback |
@@ -196,7 +196,7 @@ No blocking anti-patterns found.
 
 #### 3. OS Keychain Isolation (ROADMAP SC #4)
 
-**Test:** After saving a profile, open Keychain Access (macOS). Search for service "dev.protosender.app". Also inspect the proto-sender.json file in ~/Library/Application Support/dev.protosender.app/.
+**Test:** After saving a profile, open Keychain Access (macOS). Search for service "dev.protosender.app". Also inspect the tap.json file in ~/Library/Application Support/dev.protosender.app/.
 **Expected:** Password appears in Keychain Access under service "dev.protosender.app". The JSON file contains host, port, vhost, username, managementPort but NO "password" key.
 **Why human:** OS keychain state cannot be queried programmatically in this verification context.
 

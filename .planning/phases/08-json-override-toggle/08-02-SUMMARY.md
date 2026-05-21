@@ -73,7 +73,7 @@ metrics:
 - **Files modified:** src/components/form/FormPanel.tsx
 
 **2. Worktree path safety correction**
-- **Found during:** Initial test run — Read/Write tool calls defaulted to main repo path (`/Users/majesnix/gits/proto-sender/src/...`) instead of worktree path
+- **Found during:** Initial test run — Read/Write tool calls defaulted to main repo path (`/Users/majesnix/gits/tap/src/...`) instead of worktree path
 - **Fix:** Identified discrepancy, rewrote worktree files at correct absolute paths, restored main repo files to their original state
 - **Files modified:** Worktree files corrected; main repo files restored
 

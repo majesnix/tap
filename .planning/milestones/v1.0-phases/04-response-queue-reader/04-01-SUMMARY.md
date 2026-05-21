@@ -117,7 +117,7 @@ No new threat surface beyond what the plan's threat model already covers. All T-
 ## Self-Check: PASSED
 
 All created files verified to exist:
-- `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/consume.rs` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/stores/useResponseStore.ts` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseTab.tsx` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseTab.test.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src-tauri/src/commands/consume.rs` — FOUND
+- `/Users/majesnix/gits/tap/src/stores/useResponseStore.ts` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseTab.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseTab.test.tsx` — FOUND

@@ -9,7 +9,7 @@ import { IncludePathDialog } from "@/components/include-paths/IncludePathDialog"
 import { parseProto } from "@/lib/ipc";
 import { useProtoStore } from "@/stores/useProtoStore";
 
-const STORE_PATH = "proto-sender.json";
+const STORE_PATH = "tap.json";
 const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
 
 /**
@@ -23,7 +23,7 @@ const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
  * 5. On confirm: save paths to store keyed by absolute file path, call parseProto
  * 6. On cancel: abort — sidebar stays in previous state
  *
- * Persistence (D-08/D-09): key = "include_paths:{absoluteFilePath}", store = "proto-sender.json"
+ * Persistence (D-08/D-09): key = "include_paths:{absoluteFilePath}", store = "tap.json"
  */
 export function FileSection() {
   const openFiles = useProtoStore((s) => s.openFiles);

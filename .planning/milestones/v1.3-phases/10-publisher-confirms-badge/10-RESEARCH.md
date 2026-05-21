@@ -415,8 +415,8 @@ No new attack surface is introduced. The `PublishOutcome.status` field is set en
 - `github.com/amqp-rs/lapin/blob/main/examples/publisher_confirms.rs` — official example: mandatory=true, `confirm.is_ack()`, `confirm.take_message()`
 - `docs.rs/crate/lapin/latest/source/tests/publisher_confirms.rs` — official test: asserts `confirm.is_ack() == true` for unroutable mandatory messages
 - `docs.rs/lapin/4.7.4/lapin/struct.Channel.html` — `basic_publish` return type: `Result<PublisherConfirm>`
-- `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/publish.rs` — current implementation; existing confirm_select, confirm_future.await pattern
-- `/Users/majesnix/gits/proto-sender/src-tauri/Cargo.toml` — confirmed lapin 4.x, tokio 1.x, serde 1.x in use
+- `/Users/majesnix/gits/tap/src-tauri/src/commands/publish.rs` — current implementation; existing confirm_select, confirm_future.await pattern
+- `/Users/majesnix/gits/tap/src-tauri/Cargo.toml` — confirmed lapin 4.x, tokio 1.x, serde 1.x in use
 
 ### Secondary (MEDIUM confidence)
 - `media-cloud-ai.gitlab.io/sdks/py_mcai_worker_sdk/lapin/publisher_confirm/enum.Confirmation.html` — Confirmation enum variant signatures (cross-reference)

@@ -1,4 +1,4 @@
-# Pitfalls Research: Proto Sender
+# Pitfalls Research: Tap
 
 **Domain:** Tauri 2.x desktop app — runtime proto parsing, dynamic forms, AMQP publishing
 **Researched:** 2026-05-17
@@ -857,17 +857,17 @@ Run this coercion in the merge loop before each `setValue` call. Log or toast on
 
 ## Block Persistence Pitfalls
 
-### 42. Appending blocks store to `proto-sender.json` risks collisions with existing keys
+### 42. Appending blocks store to `tap.json` risks collisions with existing keys
 
 **Symptom:**
-The blocks store is initialized with key `"blocks"` in `proto-sender.json` (the same file used by connection profiles under key `"profiles"` and the theme mode under key `"theme-mode"`). A future key collision (e.g., a profile named "blocks", or a new feature that uses the same key) silently overwrites block data.
+The blocks store is initialized with key `"blocks"` in `tap.json` (the same file used by connection profiles under key `"profiles"` and the theme mode under key `"theme-mode"`). A future key collision (e.g., a profile named "blocks", or a new feature that uses the same key) silently overwrites block data.
 
 **Root cause:**
-`proto-sender.json` is the app's primary store for all non-history persistent data (confirmed by `connection.rs` line 46: `app.store("proto-sender.json")`). Using the same file for blocks adds a third unrelated domain. `tauri-plugin-store` uses flat key-value semantics per file — all keys in the same file share a namespace. A key named `"blocks"` in `proto-sender.json` is two characters away from a collision with any future feature that also picks a short common key.
+`tap.json` is the app's primary store for all non-history persistent data (confirmed by `connection.rs` line 46: `app.store("tap.json")`). Using the same file for blocks adds a third unrelated domain. `tauri-plugin-store` uses flat key-value semantics per file — all keys in the same file share a namespace. A key named `"blocks"` in `tap.json` is two characters away from a collision with any future feature that also picks a short common key.
 
 **Prevention for BLK-03:**
 Use a dedicated store file: `blocks.json`. Pattern already established by `history.json` (see `useHistoryStore.ts`). Benefits:
-- Zero collision risk with `proto-sender.json` keys
+- Zero collision risk with `tap.json` keys
 - `blocks.json` can be deleted independently to reset the block library without touching profiles or theme
 - Store initialization is independent — blocks load asynchronously without blocking profile/theme bootstrap
 
@@ -878,7 +878,7 @@ Use a dedicated store file: `blocks.json`. Pattern already established by `histo
 ### 43. Block store race condition: `appendBlock` fires before store hydration completes
 
 **Symptom:**
-App starts. ThemeBootstrap reads `proto-sender.json`. Block library renders immediately. User creates a block before the async `loadBlocks()` call completes. `appendBlock` writes the new block to the store. `loadBlocks()` completes and calls `set({ blocks: saved })`, overwriting the in-memory state and losing the new block.
+App starts. ThemeBootstrap reads `tap.json`. Block library renders immediately. User creates a block before the async `loadBlocks()` call completes. `appendBlock` writes the new block to the store. `loadBlocks()` completes and calls `set({ blocks: saved })`, overwriting the in-memory state and losing the new block.
 
 **Root cause:**
 `useHistoryStore.ts` already solves this with a `historyLoaded` flag guard (line 51: `if (!get().historyLoaded) return`). Without the equivalent guard in the block store, a write that races ahead of the initial load is silently overwritten when the load resolves.

@@ -1,6 +1,6 @@
-# Research Summary: Proto Sender v1.4 — Advanced Response Consumer
+# Research Summary: Tap v1.4 — Advanced Response Consumer
 
-**Project:** Proto Sender
+**Project:** Tap
 **Milestone:** v1.4
 **Researched:** 2026-05-20
 **Confidence:** HIGH
@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-Proto Sender v1.3 ships a working one-at-a-time `basic_get` consumer. v1.4 replaces this with a full consumer suite: batch drain (N messages, one command), live subscribe (persistent streaming consumer), client-side filtering by routing key and content type, and JSON/CSV export.
+Tap v1.3 ships a working one-at-a-time `basic_get` consumer. v1.4 replaces this with a full consumer suite: batch drain (N messages, one command), live subscribe (persistent streaming consumer), client-side filtering by routing key and content type, and JSON/CSV export.
 
 The existing stack (Tauri 2 + Rust + React + lapin + zustand + react-hook-form + shadcn/ui) is fully in place. Only two new Rust crates needed: `tokio-util 0.7` and `csv 1.4`. No new npm packages — `Channel<T>` is already in `@tauri-apps/api 2.11.0`.
 

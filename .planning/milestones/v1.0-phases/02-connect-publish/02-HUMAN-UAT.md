@@ -21,7 +21,7 @@ expected: Spinner then green checkmark inline. Modal stays open. Profile IS in s
 result: partial — Test Connection button missing in edit mode; modal lacks scrolling for multiple profiles
 
 ### 3. OS Keychain Isolation
-expected: Password in Keychain Access under service "dev.protosender.app". proto-sender.json has host/port/vhost/username/managementPort but NO "password" key.
+expected: Password in Keychain Access under service "dev.protosender.app". tap.json has host/port/vhost/username/managementPort but NO "password" key.
 result: approved
 
 ### 4. Message Delivery to Queue

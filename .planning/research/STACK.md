@@ -1,4 +1,4 @@
-# Stack Research: Proto Sender v1.4 Advanced Response Consumer
+# Stack Research: Tap v1.4 Advanced Response Consumer
 
 **Researched:** 2026-05-20
 **Milestone:** v1.4 — Drain Mode, Live Subscribe, Queue Depth, Export
@@ -322,5 +322,5 @@ The existing Key Decision "Ephemeral lapin connections per operation" cannot app
 - Tauri 2 State Management + `tokio::sync::Mutex` guidance: https://v2.tauri.app/develop/state-management/
 - Tauri async background task pattern (rfdonnelly): https://rfdonnelly.github.io/posts/tauri-async-rust-process/
 - Tauri `tokio::spawn` panic on Windows (issue #10289): https://github.com/tauri-apps/tauri/issues/10289
-- `fetch_queue_depth` already implemented: `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/connection.rs` (lines 266–318)
-- `consume_message` ephemeral pattern: `/Users/majesnix/gits/proto-sender/src-tauri/src/commands/consume.rs`
+- `fetch_queue_depth` already implemented: `/Users/majesnix/gits/tap/src-tauri/src/commands/connection.rs` (lines 266–318)
+- `consume_message` ephemeral pattern: `/Users/majesnix/gits/tap/src-tauri/src/commands/consume.rs`

@@ -253,7 +253,7 @@ async fn run_consumer(
     let mut consumer = channel
         .basic_consume(
             &queue_name,
-            "proto-sender-subscriber",
+            "tap-subscriber",
             BasicConsumeOptions::default(),
             FieldTable::default(),
         )
@@ -285,7 +285,7 @@ async fn run_consumer(
             _ = token.cancelled() => {
                 // Graceful stop: cancel consumer tag, then close connection
                 let _ = channel.basic_cancel(
-                    "proto-sender-subscriber",
+                    "tap-subscriber",
                     BasicCancelOptions::default(),
                 ).await;
                 let _ = conn.close(200, "normal shutdown").await;
@@ -567,7 +567,7 @@ export function stopSubscribe(): Promise<void> {
      handles both lapin errors and broker-close (None) cases.
 
 2. **Consumer tag uniqueness** — RESOLVED
-   - Decision: Use hardcoded tag `"proto-sender-subscriber"`. The D-08 double-start guard in Rust
+   - Decision: Use hardcoded tag `"tap-subscriber"`. The D-08 double-start guard in Rust
      (start_subscribe takes ownership of the SubscribeState slot and cancels any prior session before
      spawning a new one) prevents two concurrent sessions from ever holding the same tag simultaneously.
      UUID-based tags are not needed for this use case.

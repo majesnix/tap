@@ -654,7 +654,7 @@ Every form component that can recurse must accept and pass through `depth: numbe
 ```typescript
 // Pattern source: RESEARCH.md Pattern 6
 import { load } from "@tauri-apps/plugin-store";
-const STORE_PATH = "proto-sender.json";
+const STORE_PATH = "tap.json";
 // Key format: `include_paths:${absoluteFilePath}`
 ```
 

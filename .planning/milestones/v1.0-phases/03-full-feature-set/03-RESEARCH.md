@@ -265,7 +265,7 @@ Key behaviour: `addOrActivateFile` — if `filePath` already in `openFiles`, jus
 
 ```typescript
 // Source: existing FileSection.tsx pattern (load → get → set → save)
-const HISTORY_STORE_PATH = "history.json";  // separate from proto-sender.json
+const HISTORY_STORE_PATH = "history.json";  // separate from tap.json
 const HISTORY_KEY = "history";
 
 async function appendHistoryEntry(entry: HistoryEntry): Promise<void> {
@@ -277,7 +277,7 @@ async function appendHistoryEntry(entry: HistoryEntry): Promise<void> {
 }
 ```
 
-Note: The existing code uses `proto-sender.json` for include paths and profiles, **not** `profiles.json` as mentioned in earlier docs. History goes in its own `history.json` per D-01. [VERIFIED: FileSection.tsx line 9]
+Note: The existing code uses `tap.json` for include paths and profiles, **not** `profiles.json` as mentioned in earlier docs. History goes in its own `history.json` per D-01. [VERIFIED: FileSection.tsx line 9]
 
 ### Pattern 4: BasicProperties extension in Rust (D-08)
 
@@ -441,7 +441,7 @@ pub struct AmqpHeader {
 }
 // In command: headers: Option<Vec<AmqpHeader>>
 ```
-Frontend sends: `[{ key: "X-Source", value: "proto-sender" }]` — matches the struct.
+Frontend sends: `[{ key: "X-Source", value: "tap" }]` — matches the struct.
 
 This is a one-line change over D-08's original `Vec<(String, String)>` and avoids the mapping step entirely.
 
@@ -669,7 +669,7 @@ export async function publishMessage(
 | A2 | Serde serializes `(String, String)` tuple as `["k","v"]` causing IPC mismatch with TS `{key,value}` object | Common Pitfalls (Pitfall 2) | High: if wrong, raw tuples work fine and named struct is unnecessary overhead |
 | A3 | `FormPanel` gates on `schema !== null` — empty-state already handled | Common Pitfalls (Pitfall 5) | Medium: if not guarded, last-tab-close crashes FormPanel |
 | A4 | `pendingReplayValues` store field is the cleanest cross-component `reset()` injection mechanism | Open Questions #3 | Medium: alternative (React context, callback prop, event emitter) also viable |
-| A5 | Profile store file is `proto-sender.json` (observed in FileSection.tsx) not `profiles.json` (mentioned in earlier docs) | Architecture Patterns (Pattern 3) | Low: only affects store key isolation; `history.json` is separate regardless |
+| A5 | Profile store file is `tap.json` (observed in FileSection.tsx) not `profiles.json` (mentioned in earlier docs) | Architecture Patterns (Pattern 3) | Low: only affects store key isolation; `history.json` is separate regardless |
 
 ---
 
@@ -707,7 +707,7 @@ export async function publishMessage(
 - `src/stores/useProtoStore.ts` — store to expand for D-07
 - `src-tauri/src/commands/publish.rs` — command to extend for D-08
 - `src/components/publish/PublishBar.tsx` — payload capture point, send flow
-- `src/components/sidebar/FileSection.tsx` — store key `proto-sender.json`, tauri-plugin-store pattern
+- `src/components/sidebar/FileSection.tsx` — store key `tap.json`, tauri-plugin-store pattern
 - `.planning/phases/03-full-feature-set/03-CONTEXT.md` — all locked decisions D-01 through D-08
 - `.planning/phases/03-full-feature-set/03-UI-SPEC.md` — all UI/interaction decisions (approved 2026-05-18)
 - `CLAUDE.md` — project constraints and tech stack

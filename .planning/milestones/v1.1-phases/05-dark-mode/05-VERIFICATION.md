@@ -56,7 +56,7 @@ All 14 truths were evaluated against actual codebase files (not SUMMARY.md claim
 
 | From | To | Via | Status | Details |
 |------|----|-----|--------|---------|
-| `src/App.tsx ThemeBootstrap` | `tauri-plugin-store proto-sender.json` | `load(THEME_STORE_PATH).then store.get('theme-mode')` | WIRED | Pattern "theme-mode" found on App.tsx line 8 (THEME_MODE_KEY constant); load() chain on lines 19-24 and 34-37 |
+| `src/App.tsx ThemeBootstrap` | `tauri-plugin-store tap.json` | `load(THEME_STORE_PATH).then store.get('theme-mode')` | WIRED | Pattern "theme-mode" found on App.tsx line 8 (THEME_MODE_KEY constant); load() chain on lines 19-24 and 34-37 |
 | `src/App.tsx ThemeBootstrap` | `next-themes ThemeProvider` | `setTheme(saved)` inside child component | WIRED | `setTheme(saved)` on App.tsx line 21; ThemeBootstrap is a child of ThemeProvider on line 46 |
 | `src/components/sidebar/Sidebar.tsx` | `src/components/sidebar/ThemeToggle.tsx` | `import { ThemeToggle } from '@/components/sidebar/ThemeToggle'` | WIRED | Import on Sidebar.tsx line 12; `<ThemeToggle />` usage on line 61 |
 | `src/components/sidebar/ThemeToggle.tsx` | `next-themes ThemeProvider` | `useTheme().setTheme(nextMode)` | WIRED | `useTheme()` call on ThemeToggle.tsx line 24; `setTheme(nextMode)` on line 42 |

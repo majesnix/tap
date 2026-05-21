@@ -137,9 +137,9 @@ No new threat surface beyond what the plan's `<threat_model>` already covers (T-
 ## Self-Check: PASSED
 
 All created files verified to exist:
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseQueuePicker.tsx` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseQueuePicker.test.tsx` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseDecodedView.tsx` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseDecodedView.test.tsx` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseHexSection.tsx` — FOUND
-- `/Users/majesnix/gits/proto-sender/src/components/response/ResponseHexSection.test.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseQueuePicker.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseQueuePicker.test.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseDecodedView.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseDecodedView.test.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseHexSection.tsx` — FOUND
+- `/Users/majesnix/gits/tap/src/components/response/ResponseHexSection.test.tsx` — FOUND

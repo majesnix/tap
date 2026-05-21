@@ -164,7 +164,7 @@ status: partial
   Investigation found that tokio-util 0.7 does NOT have a `"sync"` feature. Available features
   include: `rt`, `codec`, `compat`, `io`, `time`, `net`, `full`, `slab`, `join-map`.
   Attempting to set `features = ["sync"]` causes `cargo build` to fail:
-  "package `proto-sender` depends on `tokio-util` with feature `sync` but `tokio-util` does not have that feature."
+  "package `tap` depends on `tokio-util` with feature `sync` but `tokio-util` does not have that feature."
   The `"rt"` feature in tokio-util 0.7 includes `tokio/sync` as a transitive dependency, which
   is what makes `CancellationToken` available. The current `features = ["rt"]` is correct.
 

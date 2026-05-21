@@ -4,7 +4,7 @@ import { load } from "@tauri-apps/plugin-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Toaster } from "@/components/ui/sonner";
 
-const THEME_STORE_PATH = "proto-sender.json";
+const THEME_STORE_PATH = "tap.json";
 const THEME_MODE_KEY = "theme-mode";
 const VALID_THEMES: string[] = ["system", "light", "dark"];
 

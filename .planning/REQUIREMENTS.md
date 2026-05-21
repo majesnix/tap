@@ -1,4 +1,4 @@
-# Requirements: Proto Sender
+# Requirements: Tap
 
 **Defined:** 2026-05-20
 **Milestone:** v1.4 — Response Stream

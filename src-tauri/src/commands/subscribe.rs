@@ -190,7 +190,7 @@ pub async fn start_subscribe(
     let queue_name_clone = queue_name.clone();
     // IN-02: consumer_tag is safe as a constant because start_subscribe enforces a single
     // active session via the CR-01 atomic slot claim above.
-    let consumer_tag = "proto-sender-subscriber".to_string();
+    let consumer_tag = "tap-subscriber".to_string();
 
     // Spawn consumer task using tauri::async_runtime::spawn (NOT tokio::spawn — panics on Windows).
     let handle = tauri::async_runtime::spawn(async move {

@@ -136,7 +136,7 @@ import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { load } from "@tauri-apps/plugin-store";
 
-const THEME_STORE_PATH = "proto-sender.json";
+const THEME_STORE_PATH = "tap.json";
 const THEME_MODE_KEY = "theme-mode";
 
 function ThemeBootstrap() {
