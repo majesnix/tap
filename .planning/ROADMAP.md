@@ -102,8 +102,11 @@ Plans:
   4. When the user switches to a different connection profile, any running subscribe session stops automatically
 **Plans**: 3 plans
 Plans:
+**Wave 1**
 - [ ] 14-01-PLAN.md — Rust backend: Cargo.toml changes + subscribe.rs (SubscribeState, start_subscribe, stop_subscribe) + lib.rs + mod.rs wiring
 - [ ] 14-02-PLAN.md — Frontend foundation: SubscribeStatus type + IPC wrappers + useResponseStore extensions + toggle-group.tsx
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 14-03-PLAN.md — UI integration: SubscribePanel + MessageFeedTab mode toggle + ResponseQueuePicker mode prop
 **UI hint**: yes
 
