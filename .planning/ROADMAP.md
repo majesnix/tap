@@ -75,7 +75,7 @@ See [milestones/v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) for full phase deta
 
 ### v1.5 Distribution (Phases 16–18)
 
-- [ ] **Phase 16: Pipeline Foundation** - Fix release.yml structure, Entitlements.plist, and bump to v1.5.0; validate via workflow_dispatch without signing
+- [x] **Phase 16: Pipeline Foundation** - Fix release.yml structure, Entitlements.plist, and bump to v1.5.0; validate via workflow_dispatch without signing (completed 2026-05-21)
 - [ ] **Phase 17: macOS Signing + Notarization** - Wire Developer ID cert, Apple secrets, notarytool; first signed and notarized .dmg passes Gatekeeper
 - [ ] **Phase 18: Auto-Update + Linux + Docs** - tauri-plugin-updater hook, Linux AppImage validation, libsecret documentation
 
@@ -145,10 +145,10 @@ Plans:
 **Plans**: 2 plans
 Plans:
 **Wave 1**
-- [ ] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
+- [x] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
+- [x] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
 
 ### Phase 17: macOS Signing + Notarization
 **Goal**: A tagged release produces a signed, notarized Universal .dmg that passes Gatekeeper on a clean Mac without quarantine warning
@@ -161,8 +161,8 @@ Plans:
   4. Opening the downloaded .dmg on a clean Mac shows no Gatekeeper quarantine warning and the app launches successfully
 **Plans**: 2 plans
 Plans:
-- [ ] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
-- [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
+- [x] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
+- [x] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
 
 ### Phase 18: Auto-Update + Linux + Docs
 **Goal**: Installed users receive an in-app update notification when a new version is tagged, Linux users can install and run the AppImage, and the libsecret prerequisite is documented
@@ -176,7 +176,7 @@ Plans:
   5. `docs/linux-keychain.md` exists and contains instructions for installing `libsecret-1-0` / `gnome-keyring` on Debian/Ubuntu and Fedora/RHEL
 **Plans**: 2 plans
 Plans:
-- [ ] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
+- [x] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
 - [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
 **UI hint**: yes
 
@@ -201,7 +201,7 @@ Plans:
 | 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete | 2026-05-20 |
 | 14. Live Subscribe Mode | v1.4 | 3/3 | Complete | 2026-05-21 |
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
-| 16. Pipeline Foundation | v1.5 | 0/2 | Not started | - |
+| 16. Pipeline Foundation | v1.5 | 2/2 | Complete    | 2026-05-21 |
 | 17. macOS Signing + Notarization | v1.5 | 0/TBD | Not started | - |
 | 18. Auto-Update + Linux + Docs | v1.5 | 0/TBD | Not started | - |
 

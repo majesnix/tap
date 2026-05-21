@@ -11,14 +11,14 @@
 ### CICD — CI/CD Pipeline
 
 - [ ] **CICD-01**: Release workflow triggers on git tag push `v*` — builds, signs, notarizes, and uploads artifacts to a draft GitHub Release
-- [ ] **CICD-02**: Developer can trigger a `workflow_dispatch` dry-run (no signing) to validate pipeline structure
-- [ ] **CICD-03**: Rust build artifacts are cached between runs (reduces macOS cold-build time from ~20 min to ~5 min)
+- [x] **CICD-02**: Developer can trigger a `workflow_dispatch` dry-run (no signing) to validate pipeline structure
+- [x] **CICD-03**: Rust build artifacts are cached between runs (reduces macOS cold-build time from ~20 min to ~5 min)
 
 ### SIGN — macOS Signing + Notarization
 
 - [ ] **SIGN-01**: macOS .dmg is signed with Developer ID Application cert as a Universal binary (aarch64 + x86_64)
 - [ ] **SIGN-02**: macOS .dmg is notarized by Apple via `notarytool` and stapled — passes Gatekeeper on a clean Mac without quarantine warning
-- [ ] **SIGN-03**: `Entitlements.plist` includes required Hardened Runtime WebView entitlements (`cs.allow-jit`, `cs.allow-unsigned-executable-memory`, `cs.allow-dyld-environment-variables`)
+- [x] **SIGN-03**: `Entitlements.plist` includes required Hardened Runtime WebView entitlements (`cs.allow-jit`, `cs.allow-unsigned-executable-memory`, `cs.allow-dyld-environment-variables`)
 
 ### PKG — Linux Packaging
 
@@ -61,9 +61,9 @@ Deferred to future milestones:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CICD-02 | Phase 16 | Pending |
-| CICD-03 | Phase 16 | Pending |
-| SIGN-03 | Phase 16 | Pending |
+| CICD-02 | Phase 16 | Complete |
+| CICD-03 | Phase 16 | Complete |
+| SIGN-03 | Phase 16 | Complete |
 | CICD-01 | Phase 17 | Pending |
 | SIGN-01 | Phase 17 | Pending |
 | SIGN-02 | Phase 17 | Pending |
