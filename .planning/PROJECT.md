@@ -172,5 +172,7 @@ v1.4 shipped 2026-05-21. All 11 requirements delivered across 3 phases (8 plans)
 
 The app now has a full consume experience: drain, subscribe, filter, and export. 8 Phase 13 live-broker verification items deferred (require running RabbitMQ instance).
 
+Phase 16 complete 2026-05-21. Release pipeline foundation delivered: `macos-latest` runner, `Swatinem/rust-cache@v2` on both build jobs, Hardened Runtime Entitlements.plist (4 cs.* WebView keys), version bumped to 1.5.0 across all 3 config files. Two green workflow_dispatch dry-runs confirm pipeline structure (CICD-02, CICD-03 ✓). Phase 17 (macOS signing + notarization) unblocked.
+
 ---
-*Last updated: 2026-05-21 — Milestone v1.5 Distribution started*
+*Last updated: 2026-05-21 — Phase 16 complete*
