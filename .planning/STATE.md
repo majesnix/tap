@@ -3,10 +3,10 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Distribution
 status: planning
-last_updated: "2026-05-21T17:43:31.935Z"
+last_updated: "2026-05-21"
 last_activity: 2026-05-21
 progress:
-  total_phases: 0
+  total_phases: 3
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -17,53 +17,33 @@ progress:
 
 ## Current Phase
 
-Phase: 15
+Phase: 16
 Plan: Not started
-Status: Milestone complete
+Status: Not started
 Last activity: 2026-05-21
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-20 after v1.4 milestone start)
+See: .planning/PROJECT.md (updated 2026-05-21 after v1.5 milestone start)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 15 — filter-export
+**Current focus:** Phase 16 — Pipeline Foundation (fix release.yml, Entitlements.plist, bump to v1.5.0)
 
 ## Phase History
 
-- Plan 01-01 (Walking Skeleton): COMPLETE — commits 875defd, 96393ae, 878339e
-- Plan 01-02 (ScalarField Full Implementation): COMPLETE — commits caff256, f5fda9f
-- Plan 01-03 (NestedMessageField + RepeatedField): COMPLETE — commits a7c0614, 783a5bf
-- Plan 01-04 (EnumField + OneofField): COMPLETE — commits d4d8acf, 16405ff, 908f55b, fd0c914, 9e7dd5a
-- Plan 01-05 (WellKnownTypeField + Include Path Persistence): COMPLETE — commits 60ee94e, ff7a8e3
-- Plan 01-06 (FormPanel Debounce Fix): COMPLETE — commits e230aff, 2e9bd3f
-- Plan 02-01 (Connection Profiles — Slice 1): COMPLETE — commits 7253b00, b00613b, b3b608c
-- Plan 02-02 (Connection Test + Activation — Slice 2): COMPLETE — commits f5860cd, f5d2c9b
-- Plan 02-03 (PublishBar — Live Queue/Exchange Picker — Slice 3): COMPLETE — commits c49c8f2, 740e67f, 91fe919
-- Plan 02-04 (Publish Message — Slice 4): COMPLETE — commits 8729375, b6b3ff6
-- Plan 02-GAP (UAT Gap Fix — Test Connection + Edit Mode): COMPLETE — commits ef4d928, da68a62, 3f8fd65, 504fd63, 822dbd8, c25906c
-  - Plan 02-GAP2 (UAT Gap Fix — Modal Scroll Layout): COMPLETE — commit 1398733
-- Plan 03-01 (Multi-file Tabs + Store Signal Fields): COMPLETE — commits 1e6ab26, be6f0e4, 2e9cf6c
-- Plan 03-02 (AMQP Properties): COMPLETE — commits ed583c8, bbb5ae5, 1ea0ad9
-- Plan 03-03 (Message History): COMPLETE — commits 7d02068, 5fb9aa5, d3ca824, e63736b
-- Plan 03-04 (History Filter + Replay/Resend): COMPLETE — commits c3d0d8d, a651885, 5141d6a
-- Plan 04-01 (Response Queue Reader — Core Slice): COMPLETE — consume_message Rust command + useResponseStore + ResponseTab + RightPanel 3rd tab
-- Plan 04-02 (Response Queue Reader — UX Polish): COMPLETE — ResponseQueuePicker (Live/Manual) + ResponseDecodedView (collapsible tree) + ResponseHexSection (copy buttons) + ResponseTab composition
-- Plan 14-01 (Rust Subscribe Backend): COMPLETE — commits c296d07, 80e6f29
-- Plan 14-02 (TS Foundation: types + IPC + store + toggle-group): COMPLETE — commits 59a6cd1, de62765, 566579f
-- Plan 14-03 (Subscribe Mode UI): COMPLETE — commits 5009582, a643962, fafe47f
+*(v1.0–v1.4 phase history archived — see milestones/ directory)*
 
 ---
 
 ## Performance Metrics
 
-- Plans completed: 15
-- Requirements delivered: FORM-01 (fully), FORM-06, FORM-07 delivered by plan 01-02; FORM-02, FORM-03, FORM-08 delivered by plan 01-03; FORM-04, FORM-05 delivered by plan 01-04; FORM-09, PROT-02 delivered by plan 01-05; FORM-01 (debounce gate) delivered by plan 01-06; CONN-01, CONN-04 delivered by plan 02-01; CONN-02, CONN-03 delivered by plan 02-02; PUBL-03 delivered by plan 02-03; PUBL-01, PUBL-02 delivered by plan 02-04; CONN-01 (UAT gap closure) delivered by plan 02-GAP; PROT-03, PROT-04 delivered by plan 03-01; PUBL-04 delivered by plan 03-02; HIST-01, HIST-03 delivered by plan 03-03; HIST-02, HIST-04 delivered by plan 03-04
-- Phases completed: 0/3 (v1.4 not yet started)
+- Plans completed: 0 (v1.5 not yet started)
+- Requirements delivered: 0/12
+- Phases completed: 0/3
 
 ## Accumulated Context
 
-### Key Decisions Logged
+### Key Decisions Logged (v1.0–v1.4 Archive)
 
 - prevProfileRef pattern for profile-change auto-stop: both store activeProfileName and profileName prop update to same value in same render (co-update) — prop comparison always false; ref tracks previous value across renders
 - SubscribePanel Start/Stop buttons mutually exclusive (Stop replaces Start when Running/Stopping) — cleaner UX than disabling Start
@@ -147,13 +127,18 @@ See: .planning/PROJECT.md (updated 2026-05-20 after v1.4 milestone start)
 - v1.2 architecture: map rows stored as Array<{key, value}> via useFieldArray — never as Record<K,V> (silent JS deduplication)
 - v1.2 architecture: next-themes resolvedTheme prop used for JSON editor dark mode (already in use for Phase 5)
 - v1.2 stack: @uiw/react-codemirror ^4.25.9 + @codemirror/lang-json ^6.0.x — only new npm packages for the milestone
+- dnd-kit PointerSensor over HTML5 DnD — WKWebView (macOS Tauri) breaks HTML5 dataTransfer API
+- DndContext + DragOverlay mounted at AppLayout level — overlay needs to escape DOM subtree for correct z-index
+- applyBlockRef contract (not store-integrated dirtyFields) — ProtoFormRenderer switch is frozen; ref wiring is the safe extension point
+- Two-view local state (PanelView list/editor) in BlockLibraryPanel — panel view is local UI state, not shared across components
+
+### Key Decisions for v1.5
+
+*(to be populated during execution)*
 
 ### Roadmap Evolution
 
-- Phase 4 added (2026-05-18): Response Queue Reader — select reply queue, consume + deserialize incoming protobuf message, ack to remove from queue (RESP-01 to RESP-05)
-- Phases 6-8 added (2026-05-19): v1.2 Form Improvements — BytesField (Phase 6), MapField (Phase 7), JSON Override Toggle (Phase 8)
-- Phases 9-12 added (2026-05-19): v1.3 Publishing UX + Message Blocks — Routing Key Autocomplete (Phase 9), Publisher Confirms Badge (Phase 10), Block Library Store+Editor+Persistence (Phase 11), Block Library DnD Layer (Phase 12)
-- Phases 13-15 added (2026-05-20): v1.4 Response Stream — Message Feed + Drain (Phase 13), Live Subscribe (Phase 14), Filter + Export (Phase 15)
+- Phases 16–18 added (2026-05-21): v1.5 Distribution — Pipeline Foundation (Phase 16), macOS Signing + Notarization (Phase 17), Auto-Update + Linux + Docs (Phase 18)
 
 ## Deferred Items
 
@@ -182,7 +167,7 @@ Items acknowledged and deferred at milestone close on 2026-05-21 (v1.4 Response 
 
 ### Active TODOs
 
-- Run `/gsd-execute-phase 13` to execute Phase 13 (Message Feed Foundation + Drain Mode) — 3 plans ready
+- Run `/gsd-plan-phase 16` to plan Phase 16 (Pipeline Foundation)
 
 ### Blockers
 
@@ -192,25 +177,23 @@ Items acknowledged and deferred at milestone close on 2026-05-21 (v1.4 Response 
 
 - shadcn/ui + Tailwind 4 Vite config: VERIFIED — @tailwindcss/vite plugin works, no tailwind.config.js
 - macOS arbitrary file read entitlements: Entitlements.plist approach confirmed (bundle.macOS.entitlements path string)
-- Linux keychain (libsecret): still needs install notes for distribution
-- v1.2 stack additions: @uiw/react-codemirror v4.x (CodeMirror 6 wrapper) + @codemirror/lang-json ^6.0.x — verified HIGH confidence on GitHub releases March 2025
-- v1.3 open questions: resolved during Phase 9/11 execution — fetch_exchanges returns ExchangeSummary{name,exchange_type}, mandatory=true on publish, BlockLibraryPanel toggle in FormPanel header
-- v1.4 stack additions: tokio-util 0.7 (CancellationToken), csv 1.4 (export), tokio "sync" feature for Mutex<ConsumerState> — no new npm deps (Channel<T> already in @tauri-apps/api 2.11.0)
-- v1.4 critical pitfalls: basic_qos prefetch before basic_consume; use Channel<T> not app.emit(); FIFO-500 cap from day one; single drain_messages Rust command (not frontend loop); CancellationToken + tokio::select! for stop; handle consumer.next() returning None; WindowEvent::Destroyed shutdown hook; tokio::sync::Mutex (not std::sync::Mutex) for ConsumerState
+- Linux keychain (libsecret): install notes needed — covered by DOC-01 in Phase 18
+- v1.5 open flag: `process:default` vs `process:allow-restart` as capability permission name for relaunch() — check installed tauri-plugin-process version at implementation time
 
 ## Session Continuity
 
-Last updated: 2026-05-21 — Phase 14 Plan 03 completed
-Stopped at: Phase 15 UI-SPEC approved
-Next action: None — Phase 14 complete; run `/gsd-new-milestone` or `/gsd-execute-phase 15` for Phase 15
+Last updated: 2026-05-21 — v1.5 roadmap created; Phases 16–18 defined
+Stopped at: Roadmap complete, no phases executed yet
+Next action: Run `/gsd-plan-phase 16` to begin Phase 16 (Pipeline Foundation)
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-05-21 — Milestone v1.5 started
+Phase: 16 (Pipeline Foundation)
+Plan: Not started
+Status: Not started
+Last activity: 2026-05-21 — v1.5 roadmap created
 
 ## Operator Next Steps
 
-- Start the next milestone with /gsd-new-milestone
+- Start Phase 16 with `/gsd-plan-phase 16`
+- Before Phase 17: complete human one-time Apple Developer setup (register App ID, create Developer ID cert, store 8 GitHub secrets)

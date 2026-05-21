@@ -1,7 +1,7 @@
 # Roadmap: Tap
 
 **Last Milestone:** v1.4 Response Stream — SHIPPED 2026-05-21
-**Current:** Planning next milestone
+**Current:** v1.5 Distribution — in progress
 
 ---
 
@@ -12,6 +12,7 @@
 - ✅ **v1.2 Form Improvements** — Phases 6–8 (shipped 2026-05-19)
 - ✅ **v1.3 Publishing UX + Message Blocks** — Phases 9–12 (shipped 2026-05-20)
 - ✅ **v1.4 Response Stream** — Phases 13–15 (shipped 2026-05-21)
+- 🔄 **v1.5 Distribution** — Phases 16–18 (in progress)
 
 ---
 
@@ -64,13 +65,19 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 <details>
 <summary>✅ v1.4 Response Stream (Phases 13–15) — SHIPPED 2026-05-21</summary>
 
-- [x] **Phase 13: Message Feed Foundation + Drain Mode** — Scrollable message list with AMQP metadata, queue depth indicator, and batch drain (completed 2026-05-20)
-- [x] **Phase 14: Live Subscribe Mode** — Persistent consumer streaming messages into the feed with status badge and auto-stop on profile change (completed 2026-05-21)
-- [x] **Phase 15: Filter + Export** — Client-side filtering by routing key and content-type, plus JSON export of the feed (completed 2026-05-21)
+- [x] **Phase 13: Message Feed Foundation + Drain Mode** — 3/3 plans — completed 2026-05-20
+- [x] **Phase 14: Live Subscribe Mode** — 3/3 plans — completed 2026-05-21
+- [x] **Phase 15: Filter + Export** — 1/1 plans — completed 2026-05-21
 
 See [milestones/v1.4-ROADMAP.md](milestones/v1.4-ROADMAP.md) for full phase details, decisions, and retrospective.
 
 </details>
+
+### v1.5 Distribution (Phases 16–18)
+
+- [ ] **Phase 16: Pipeline Foundation** - Fix release.yml structure, Entitlements.plist, and bump to v1.5.0; validate via workflow_dispatch without signing
+- [ ] **Phase 17: macOS Signing + Notarization** - Wire Developer ID cert, Apple secrets, notarytool; first signed and notarized .dmg passes Gatekeeper
+- [ ] **Phase 18: Auto-Update + Linux + Docs** - tauri-plugin-updater hook, Linux AppImage validation, libsecret documentation
 
 ---
 
@@ -126,6 +133,41 @@ Plans:
 - [x] 15-01-PLAN.md — Tauri capability permissions + filter state/visibleMessages/export handler in MessageFeedTab + tests
 **UI hint**: yes
 
+### Phase 16: Pipeline Foundation
+**Goal**: The GitHub Actions release pipeline has a correct structural foundation — valid action versions, Rust cache, matrix layout, and fixed Entitlements.plist — verified green via workflow_dispatch without requiring any Apple credentials
+**Depends on**: Nothing (no signing credentials required)
+**Requirements**: CICD-02, CICD-03, SIGN-03
+**Success Criteria** (what must be TRUE):
+  1. A `workflow_dispatch` dry-run completes green on all matrix jobs (macOS-latest and ubuntu-22.04) with no action-not-found or checkout failures
+  2. Rust build cache is active — a second workflow_dispatch run completes in under 8 minutes on macOS (vs 15–20 min cold)
+  3. `Entitlements.plist` contains `cs.allow-jit`, `cs.allow-unsigned-executable-memory`, and `cs.allow-dyld-environment-variables`; the old sandbox exception entitlement is absent
+  4. App version reads 1.5.0 in `Cargo.toml` and `tauri.conf.json`
+**Plans**: TBD
+
+### Phase 17: macOS Signing + Notarization
+**Goal**: A tagged release produces a signed, notarized Universal .dmg that passes Gatekeeper on a clean Mac without quarantine warning
+**Depends on**: Phase 16; human one-time Apple Developer setup (register App ID `com.tap.app`, create Developer ID Application cert, export .p12, store 8 GitHub secrets: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID, TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+**Requirements**: CICD-01, SIGN-01, SIGN-02
+**Success Criteria** (what must be TRUE):
+  1. Pushing a `v1.5.0` tag triggers the pipeline and produces a draft GitHub Release containing a .dmg artifact
+  2. `codesign -dv --verbose=4 Tap.dmg` (or the .app inside it) shows `Authority=Developer ID Application` and `Universal` in the architecture field (`lipo -info` confirms arm64 + x86_64)
+  3. `spctl --assess --type execute -vvv Tap.app` returns `accepted source=Notarized Developer ID` on a clean Mac that has never seen this binary
+  4. Opening the downloaded .dmg on a clean Mac shows no Gatekeeper quarantine warning and the app launches successfully
+**Plans**: TBD
+
+### Phase 18: Auto-Update + Linux + Docs
+**Goal**: Installed users receive an in-app update notification when a new version is tagged, Linux users can install and run the AppImage, and the libsecret prerequisite is documented
+**Depends on**: Phase 17
+**Requirements**: PKG-01, UPD-01, UPD-02, UPD-03, UPD-04, DOC-01
+**Success Criteria** (what must be TRUE):
+  1. The `latest.json` file is uploaded to GitHub Releases as part of the release pipeline and is accessible at `https://github.com/majesnix/proto-sender/releases/latest/download/latest.json`
+  2. App shows a non-modal update notification on startup when a newer version tag exists on GitHub Releases (UPD-02 verified by tagging v1.5.1 with a higher version in `latest.json`)
+  3. User clicks the update notification, the app downloads and installs the update, and offers to relaunch — after relaunch the version number reflects the new release
+  4. The Linux AppImage built on ubuntu-22.04 launches and runs on both Ubuntu 22.04 and Ubuntu 24.04
+  5. `docs/linux-keychain.md` exists and contains instructions for installing `libsecret-1-0` / `gnome-keyring` on Debian/Ubuntu and Fedora/RHEL
+**Plans**: TBD
+**UI hint**: yes
+
 ---
 
 ## Progress Table
@@ -144,9 +186,12 @@ Plans:
 | 10. Publisher Confirms Badge | v1.3 | 2/2 | Complete | 2026-05-19 |
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete | 2026-05-19 |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
-| 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete    | 2026-05-20 |
-| 14. Live Subscribe Mode | v1.4 | 4/4 | Complete    | 2026-05-21 |
-| 15. Filter + Export | v1.4 | 1/1 | Complete    | 2026-05-21 |
+| 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete | 2026-05-20 |
+| 14. Live Subscribe Mode | v1.4 | 3/3 | Complete | 2026-05-21 |
+| 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
+| 16. Pipeline Foundation | v1.5 | 0/TBD | Not started | - |
+| 17. macOS Signing + Notarization | v1.5 | 0/TBD | Not started | - |
+| 18. Auto-Update + Linux + Docs | v1.5 | 0/TBD | Not started | - |
 
 ---
 
@@ -217,10 +262,6 @@ Plans:
 | BLK-07 | Phase 12 | ✅ Complete |
 | BLK-08 | Phase 12 | ✅ Complete |
 
-- Total v1.3: 16
-- Mapped: 16
-- Delivered: 16 ✓
-
 **v1.4 Response Stream — 11 requirements delivered**
 
 | Requirement | Phase | Status |
@@ -237,6 +278,23 @@ Plans:
 | FILT-02 | Phase 15 | ✅ Complete |
 | XPRT-01 | Phase 15 | ✅ Complete |
 
-- Total v1.4: 11
-- Mapped: 11
-- Delivered: 11 ✓
+**v1.5 Distribution — 0/11 requirements delivered**
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CICD-02 | Phase 16 | Pending |
+| CICD-03 | Phase 16 | Pending |
+| SIGN-03 | Phase 16 | Pending |
+| CICD-01 | Phase 17 | Pending |
+| SIGN-01 | Phase 17 | Pending |
+| SIGN-02 | Phase 17 | Pending |
+| PKG-01 | Phase 18 | Pending |
+| UPD-01 | Phase 18 | Pending |
+| UPD-02 | Phase 18 | Pending |
+| UPD-03 | Phase 18 | Pending |
+| UPD-04 | Phase 18 | Pending |
+| DOC-01 | Phase 18 | Pending |
+
+- Total v1.5: 12
+- Mapped: 12
+- Delivered: 0 (in progress)

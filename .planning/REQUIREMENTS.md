@@ -59,6 +59,17 @@ Deferred to future milestones:
 
 ## Traceability
 
-| Phase | Requirements |
-|-------|-------------|
-| (to be filled by roadmapper) | |
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| CICD-02 | Phase 16 | Pending |
+| CICD-03 | Phase 16 | Pending |
+| SIGN-03 | Phase 16 | Pending |
+| CICD-01 | Phase 17 | Pending |
+| SIGN-01 | Phase 17 | Pending |
+| SIGN-02 | Phase 17 | Pending |
+| PKG-01 | Phase 18 | Pending |
+| UPD-01 | Phase 18 | Pending |
+| UPD-02 | Phase 18 | Pending |
+| UPD-03 | Phase 18 | Pending |
+| UPD-04 | Phase 18 | Pending |
+| DOC-01 | Phase 18 | Pending |
