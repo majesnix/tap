@@ -152,7 +152,7 @@ Plans:
 
 ### Phase 17: macOS Signing + Notarization
 **Goal**: A tagged release produces a signed, notarized Universal .dmg that passes Gatekeeper on a clean Mac without quarantine warning
-**Depends on**: Phase 16; human one-time Apple Developer setup (register App ID `com.tap.app`, create Developer ID Application cert, export .p12, store 9 GitHub secrets: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID, KEYCHAIN_PASSWORD, TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+**Depends on**: Phase 16; human one-time Apple Developer setup (register App ID `com.tap.app`, create Developer ID Application cert, export .p12, store 8 GitHub secrets: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID, KEYCHAIN_PASSWORD, TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD; note: APPLE_SIGNING_IDENTITY is auto-extracted by CI from the imported keychain certificate)
 **Requirements**: CICD-01, SIGN-01, SIGN-02
 **Success Criteria** (what must be TRUE):
   1. Pushing a `v1.5.0` tag triggers the pipeline and produces a draft GitHub Release containing a .dmg artifact
@@ -165,7 +165,7 @@ Plans:
 - [ ] 17-01-PLAN.md — Wire 6 signing env vars onto tauri-action step, add if-guards on cert steps, add Gatekeeper spctl verification step, flip draft: true, restore cs.allow-unsigned-executable-memory in Entitlements.plist
 
 **Wave 2** *(blocked on Wave 1 completion and human secret setup)*
-- [ ] 17-02-PLAN.md — Human setup checklist (docs/release-setup.md, 9 secrets), tag-push trigger, clean-Mac Gatekeeper verification
+- [ ] 17-02-PLAN.md — Human setup checklist (docs/release-setup.md, 8 secrets), tag-push trigger, clean-Mac Gatekeeper verification
 
 ### Phase 18: Auto-Update + Linux + Docs
 **Goal**: Installed users receive an in-app update notification when a new version is tagged, Linux users can install and run the AppImage, and the libsecret prerequisite is documented
