@@ -152,7 +152,7 @@ Plans:
 
 ### Phase 17: macOS Signing + Notarization
 **Goal**: A tagged release produces a signed, notarized Universal .dmg that passes Gatekeeper on a clean Mac without quarantine warning
-**Depends on**: Phase 16; human one-time Apple Developer setup (register App ID `com.tap.app`, create Developer ID Application cert, export .p12, store 8 GitHub secrets: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID, TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
+**Depends on**: Phase 16; human one-time Apple Developer setup (register App ID `com.tap.app`, create Developer ID Application cert, export .p12, store 9 GitHub secrets: APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, APPLE_SIGNING_IDENTITY, APPLE_ID, APPLE_PASSWORD, APPLE_TEAM_ID, KEYCHAIN_PASSWORD, TAURI_SIGNING_PRIVATE_KEY, TAURI_SIGNING_PRIVATE_KEY_PASSWORD)
 **Requirements**: CICD-01, SIGN-01, SIGN-02
 **Success Criteria** (what must be TRUE):
   1. Pushing a `v1.5.0` tag triggers the pipeline and produces a draft GitHub Release containing a .dmg artifact
@@ -161,8 +161,11 @@ Plans:
   4. Opening the downloaded .dmg on a clean Mac shows no Gatekeeper quarantine warning and the app launches successfully
 **Plans**: 2 plans
 Plans:
-- [x] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
-- [x] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
+**Wave 1**
+- [ ] 17-01-PLAN.md — Wire 6 signing env vars onto tauri-action step, add if-guards on cert steps, add Gatekeeper spctl verification step, flip draft: true, restore cs.allow-unsigned-executable-memory in Entitlements.plist
+
+**Wave 2** *(blocked on Wave 1 completion and human secret setup)*
+- [ ] 17-02-PLAN.md — Human setup checklist (docs/release-setup.md, 9 secrets), tag-push trigger, clean-Mac Gatekeeper verification
 
 ### Phase 18: Auto-Update + Linux + Docs
 **Goal**: Installed users receive an in-app update notification when a new version is tagged, Linux users can install and run the AppImage, and the libsecret prerequisite is documented
@@ -174,10 +177,7 @@ Plans:
   3. User clicks the update notification, the app downloads and installs the update, and offers to relaunch — after relaunch the version number reflects the new release
   4. The Linux AppImage built on ubuntu-22.04 launches and runs on both Ubuntu 22.04 and Ubuntu 24.04
   5. `docs/linux-keychain.md` exists and contains instructions for installing `libsecret-1-0` / `gnome-keyring` on Debian/Ubuntu and Fedora/RHEL
-**Plans**: 2 plans
-Plans:
-- [x] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
-- [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
+**Plans**: TBD
 **UI hint**: yes
 
 ---
@@ -202,7 +202,7 @@ Plans:
 | 14. Live Subscribe Mode | v1.4 | 3/3 | Complete | 2026-05-21 |
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
 | 16. Pipeline Foundation | v1.5 | 2/2 | Complete    | 2026-05-21 |
-| 17. macOS Signing + Notarization | v1.5 | 0/TBD | Not started | - |
+| 17. macOS Signing + Notarization | v1.5 | 0/2 | Not started | - |
 | 18. Auto-Update + Linux + Docs | v1.5 | 0/TBD | Not started | - |
 
 ---
