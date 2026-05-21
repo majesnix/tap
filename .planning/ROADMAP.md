@@ -103,8 +103,8 @@ Plans:
 **Plans**: 3 plans
 Plans:
 **Wave 1**
-- [ ] 14-01-PLAN.md — Rust backend: Cargo.toml changes + subscribe.rs (SubscribeState, start_subscribe, stop_subscribe) + lib.rs + mod.rs wiring
-- [ ] 14-02-PLAN.md — Frontend foundation: SubscribeStatus type + IPC wrappers + useResponseStore extensions + toggle-group.tsx
+- [x] 14-01-PLAN.md — Rust backend: Cargo.toml changes + subscribe.rs (SubscribeState, start_subscribe, stop_subscribe) + lib.rs + mod.rs wiring
+- [x] 14-02-PLAN.md — Frontend foundation: SubscribeStatus type + IPC wrappers + useResponseStore extensions + toggle-group.tsx
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 14-03-PLAN.md — UI integration: SubscribePanel + MessageFeedTab mode toggle + ResponseQueuePicker mode prop
@@ -140,7 +140,7 @@ Plans:
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete | 2026-05-19 |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
 | 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete    | 2026-05-20 |
-| 14. Live Subscribe Mode | v1.4 | 0/3 | Ready to execute | - |
+| 14. Live Subscribe Mode | v1.4 | 2/3 | In Progress|  |
 | 15. Filter + Export | v1.4 | 0/? | Not started | - |
 
 ---
