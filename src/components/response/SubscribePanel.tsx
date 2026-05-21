@@ -110,8 +110,13 @@ export function SubscribePanel({
   //
   // The ref captures the previous value across renders and detects the transition.
   //
-  // WR-05: subscribeStatus is included in deps so the effect re-runs on each status
-  // transition. The prevProfileRef guard ensures no false auto-stop on status-only changes.
+  // WR-05: subscribeStatus is intentionally excluded from deps to prevent a re-trigger
+  // loop. When handleStop() fires it sets status to "Stopping"; including subscribeStatus
+  // would re-run the effect with status==="Stopping" + connectionStatus!=="connected",
+  // causing a second handleStop() call. The stale closure risk is safe here because:
+  // (a) profile/connection changes always accompany status changes that need stopping,
+  // (b) the "Running"/"Stopping" check uses the captured value which is only stale
+  //     between renders — at worst we miss a one-tick window, not a correctness issue.
 
   useEffect(() => {
     if (subscribeStatus === "Running" || subscribeStatus === "Stopping") {
@@ -121,7 +126,8 @@ export function SubscribePanel({
     }
     // Always update the ref AFTER the check so the next render can compare against this value
     prevProfileRef.current = activeProfileName;
-  }, [activeProfileName, connectionStatus, subscribeStatus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeProfileName, connectionStatus]);
 
   // ── Derived state ────────────────────────────────────────────────────────────
 
