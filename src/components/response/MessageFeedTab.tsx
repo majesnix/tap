@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { drainMessages } from "@/lib/ipc";
@@ -12,7 +13,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ResponseQueuePicker } from "./ResponseQueuePicker";
+import { SubscribePanel } from "./SubscribePanel";
 import { MessageFeedRow } from "./MessageFeedRow";
 
 /**
@@ -20,16 +23,22 @@ import { MessageFeedRow } from "./MessageFeedRow";
  * handleDrain: calls drainMessages with selectedDecodeTypes from store (D-19, D-20).
  */
 export function MessageFeedTab() {
+  const [mode, setMode] = useState<"drain" | "subscribe">("drain");
+
   const { connectionStatus, activeProfileName } = useConnectionStore();
   const {
     selectedQueue,
     messages,
     selectedDecodeTypes,
+    subscribeStatus,
     appendMessages,
     clearMessages,
     setIsLoading,
     setLastReadAt,
   } = useResponseStore();
+
+  // Mode toggle is locked while subscribe is active (D-06)
+  const isModeLocked = subscribeStatus === "Running" || subscribeStatus === "Stopping";
 
   const isConnected = connectionStatus === "connected";
 
@@ -75,8 +84,35 @@ export function MessageFeedTab() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Toolbar — queue picker extended with Decode-as + drain count + Drain button */}
-      <ResponseQueuePicker onDrain={(count) => void handleDrain(count)} />
+      {/* Mode toggle — Drain ↔ Subscribe (D-04, D-06) */}
+      <div className="px-4 pt-2 pb-1 border-b border-border flex items-center gap-2">
+        <ToggleGroup
+          type="single"
+          value={mode}
+          onValueChange={(v) => v && setMode(v as "drain" | "subscribe")}
+          disabled={isModeLocked}
+        >
+          <ToggleGroupItem value="drain">Drain</ToggleGroupItem>
+          <ToggleGroupItem value="subscribe">Subscribe</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+
+      {/* Toolbar — queue picker shared between modes; drain controls hidden in subscribe mode */}
+      <ResponseQueuePicker
+        onDrain={(count) => void handleDrain(count)}
+        mode={mode}
+      />
+
+      {/* Subscribe controls — shown in subscribe mode only */}
+      {mode === "subscribe" && (
+        <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
+          <SubscribePanel
+            selectedQueue={selectedQueue}
+            decodeTypes={selectedDecodeTypes}
+            profileName={activeProfileName ?? ""}
+          />
+        </div>
+      )}
 
       {/* Feed header */}
       <div className="flex items-center justify-between px-4 py-2 bg-muted border-b border-border">
@@ -103,7 +139,7 @@ export function MessageFeedTab() {
       <ScrollArea className="flex-1 overflow-hidden">
         {messages.length === 0 ? (
           <p className="text-xs text-muted-foreground p-4">
-            Select a queue and click Drain
+            Select a queue and choose a mode
           </p>
         ) : (
           <Accordion type="single" collapsible className="w-full">

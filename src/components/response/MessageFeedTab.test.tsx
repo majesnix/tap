@@ -90,7 +90,7 @@ describe("MessageFeedTab", () => {
   test("renders empty state placeholder when no messages", () => {
     render(<MessageFeedTab />);
     expect(
-      screen.getByText("Select a queue and click Drain")
+      screen.getByText("Select a queue and choose a mode")
     ).toBeInTheDocument();
   });
 
