@@ -16,9 +16,9 @@
 
 ### Live Subscribe
 
-- [ ] **CONS-05**: User can start a live subscribe session that delivers messages continuously until stopped
-- [ ] **CONS-06**: User can see the current subscribe status (Running / Stopping / Idle / Error) via a status badge
-- [ ] **CONS-07**: Live subscribe auto-stops when the active connection profile changes or disconnects
+- [x] **CONS-05**: User can start a live subscribe session that delivers messages continuously until stopped
+- [x] **CONS-06**: User can see the current subscribe status (Running / Stopping / Idle / Error) via a status badge
+- [x] **CONS-07**: Live subscribe auto-stops when the active connection profile changes or disconnects
 
 ### Filter
 

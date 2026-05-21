@@ -140,7 +140,7 @@ Plans:
 | 11. Block Library — Store, Editor, Persistence | v1.3 | 3/3 | Complete | 2026-05-19 |
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
 | 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete    | 2026-05-20 |
-| 14. Live Subscribe Mode | v1.4 | 2/3 | In Progress|  |
+| 14. Live Subscribe Mode | v1.4 | 4/4 | Complete    | 2026-05-21 |
 | 15. Filter + Export | v1.4 | 0/? | Not started | - |
 
 ---
