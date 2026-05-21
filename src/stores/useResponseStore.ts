@@ -52,7 +52,7 @@ const INITIAL_STATE: Pick<
   subscribeError: null,
 };
 
-export const useResponseStore = create<ResponseStore>((set) => ({
+export const useResponseStore = create<ResponseStore>((set, get) => ({
   ...INITIAL_STATE,
   setQueueList: (queueList, isLiveMode) => set({ queueList, isLiveMode }),
   setSelectedQueue: (selectedQueue) => set({ selectedQueue }),
@@ -60,6 +60,7 @@ export const useResponseStore = create<ResponseStore>((set) => ({
   appendMessages: (incoming) =>
     set((state) => {
       // Map DrainResult → FeedMessage: add stable id + decodedAs (D-16, D-17, D-21)
+      // isTerminal is intentionally omitted — it is a session signal, not a feed property.
       const newMessages: FeedMessage[] = incoming.map((result) => ({
         id: crypto.randomUUID(),                    // stable key for Accordion (Pitfall 2)
         routingKey: result.routingKey,
@@ -81,5 +82,15 @@ export const useResponseStore = create<ResponseStore>((set) => ({
   setQueueDepth: (queueDepth) => set({ queueDepth }),
   setSubscribeStatus: (status, error) =>
     set({ subscribeStatus: status, subscribeError: error ?? null }),
-  reset: () => set({ ...INITIAL_STATE }),
+  reset: () => {
+    // WR-02: warn if reset() is called while a subscribe session is active.
+    // Callers are responsible for stopping the session first — reset() does not stop it.
+    const status = get().subscribeStatus;
+    if (status === "Running" || status === "Stopping") {
+      console.warn(
+        "useResponseStore.reset() called while subscribe is active — backend session not stopped. Call stopSubscribe() first."
+      );
+    }
+    set({ ...INITIAL_STATE });
+  },
 }));
