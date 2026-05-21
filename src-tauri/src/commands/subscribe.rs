@@ -22,14 +22,22 @@ use crate::commands::consume::DrainResult;
 
 /// Holds the state for an active subscribe session.
 /// Stored in Tauri managed state as `Mutex<Option<SubscribeState>>`.
+///
+/// CR-01: handle is Option<JoinHandle<()>> so the token can be stored BEFORE the first await
+/// (atomically claiming the slot), with the handle filled in after spawn completes.
+/// stop_subscribe only requires the token — it cancels via token.cancel() and awaits handle
+/// if present. A None handle means spawn hasn't returned yet (extremely narrow window).
 pub struct SubscribeState {
     pub token: CancellationToken,
     /// JoinHandle from tauri::async_runtime::spawn — NOT tokio::task::JoinHandle.
     /// Both implement Future, so tokio::time::timeout still works.
-    pub handle: tauri::async_runtime::JoinHandle<()>,
+    /// Option: None between token-store and spawn-return (CR-01 TOCTOU fix).
+    pub handle: Option<tauri::async_runtime::JoinHandle<()>>,
 }
 
 /// Construct a DrainResult representing a broker-level delivery error.
+/// is_terminal=true signals to the frontend that the consumer has self-terminated and the
+/// subscribeStatus should be set to "Idle" without user interaction (CR-02).
 fn error_drain_result(message: String) -> DrainResult {
     DrainResult {
         routing_key: String::new(),
@@ -40,6 +48,7 @@ fn error_drain_result(message: String) -> DrainResult {
         hex_string: String::new(),
         error: Some(message),
         decoded_as: None,
+        is_terminal: true, // CR-02: consumer is terminating — frontend must reset status to Idle
     }
 }
 
@@ -81,10 +90,24 @@ pub async fn start_subscribe(
             "decode_types must not be empty".to_string(),
         ));
     }
+    // WR-03: validate individual elements — empty/whitespace strings would cause
+    // pool.get_message_by_name("") to return None on every message, producing a
+    // confusing feed of decode errors with no root-cause indication.
+    if decode_types.iter().any(|t| t.trim().is_empty()) {
+        return Err(crate::error::AppError::InvalidInput(
+            "decode_types must not contain empty or whitespace-only strings".to_string(),
+        ));
+    }
 
-    // D-08: Double-start guard — lock, check if Some, drop guard before await.
+    // CR-01: TOCTOU fix — create the token and atomically claim the slot BEFORE the first await.
+    // Two concurrent start_subscribe calls both reading guard.is_some()==false and then both
+    // proceeding to spawn was the race. Now we: (1) check, (2) create token, (3) store with
+    // handle:None — all inside one lock scope. The slot is claimed before any await.
+    // Error paths after this point MUST clear the slot via clear_subscribe_state().
+    let token = CancellationToken::new();
+    let token_child = token.clone();
     {
-        let guard = subscribe_state
+        let mut guard = subscribe_state
             .lock()
             .map_err(|_| crate::error::AppError::AmqpError("Subscribe state lock poisoned".to_string()))?;
         if guard.is_some() {
@@ -92,7 +115,21 @@ pub async fn start_subscribe(
                 "Already running: stop the current session first".to_string(),
             ));
         }
-    } // guard drops here — MUST drop before any await below
+        // Store a placeholder with handle:None — slot is now claimed.
+        // stop_subscribe sees this immediately and can cancel via token.cancel().
+        *guard = Some(SubscribeState { token, handle: None });
+    } // guard drops here — slot claimed, safe to await below
+
+    // Helper macro to clear the claimed slot on any error path below.
+    // We cannot use a closure because subscribe_state is a tauri::State<'_> borrow.
+    macro_rules! clear_slot_and_return {
+        ($err:expr) => {{
+            if let Ok(mut g) = subscribe_state.lock() {
+                *g = None;
+            }
+            return Err($err);
+        }};
+    }
 
     // Clone DescriptorPool BEFORE any await (MutexGuard is not Send).
     // pool is Option<DescriptorPool> — None means "no proto loaded, skip decode".
@@ -105,7 +142,8 @@ pub async fn start_subscribe(
 
     // Load credentials (sync, no await) — same pattern as consume.rs
     let (profile, password) =
-        crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+        crate::commands::connection::load_profile_with_password(&app, &profile_name)
+            .map_err(|e| { if let Ok(mut g) = subscribe_state.lock() { *g = None; } e })?;
 
     // Open connection in tight URI scope (SECURITY: password dropped before .await; uri dropped at block end)
     let conn = {
@@ -124,17 +162,15 @@ pub async fn start_subscribe(
         )
         .await;
         // uri dropped here (end of block) — password and URI both gone before any await resumes
-        result
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "Subscribe connection timed out (10s)".to_string(),
-                )
-            })?
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "AMQP connection failed — check host, port, vhost, and credentials".to_string(),
-                )
-            })?
+        match result {
+            Err(_) => clear_slot_and_return!(crate::error::AppError::AmqpError(
+                "Subscribe connection timed out (10s)".to_string(),
+            )),
+            Ok(Err(_)) => clear_slot_and_return!(crate::error::AppError::AmqpError(
+                "AMQP connection failed — check host, port, vhost, and credentials".to_string(),
+            )),
+            Ok(Ok(c)) => c,
+        }
     };
 
     // Open AMQP channel (close conn on error)
@@ -143,27 +179,31 @@ pub async fn start_subscribe(
         Err(e) => {
             tracing::warn!("start_subscribe: channel creation failed: {}", e);
             let _ = conn.close(0, "".into()).await;
-            return Err(crate::error::AppError::AmqpError(
+            clear_slot_and_return!(crate::error::AppError::AmqpError(
                 "Failed to open AMQP channel — check broker permissions".to_string(),
             ));
         }
     };
 
-    // Create a fresh CancellationToken for this session.
-    let token = CancellationToken::new();
-    let token_child = token.clone();
-
     // Move all captured values into the spawn closure.
     // CRITICAL: URI and password are NOT captured here (dropped above).
     let queue_name_clone = queue_name.clone();
+    // IN-02: consumer_tag is safe as a constant because start_subscribe enforces a single
+    // active session via the CR-01 atomic slot claim above.
     let consumer_tag = "proto-sender-subscriber".to_string();
 
     // Spawn consumer task using tauri::async_runtime::spawn (NOT tokio::spawn — panics on Windows).
     let handle = tauri::async_runtime::spawn(async move {
         // D-12: basic_qos BEFORE basic_consume — cap in-flight deliveries at 20.
-        let _ = amqp_channel
-            .basic_qos(20, BasicQosOptions::default())
-            .await;
+        // WR-01: propagate QoS failure rather than silently continuing without a prefetch cap.
+        if let Err(e) = amqp_channel.basic_qos(20, BasicQosOptions::default()).await {
+            tracing::warn!("start_subscribe: basic_qos failed: {} — aborting subscribe session", e);
+            let _ = channel.send(error_drain_result(
+                "Failed to set QoS prefetch — aborting subscribe".to_string(),
+            ));
+            let _ = conn.close(0, "".into()).await;
+            return;
+        }
 
         let consumer = match amqp_channel
             .basic_consume(
@@ -281,6 +321,7 @@ pub async fn start_subscribe(
                                 hex_string,
                                 error,
                                 decoded_as,
+                                is_terminal: false, // normal message — session continues
                             };
                             let _ = channel.send(result);
                         }
@@ -314,13 +355,18 @@ pub async fn start_subscribe(
         }
     });
 
-    // Store SubscribeState in Tauri managed state.
-    // Lock, store state, drop guard.
+    // CR-01: The token was already stored in subscribe_state before the first await.
+    // Now update the existing SubscribeState entry to set the JoinHandle.
     {
         let mut guard = subscribe_state
             .lock()
             .map_err(|_| crate::error::AppError::AmqpError("Subscribe state lock poisoned".to_string()))?;
-        *guard = Some(SubscribeState { token, handle });
+        if let Some(ref mut state) = *guard {
+            state.handle = Some(handle);
+        }
+        // If guard is None here, stop_subscribe was called concurrently in the narrow
+        // window between token-store and spawn-return. The handle would leak but the
+        // session is already being torn down — acceptable best-effort.
     } // guard drops here
 
     Ok(())
@@ -345,8 +391,12 @@ pub async fn stop_subscribe(
 
     if let Some(SubscribeState { token, handle }) = state {
         token.cancel();
-        // Await handle with 5s timeout — best-effort cleanup
-        let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+        // CR-01: handle is Option — may be None if stop was called in the narrow window
+        // between token-store and spawn-return. In that case, best-effort cleanup only.
+        if let Some(h) = handle {
+            // Await handle with 5s timeout — best-effort cleanup
+            let _ = tokio::time::timeout(Duration::from_secs(5), h).await;
+        }
     }
     // Already stopped — idempotent Ok(())
 
@@ -372,5 +422,12 @@ mod tests {
         let result = error_drain_result("broker closed".to_string());
         assert!(result.decoded.is_none());
         assert!(result.decoded_as.is_none());
+    }
+
+    #[test]
+    fn error_drain_result_is_terminal() {
+        // CR-02: error results from the consumer loop are always terminal
+        let result = error_drain_result("stream interrupted".to_string());
+        assert!(result.is_terminal, "error_drain_result must set is_terminal=true (CR-02)");
     }
 }

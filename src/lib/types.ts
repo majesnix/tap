@@ -97,6 +97,8 @@ export interface ConsumeResult {
 /**
  * Per-message result from drain_messages Rust command.
  * decodedAs: winning type name from the candidate list (D-19), null if no candidate succeeded.
+ * isTerminal: true when the consumer has self-terminated (e.g., broker closed the session).
+ *   The frontend uses this to transition subscribeStatus back to "Idle" (CR-02).
  */
 export interface DrainResult {
   routingKey: string;
@@ -107,6 +109,7 @@ export interface DrainResult {
   hexString: string;
   error: string | null;
   decodedAs: string | null;        // D-19: first type name that decoded successfully
+  isTerminal: boolean;             // CR-02: true signals consumer self-terminated; frontend sets Idle
 }
 
 /**

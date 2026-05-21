@@ -211,6 +211,8 @@ pub async fn consume_message(
 
 /// Per-message result from a drain operation.
 /// decoded_as: the winning message type name, None if no candidate decoded successfully (D-19).
+/// is_terminal: true if this is the final message from a subscribe session (consumer self-terminated).
+///   The frontend uses this to transition subscribeStatus back to "Idle" without user interaction (CR-02).
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DrainResult {
@@ -222,6 +224,7 @@ pub struct DrainResult {
     pub hex_string: String,
     pub error: Option<String>,
     pub decoded_as: Option<String>,   // winning type name from message_type_names (D-19)
+    pub is_terminal: bool,            // CR-02: true signals consumer self-terminated; frontend sets Idle
 }
 
 /// Wrapper returned by drain_messages (D-18).
@@ -417,6 +420,7 @@ pub async fn drain_messages(
                     hex_string,
                     error,
                     decoded_as,
+                    is_terminal: false, // drain messages are never terminal
                 });
             }
         }
@@ -478,10 +482,12 @@ mod tests {
             hex_string: "0a 05".to_string(),
             error: None,
             decoded_as: Some("MyMessage".to_string()), // D-19: winning type name
+            is_terminal: false,
         };
         assert_eq!(r.routing_key, "test.key");
         assert_eq!(r.decoded_as, Some("MyMessage".to_string()));
         assert!(r.error.is_none());
+        assert!(!r.is_terminal);
     }
 
     #[test]
@@ -505,9 +511,11 @@ mod tests {
             hex_string: String::new(),
             error: Some("Decode failed: bad wire type. Showing raw bytes.".to_string()),
             decoded_as: None, // D-19: None when no candidate succeeded
+            is_terminal: false,
         };
         assert!(r.decoded.is_none());
         assert!(r.decoded_as.is_none());
         assert!(r.error.is_some());
+        assert!(!r.is_terminal);
     }
 }

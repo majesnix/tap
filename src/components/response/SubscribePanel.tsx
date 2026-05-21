@@ -36,7 +36,14 @@ export function SubscribePanel({
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleStart = async () => {
-    const channel = new Channel<DrainResult>((msg) => appendMessages([msg]));
+    const channel = new Channel<DrainResult>((msg) => {
+      appendMessages([msg]);
+      // CR-02: if the consumer self-terminated (e.g., broker closed, ack failure),
+      // transition status back to Idle without requiring user to click Stop.
+      if (msg.isTerminal) {
+        setSubscribeStatus("Idle");
+      }
+    });
     channelRef.current = channel;
     try {
       await startSubscribe(profileName, selectedQueue, decodeTypes, channel);

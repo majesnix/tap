@@ -207,6 +207,7 @@ describe("Auto-stop on connectionStatus change (CONS-07)", () => {
         hexString: "0a",
         error: null,
         decodedAs: null,
+        isTerminal: false,
       },
     ]);
     useResponseStore.getState().setSubscribeStatus("Running");
