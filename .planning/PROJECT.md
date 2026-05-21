@@ -141,6 +141,19 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
+## Current Milestone: v1.5 Distribution
+
+**Goal:** Make Tap installable by any team member — signed, auto-updating packages for macOS and Linux, built and released automatically via GitHub Actions.
+
+**Target features:**
+- GitHub Actions release pipeline: triggered on git tag, builds macOS (.dmg, signed + notarized) and Linux (.deb + .AppImage), uploads artifacts to GitHub Releases
+- macOS code signing + notarization via Apple Developer ID and `notarytool`, stored as GH Actions secrets
+- Linux packages: `.deb` (Debian/Ubuntu) and `.AppImage` (universal)
+- In-app auto-update: `tauri-plugin-updater` checking GitHub Releases endpoint, update notification UI, one-click install
+- Linux keychain install docs for `libsecret`
+
+---
+
 ## Current State
 
 v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 plans). The app is fully functional as a local dev tool: load a `.proto` file, fill out the form, connect to RabbitMQ, publish a binary-encoded protobuf message, and read back response messages from a reply queue.
@@ -160,4 +173,4 @@ v1.4 shipped 2026-05-21. All 11 requirements delivered across 3 phases (8 plans)
 The app now has a full consume experience: drain, subscribe, filter, and export. 8 Phase 13 live-broker verification items deferred (require running RabbitMQ instance).
 
 ---
-*Last updated: 2026-05-21 — Milestone v1.4 Response Stream shipped*
+*Last updated: 2026-05-21 — Milestone v1.5 Distribution started*
