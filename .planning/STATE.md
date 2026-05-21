@@ -4,14 +4,14 @@ milestone: v1.4
 milestone_name: Advanced Response Consumer
 status: executing
 stopped_at: Phase 14 UI-SPEC approved
-last_updated: "2026-05-21T04:19:54.474Z"
+last_updated: "2026-05-21T04:41:24.293Z"
 last_activity: 2026-05-21
 progress:
   total_phases: 3
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 6
-  completed_plans: 3
-  percent: 50
+  completed_plans: 6
+  percent: 100
 ---
 
 # Project State: Proto Sender
@@ -50,6 +50,9 @@ See: .planning/PROJECT.md (updated 2026-05-20 after v1.4 milestone start)
 - Plan 03-04 (History Filter + Replay/Resend): COMPLETE — commits c3d0d8d, a651885, 5141d6a
 - Plan 04-01 (Response Queue Reader — Core Slice): COMPLETE — consume_message Rust command + useResponseStore + ResponseTab + RightPanel 3rd tab
 - Plan 04-02 (Response Queue Reader — UX Polish): COMPLETE — ResponseQueuePicker (Live/Manual) + ResponseDecodedView (collapsible tree) + ResponseHexSection (copy buttons) + ResponseTab composition
+- Plan 14-01 (Rust Subscribe Backend): COMPLETE — commits c296d07, 80e6f29
+- Plan 14-02 (TS Foundation: types + IPC + store + toggle-group): COMPLETE — commits 59a6cd1, de62765, 566579f
+- Plan 14-03 (Subscribe Mode UI): COMPLETE — commits 5009582, a643962, fafe47f
 
 ---
 
@@ -63,6 +66,10 @@ See: .planning/PROJECT.md (updated 2026-05-20 after v1.4 milestone start)
 
 ### Key Decisions Logged
 
+- prevProfileRef pattern for profile-change auto-stop: both store activeProfileName and profileName prop update to same value in same render (co-update) — prop comparison always false; ref tracks previous value across renders
+- SubscribePanel Start/Stop buttons mutually exclusive (Stop replaces Start when Running/Stopping) — cleaner UX than disabling Start
+- Subscribe mode: ResponseQueuePicker always visible (queue/decode shared per D-04); SubscribePanel added as sub-row
+- Channel<DrainResult> class mock in tests: must use mockImplementation(function(cb){this.cb=cb}) to support new Channel(cb) constructor syntax
 - WellKnownTypeField prop kept as 'path' (not 'fieldPath') — ProtoFormRenderer dispatch is frozen
 - Duration validation triggers on blur — mode: onBlur in both form and test wrapper
 - load() without options — StoreOptions.defaults required when passing options, defaults suffice
@@ -184,13 +191,13 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 
 ## Session Continuity
 
-Last updated: 2026-05-20 — Phase 13 planned (3 plans, 2 waves)
-Stopped at: Phase 14 UI-SPEC approved
-Next action: `/gsd-execute-phase 13`
+Last updated: 2026-05-21 — Phase 14 Plan 03 completed
+Stopped at: Completed 14-03-PLAN.md (all 3 Phase 14 plans done)
+Next action: None — Phase 14 complete; run `/gsd-new-milestone` or `/gsd-execute-phase 15` for Phase 15
 
 ## Current Position
 
-Phase: 14 (live-subscribe-mode) — EXECUTING
-Plan: 1 of 3
-Status: Executing Phase 14
-Last activity: 2026-05-21 -- Phase 14 execution started
+Phase: 14 (live-subscribe-mode) — COMPLETE (all 3 plans done)
+Plan: 3 of 3
+Status: Phase 14 execution complete
+Last activity: 2026-05-21

@@ -66,7 +66,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 **Milestone Goal:** Replace the one-at-a-time basic_get reader with a full consume experience — drain mode, live subscribe, filtering, queue depth visibility, and export.
 
 - [x] **Phase 13: Message Feed Foundation + Drain Mode** — Scrollable message list with AMQP metadata, queue depth indicator, and batch drain (completed 2026-05-20)
-- [ ] **Phase 14: Live Subscribe Mode** — Persistent consumer streaming messages into the feed with status badge and auto-stop on profile change
+- [x] **Phase 14: Live Subscribe Mode** — Persistent consumer streaming messages into the feed with status badge and auto-stop on profile change (completed 2026-05-21)
 - [ ] **Phase 15: Filter + Export** — Client-side filtering by routing key and content-type, plus JSON export of the feed
 
 ---
@@ -106,8 +106,8 @@ Plans:
 - [x] 14-01-PLAN.md — Rust backend: Cargo.toml changes + subscribe.rs (SubscribeState, start_subscribe, stop_subscribe) + lib.rs + mod.rs wiring
 - [x] 14-02-PLAN.md — Frontend foundation: SubscribeStatus type + IPC wrappers + useResponseStore extensions + toggle-group.tsx
 
-**Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 14-03-PLAN.md — UI integration: SubscribePanel + MessageFeedTab mode toggle + ResponseQueuePicker mode prop
+**Wave 2**
+- [x] 14-03-PLAN.md — UI integration: SubscribePanel + MessageFeedTab mode toggle + ResponseQueuePicker mode prop
 **UI hint**: yes
 
 ### Phase 15: Filter + Export
@@ -225,9 +225,9 @@ Plans:
 | CONS-03 | Phase 13 | Pending |
 | CONS-04 | Phase 13 | Pending |
 | CONS-08 | Phase 13 | Pending |
-| CONS-05 | Phase 14 | Pending |
-| CONS-06 | Phase 14 | Pending |
-| CONS-07 | Phase 14 | Pending |
+| CONS-05 | Phase 14 | Complete |
+| CONS-06 | Phase 14 | Complete |
+| CONS-07 | Phase 14 | Complete |
 | FILT-01 | Phase 15 | Pending |
 | FILT-02 | Phase 15 | Pending |
 | XPRT-01 | Phase 15 | Pending |

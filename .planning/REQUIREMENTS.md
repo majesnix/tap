@@ -59,9 +59,9 @@
 | CONS-02 | Phase 13 | Complete |
 | CONS-03 | Phase 13 | Complete |
 | CONS-04 | Phase 13 | Complete |
-| CONS-05 | Phase 14 | Pending |
-| CONS-06 | Phase 14 | Pending |
-| CONS-07 | Phase 14 | Pending |
+| CONS-05 | Phase 14 | Complete |
+| CONS-06 | Phase 14 | Complete |
+| CONS-07 | Phase 14 | Complete |
 | FILT-01 | Phase 15 | Pending |
 | FILT-02 | Phase 15 | Pending |
 | XPRT-01 | Phase 15 | Pending |
