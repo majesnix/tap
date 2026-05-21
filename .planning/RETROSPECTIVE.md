@@ -190,16 +190,66 @@
 
 ---
 
+---
+
+## Milestone: v1.4 — Response Stream
+
+**Shipped:** 2026-05-21
+**Phases:** 3 (Phases 13–15) | **Plans:** 8
+
+### What Was Built
+
+1. **Phase 13** — Batch drain mode: `drain_messages` Rust command with ack-before-decode semantics, multi-type first-success protobuf decode (`decodedAs`), FIFO-500 accordion feed with per-row hex viewer, queue depth badge, Decode-as multi-select combobox
+2. **Phase 14** — Live subscribe mode: `start_subscribe`/`stop_subscribe` Rust commands with `CancellationToken`, Tauri Channel streaming, `SubscribePanel` component with Idle/Running/Stopping/Error badge, auto-stop on profile change/disconnect, 3 UAT-discovered gap fixes (Error retry, Response-panel stay, profile-change Error→Idle reset)
+3. **Phase 15** — Feed filtering (routing key substring + content-type dropdown, AND logic, "X of Y messages" count), JSON export via native OS save dialog (`dialog:allow-save` + `fs:allow-write-text-file`), strict CSP security hardening, `fs:scope` narrowed to `$HOME/**`
+4. **Project rename** — "Proto Sender" → "Tap" across all source files, Tauri config, AMQP consumer tag, tauri-plugin-store path, and ~90 planning docs
+
+### What Worked
+
+- **Tauri Channel pattern** — `Channel<DrainResult>` from `@tauri-apps/api 2.11.0` was the right mechanism for streaming subscribe events; no custom event system needed; the mock pattern (`mockImplementation(function(cb){this.cb=cb})`) was identified early and reused
+- **Phase 14 UAT gap closure** — 3 UAT gaps (GAP-1 Error recovery, GAP-2 panel navigation, GAP-3 Error-state profile switch) were caught in human UAT and fixed in a dedicated plan (14-04) before close; the tight feedback loop kept gaps from becoming tech debt
+- **Security quick task** — the pre-close audit surfaced a pending security hardening task (s1j) that the plan had become stale on. Adjusted implementation kept Phase 15's `writeTextFile` usage while removing the genuinely unused permissions.
+- **Wave-based parallel plan execution** — all 3 v1.4 phases had well-isolated waves; no cross-plan blocking issues
+
+### What Was Inefficient
+
+- **Phase 13 live-broker UAT deferred** — 8 verification items require a live RabbitMQ broker and were deferred to close. These are the only items without human sign-off. A RabbitMQ Docker Compose setup in the repo would eliminate this recurring blocker.
+- **Stale security plan** — the s1j security task was authored before Phase 15 added `writeTextFile` usage. The plan called for removing the entire `tauri-plugin-fs` plugin, which would have broken export. The discrepancy required investigation and a scope adjustment before execution.
+- **Project rename scope** — renaming ~90+ planning docs required a bulk `find | xargs sed` pass and manual targeted edits for source files. A `project.name` field in `config.json` propagated to all templates would have avoided this.
+- **tauri-plugin-store path rename is breaking** — renaming `proto-sender.json` to `tap.json` means existing users lose their saved data (connection profiles, theme). This was accepted but should have been flagged as a migration concern earlier.
+
+### Patterns Established
+
+- **`Channel<DrainResult>` mock pattern** — `mockImplementation(function(cb){this.cb=cb})` for Tauri Channel constructor in Vitest; allows `channel.cb({...})` to drive streaming events in tests
+- **`prevProfileRef` for profile-change auto-stop** — both `activeProfileName` (store) and `profileName` (prop) resolve to the same value in the same render (co-update); ref tracks the previous value across renders for reliable transition detection
+- **SubscribePanel Start/Stop mutually exclusive** — Stop button replaces Start when Running/Stopping; cleaner than disabling Start (disabling creates confusion about why the button is unresponsive)
+- **Three-state sentinel for nullable filter** — `null` = All, `"__none__"` = messages with null content-type, string = exact match; avoids overloading a nullable value with two different semantics
+
+### Key Lessons
+
+- **Tauri capability permissions are not verifiable programmatically** — `dialog:allow-save` and `fs:allow-write-text-file` can be checked statically, but runtime enforcement only fires in a built Tauri app. Tests that mock both plugins cannot catch missing capability declarations. Keep a manual "capability smoke test" in the UAT plan for any new Tauri plugin usage.
+- **GAP plans are cheaper than tech debt** — Phase 14's 3 UAT gaps were each a 20-line targeted fix. Shipping without fixing them would have created confusing user-facing bugs (Start button dead in Error state, Response tab navigating away during subscribe). The UAT-gap-as-phase pattern is worth the overhead.
+- **Security plans must be versioned with the milestone they were written for** — s1j was written before Phase 15 existed. A security plan that lists "remove plugin X" without knowing the next phase uses it will create regressions if applied blindly.
+
+### Cost Observations
+
+- Model mix: primary Sonnet 4.6
+- Sessions: 1 day (2026-05-21)
+- Notable: 50 commits, 3 phases, 8 plans, 11 requirements, +20,585 / -2,161 LOC; project renamed mid-close; security hardening applied in parallel with milestone archival
+
+---
+
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 |
-|--------|------|------|------|------|
-| Phases | 4 | 1 | 3 | 4 |
-| Plans | 18 | 3 | 7 | 11 |
-| Commits | 50 | 36 | 83 | 50 |
-| LOC added | ~42,800 | +3,234 | +10,173 | +17,550 |
-| Requirements delivered | 30/30 | 4/4 | 15/15 | 16/16 |
-| GAP/quick-task fixes | 2 | 0 | 1 | 0 |
-| Duration | 1 day | ~3 hours | ~7 hours | 2 days |
-| Regression from code review | 0 | 0 | 1 (MFLD-03) | 0 |
-| Mid-execution pivot | 0 | 0 | 0 | 1 (HTML5→dnd-kit) |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 |
+|--------|------|------|------|------|------|
+| Phases | 4 | 1 | 3 | 4 | 3 |
+| Plans | 18 | 3 | 7 | 11 | 8 |
+| Commits | 50 | 36 | 83 | 50 | 50 |
+| LOC added | ~42,800 | +3,234 | +10,173 | +17,550 | +20,585 |
+| Requirements delivered | 30/30 | 4/4 | 15/15 | 16/16 | 11/11 |
+| GAP/quick-task fixes | 2 | 0 | 1 | 0 | 1+3 (s1j + Phase 14 gaps) |
+| Duration | 1 day | ~3 hours | ~7 hours | 2 days | 1 day |
+| Regression from code review | 0 | 0 | 1 (MFLD-03) | 0 | 0 |
+| Mid-execution pivot | 0 | 0 | 0 | 1 (HTML5→dnd-kit) | 0 |
+| Deferred live-broker UAT | — | — | — | — | 8 (Phase 13) |

@@ -46,25 +46,13 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Block persistence — tauri-plugin-store persistence with hydration gate (`blocksLoaded` flag) — v1.3 (Phase 11)
 - ✓ Apply block by drag-and-drop — dnd-kit PointerSensor, dirtyFields guard, BLK-08 Sonner warning toast for unmatched keys — v1.3 (Phase 12)
 
-## Current Milestone: v1.4 Response Stream
+- ✓ Batch drain mode — `drain_messages` Rust command, multi-type first-success protobuf decode (decodedAs), FIFO-500 accordion feed with per-row hex viewer, queue depth badge, Decode-as multi-select combobox — v1.4 (Phase 13)
+- ✓ Live subscribe mode — persistent AMQP consumer, streaming via Tauri Channel, scrollable feed with expandable rows, auto-stop on profile/connection change, retry from Error state — v1.4 (Phase 14)
+- ✓ Feed filtering — routing key substring + content-type dropdown filters (AND intersection), "X of Y messages" count label — v1.4 (Phase 15)
+- ✓ JSON export — native OS save dialog, `{ exportedAt, messageCount, messages[] }` shape, `dialog:allow-save` + `fs:allow-write-text-file` Tauri capabilities — v1.4 (Phase 15)
+- ✓ Tauri security hardening — strict CSP replacing `null`, `fs:scope` narrowed to `$HOME/**`, unused `fs:default` and `fs:allow-read-text-file` permissions removed — v1.4 (s1j)
 
-**Goal:** Replace the one-at-a-time basic_get reader with a full consume experience — drain mode, live subscribe mode, filtering, queue depth visibility, and export.
-
-**Target features:**
-- Drain mode — fetch up to N messages in one shot, display all at once
-- Live subscribe mode — persistent consumer, messages arrive in a scrollable list (newest on top), each row expandable
-- Ack immediately on consume in both modes
-- Queue depth indicator — show message count before consuming
-- Filter received messages by routing key or content-type in the live feed
-- Export received messages to JSON or CSV
-
-### Active (v1.4)
-
-- ✓ Drain mode — drain up to 500 messages with multi-type first-success decode (decodedAs), FIFO-500 accordion feed, Decode-as multi-select combobox — v1.4 (Phase 13)
-- ✓ Live subscribe mode — persistent AMQP consumer, streaming messages via Tauri Channel, scrollable feed with expandable rows, auto-stop on profile/connection change, retry from Error state — v1.4 (Phase 14, complete 2026-05-21)
-- ✓ Filter and export — routing key substring filter, content-type dropdown filter (AND intersection), JSON export of visible feed via native save dialog, "X of Y messages" count label — v1.4 (Phase 15, complete 2026-05-21)
-
-### Backlog (future milestones — candidates for v1.4+)
+## Backlog (future milestones)
 
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)
 - [ ] Full-text search across historical message field values (HIST-V2-02)
@@ -82,13 +70,14 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - v1.1 added dark mode: next-themes + ThemeBootstrap persistence bridge, ThemeToggle in sidebar, human UAT pass. +3,234 LOC, 36 commits, 3 plans.
 - v1.2 added bytes field, map field, and JSON override toggle. +10,173 LOC, 83 commits, 3 phases, 7 plans.
 - v1.3 added routing key autocomplete, publisher confirms badge, block library with DnD. +17,550 / -853 LOC, 50 commits, 4 phases, 11 plans, 92 files changed.
-- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13), React (next-themes 0.x, react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x, @uiw/react-codemirror 4.25.9, @codemirror/lang-json 6.x, dnd-kit 6.x).
+- v1.4 added batch drain mode, live subscribe mode, feed filtering, and JSON export. +20,585 / -2,161 LOC, 50 commits, 3 phases, 8 plans. Tauri security hardened (strict CSP, narrowed fs:scope). Project renamed from Proto Sender to Tap.
+- Tech stack: Tauri 2.x, Rust (protox 0.9 + prost-reflect 0.16, lapin 4.x, reqwest 0.13, tokio-util 0.7), React (next-themes 0.x, react-hook-form 7.x, zod 3.24.2, zustand 5.x, shadcn/ui nova, Tailwind 4.x, @uiw/react-codemirror 4.25.9, @codemirror/lang-json 6.x, dnd-kit 6.x).
 - This is a developer productivity tool, analogous to Postman but for RabbitMQ + protobuf.
 - The proto parsing must happen at runtime (no pre-compilation step) — developers drop in `.proto` files.
 - Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
 - Team use means packaging/distribution matters — the app should be distributable as a binary.
 
-**Known issues / tech debt at v1.3:**
+**Known issues / tech debt at v1.4:**
 - Linux keychain (libsecret) install documentation needed for distribution.
 - No CI/CD pipeline — builds are manual.
 - No app distribution pipeline (notarization, signing) — binary not yet packaged for team.
@@ -96,6 +85,9 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - JSON mode + map field round-trip (Flow 4) has no automated test — FormPanel.test.tsx uses scalar-only schema.
 - oneof / WellKnownType / map fields not eligible for block apply (skipped with toast) — complex field type support deferred to future milestone.
 - No automated browser-level DnD test for dnd-kit drag gestures — manual UAT is the current coverage.
+- Phase 13 live-broker UAT deferred (8 items): ack-before-decode, AMQP metadata, multi-type decode, queue depth badge, accordion UX, RightPanel auto-switch, FIFO-500 cap, partial-error toast.
+- tauri-plugin-store store filename renamed from `proto-sender.json` to `tap.json` — existing users will lose saved data on upgrade.
+- Export format is JSON only (CSV deferred to future milestone).
 
 ## Constraints
 
@@ -161,7 +153,11 @@ The app is feature-complete for v1 scope: all major proto field types, full send
 
 v1.3 shipped 2026-05-20. All 16 requirements delivered across 4 phases (11 plans): routing key autocomplete from RabbitMQ exchange bindings (PUBL-01–04), per-send delivery outcome badges (PUBL-05–08), block library with CodeMirror editor and persistence (BLK-01–05), and drag-and-drop block apply to form (BLK-06–08). The HTML5 DnD API was replaced mid-execution with dnd-kit after discovering WKWebView's dataTransfer limitation.
 
-The app is feature-rich for the v1 scope. All proto field types supported, full send/receive cycle, connection profiles with OS keychain, message history, dark mode, block library. Next milestone scope to be defined via `/gsd-new-milestone`.
+The app is feature-rich for the v1 scope. All proto field types supported, full send/receive cycle, connection profiles with OS keychain, message history, dark mode, block library.
+
+v1.4 shipped 2026-05-21. All 11 requirements delivered across 3 phases (8 plans): batch drain with multi-type decode (CONS-01–04, CONS-08), live subscribe via Tauri Channel (CONS-05–07), feed filtering by routing key + content-type (FILT-01–02), and JSON export via native save dialog (XPRT-01). Tauri security hardened: strict CSP, narrowed fs:scope, unused permissions removed. Project renamed from Proto Sender to Tap.
+
+The app now has a full consume experience: drain, subscribe, filter, and export. 8 Phase 13 live-broker verification items deferred (require running RabbitMQ instance).
 
 ---
-*Last updated: 2026-05-20 — Milestone v1.4 started*
+*Last updated: 2026-05-21 — Milestone v1.4 Response Stream shipped*

@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.4
 milestone_name: Response Stream
-status: milestone_complete
+status: completed
 stopped_at: Phase 15 UI-SPEC approved
-last_updated: "2026-05-21T16:41:12.343Z"
+last_updated: "2026-05-21T17:34:06.780Z"
 last_activity: 2026-05-21
 progress:
   total_phases: 3
   completed_phases: 3
   total_plans: 8
-  completed_plans: 7
+  completed_plans: 8
   percent: 100
 ---
 
@@ -165,11 +165,21 @@ Items acknowledged and deferred at milestone close on 2026-05-19:
 | uat_gaps | Phase 07: 07-HUMAN-UAT.md | resolved (0 pending scenarios) | False positive — UAT is resolved; SDK flags all HUMAN-UAT.md files |
 | quick_tasks | 260519-q01-mfld03-send-block-fix | complete (commit 2d1a027) | SDK shows `missing` due to prefixed SUMMARY filename convention |
 
+Items acknowledged and deferred at milestone close on 2026-05-21 (v1.4 Response Stream):
+
+| Category | Item | Status | Note |
+|----------|------|--------|------|
+| verification_gaps | Phase 13: 13-VERIFICATION.md | human_needed — 8 items | Requires live RabbitMQ broker: ack-before-decode, AMQP metadata accuracy, multi-type decode, queue depth refresh, accordion UX, RightPanel auto-switch, FIFO-500 cap, partial-error toast |
+| uat_gaps | Phase 14: 14-HUMAN-UAT.md | passed (SDK false positive) | SDK flags HUMAN-UAT.md files regardless of status |
+| uat_gaps | Phase 15: 15-HUMAN-UAT.md | passed (SDK false positive) | SDK flags HUMAN-UAT.md files regardless of status |
+| quick_tasks | 260519-s1j-harden-tauri-security-remove-unused-fs-p | complete (commit cf7bbc6) | SDK shows `missing` due to prefixed SUMMARY filename convention |
+
 ## Quick Tasks Completed
 
 | ID | Slug | Description | Commit | Date |
 |----|------|-------------|--------|------|
 | 260519-q01 | mfld03-send-block-fix | Fix MFLD-03 — restore send-button blocking on duplicate map keys | 2d1a027 | 2026-05-19 |
+| 260519-s1j | harden-tauri-security-remove-unused-fs-p | Narrow fs:scope to $HOME, add strict CSP, remove unused fs permissions | cf7bbc6 | 2026-05-21 |
 
 ### Active TODOs
 
@@ -197,7 +207,11 @@ Next action: None — Phase 14 complete; run `/gsd-new-milestone` or `/gsd-execu
 
 ## Current Position
 
-Phase: 15 (filter-export) — EXECUTING
-Plan: 1 of 1
-Status: Executing Phase 15
-Last activity: 2026-05-21 -- Phase 15 execution started
+Phase: Milestone v1.4 complete
+Plan: —
+Status: Awaiting next milestone
+Last activity: 2026-05-21 — Milestone v1.4 completed and archived
+
+## Operator Next Steps
+
+- Start the next milestone with /gsd-new-milestone
