@@ -1,102 +1,121 @@
-# Research Summary: Tap v1.4 — Advanced Response Consumer
+# Research Summary — v1.5 Distribution
 
 **Project:** Tap
-**Milestone:** v1.4
-**Researched:** 2026-05-20
+**Milestone:** v1.5 Distribution
+**Researched:** 2026-05-21
 **Confidence:** HIGH
 
 ---
 
 ## Executive Summary
 
-Tap v1.3 ships a working one-at-a-time `basic_get` consumer. v1.4 replaces this with a full consumer suite: batch drain (N messages, one command), live subscribe (persistent streaming consumer), client-side filtering by routing key and content type, and JSON/CSV export.
+Tap v1.5 is a distribution and auto-update milestone. The goal: produce signed, notarized macOS (.dmg universal) and Linux (.deb + .AppImage) packages from a GitHub Actions pipeline, and wire `tauri-plugin-updater` so future releases deliver themselves to installed users. No new application features ship in this milestone — it is entirely infrastructure.
 
-The existing stack (Tauri 2 + Rust + React + lapin + zustand + react-hook-form + shadcn/ui) is fully in place. Only two new Rust crates needed: `tokio-util 0.7` and `csv 1.4`. No new npm packages — `Channel<T>` is already in `@tauri-apps/api 2.11.0`.
+The recommended approach is `tauri-apps/tauri-action@v0` handling both build and release creation in a two-entry matrix job (macOS + Linux). The existing three-job layout (separate create-release job) must be collapsed — it cannot auto-produce `latest.json` and races with artifact upload.
 
-The central architectural decision is a deliberate break from "ephemeral lapin connections per operation": live subscribe holds a long-lived `lapin::Connection` in a background tokio task, controlled by a `CancellationToken` in Tauri managed state. Build drain mode first to validate `ConsumedMessage` type and the list component before introducing the background task complexity.
+**Critical blockers before any CI run:**
+- `macos-13` runner is dead (deprecated September 2025, removed December 2025) — current `release.yml` fails silently
+- `Entitlements.plist` contains a sandbox-only entitlement invalid under Hardened Runtime — will notarize but crash on launch
+- Action versions in `release.yml` (`@v6`, `@v8`) do not exist — workflow fails at checkout
 
 ---
 
 ## Stack Additions
 
-| Library | Version | Purpose |
-|---------|---------|---------|
-| `tokio-util` | `0.7` | `CancellationToken` for subscribe stop; pulls `futures-util::StreamExt` transitively |
-| `csv` | `1.4` | CSV export — `wtr.serialize(&msg)` with serde derives |
-| `tokio` | existing | Add `"sync"` feature for `tokio::sync::Mutex<ConsumerState>` |
+| What | Version | Purpose | Confidence |
+|------|---------|---------|------------|
+| `tauri-plugin-updater` (Rust) | `2` (resolves 2.10.1) | In-app update check, download, install | HIGH |
+| `tauri-plugin-process` (Rust) | `2` | `relaunch()` after update installs | HIGH |
+| `@tauri-apps/plugin-updater` (npm) | `^2.10.0` | JS bindings for update check/install | HIGH |
+| `@tauri-apps/plugin-process` (npm) | `^2` | JS `relaunch()` call post-install | HIGH |
+| `tauri-apps/tauri-action@v0` (GHA) | 0.6.2 | Build, sign, notarize, create GitHub Release, upload `latest.json` | HIGH |
+| `swatinem/rust-cache@v2` (GHA) | v2 | Cache Rust build artifacts — cold builds take 15–20 min without cache | HIGH |
 
-**No new npm deps** — `Channel<T>` is already exported from `@tauri-apps/api 2.11.0`.
-
-**Already built (zero backend work):** `fetch_queue_depth` command, `useResponseStore.queueDepth` state, depth pill in `ResponseQueuePicker` — only UI refresh wiring needed.
+Cargo.toml placement must use a desktop-only target:
+```toml
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+```
 
 ---
 
 ## Feature Table Stakes
 
-### Must-Have (P1)
-- `ConsumedMessage` extended with AMQP metadata (routing key, exchange, content-type, timestamp)
-- Scrollable FIFO-500 list — newest on top, per-row expand/collapse
-- Drain mode — batch `basic_get` up to N messages, single Rust command
-- Live subscribe — persistent `basic_consume` consumer, streaming via `Channel<T>`
-- Stop subscribe — `CancellationToken` + `stop_consume` command
-- Ack immediately on consume (D-10 extended)
-- Queue depth live refresh during subscribe
+| Requirement | Definition of Done |
+|-------------|-------------------|
+| Signed macOS .dmg (universal) | Signed with Developer ID Application cert, notarized by Apple, stapled — passes Gatekeeper on a clean Mac |
+| Linux .deb + .AppImage | Built on ubuntu-22.04 (glibc baseline); `libsecret-1-dev` in apt list |
+| Auto-update check on launch | App calls `check()` on startup; shows notification if update available |
+| Update install + relaunch | User confirms → `downloadAndInstall()` → `relaunch()` |
+| `latest.json` at GitHub Releases | Accessible at `/releases/latest/download/latest.json` after release |
+| GitHub Actions pipeline green | Both matrix jobs succeed on tag push; release is a draft for human review |
+| Release notes | Documented that existing users must manually install v1.5.0 once (updater not in pre-v1.5 binaries) |
 
-### Should-Have (P2)
-- Client-side filter by routing key (text match)
-- Client-side filter by content-type (dropdown)
-- Export to JSON
-- Export to CSV (`decoded_json` string column for nested proto fields)
-
-### Out of Scope
-- Broker-side filtering (AMQP 0-9-1 architectural constraint — impossible)
-- Real-time monitoring as a separate product surface
-- Dead-letter queue inspector (future milestone)
-- Message replay from consumed feed (use existing history replay)
+**Note:** `.deb` does NOT support auto-update via tauri-plugin-updater. Linux users must install via AppImage to receive automatic updates. Document this in release notes.
 
 ---
 
-## Critical Pitfalls (Watch Out For)
+## Architecture Highlights
 
-1. **No `basic_qos` prefetch before `basic_consume`** — broker dumps entire queue into memory; can OOM the app on large queues. Always call `channel.basic_qos(0, prefetch, false).await` first.
+**Workflow restructure:** Replace the current three-job layout with a single matrix job. `tauri-action@v0` creates the GitHub Release and uploads `latest.json` automatically — the separate `create-release` job races with it.
 
-2. **`app.emit()` for message stream** — causes ghost listeners on re-mount, session crosstalk. Use `tauri::ipc::Channel<T>` exclusively for message delivery.
+Matrix entries:
+- `macos-latest` with `--target universal-apple-darwin` (one fat .dmg for both Apple Silicon and Intel)
+- `ubuntu-22.04` specifically — `libwebkit2gtk-4.1-dev` removed from Ubuntu 24.04 repos
 
-3. **Unbounded Zustand messages array** — UI freeze starts past ~200 messages. FIFO cap at 500 from day one (same pattern as history cap 100).
+**Files to create or modify:**
 
-4. **Frontend loop calling `consume_message` for drain** — 1 TCP connection per message, unusably slow. Single `drain_messages` Rust command loops inside one connection.
+| File | Action | Key Change |
+|------|--------|------------|
+| `.github/workflows/release.yml` | Rewrite | Collapse to matrix; fix dead action versions (`@v6`→`@v4`); add cert import step; wire signing env vars; add `swatinem/rust-cache@v2`; add `libsecret-1-dev`; remove separate `create-release` job |
+| `src-tauri/tauri.conf.json` | Modify | Add `bundle.createUpdaterArtifacts: true`; add `plugins.updater.pubkey` and `plugins.updater.endpoints`; bump `version` to 1.5.0; add `bundle.macOS.hardenedRuntime: true` |
+| `src-tauri/Entitlements.plist` | Replace | Remove `temporary-exception.files.absolute-path.read-write`; add `cs.allow-jit`, `cs.allow-unsigned-executable-memory`, `cs.allow-dyld-environment-variables` |
+| `src-tauri/Cargo.toml` | Modify | Add updater + process plugins under desktop-only target; bump `version` to 1.5.0 |
+| `src-tauri/src/lib.rs` | Modify | Register `tauri_plugin_updater::Builder::new().build()` and `tauri_plugin_process::init()` |
+| `src-tauri/capabilities/default.json` | Modify | Add updater and process plugin permissions |
+| `src/hooks/useUpdateCheck.ts` | Create | `check()` on startup; update-available toast; `downloadAndInstall()` + `relaunch()` |
+| `docs/linux-keychain.md` | Create | Runtime `libsecret-1-0` install instructions |
 
-5. **`basic_cancel` alone as stop mechanism** — buffered messages keep emitting after cancel. Use `tokio::select! biased` with `CancellationToken` to stop cleanly.
-
-6. **`consumer.next()` returning `None` unhandled** — silent connection drop with no UI feedback. Detect `None`, emit `consume-error` event, transition state to `errored`.
-
-7. **No `WindowEvent::Destroyed` shutdown hook** — ghost consumer left in RabbitMQ after app quit. Register Tauri window event handler to call `stop_consume` on close.
-
-8. **`std::sync::Mutex` held across `.await`** — compile error (`MutexGuard` is `!Send`). Use `tokio::sync::Mutex` for `ConsumerState` managed state.
-
----
-
-## Build Order
-
-| Phase | Feature | Rationale |
-|-------|---------|-----------|
-| Phase 13 | Message Feed Foundation + Drain Mode | Validates `ConsumedMessage` type + FIFO list + Channel streaming at low complexity; no background task yet |
-| Phase 14 | Live Subscribe Mode + Stop | Introduces the only architecturally novel piece: `ConsumerState` managed state, long-lived lapin connection, background task, shutdown hook |
-| Phase 15 | Filter + Export | Pure frontend work on populated feed; independent of Phase 14 (can defer if scope is tight) |
+**`latest.json` endpoint** (auto-generated by tauri-action):
+```
+https://github.com/majesnix/proto-sender/releases/latest/download/latest.json
+```
 
 ---
 
-## Open Questions (Resolved in Research)
+## Watch Out For
 
-- **Subscribe auto-stop behavior:** Auto-stop on profile disconnect/switch — follows existing "ephemeral lapin connections per operation" Key Decision.
-- **CSV nested fields:** `decoded_json` string column — flattening proto oneofs/repeated is undefined; string is lossless.
-- **Filter broker-side vs client-side:** Client-side only — AMQP 0-9-1 architectural constraint, not a design preference.
+**1. Entitlements.plist must be replaced before first CI build**
+The current file has `temporary-exception.files.absolute-path.read-write` — a sandbox-only entitlement that causes notarization rejection under Hardened Runtime. Without replacing and adding `cs.allow-jit` + `cs.allow-unsigned-executable-memory` + `cs.allow-dyld-environment-variables`, the app signs and notarizes but crashes immediately on launch on any downloaded machine.
 
-**Open at implementation time:**
-- Exact prefetch count for subscribe (100 vs 200) — decide during Phase 14 planning
-- `react-window` for list virtualization — likely deferrable at 500-row cap
-- `conn.on_error()` robustness — decide during Phase 14 whether to add alongside stream-end `None` handling
+**2. `macos-13` runner is dead — the workflow is already broken**
+Deprecated September 2025, removed December 2025. Replace with `macos-latest` (macOS 15 ARM). Universal binary build (`--target universal-apple-darwin`) works on ARM runners.
+
+**3. Action versions in `release.yml` do not exist**
+Current file references `actions/checkout@v6`, `actions/setup-node@v6`, `actions/download-artifact@v8` — none exist. The workflow fails at checkout. Use `@v4` for all three.
+
+**4. Updater private key loss is irreversible**
+Generate keys with `npm run tauri signer generate -- -w ~/.tauri/tap.key` before first release. If the private key (`TAURI_SIGNING_PRIVATE_KEY`) is lost, all installed copies can never auto-update. Store in GitHub Secrets AND a team vault.
+
+**5. Apple infrastructure must be set up before the first CI run**
+App ID (`com.tap.app`) must be registered in Apple Developer Portal; Developer ID cert created, exported as .p12, base64-encoded, stored as secrets. 8 GitHub secrets required total. Budget 30–60 minutes. Missing any one secret causes a non-obvious mid-build failure.
 
 ---
 
-*Generated: 2026-05-20*
+## Build Order Recommendation
+
+| Phase | Name | What it does | Gate |
+|-------|------|-------------|------|
+| 1 | One-time Apple + key setup | Register App ID; create Developer ID cert; generate updater keypair; store 8 GitHub secrets | Nothing in CI works until done |
+| 2 | Fix `release.yml` structure | Collapse to matrix; fix dead action versions; add cache; add Linux apt deps; validate via `workflow_dispatch` | No signing yet — verifies structure |
+| 3 | macOS signing + notarization | Replace `Entitlements.plist`; add cert import step; wire `APPLE_*` env vars; validate: download .dmg on clean Mac, confirm Gatekeeper passes | Blocks release |
+| 4 | Updater integration | Add Rust + npm packages; register plugins; add `createUpdaterArtifacts: true`; create `useUpdateCheck.ts`; bump version to 1.5.0 | Must follow Phase 3 |
+| 5 | Linux packaging + docs | Confirm .deb/.AppImage build; create `docs/linux-keychain.md`; validate AppImage on Ubuntu 22.04 and 24.04 | Can overlap with Phase 4 |
+
+**Open flag to resolve at implementation:** `process:default` vs `process:allow-restart` as the capability permission name for `relaunch()` — check against the installed `tauri-plugin-process` version at implementation time.
+
+---
+
+*Generated: 2026-05-21*
+*Ready for roadmap: yes*

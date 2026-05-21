@@ -1,326 +1,354 @@
-# Stack Research: Tap v1.4 Advanced Response Consumer
+# Stack Research — Distribution (v1.5)
 
-**Researched:** 2026-05-20
-**Milestone:** v1.4 — Drain Mode, Live Subscribe, Queue Depth, Export
-**Overall confidence:** HIGH — all findings verified against docs.rs, official Tauri docs, crates.io, and project source
-
----
-
-## Context: What is Already Shipped
-
-The stack below is fully in place and working. Do NOT re-add or re-research any of it.
-
-| Layer | Libraries / Versions |
-|-------|----------------------|
-| Rust backend | `lapin 4.7.4` (version constraint `"4"`), `reqwest 0.13`, `tokio 1.x` (features: `rt`, `time`), `serde 1.x`, `serde_json 1.x`, `percent-encoding 2`, `tauri 2.x` |
-| Tauri plugins (Rust) | `tauri-plugin-store 2.x`, `tauri-plugin-dialog 2.x`, `tauri-plugin-fs 2.x` |
-| Frontend | `@tauri-apps/api 2.11.0`, `zustand 5.x`, `react-hook-form 7.x`, `shadcn/ui`, `tailwindcss 4.x`, `sonner 2.x` |
-| Already implemented | `fetch_queue_depth` Tauri command (uses `messages` field from `/api/queues/{vhost}/{queue}`), `useResponseStore.queueDepth: number | null` |
-
-Note: `lapin 4.7.4` is the current latest — confirmed via docs.rs/crate/lapin/latest (released 2026-05-12). The `"4"` constraint in `Cargo.toml` picks it up automatically.
-
----
-
-## Summary
-
-Four new capabilities are needed for v1.4. Research by feature:
-
-**Drain mode** (basic_get loop): No new deps. Ephemeral connection pattern, returns `Vec<ConsumedMessage>` in one IPC call.
-
-**Live subscribe mode** (persistent consumer): Two new Rust deps — `tokio-util` for `CancellationToken` (cooperative task stopping) and a `tokio::sync` feature flag on the existing `tokio` entry. No new npm deps — `Channel<T>` is already in `@tauri-apps/api/core`.
-
-**Queue depth**: Already implemented. Zero stack work.
-
-**Export** (JSON + CSV): One new Rust dep — `csv 1.4` for CSV writing. JSON export uses `serde_json` (already present). No new npm deps.
+**Project:** Tap v1.5
+**Researched:** 2026-05-21
+**Focus:** GitHub Actions build pipeline, macOS signing + notarization, Linux packages, tauri-plugin-updater
 
 ---
 
 ## New Dependencies
 
-### Rust (`Cargo.toml`)
+### Rust (Cargo.toml additions)
 
-| Crate | Version | Purpose | Why this, not alternatives |
-|-------|---------|---------|---------------------------|
-| `tokio-util` | `0.7` | `CancellationToken` for cooperative cancellation of the live consumer loop | Purpose-built for this pattern. `cancel()` + `select!` stops a `while let Some(delivery) = consumer.next().await` loop cleanly from a separate `stop_consume` command. More composable than `oneshot` (can cancel multiple sub-tasks, exposes `is_cancelled()` guard). Maintained by the tokio-rs team at 0.7.18 as of Jan 2026. |
-| `csv` | `1.4` | Write CSV rows for export | BurntSushi's `csv` crate is the de facto standard (183M+ downloads, 1.4.0 released 2025-10-17). `wtr.serialize(&msg)` with Serde derives maps a `ConsumedMessage` struct to a row with one call. No other CSV writer has meaningful adoption in the Rust ecosystem. |
+| Crate | Version | Purpose | Target | Confidence |
+|-------|---------|---------|--------|------------|
+| `tauri-plugin-updater` | `"2"` (resolves to 2.10.1) | In-app update check, download, install | `cfg(not(android, ios))` | HIGH — crates.io confirmed 2.10.1 |
+| `tauri-plugin-process` | `"2"` | `relaunch()` after update installs | `cfg(not(android, ios))` | HIGH — required by updater flow |
 
-Also update the existing `tokio` entry to add the `sync` feature:
-
-```toml
-# BEFORE
-tokio = { version = "1", features = ["rt", "time"] }
-
-# AFTER
-tokio = { version = "1", features = ["rt", "time", "sync"] }
-```
-
-`tokio::sync::Mutex` is required for `ConsumerState` because the mutex guard must be held across `.await` points when starting a session. `std::sync::Mutex` cannot be held across `.await` — using it here would require dropping before every await, which defeats the purpose of guarded optional state.
-
-**Full Cargo.toml additions:**
+**Cargo.toml placement** — use desktop-only target to avoid mobile compile errors:
 
 ```toml
-tokio-util = { version = "0.7", features = ["rt"] }
-csv = "1.4"
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 ```
 
-Feature flag verification: `tokio-util`'s `rt` feature enables `tokio/sync` + `futures-util` (confirmed in `tokio-util/Cargo.toml`). The `sync` module containing `CancellationToken` is unconditionally compiled in `tokio-util` — it has no `cfg(feature)` gate. So `features = ["rt"]` is both sufficient (no extra flag needed) and correct (also makes `futures-util` + `StreamExt` available for the consumer loop — see note below).
+### JavaScript / npm
 
-### JavaScript (none)
+| Package | Version | Purpose | Confidence |
+|---------|---------|---------|------------|
+| `@tauri-apps/plugin-updater` | `^2.10.0` | JS bindings for update check/install | HIGH — npm confirmed 2.10.1 |
+| `@tauri-apps/plugin-process` | `^2` | JS `relaunch()` call post-install | HIGH — official Tauri plugin |
 
-`Channel<T>` is exported from `@tauri-apps/api/core`, which is part of the already-installed `@tauri-apps/api 2.11.0`. No new npm packages.
+**Version sync rule:** the npm package major.minor must match the Rust crate major.minor. Both are currently 2.10.x; pin the npm package to `^2.10.0` to avoid accidental minor drift during `pnpm update`.
 
 ---
 
-## Integration Notes by Feature
+## GitHub Actions Setup
 
-### Drain Mode (basic_get loop)
+### What Needs to Change in `release.yml`
 
-Remains ephemeral — one `drain_messages` Tauri command, loop `basic_get` up to N times, close connection, return `Vec<ConsumedMessage>`.
+The existing `release.yml` has the right skeleton (matrix split, tauri-action@v0, tag trigger) but is missing:
 
-- No new deps needed.
-- Array return is correct for a dev tool at N <= 500 — single IPC response, no partial-load UI state.
-- Reuses the existing `consume_message` pattern from `commands/consume.rs`.
-- `no_ack` does not apply to `basic_get` — `basic_get` always requires explicit ack per message. Ack each delivery before continuing the loop (consistent with existing ack-before-decode decision D-10).
+1. **`macos-13` is dead** — deprecated September 2025, fully unsupported December 2025. Replace with `macos-latest` (now macOS 15, ARM). For a universal binary build the runner must be ARM; `--target universal-apple-darwin` compiles both slices on the same runner.
+2. **No signing/notarization env vars wired** — the macOS job has zero `APPLE_*` secrets.
+3. **No updater signing env vars** — `TAURI_SIGNING_PRIVATE_KEY` is absent from both jobs.
+4. **Separate create-release job** — currently correct but needs `latest.json` in the upload glob so the updater endpoint works.
+5. **Missing Rust cache** — the macOS job has no `swatinem/rust-cache@v2` step; cold Rust builds on macOS take 15–20 min. Add it.
+6. **`actions/checkout@v6`, `setup-node@v6`, `download-artifact@v8`** — these action versions do not exist at time of writing (latest are v4/v4/v4). The workflow will fail on checkout. Use v4 for all three.
+
+### Revised Workflow Structure
+
+```yaml
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+jobs:
+  build-macos:
+    runs-on: macos-latest           # macOS 15 ARM; supports universal-apple-darwin
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and release (macOS universal)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Tap v__VERSION__"
+          releaseBody: "See the assets below to download and install."
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          args: --target universal-apple-darwin
+
+  build-linux:
+    runs-on: ubuntu-22.04           # 22.04 required — libwebkit2gtk-4.1-dev is in its repos
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            file
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and release (Linux x86_64)
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "Tap v__VERSION__"
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+```
+
+### Why `tauri-action@v0` handles the release
+
+`tauri-action@v0` (latest release 0.6.2, March 2026) both builds the app **and** creates/uploads to a GitHub Release when `tagName` is set. With `createUpdaterArtifacts: true` in `tauri.conf.json`, it also uploads `latest.json` (per-platform) automatically (`uploadUpdaterJson: true` is the default). The separate `create-release` job in the existing workflow is then redundant and should be removed — two jobs racing to create the same release causes non-deterministic failures.
+
+**Do not set `releaseDraft: false` initially** — keep as `true` so you can verify artifacts before publishing.
+
+### Required GitHub Secrets
+
+All must be set in **Settings → Secrets and variables → Actions → Repository secrets**:
+
+| Secret | How to obtain |
+|--------|---------------|
+| `APPLE_CERTIFICATE` | Export Developer ID Application cert as `.p12` from Keychain Access; `base64 -i cert.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | Password set when exporting the `.p12` |
+| `APPLE_SIGNING_IDENTITY` | Run `security find-identity -v -p codesigning`; copy the full string e.g. `Developer ID Application: Jane Smith (TEAMID)` |
+| `APPLE_ID` | Apple Developer account email |
+| `APPLE_PASSWORD` | App-specific password from appleid.apple.com (not primary password) |
+| `APPLE_TEAM_ID` | 10-char team ID from developer.apple.com/account/membership |
+| `TAURI_SIGNING_PRIVATE_KEY` | Run `npm run tauri signer generate -- -w ~/.tauri/tap.key`; store the private key file content |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password chosen during key generation (can be empty string) |
+
+`GITHUB_TOKEN` is auto-injected by GitHub Actions — no setup needed, but the job needs `permissions: contents: write`.
+
+### Notarization method choice
+
+Both Apple ID (`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) and App Store Connect API (`APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_PATH`) work. The table above uses Apple ID because it requires no separate API key file management. If rotating credentials is a concern, the App Store Connect API method is more robust (key never expires), but adds the `APPLE_API_KEY_PATH` setup complexity in CI.
 
 ---
 
-### Live Subscribe Mode (persistent consumer)
+## Tauri Config Changes
 
-**This is the architecturally significant change in v1.4.** The existing Key Decision "Ephemeral lapin connections per operation" cannot apply here.
+### 1. `tauri.conf.json` — bundle section
 
-**Rust managed state:**
+Add `createUpdaterArtifacts`, updater plugin config, and macOS signing settings:
 
-```rust
-use tokio_util::sync::CancellationToken;
-use tokio::sync::Mutex;
-
-pub struct ConsumerSession {
-    pub token: CancellationToken,
-}
-
-pub type ConsumerState = Mutex<Option<ConsumerSession>>;
-```
-
-Register in `lib.rs` builder setup alongside the existing `DescriptorPool` state:
-
-```rust
-.manage(ConsumerState::new(None))
-```
-
-**`start_consume` command signature:**
-
-```rust
-#[tauri::command]
-pub async fn start_consume(
-    app: tauri::AppHandle,
-    profile_name: String,
-    queue_name: String,
-    message_type_name: String,
-    on_message: tauri::ipc::Channel<ConsumedMessage>,
-    consumer_state: tauri::State<'_, ConsumerState>,
-    pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
-) -> Result<(), crate::error::AppError>
-```
-
-The command opens a lapin connection, starts `basic_consume` with `no_ack: true`, stores a `ConsumerSession` in managed state, then spawns a background task via `tauri::async_runtime::spawn` (not `tokio::spawn` — see constraint below). The command returns `Ok(())` immediately after spawning. The task drives the consumer loop and sends each delivery via `on_message.send(msg)`.
-
-**Consumer loop pattern:**
-
-```rust
-// Required import — consumer.next() comes from StreamExt, not the Consumer type itself.
-// lapin::Consumer implements futures_core::Stream; .next() is the extension method.
-// futures_util::StreamExt is available because tokio-util's "rt" feature pulls in futures-util.
-use futures_util::StreamExt;
-
-tauri::async_runtime::spawn(async move {
-    loop {
-        tokio::select! {
-            _ = token.cancelled() => break,
-            delivery = consumer.next() => {
-                match delivery {
-                    Some(Ok(d)) => { let _ = on_message.send(encode_delivery(d)); }
-                    Some(Err(_)) => break,
-                    None => break,
-                }
-            }
-        }
+```json
+{
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "createUpdaterArtifacts": true,
+    "macOS": {
+      "entitlements": "./Entitlements.plist",
+      "hardenedRuntime": true,
+      "minimumSystemVersion": "11.0"
     }
-    let _ = conn.close(0, "".into()).await;
-});
-```
-
-**`stop_consume` command:**
-
-```rust
-#[tauri::command]
-pub async fn stop_consume(
-    consumer_state: tauri::State<'_, ConsumerState>,
-) -> Result<(), crate::error::AppError> {
-    let mut guard = consumer_state.lock().await;
-    if let Some(session) = guard.take() {
-        session.token.cancel();
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "<CONTENT_OF_PUBLICKEY.PEM>",
+      "endpoints": [
+        "https://github.com/YOUR_ORG/YOUR_REPO/releases/latest/download/latest.json"
+      ]
     }
-    Ok(())
+  }
 }
 ```
 
-`guard.take()` removes the session from state. `token.cancel()` wakes the `select!` branch in the background task, which then breaks the loop and drops the connection.
+**Notes:**
+- `signingIdentity` is intentionally **omitted from the config file** — set it only via `APPLE_SIGNING_IDENTITY` env var in CI. This keeps the repo clean (no developer-specific string in source).
+- `hardenedRuntime: true` — confirmed key in official Tauri docs (`bundle.macOS.hardenedRuntime`). Required for notarization with Developer ID.
+- `minimumSystemVersion: "11.0"` — recommended; macOS 11 is the practical baseline for Tauri 2. The Tauri default is `"10.13"` but macOS 10.x is out of Apple security support and WKWebView compatibility is uncertain.
+- `pubkey` — the public key content from `tap.key.pub`. Safe to commit; the private key must never be committed.
+- `endpoints` — `tauri-action` uploads `latest.json` to GitHub Releases automatically; this URL pattern works without a separate update server.
 
-**BasicConsumeOptions for live subscribe:**
+### 2. `Entitlements.plist` — MUST REPLACE EXISTING FILE
+
+**The current `Entitlements.plist` will fail notarization.** It contains:
+
+```xml
+<key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+```
+
+This is an App Sandbox temporary exception. With Hardened Runtime + Developer ID distribution (no sandbox), it is invalid and Apple's notarization service will reject it.
+
+**Replace the entire file** with:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.cs.allow-jit</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+</dict>
+</plist>
+```
+
+**Why these three:** Tauri's embedded WKWebView requires JIT compilation and unsigned executable memory to function under Hardened Runtime. `allow-dyld-environment-variables` is required for WebView dylib loading. All three are standard Hardened Runtime exceptions documented for WebView-based apps. Confidence: HIGH — confirmed by two independent community guides and cross-referenced against Apple's Hardened Runtime entitlement documentation.
+
+**Why no `keychain-access-groups`:** The app uses `apple-native-keyring-store` with `features = ["keychain"]` (not `protected`). On macOS with a Developer ID certificate and no provisioning profile, the traditional file-based keychain is used. Apple's developer forums explicitly state that error -34018 (`errSecMissingEntitlement`) only applies when using the data protection keychain, which requires a provisioning profile. Developer ID apps use the file-based keychain and need no `keychain-access-groups` entitlement. Confidence: MEDIUM — Apple developer forum post confirmed the distinction, but no official Apple documentation page addresses this combination explicitly.
+
+**Why no `com.apple.security.app-sandbox`:** The app is a developer tool requiring broad filesystem access (loading arbitrary `.proto` files). Sandboxing would break this. Developer ID distribution does not require the App Store sandbox.
+
+### 3. `capabilities/default.json` — add updater permissions
+
+Add to the existing permissions array:
+
+```json
+"updater:default",
+"process:default"
+```
+
+`updater:default` includes `allow-check`, `allow-download`, `allow-install`, `allow-download-and-install`. `process:default` enables `relaunch()` after install.
+
+### 4. `src-tauri/src/lib.rs` — register new plugins
+
+Add after existing plugin registrations:
 
 ```rust
-BasicConsumeOptions {
-    no_ack: true,   // server acks implicitly — no ack roundtrip per message
-    no_local: false,
-    exclusive: false,
-    nowait: false,
-}
+.plugin(tauri_plugin_updater::Builder::new().build())
+.plugin(tauri_plugin_process::init())
 ```
 
-`no_ack: true` is correct here. Consistent with the milestone requirement "ack immediately on consume". Eliminates per-message ack roundtrips, which matters for a streaming consumer.
-
-**Backpressure (explicit non-decision):** `tauri::ipc::Channel<T>` is unbounded — if the broker delivers messages faster than the frontend can render them, the Rust task will accumulate sends without throttling. For a dev tool where message rates are low (developer-level traffic, not production load), this is acceptable. If the UI freezes under load, add a bounded `tokio::sync::mpsc` channel between the consumer task and the `on_message.send()` call, and drop messages when the channel is full.
-
----
-
-### Streaming to Frontend via `tauri::ipc::Channel<T>`
-
-Use `Channel<T>`, not `AppHandle::emit`. Official Tauri 2 documentation is explicit: "The Tauri channel is the recommended mechanism for streaming data... The event system is not designed for low latency or high throughput situations."
-
-| Mechanism | Type-safe | Throughput | Verdict |
-|-----------|-----------|------------|---------|
-| `tauri::ipc::Channel<T>` | Yes | High, ordered | **Use for message stream** |
-| `AppHandle::emit` | No (JSON only) | Low | Avoid for per-message delivery |
-
-**Rust:** Command receives `on_message: tauri::ipc::Channel<ConsumedMessage>` as a parameter. Calls `on_message.send(msg)` per delivery. The command spawns and returns immediately; the channel stays open until the task exits.
-
-**JavaScript (`@tauri-apps/api/core`, already installed):**
-
-```typescript
-import { invoke, Channel } from '@tauri-apps/api/core';
-
-const onMessage = new Channel<ConsumedMessage>();
-onMessage.onmessage = (msg) => {
-  // prepend to messages array in Zustand store
-};
-await invoke('start_consume', { profileName, queueName, messageTypeName, onMessage });
-```
-
-`Channel` is part of `@tauri-apps/api` 2.x and available from `@tauri-apps/api/core`. No new npm install needed.
-
-**Channel lifecycle:** The `Channel` is garbage-collected on the JS side when `onMessage` goes out of scope (or the component unmounts). Call `stop_consume` explicitly in the component cleanup (`useEffect` return / unmount) to cancel the Rust task and close the lapin connection. Do not rely on GC to stop the Rust side.
-
----
-
-### Queue Depth Indicator
-
-**Already implemented.** `fetch_queue_depth` is a registered Tauri command in `lib.rs`, implemented in `connection.rs`. It calls `GET /api/queues/{vhost}/{queue}` and deserializes the `messages` field (total = ready + unacknowledged). `useResponseStore` already has `queueDepth: number | null` with a `setQueueDepth` action.
-
-No stack work needed. Phase implementation work only: wire the existing command to the UI before/during consume.
-
-If the frontend needs to show `messages_ready` and `messages_unacknowledged` separately, extend `QueueDepthApiInfo` in `connection.rs`:
+Or with the desktop guard pattern:
 
 ```rust
-#[derive(Deserialize)]
-struct QueueDepthApiInfo {
-    messages: u64,
-    messages_ready: u64,              // add if needed
-    messages_unacknowledged: u64,     // add if needed
-}
+#[cfg(desktop)]
+app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
 ```
 
-No new dep, no API change.
+### 5. Updater key generation (one-time, run locally)
 
----
-
-### Export (JSON and CSV)
-
-**JSON export:** No new deps.
-
-```rust
-let json = serde_json::to_string_pretty(&messages)
-    .map_err(|e| AppError::ExportError(e.to_string()))?;
-std::fs::write(&dest_path, json)
-    .map_err(|e| AppError::ExportError(e.to_string()))?;
+```bash
+npm run tauri signer generate -- -w ~/.tauri/tap.key
 ```
 
-**CSV export:** Requires `csv 1.4`.
+Outputs:
+- `~/.tauri/tap.key` — private key → store as `TAURI_SIGNING_PRIVATE_KEY` in GitHub Secrets AND in a team password vault
+- `~/.tauri/tap.key.pub` — public key → paste content into `tauri.conf.json` `plugins.updater.pubkey`
 
-```rust
-use csv::Writer;
+**Critical:** losing the private key means existing installed users can never receive auto-updates. They would need to manually reinstall.
 
-let mut wtr = Writer::from_path(&dest_path)
-    .map_err(|e| AppError::ExportError(e.to_string()))?;
-for msg in &messages {
-    wtr.serialize(msg)
-        .map_err(|e| AppError::ExportError(e.to_string()))?;
-}
-wtr.flush().map_err(|e| AppError::ExportError(e.to_string()))?;
-```
+### 6. `Info.plist` — no changes needed
 
-**File path from save dialog:** `tauri-plugin-dialog` is already installed. Use the existing JS dialog API to get a user-chosen path, pass it to an `export_messages` Rust command as a `String`. On the Rust side, `std::fs::write` (JSON) or `csv::Writer::from_path` (CSV) do not need `tauri-plugin-fs` — the path is already user-approved by the dialog, and `std::fs` has no sandbox restrictions in a Tauri Rust command.
-
-**No `tauri-plugin-fs` needed for export.** The plugin is for JavaScript-side file access; Rust-side writes use `std::fs` directly.
+Tauri auto-generates `Info.plist` from `tauri.conf.json`. No custom `Info.plist` is required for this milestone.
 
 ---
 
 ## What NOT to Add
 
-| Rejected | Reason |
-|----------|--------|
-| `amqprs` | Would replace working `lapin 4.7.4`. No throughput benefit for a dev tool. Breaking API change. |
-| `tokio::spawn` | Panics on Windows in Tauri 2 event listeners (confirmed: tauri-apps/tauri#10289). Always use `tauri::async_runtime::spawn`. |
-| `AppHandle::emit` for message streaming | Official Tauri docs: "not designed for low latency or high throughput situations." Use `Channel<T>`. |
-| `rabbitmq-management-client` crate | Thin wrapper over two endpoints; `reqwest` already in place. Already rejected in v1.0. |
-| `tauri-plugin-fs` for export | Only needed for JS-side file writes. Rust `std::fs` is sufficient after a dialog-approved path. |
-| `@dnd-kit` additions | Sorting or reordering consume results is not in v1.4 scope. |
-| `async_std` runtime | Tauri manages the tokio runtime. Do not add a second async runtime. |
-| `#[tokio::main]` in `main.rs` | Creates nested runtime conflict with Tauri's embedded runtime. |
-| `std::sync::Mutex` for `ConsumerState` | Cannot be held across `.await`. Use `tokio::sync::Mutex` for the consumer session state. |
-| `lapin::basic_cancel` as the only stop mechanism | Stops the server consumer but the Rust task loop is still running. Pair with `CancellationToken` or rely on connection drop from `token.cancel()` + task exit. |
-| `futures` crate (direct dep) | `futures_util::StreamExt` is available transitively via `tokio-util`'s `rt` feature. Adding the full `futures` crate is unnecessary. |
+| Rejected Approach | Reason |
+|------------------|--------|
+| Custom `latest.json` generation script | `tauri-action@v0` generates and uploads it automatically when `createUpdaterArtifacts: true`; adding a custom step creates duplication and drift risk |
+| `softprops/action-gh-release` in release workflow | `tauri-action` already creates the GitHub Release; the existing separate `create-release` job races and conflicts — remove it |
+| `tauri-plugin-sparkle-updater` | Sparkle is macOS-only; this app targets Linux too; `tauri-plugin-updater` is cross-platform |
+| App Store signing / provisioning profiles | App is distributed outside the App Store; Developer ID Application cert is the correct certificate type |
+| `com.apple.security.app-sandbox: true` | Developer ID distribution doesn't require sandbox; enabling it would break loading `.proto` files from arbitrary paths |
+| `com.apple.security.temporary-exception.*` | Invalid under Hardened Runtime without the sandbox; notarization will reject it — this is in the current file and must be removed |
+| Windows build job | Not in v1.5 scope; adding without a Windows code signing strategy produces SmartScreen-blocked unsigned binaries |
+| `macos-13` runner | Deprecated and fully unsupported since December 2025; `macos-latest` (macOS 15) is the replacement |
+| `actions/checkout@v6` / `setup-node@v6` / `download-artifact@v8` | These version tags do not exist; latest stable is v4 for all three |
+| `KEYCHAIN_PASSWORD` secret | Only needed if unlocking a CI keychain manually; `tauri-action` handles the macOS keychain import automatically using `APPLE_CERTIFICATE` + `APPLE_CERTIFICATE_PASSWORD` |
 
 ---
 
-## Version Constraints
+## Version Constraint Notes
 
-| Constraint | Detail |
-|------------|--------|
-| `tokio-util 0.7` | Must match `tokio 1.x`. Both maintained by tokio-rs. `tokio-util = "0.7"` resolves cleanly against `tokio = "1"`. |
-| `tokio-util "rt"` feature | Enables `tokio/sync` + `futures-util`. `CancellationToken` has no feature gate in tokio-util's source (verified in `tokio-util/src/sync/mod.rs`). `"rt"` is the minimum feature needed and is sufficient. |
-| `csv 1.4` | Uses `serde 1` for `serialize()` — no conflict with existing `serde = "1"`. |
-| `tokio "sync"` feature | Add `"sync"` to the existing `tokio` `features` array. Currently `["rt", "time"]`; must become `["rt", "time", "sync"]`. |
-| `futures_util::StreamExt` import | Required for `consumer.next()`. Available as a transitive dep; explicitly in scope when `tokio-util` `rt` feature is active. Import: `use futures_util::StreamExt;` |
-| `tauri::ipc::Channel<T>` | Tauri 2.x only. Already on Tauri 2. |
-| `@tauri-apps/api` `Channel` export | Available from `@tauri-apps/api/core` in version 2.x. Already at 2.11.0. |
-| `tauri::async_runtime::spawn` | Required for all background tasks — do not use `tokio::spawn` directly. |
-| `BasicConsumeOptions.no_ack` | Set `true` for live subscribe to skip server-side ack roundtrips. Per lapin docs: "The server implicitly acknowledges each message after it has been sent." |
-
----
-
-## Architecture Note: Connection Lifecycle Shift
-
-The existing Key Decision "Ephemeral lapin connections per operation" cannot apply to live subscribe mode. This is the only architectural delta in v1.4.
-
-**Drain mode** stays ephemeral (one command, returns array, closes connection).
-
-**Live subscribe** uses Tauri managed state (`ConsumerState`) holding an `Option<ConsumerSession>`. Two new commands are registered: `start_consume` (opens connection, spawns task, returns immediately) and `stop_consume` (cancels token, task exits and drops connection). The frontend calls `start_consume` with a `Channel<ConsumedMessage>` argument and receives messages via `onmessage` until it calls `stop_consume` or the component unmounts.
+| Item | Version | Notes |
+|------|---------|-------|
+| `tauri-plugin-updater` (Rust) | `2.10.1` | Keep in sync with npm package |
+| `@tauri-apps/plugin-updater` (npm) | `2.10.1` | Keep in sync with Rust crate |
+| `tauri-plugin-process` (Rust) | `2.x` | Check crates.io for current |
+| `tauri-action` (GHA) | `v0` (latest release 0.6.2, 2026-03-14) | `v0` is the semver-pinned tag; do not use `@main` |
+| macOS runner | `macos-latest` (macOS 15 ARM as of 2025-09) | `macos-13` is dead |
+| Ubuntu runner | `ubuntu-22.04` | 22.04 specifically — `libwebkit2gtk-4.1-dev` was removed from Ubuntu 24.04 repos |
 
 ---
 
 ## Sources
 
-- `lapin` 4.7.4 (current): https://docs.rs/crate/lapin/latest
-- `lapin` `Consumer` + `basic_consume` + `BasicConsumeOptions.no_ack`: https://docs.rs/lapin/latest/lapin/struct.Consumer.html
-- `lapin` `basic_cancel`: https://docs.rs/lapin/latest/lapin/struct.Channel.html
-- `tokio-util` `CancellationToken`: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
-- `tokio-util` feature flags (rt covers sync + futures-util): https://docs.rs/crate/tokio-util/latest/features
-- `tokio-util` sync module (no feature gate): https://github.com/tokio-rs/tokio/blob/master/tokio-util/src/sync/mod.rs
-- `csv` 1.4.0: https://docs.rs/csv/latest/csv/
-- Tauri 2 `Channel<T>` as streaming recommendation: https://v2.tauri.app/develop/calling-frontend/
-- Tauri 2 `Channel<T>` Rust command API: https://v2.tauri.app/develop/calling-rust/
-- Tauri 2 State Management + `tokio::sync::Mutex` guidance: https://v2.tauri.app/develop/state-management/
-- Tauri async background task pattern (rfdonnelly): https://rfdonnelly.github.io/posts/tauri-async-rust-process/
-- Tauri `tokio::spawn` panic on Windows (issue #10289): https://github.com/tauri-apps/tauri/issues/10289
-- `fetch_queue_depth` already implemented: `/Users/majesnix/gits/tap/src-tauri/src/commands/connection.rs` (lines 266–318)
-- `consume_message` ephemeral pattern: `/Users/majesnix/gits/tap/src-tauri/src/commands/consume.rs`
+- tauri-plugin-updater crate: https://crates.io/crates/tauri-plugin-updater (confirmed 2.10.1)
+- Tauri updater plugin docs: https://v2.tauri.app/plugin/updater/ (Context7 verified)
+- Tauri GitHub Actions pipeline: https://v2.tauri.app/distribute/pipelines/github/ (official)
+- Tauri macOS signing: https://v2.tauri.app/distribute/sign/macos/ (official)
+- tauri.conf.json macOS bundle reference (hardenedRuntime key confirmed): https://v2.tauri.app/reference/config/ (Context7 verified)
+- tauri-action GitHub repo: https://github.com/tauri-apps/tauri-action
+- macos-13 deprecation announcement: https://github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down/
+- apple-native-keyring-store keychain vs protected modules: https://github.com/open-source-cooperative/apple-native-keyring-store
+- macOS Developer ID + traditional keychain, no entitlement required: https://developer.apple.com/forums/thread/114456
+- Community walkthrough Tauri v2 signing: https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-code-signing-for-macos-and-windows-part-12-3o9n
+- Community walkthrough Tauri v2 release automation: https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-github-actions-and-release-automation-part-22-2ef7

@@ -1,577 +1,406 @@
-# Architecture Research: v1.4 Advanced Response Consumer
+# Architecture Research — Distribution
 
-**Domain:** Long-lived AMQP consumer integrated into a Tauri 2 desktop app
-**Researched:** 2026-05-20
-**Confidence:** HIGH
+**Project:** Tap v1.5 Distribution
+**Researched:** 2026-05-21
+**Confidence:** HIGH (Tauri official docs + confirmed community patterns)
 
-## Standard Architecture
+---
 
-### System Overview
+## GitHub Actions Workflow Structure
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                       React Frontend                             │
-├─────────────────────────────────────────────────────────────────┤
-│  ┌──────────────┐  ┌──────────────────────────────────────────┐  │
-│  │  Sidebar /   │  │              Right Panel                  │  │
-│  │  PublishBar  │  │  ┌──────────────────────────────────────┐ │  │
-│  │  (unchanged) │  │  │  ResponseTab (extended)              │ │  │
-│  │              │  │  │  ┌──────────┐ ┌──────┐ ┌──────────┐ │ │  │
-│  │              │  │  │  │  Single  │ │Drain │ │Subscribe │ │ │  │
-│  │              │  │  │  │  (prev.) │ │mode  │ │  mode    │ │ │  │
-│  │              │  │  │  └──────────┘ └──────┘ └──────────┘ │ │  │
-│  │              │  │  │  ┌──────────────────────────────────┐ │ │  │
-│  │              │  │  │  │  ConsumedMessageList (new)       │ │ │  │
-│  │              │  │  │  │  FilterBar (new)                 │ │ │  │
-│  │              │  │  │  │  ExportButton (new)              │ │ │  │
-│  │              │  │  │  └──────────────────────────────────┘ │ │  │
-│  │              │  │  └──────────────────────────────────────┘ │  │
-│  └──────────────┘  └──────────────────────────────────────────┘  │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │          useResponseStore (extended)                      │    │
-│  │  mode | messages[] | subscribeStatus | filter            │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                   │
-│  ┌─────────────────────────────────────────────────────────┐     │
-│  │     Channel<ConsumedMessage> onMessage callback         │     │
-│  │     listen('consume-stopped') / listen('consume-error') │     │
-│  └─────────────────────────────────────────────────────────┘     │
-├─────────────────────────────────────────────────────────────────┤
-│                     Tauri IPC Boundary                           │
-├─────────────────────────────────────────────────────────────────┤
-│                       Rust Backend                               │
-│                                                                   │
-│  ┌──────────────────────┐  ┌──────────────────────────────────┐  │
-│  │  New Commands        │  │  Managed State                   │  │
-│  │  drain_messages      │  │  Mutex<Option<ConsumerHandle>>   │  │
-│  │  start_consume       │  │  (registered in lib.rs setup)    │  │
-│  │  stop_consume        │  └──────────────────────────────────┘  │
-│  │  (+ existing cmds)   │                                        │
-│  └──────────────────────┘                                        │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │  Background Task (tauri::async_runtime::spawn)           │    │
-│  │  tokio::select! { consumer.next() | token.cancelled() }  │    │
-│  │  Long-lived lapin::Connection + Channel                  │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                                                                   │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │  RabbitMQ (lapin 4.x / AMQP 0-9-1)                      │    │
-│  └──────────────────────────────────────────────────────────┘    │
-└─────────────────────────────────────────────────────────────────┘
+### Recommended Shape: Single Matrix Job via tauri-action
+
+Replace the current three-job layout (build-macos / build-linux / create-release) with a single matrix job that delegates everything to `tauri-apps/tauri-action@v0`. The action creates the draft release, uploads platform artifacts, and emits `latest.json` in one step per matrix entry. The three-job split does NOT auto-produce `latest.json` and requires manual JSON assembly — that is the primary reason to switch.
+
+**Trigger:** `push: tags: ["v*.*.*"]` plus `workflow_dispatch` (keep both, existing pattern is correct).
+
+**Matrix entries (macOS + Linux only — Windows is out of scope):**
+
+```yaml
+strategy:
+  fail-fast: false
+  matrix:
+    include:
+      - platform: macos-latest
+        args: "--target universal-apple-darwin"
+        rust_targets: "x86_64-apple-darwin,aarch64-apple-darwin"
+      - platform: ubuntu-22.04
+        args: ""
+        rust_targets: ""
 ```
 
-### Component Responsibilities
+Universal macOS (one fat .dmg) is preferred over split matrix (aarch64 + x86_64 separately) because: one signing/notarization pass, one artifact in the release, simpler workflow. The tradeoff is a ~2x larger .dmg; acceptable for a dev tool with infrequent releases. The `latest.json` `darwin-aarch64` and `darwin-x86_64` keys will both point to the same universal .dmg URL.
 
-| Component | Responsibility | Tauri 2 Pattern |
-|-----------|----------------|-----------------|
-| `drain_messages` command | basic_get loop up to N times; streams each result via Channel<ConsumedMessage>; uses ephemeral connection | Standard Tauri command with Channel param |
-| `start_consume` command | Opens long-lived lapin connection; spawns background task; stores CancellationToken in managed state | Spawns tauri::async_runtime task |
-| `stop_consume` command | Takes ConsumerHandle from managed state; calls cancel(); returns immediately | Reads Mutex<Option<ConsumerHandle>> |
-| Background consumer task | Runs tokio::select! loop; calls channel.basic_cancel on stop; closes connection; emits lifecycle events | tauri::async_runtime::spawn |
-| `ConsumerState` managed state | Single-slot for one active consumer handle at a time | Mutex<Option<ConsumerHandle>> registered at startup |
-| `useResponseStore` | Extended with mode, messages[], subscribeStatus, filter | Zustand store, addMessage action |
-| `ResponseTab` | Mode toggle (Single/Drain/Subscribe); delegates to mode-specific sub-panels | React component, reads store |
-| `ConsumedMessageList` | Virtualized list of ConsumedMessage rows; newest first; expandable rows | New component, shadcn/ui Collapsible |
-| `FilterBar` | Client-side filter inputs for routingKey / contentType; writes to store.filter | New component, controlled inputs |
-| `ExportButton` | Reads filtered messages from store; writes JSON/CSV via tauri-plugin-fs save dialog | New component |
+**Required workflow-level permissions:**
 
-## New vs Modified: Explicit Map
-
-### New Rust Files
-
-| File | What |
-|------|------|
-| `src-tauri/src/commands/drain.rs` | `drain_messages` command — basic_get loop, Channel streaming |
-| `src-tauri/src/commands/subscribe.rs` | `start_consume` + `stop_consume` commands |
-| `src-tauri/src/commands/consumer_state.rs` | `ConsumerHandle` struct, `ConsumerState` type alias |
-
-### Modified Rust Files
-
-| File | What Changes |
-|------|--------------|
-| `src-tauri/src/commands/mod.rs` | Add `pub mod drain; pub mod subscribe; pub mod consumer_state;` |
-| `src-tauri/src/lib.rs` | Register `ConsumerState` with `.manage()`; add 3 new commands to `invoke_handler!` |
-
-### New React Files
-
-| File | What |
-|------|------|
-| `src/components/response/ConsumedMessageList.tsx` | Scrollable list of ConsumedMessage rows, expandable, newest-first |
-| `src/components/response/ConsumedMessageRow.tsx` | Single expandable message row (routing key, content-type, decoded/hex toggle) |
-| `src/components/response/FilterBar.tsx` | Routing key + content-type filter inputs |
-| `src/components/response/ExportButton.tsx` | Export to JSON/CSV via tauri-plugin-fs |
-| `src/components/response/QueueDepthBadge.tsx` | Fetches and displays queue depth via existing fetch_queue_depth |
-| `src/hooks/useConsumeChannel.ts` | Wires Channel<ConsumedMessage> and lifecycle event listeners; returns startConsume / stopConsume |
-
-### Modified React Files
-
-| File | What Changes |
-|------|--------------|
-| `src/stores/useResponseStore.ts` | Add: `mode`, `messages[]`, `subscribeStatus`, `filter`, `addMessage`, `setMode`, `setSubscribeStatus`, `setFilter`, `clearMessages` |
-| `src/lib/ipc.ts` | Add: `drainMessages()`, `startConsume()`, `stopConsume()` wrappers |
-| `src/lib/types.ts` | Add: `ConsumedMessage` interface, `SubscribeStatus` union type |
-| `src/components/response/ResponseTab.tsx` | Add mode toggle; render mode-specific sub-panel; Single mode keeps existing path |
-
-## Recommended Project Structure After v1.4
-
-```
-src-tauri/src/commands/
-├── consume.rs              # existing: single basic_get (unchanged)
-├── drain.rs                # new: drain_messages (basic_get loop + Channel)
-├── subscribe.rs            # new: start_consume + stop_consume
-├── consumer_state.rs       # new: ConsumerHandle struct + ConsumerState alias
-├── connection.rs           # unchanged
-├── encode.rs               # unchanged
-├── mod.rs                  # add new modules
-├── proto.rs                # unchanged
-└── publish.rs              # unchanged
-
-src/components/response/
-├── ResponseTab.tsx         # modified: add mode toggle
-├── ResponseQueuePicker.tsx # reuse unchanged
-├── ResponseDecodedView.tsx # reuse unchanged
-├── ResponseHexSection.tsx  # reuse unchanged
-├── ConsumedMessageList.tsx # new
-├── ConsumedMessageRow.tsx  # new
-├── FilterBar.tsx           # new
-├── ExportButton.tsx        # new
-└── QueueDepthBadge.tsx     # new
-
-src/hooks/
-├── useDebounce.ts          # unchanged
-└── useConsumeChannel.ts    # new: Channel + lifecycle event wiring
+```yaml
+permissions:
+  contents: write
 ```
 
-## Architectural Patterns
+This must be set explicitly OR enabled in repo Settings → Actions → General → Workflow permissions → "Read and write permissions".
 
-### Pattern 1: Tauri Channel for Message Streaming (Drain + Subscribe)
+**Job steps sequence:**
 
-**What:** The `drain_messages` and `start_consume` commands accept a `Channel<ConsumedMessage>` parameter. Each message is sent over the channel as it arrives. The frontend creates a `Channel` object and wires its `onmessage` callback before invoking the command.
+1. `actions/checkout@v4` (use @v4 to match existing ci.yml; existing release.yml uses @v6 — align to @v4 as it is the documented Tauri sample; either works, but pick one version across both files)
+2. `dtolnay/rust-toolchain@stable` with `targets: ${{ matrix.rust_targets }}`
+3. `Swatinem/rust-cache@v2` with `workspaces: src-tauri`
+4. `pnpm/action-setup@v6` (version: 10) + `actions/setup-node@v4` (node: 20, cache: pnpm)
+5. Linux only: `apt-get install` system deps (libgtk-3-dev, libwebkit2gtk-4.1-dev, libappindicator3-dev, librsvg2-dev, patchelf, libssl-dev, **libsecret-1-dev** — add this for the keyring crate)
+6. `pnpm install --frozen-lockfile`
+7. macOS only: certificate import step (see Signing section)
+8. `tauri-apps/tauri-action@v0` with signing env vars, tagName, releaseDraft: true
 
-**When to use:** Any time Rust needs to push an ordered stream of structured data to the frontend during a command's lifetime. Channel is preferred over `app.emit()` for streaming because: (1) it is tied to the specific invocation scope, (2) it preserves delivery order with an index, (3) it is faster than the global event bus.
+**Concurrency control** (prevents duplicate tag pushes from racing):
 
-**Trade-offs:** Channel is bound to the command invocation. For drain mode the command returns when the loop ends. For subscribe mode, the command returns immediately after spawning the background task, but the task holds the Channel clone and can continue sending until the task exits.
+```yaml
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+```
 
-**Rust signature:**
+**Version sync prerequisite — critical pre-release step:**
+
+`tauri-action` reads the version from `tauri.conf.json` to expand `v__VERSION__`. If the git tag is `v1.5.0` but `tauri.conf.json` still says `1.4.0`, the action creates a release named `v1.4.0` while CI runs from the `v1.5.0` tag — a silent mismatch that is painful to undo. The correct release flow is: bump `version` in both `tauri.conf.json` and `src-tauri/Cargo.toml`, commit, then tag. This should be documented as a release checklist step.
+
+### Required GitHub Secrets
+
+| Secret Name | What It Contains | How to Obtain |
+|---|---|---|
+| `APPLE_CERTIFICATE` | base64-encoded Developer ID Application .p12 | Export from Keychain Access; `base64 -i cert.p12` |
+| `APPLE_CERTIFICATE_PASSWORD` | Password set when exporting the .p12 | Set during export |
+| `APPLE_SIGNING_IDENTITY` | Full identity string, e.g. `Developer ID Application: Name (TEAMID)` | `security find-identity -v -p codesigning` |
+| `APPLE_ID` | Apple account email for notarization | developer.apple.com account |
+| `APPLE_PASSWORD` | App-specific password (not account password) | appleid.apple.com → Security → App-Specific Passwords |
+| `APPLE_TEAM_ID` | 10-character team ID | developer.apple.com → Membership |
+| `TAURI_SIGNING_PRIVATE_KEY` | Raw content of the private key file generated by `tauri signer generate` | One-time local generation (see Updater section) |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Passphrase chosen at key generation time | Set during `tauri signer generate` |
+
+No Azure/Windows secrets are needed. `GITHUB_TOKEN` is issued automatically per run; no secret entry required.
+
+---
+
+## Signing Integration Points
+
+### What tauri-action Handles Automatically
+
+When the signing env vars are present, `tauri-apps/tauri-action@v0` does the following inside the Tauri CLI build process:
+
+1. **Code signing**: calls `codesign` with the Developer ID Application certificate and the entitlements file
+2. **Notarization**: calls `xcrun notarytool submit` with the Apple ID credentials and waits for Apple's verdict
+3. **Stapling**: calls `xcrun stapler staple` to attach the notarization ticket to the .dmg
+4. **Updater artifact signing**: signs `.sig` files for each bundle using `TAURI_SIGNING_PRIVATE_KEY`
+5. **latest.json generation**: emits the manifest with signed URLs and uploads it to the GitHub Release
+
+Signing is NOT a post-process step — it happens inside the Tauri build step, driven by the presence of env vars. There is no separate manual `codesign` call needed.
+
+### macOS Certificate Import Step
+
+CI runners have no persistent keychain. A manual step must create a temporary keychain, import the .p12, and unlock it before `tauri-action` runs:
+
+```yaml
+- name: Import Apple certificate
+  if: runner.os == 'macOS'
+  env:
+    APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+    APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+  run: |
+    CERT_PATH=$RUNNER_TEMP/certificate.p12
+    KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+    KEYCHAIN_PASSWORD=$(openssl rand -base64 24)
+    echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+    security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    security default-keychain -s "$KEYCHAIN_PATH"
+    security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+    security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+    security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    security list-keychains -d user -s "$KEYCHAIN_PATH"
+```
+
+This step runs before `tauri-action`. The random keychain password is never written to disk or logs.
+
+### Updater Key Generation (One-Time Local Setup)
+
+Run locally once before configuring secrets:
+
+```bash
+npm run tauri signer generate -- -w ~/.tauri/tap.key
+```
+
+This produces `~/.tauri/tap.key` (private) and `~/.tauri/tap.key.pub` (public). The private key content goes into `TAURI_SIGNING_PRIVATE_KEY`. The public key content goes into `tauri.conf.json` → `plugins.updater.pubkey`. Store the private key securely — losing it means users on older versions cannot receive updates (they would need to reinstall manually).
+
+---
+
+## tauri-plugin-updater Integration
+
+### Rust Side
+
+**Cargo.toml additions:**
+
+```toml
+[dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+```
+
+`tauri-plugin-updater` is desktop-only (conditional compilation is automatic inside the plugin). `tauri-plugin-process` is a separate plugin needed for `relaunch()` after the update installs.
+
+**lib.rs registration** (add to the existing `tauri::Builder` chain):
+
 ```rust
-use tauri::ipc::Channel;
-
-#[tauri::command]
-pub async fn drain_messages(
-    app: tauri::AppHandle,
-    profile_name: String,
-    queue_name: String,
-    max_messages: u32,
-    message_type_name: String,
-    on_message: Channel<ConsumedMessage>,
-    pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
-) -> Result<DrainSummary, crate::error::AppError> {
-    let pool = { /* clone before any .await — guard not Send */ };
-    // ephemeral connection loop
-    for _ in 0..max_messages {
-        match channel.basic_get(queue_name.as_str().into(), BasicGetOptions::default()).await? {
-            None => break,
-            Some(msg) => {
-                // ack, decode, send
-                on_message.send(consumed_message)?;
-            }
-        }
-    }
-    Ok(DrainSummary { count })
-}
-```
-
-**TypeScript invocation:**
-```typescript
-import { invoke, Channel } from '@tauri-apps/api/core';
-
-const onMessage = new Channel<ConsumedMessage>();
-onMessage.onmessage = (msg) => store.addMessage(msg);
-await invoke('drain_messages', { profileName, queueName, maxMessages: 50, messageTypeName, onMessage });
-```
-
-### Pattern 2: Managed State for Consumer Lifecycle (Subscribe Mode)
-
-**What:** A single `ConsumerState = Mutex<Option<ConsumerHandle>>` is registered at app startup. `start_consume` stores a `ConsumerHandle` (holding a `CancellationToken` and the consumer tag) when it spawns the background task. `stop_consume` takes the handle out of the slot and calls `cancel()`. If `start_consume` is called while a handle already exists, it returns an error — single-consumer-at-a-time is the invariant.
-
-**When to use:** Any cross-command state that a background task needs to be stopped from the outside.
-
-**State shape:**
-```rust
-// consumer_state.rs
-use tokio_util::sync::CancellationToken;
-
-pub struct ConsumerHandle {
-    pub cancel: CancellationToken,
-    pub consumer_tag: String,
-    pub queue_name: String,
-}
-
-pub type ConsumerState = std::sync::Mutex<Option<ConsumerHandle>>;
-```
-
-**Registration in lib.rs:**
-```rust
-.manage(crate::commands::consumer_state::ConsumerState::new(None))
-```
-
-**start_consume guard:**
-```rust
-#[tauri::command]
-pub async fn start_consume(
-    app: tauri::AppHandle,
-    profile_name: String,
-    queue_name: String,
-    message_type_name: String,
-    on_message: Channel<ConsumedMessage>,
-    consumer_state: tauri::State<'_, ConsumerState>,
-    pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
-) -> Result<(), crate::error::AppError> {
-    // Guard: reject if already consuming
-    {
-        let guard = consumer_state.lock().unwrap();
-        if guard.is_some() {
-            return Err(AppError::AmqpError(
-                "Already consuming — call stop_consume first".to_string()
-            ));
-        }
-    }
-    let pool = { /* clone before any .await */ };
-    let token = CancellationToken::new();
-    let child_token = token.child_token();
-    let consumer_tag = format!("tap-{}", epoch_ms());
-
-    // Store handle BEFORE spawning
-    {
-        let mut guard = consumer_state.lock().unwrap();
-        *guard = Some(ConsumerHandle {
-            cancel: token,
-            consumer_tag: consumer_tag.clone(),
-            queue_name: queue_name.clone(),
-        });
-    }
-
-    let app_clone = app.clone();
-    tauri::async_runtime::spawn(async move {
-        run_consumer_task(app_clone, conn, channel, consumer, child_token, on_message, pool).await;
-    });
-
+.setup(|app| {
+    #[cfg(desktop)]
+    app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
     Ok(())
+})
+.plugin(tauri_plugin_process::init())
+```
+
+`tauri-plugin-dialog` is already registered; no change needed there.
+
+### Frontend Side
+
+**npm packages:**
+
+```bash
+pnpm add @tauri-apps/plugin-updater @tauri-apps/plugin-process
+```
+
+**Recommended update check pattern** (new file `src/hooks/useUpdateCheck.ts`):
+
+```ts
+import { check } from '@tauri-apps/plugin-updater'
+import { relaunch } from '@tauri-apps/plugin-process'
+
+export async function checkForUpdates(): Promise<void> {
+  const update = await check()
+  if (!update) return
+
+  // Expose update.version and update.body to UI for a confirmation dialog
+  // On user confirmation:
+  await update.downloadAndInstall()
+  await relaunch()
 }
 ```
 
-### Pattern 3: tokio::select! Consumer Loop with CancellationToken
+Wire the check to run once on app startup (e.g. `useEffect` with empty deps in `App.tsx`). The call is non-blocking. For a dev tool, a simple notification toast with "Update available — click to install" is sufficient; no progress bar required for an initial implementation.
 
-**What:** The background task uses `tokio::select!` to race between the next consumer message and the cancellation signal. On cancellation, it calls `channel.basic_cancel()` to tell the broker to stop delivering, then closes the connection cleanly.
+**First release is not an auto-update:** Users who installed Tap before v1.5.0 (all current users) will not receive an auto-update to v1.5.0 — the updater plugin is not yet installed in their binary. They must download and install v1.5.0 manually once. Only v1.5.x → v1.5.y and later releases will use the updater path. Phase planning should not assume a zero-friction upgrade for existing users to the first signed release.
 
-**Why not JoinHandle.abort():** Aborting drops the task at the next `.await` without issuing `basic_cancel`. The broker retains the subscription until its TCP keepalive expires (~60s). `CancellationToken` enables a graceful protocol-level cancel.
+### update.json Endpoint Format
 
-**Rust pattern:**
-```rust
-async fn run_consumer_task(
-    app: tauri::AppHandle,
-    conn: lapin::Connection,
-    channel: lapin::Channel,
-    mut consumer: lapin::Consumer,
-    cancel: CancellationToken,
-    on_message: Channel<ConsumedMessage>,
-    pool: prost_reflect::DescriptorPool,
-) {
-    use futures_lite::StreamExt;
-    use tauri::Emitter;
+`tauri-action` generates and uploads a file named `latest.json` to the GitHub Release automatically when `createUpdaterArtifacts: true` is set. The static endpoint URL:
 
-    loop {
-        tokio::select! {
-            _ = cancel.cancelled() => {
-                let _ = channel.basic_cancel(
-                    consumer.tag().as_str().into(),
-                    lapin::options::BasicCancelOptions::default(),
-                ).await;
-                break;
-            }
-            maybe_delivery = consumer.next() => {
-                match maybe_delivery {
-                    None => break,
-                    Some(Err(e)) => {
-                        let _ = app.emit("consume-error", e.to_string());
-                        break;
-                    }
-                    Some(Ok(delivery)) => {
-                        let msg = decode_delivery(&delivery, &pool);
-                        let _ = on_message.send(msg);
-                    }
-                }
-            }
-        }
+```
+https://github.com/majesnix/proto-sender/releases/latest/download/latest.json
+```
+
+No template variables (`{{target}}`, `{{arch}}`) are needed for this GitHub Releases static path. The file structure `tauri-action` produces:
+
+```json
+{
+  "version": "1.5.0",
+  "notes": "Release notes from the GitHub release body",
+  "pub_date": "2026-05-21T00:00:00Z",
+  "platforms": {
+    "darwin-x86_64": {
+      "url": "https://github.com/majesnix/proto-sender/releases/download/v1.5.0/Tap_1.5.0_universal.dmg",
+      "signature": "<content of .dmg.sig>"
+    },
+    "darwin-aarch64": {
+      "url": "https://github.com/majesnix/proto-sender/releases/download/v1.5.0/Tap_1.5.0_universal.dmg",
+      "signature": "<same sig — universal binary>"
+    },
+    "linux-x86_64": {
+      "url": "https://github.com/majesnix/proto-sender/releases/download/v1.5.0/tap_1.5.0_amd64.AppImage",
+      "signature": "<content of .AppImage.sig>"
     }
-
-    let _ = conn.close(0, "".into()).await;
-    let _ = app.emit("consume-stopped", ());
+  }
 }
 ```
 
-### Pattern 4: Hybrid Channel + Events for Lifecycle
+Both `darwin-*` keys point to the same universal .dmg URL when building with `--target universal-apple-darwin`.
 
-**What:** The message stream goes through `Channel<ConsumedMessage>` (fast, ordered, scoped to the invocation). Lifecycle signals (`consume-stopped`, `consume-error`) go through `app.emit()` global events. This separation is deliberate: the Channel is tied to the `start_consume` invocation's lifetime. Global events survive component remounts and are the right primitive for "something ended" notifications.
+### tauri.conf.json Updater Block
 
-**Frontend wiring:**
-```typescript
-// useConsumeChannel.ts
-import { invoke, Channel } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
-import { useResponseStore } from '@/stores/useResponseStore';
-
-export function useConsumeChannel() {
-  const { addMessage, setSubscribeStatus } = useResponseStore();
-
-  const startConsume = async (params: StartConsumeParams) => {
-    const onMessage = new Channel<ConsumedMessage>();
-    onMessage.onmessage = (msg) => addMessage({ ...msg, receivedAt: Date.now() });
-
-    const unlistenStopped = await listen('consume-stopped', () => {
-      setSubscribeStatus('idle');
-      unlistenStopped();
-      unlistenError();
-    });
-    const unlistenError = await listen<string>('consume-error', (e) => {
-      setSubscribeStatus('errored');
-      unlistenStopped();
-      unlistenError();
-    });
-
-    setSubscribeStatus('running');
-    await invoke('start_consume', { ...params, onMessage });
-  };
-
-  const stopConsume = async () => {
-    setSubscribeStatus('stopping');
-    await invoke('stop_consume');
-    // Do NOT set 'idle' here — wait for 'consume-stopped' event
-  };
-
-  return { startConsume, stopConsume };
+```json
+{
+  "bundle": {
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "<full content of ~/.tauri/tap.key.pub>",
+      "endpoints": [
+        "https://github.com/majesnix/proto-sender/releases/latest/download/latest.json"
+      ]
+    }
+  }
 }
 ```
 
-## Critical Architectural Shift: Ephemeral to Long-Lived Connection
+`createUpdaterArtifacts: true` instructs the bundler to produce `.sig` files alongside the main bundles. Without it, `tauri-action` will not sign the updater artifacts even if the signing key is present.
 
-Every existing AMQP command uses an ephemeral connection: open, operate, close within the command's async fn. Subscribe mode breaks this invariant by design. The `lapin::Connection` and its `lapin::Channel` are moved into the background task and live for the duration of the consume session.
+---
 
-**Implications:**
-- The background task owns the connection; no other code can reference it after the move
-- If the background task panics, `conn.close()` is not called — the TCP socket will timeout via the broker's heartbeat. Acceptable for a dev tool.
-- The `start_consume` command function returns `Ok(())` immediately after spawning the task. The `on_message` Channel stays alive because the spawned task holds the clone.
-- Drain mode retains the ephemeral pattern: the command function owns the connection and returns when the loop finishes.
+## Files to Create / Modify
 
-## Data Flow
+| File | Action | Purpose |
+|---|---|---|
+| `.github/workflows/release.yml` | **Modify** | Collapse to single matrix job; add signing env vars; add certificate import step; add concurrency control; add `libsecret-1-dev` to Linux apt list; switch from 3-job to matrix+tauri-action pattern |
+| `src-tauri/tauri.conf.json` | **Modify** | Add `bundle.createUpdaterArtifacts: true`; add `plugins.updater.pubkey` and `plugins.updater.endpoints`; bump `version` to 1.5.0 |
+| `src-tauri/Entitlements.plist` | **Modify** | Remove `temporary-exception.files.absolute-path.read-write` (sandbox-only, no-op here, triggers codesign warning); add `cs.allow-jit`, `cs.allow-unsigned-executable-memory`, `cs.allow-dyld-environment-variables` for WebKit post-notarization |
+| `src-tauri/Cargo.toml` | **Modify** | Add `tauri-plugin-updater = "2"` and `tauri-plugin-process = "2"`; bump `version` to 1.5.0 |
+| `src-tauri/src/lib.rs` | **Modify** | Register updater plugin (desktop-gated) and process plugin in the builder chain |
+| `src-tauri/capabilities/default.json` | **Modify** | Add `"updater:default"` and `"process:allow-restart"` permissions |
+| `src/hooks/useUpdateCheck.ts` | **Create** | Hook that calls `check()` on startup and surfaces update notification to UI |
+| `docs/linux-keychain.md` | **Create** | Installation guide for libsecret on Debian/Ubuntu and for headless environments |
 
-### Drain Mode
-
-```
-User: click "Drain (N)"
-    ↓
-ResponseTab → invoke('drain_messages', { maxMessages: N, onMessage: Channel })
-    ↓
-Rust: drain_messages opens ephemeral lapin connection
-    ↓ basic_get loop (up to N iterations)
-    ↓ each message: ack → decode → on_message.send(ConsumedMessage)
-    ↓ loop exits (empty queue or N reached)
-    ↓ command returns DrainSummary { count }
-    ↓
-Channel.onmessage callbacks → store.addMessage() (one per message, in order)
-invoke() resolves → setIsLoading(false)
-```
-
-### Subscribe Mode
-
-```
-User: click "Start Subscribe"
-    ↓
-useConsumeChannel.startConsume()
-    ↓ create Channel.onmessage, listen('consume-stopped'), listen('consume-error')
-    ↓ setSubscribeStatus('running')
-    ↓ invoke('start_consume', { onMessage })
-    ↓
-Rust start_consume:
-    ↓ guard: reject if ConsumerState is Some
-    ↓ clone pool (before .await)
-    ↓ open lapin connection
-    ↓ create channel, basic_consume (no_ack: true)
-    ↓ store ConsumerHandle { cancel, consumer_tag, queue_name }
-    ↓ tauri::async_runtime::spawn(run_consumer_task)
-    ↓ return Ok(()) immediately
-
-Background task (run_consumer_task):
-    ↓ tokio::select! loop
-    ↓ delivery → decode → on_message.send()
-
-User: click "Stop"
-    ↓
-invoke('stop_consume')
-    ↓ lock ConsumerState, take ConsumerHandle, call cancel.cancel()
-    ↓ return Ok(())
-    ↓ setSubscribeStatus('stopping') (already set by hook)
-
-Background task receives cancellation:
-    ↓ basic_cancel → conn.close()
-    ↓ app.emit('consume-stopped', ())
-
-Frontend listen('consume-stopped'):
-    ↓ setSubscribeStatus('idle')
-    ↓ remove listeners
-```
-
-### State Management
-
-```
-useResponseStore
-  mode: 'single' | 'drain' | 'subscribe'
-  messages: ConsumedMessage[]     (newest first, capped at 500)
-  subscribeStatus: 'idle' | 'running' | 'stopping' | 'errored'
-  filter: { routingKey?: string; contentType?: string }
-  lastResult: ...                 (legacy single-mode, unchanged)
-
-  addMessage(msg) → [msg, ...prev].slice(0, 500)
-  setMode(m)
-  setSubscribeStatus(s)
-  setFilter(f)
-  clearMessages()
-```
-
-## Integration Points
-
-### Existing Rust Commands: Unchanged
-
-The three new Rust commands (`drain_messages`, `start_consume`, `stop_consume`) slot in alongside existing commands with no changes to `consume.rs`, `publish.rs`, `connection.rs`, or `encode.rs`.
-
-### Pool State: Same Clone Pattern
-
-All three new commands clone the `DescriptorPool` from `Mutex<Option<DescriptorPool>>` before any `.await`, identical to the existing `consume_message` pattern. The spawned background task receives an owned `DescriptorPool` clone — no lock held across await.
-
-### tauri::async_runtime::spawn Requirement
-
-The background consumer task MUST use `tauri::async_runtime::spawn`, NOT `tokio::spawn`. Hard constraint from Tauri issue #10289: `tokio::spawn` inside Tauri event listeners panics on Windows in Tauri 2. This is already enforced codebase-wide (documented in CLAUDE.md).
-
-### Ack Policy: no_ack: true (Server Auto-Ack)
-
-`basic_consume` is called with `BasicConsumeOptions { no_ack: true, .. }`. This is the generalization of the existing D-10 "ack-before-decode" doctrine. The broker removes messages from the queue as it delivers them. Consequences:
-
-- No stuck unacked messages if the app crashes mid-session
-- No prefetch count management needed
-- No client-side ack calls in the message loop
-- Matches dev-tool intent: consume = remove
-
-### New IPC Surface
-
-```typescript
-// New type in types.ts
-export interface ConsumedMessage {
-  routingKey: string;
-  contentType: string | null;
-  decoded: Record<string, unknown> | null;
-  hexString: string;
-  error: string | null;
-  receivedAt: number;  // ms timestamp, added client-side in onmessage callback
-}
-
-export type SubscribeStatus = 'idle' | 'running' | 'stopping' | 'errored';
-
-// New in ipc.ts
-export async function drainMessages(
-  profileName: string,
-  queueName: string,
-  maxMessages: number,
-  messageTypeName: string,
-  onMessage: Channel<ConsumedMessage>,
-): Promise<{ count: number }>;
-
-export async function startConsume(
-  profileName: string,
-  queueName: string,
-  messageTypeName: string,
-  onMessage: Channel<ConsumedMessage>,
-): Promise<void>;
-
-export async function stopConsume(): Promise<void>;
-```
-
-## Scalability Considerations
-
-This is a local dev tool. Meaningful limits are:
-
-| Concern | Design decision |
-|---------|----------------|
-| Memory: messages in store | Cap at 500 entries; `addMessage` prepends and slices |
-| Broker backpressure | `no_ack: true` removes messages on delivery; no buildup |
-| Multiple consumers | Single-slot `ConsumerState` — second `start_consume` returns error |
-| App crash during subscribe | Broker closes consumer within heartbeat window (~60s) |
+---
 
 ## Build Order
 
-1. **`ConsumedMessage` type + `useResponseStore` extension** — no new commands; enables all downstream. Add mode, messages, subscribeStatus, filter, addMessage, clearMessages, setFilter.
+Dependencies between steps:
 
-2. **`QueueDepthBadge` component** — uses existing `fetch_queue_depth` unchanged. Zero new backend code.
+```
+[one-time local setup — before any CI work]
+  tauri signer generate → tap.key.pub → tauri.conf.json (pubkey field)
+                        → tap.key     → TAURI_SIGNING_PRIVATE_KEY secret
 
-3. **`drain_messages` Rust command + `drainMessages` IPC wrapper + `ConsumedMessageList` + `ConsumedMessageRow` + mode toggle in `ResponseTab` (Drain mode only)** — validates Channel streaming with an ephemeral connection; no managed state. `FilterBar` can appear here as client-side only (it reads from store, not from Rust).
+[one-time Apple setup — human actions in Apple Developer Portal]
+  1. Register App ID "com.tap.app" in developer.apple.com
+     (required for notarization; gates the whole pipeline if missing)
+  2. Create Developer ID Application certificate
+  3. Export .p12 → base64 encode → APPLE_CERTIFICATE secret
 
-4. **`consumer_state.rs` + `start_consume` + `stop_consume` + `useConsumeChannel` hook + Subscribe mode in `ResponseTab`** — adds managed state and long-lived connection. Channel pattern already proven in step 3.
+[on git tag push: v*.*.*]
+  ┌────────────────────────────┐    ┌─────────────────────────────┐
+  │  matrix: macos-latest      │    │  matrix: ubuntu-22.04        │
+  │  1. checkout               │    │  1. checkout                 │
+  │  2. rust toolchain         │    │  2. apt-get (incl. libsecret)│
+  │     (x86+arm targets)      │    │  3. rust toolchain           │
+  │  3. rust-cache             │    │  4. rust-cache               │
+  │  4. node/pnpm              │    │  5. node/pnpm                │
+  │  5. pnpm install           │    │  6. pnpm install             │
+  │  6. cert import step       │    │  7. tauri-action             │
+  │  7. tauri-action           │    │     → bundles .deb .AppImage │
+  │     → universal .dmg       │    │     → signs .sig files       │
+  │     → signs + notarizes    │    │     → appends to draft       │
+  │     → staples ticket       │    │       release                │
+  │     → signs .sig files     │    └─────────────────────────────┘
+  │     → creates draft release│
+  │     → uploads .dmg + .sig  │
+  │     → uploads latest.json  │
+  └────────────────────────────┘
+              │                              │
+              └──────────────┬──────────────┘
+                             ▼
+                  [draft release on GitHub —
+                   both jobs append artifacts
+                   to the same release via
+                   tagName: v__VERSION__]
+                             │
+                  [human: review draft → publish]
+                             │
+                  [latest.json accessible at
+                   /releases/latest/download/
+                   latest.json immediately after publish]
+```
 
-5. **`FilterBar` integration** — client-side filter of `messages[]` from store. No new backend.
+Key dependency facts:
+- `build-macos` and `build-linux` run in parallel (`fail-fast: false`)
+- No separate `create-release` job — `tauri-action` handles release creation and artifact upload internally
+- `releaseDraft: true` prevents auto-publish; a human reviews and publishes the release
+- `latest.json` is uploaded by the macOS job; `tauri-action` manages race-safe uploads to the same draft release
+- Linux build does NOT wait for macOS; updater manifest entries are per-platform
+- Signing key generation is a one-time setup action, not a CI step
+- App ID registration in the Apple Developer Portal must happen before the first CI run, not during CI
 
-6. **`ExportButton`** — reads filtered messages from store; writes JSON/CSV via `tauri-plugin-fs` save dialog.
+---
 
-## Anti-Patterns
+## macOS Sandbox + Notarization
 
-### Anti-Pattern 1: tokio::spawn for the Background Consumer Task
+### The Short Answer
 
-**What people do:** `tokio::spawn(async move { ... })` looks identical to `tauri::async_runtime::spawn`.
+**Sandbox-off is compatible with notarization.** Sandboxing is required for Mac App Store distribution only. Developer ID distribution (outside the App Store) does not require `app-sandbox = true`. Apple's notarization process checks for hardened runtime and scans for malware — it does not require or enforce sandboxing.
 
-**Why it's wrong:** Panics on Windows in Tauri 2 event-listener contexts. See Tauri issue #10289.
+### Current Entitlements.plist Problem
 
-**Do this instead:** `tauri::async_runtime::spawn(async move { ... })` — always, without exception.
+The existing file has:
 
-### Anti-Pattern 2: Holding the DescriptorPool MutexGuard Across an Await
+```xml
+<key>com.apple.security.app-sandbox</key>
+<false/>
+<key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+<array><string>/</string></array>
+```
 
-**What people do:** Lock `pool_state`, then `.await` on a lapin call while holding the guard.
+`temporary-exception.files.absolute-path.read-write` is a **sandbox-only** entitlement. It is a no-op when `app-sandbox = false` and will trigger a `codesign` warning because it is a sandbox exception on a non-sandboxed app. This entitlement must be removed.
 
-**Why it's wrong:** `MutexGuard` is not `Send`. The Rust compiler rejects this. Even if it compiled, it would block the pool for the entire connection lifetime.
+File reading of arbitrary `.proto` files works because sandbox is disabled — no entitlement exception is needed.
 
-**Do this instead:** Clone the pool inside a tight block before any `.await`. `DescriptorPool` is `Arc`-backed; clone is O(1). Identical pattern to existing `consume_message`.
+### Required Entitlements After Modification
 
-### Anti-Pattern 3: Using app.emit() for the Message Stream
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.app-sandbox</key>
+  <false/>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+  <true/>
+</dict>
+</plist>
+```
 
-**What people do:** Replace Channel with `app.emit("consume-message", msg)` for each delivery.
+**Why the three hardened-runtime entitlements are required:**
 
-**Why it's wrong:** Global events fan out to all listeners, have no ordering guarantee under load, and are slower. Channel is explicitly recommended by Tauri 2 docs for streaming operations.
+When `tauri-action` signs the app with a Developer ID certificate, it enables hardened runtime (`--options=runtime`). The hardened runtime restricts JIT compilation and executable memory by default. Tauri's embedded WebKit needs all three opt-outs:
 
-**Do this instead:** Channel for message delivery (scoped to invocation). Reserve `app.emit()` for lifecycle signals (`consume-stopped`, `consume-error`) where global fan-out is correct.
+- `cs.allow-jit`: WebKit uses JIT compilation for JavaScript execution
+- `cs.allow-unsigned-executable-memory`: WebKit creates writable+executable memory pages for the renderer
+- `cs.allow-dyld-environment-variables`: needed for some dylib loading patterns in WKWebView
 
-### Anti-Pattern 4: Aborting the Task via JoinHandle
+Without these three entries in the plist, the app will sign and notarize successfully but **crash immediately on launch** on any machine that downloads it. This is the most common post-notarization failure mode for Tauri apps. The symptom is: app works unsigned locally, crashes after notarization.
 
-**What people do:** Store a `JoinHandle<()>` and call `handle.abort()` from `stop_consume`.
+### Interaction Summary
 
-**Why it's wrong:** `abort()` drops the future at the next `.await` without running cleanup. The broker keeps the subscription active until its TCP keepalive expires (~60s). During that window the queue cannot have a replacement consumer.
+| Concern | Status | Notes |
+|---|---|---|
+| `app-sandbox = false` | Not a notarization blocker | Sandbox required for App Store only; Developer ID distribution is unaffected |
+| `temporary-exception` entitlement | Remove | Sandbox-only, no-op here, triggers codesign warning |
+| Hardened runtime JIT entitlements | Must add all three | App crashes on launch post-notarization without them |
+| File reading of arbitrary `.proto` files | Unaffected | Works because sandbox is off; no entitlement change needed |
+| App ID `com.tap.app` in Apple Portal | One-time prerequisite | Must be registered before first notarization attempt |
 
-**Do this instead:** `CancellationToken` + `tokio::select!` — task exits cleanly and issues `basic_cancel` before closing the connection.
+### Linux Keychain Runtime Requirement
 
-### Anti-Pattern 5: Setting subscribeStatus to 'idle' on stop_consume Resolution
+The `dbus-secret-service-keyring-store` crate (already in `Cargo.toml` for Linux targets) requires `libsecret` at runtime. The distribution docs must specify:
 
-**What people do:** `stop_consume` resolves → frontend immediately sets `subscribeStatus: 'idle'`.
+- Ubuntu/Debian: `sudo apt-get install libsecret-1-0`
+- Fedora/RHEL: `sudo dnf install libsecret`
+- On headless Linux (no GNOME session): `gnome-keyring-daemon --start --components=secrets` must be running
+- KDE users: KWallet also implements the Secret Service D-Bus API and works without additional setup
+- CI: `libsecret-1-dev` (the dev package, which includes the runtime) in the `apt-get install` list
 
-**Why it's wrong:** The background task is still running between `cancel.cancel()` and the actual `basic_cancel` + `conn.close()`. UI shows idle but broker is still subscribed.
-
-**Do this instead:** `stop_consume` returns `Ok(())` immediately (it only cancels the token). The frontend sets `subscribeStatus: 'stopping'` on invoke, then `'idle'` only on receipt of the `'consume-stopped'` global event.
+---
 
 ## Sources
 
-- Tauri 2 Channel API for streaming from Rust to frontend: https://v2.tauri.app/develop/calling-frontend/
-- Tauri 2 managed state with Mutex: https://v2.tauri.app/develop/state-management/
-- lapin Consumer struct (basic_consume, StreamExt, basic_cancel, consumer tag): https://docs.rs/lapin/latest/lapin/struct.Consumer.html
-- tokio-util CancellationToken: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
-- Tauri issue #10289 (tokio::spawn panic on Windows in Tauri 2): https://github.com/tauri-apps/tauri/issues/10289
-
----
-*Architecture research for: Tauri 2 long-lived AMQP consumer (v1.4 Advanced Response Consumer)*
-*Researched: 2026-05-20*
+- Tauri updater plugin docs: https://v2.tauri.app/plugin/updater/
+- Tauri macOS signing: https://v2.tauri.app/distribute/sign/macos/
+- Tauri GitHub Actions pipeline: https://v2.tauri.app/distribute/pipelines/github/
+- Tauri environment variables reference: https://v2.tauri.app/reference/environment-variables/
+- Apple: Configuring hardened runtime: https://developer.apple.com/documentation/xcode/configuring-the-hardened-runtime
+- Apple: cs.allow-unsigned-executable-memory: https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.allow-unsigned-executable-memory
+- Apple: cs.allow-jit: https://developer.apple.com/documentation/BundleResources/Entitlements/com.apple.security.cs.allow-jit
+- Process plugin (process:allow-restart confirmed): https://v2.tauri.app/plugin/process/
+- Community pattern (auto-update + process relaunch): https://ratulmaharaj.com/posts/tauri-automatic-updates/
+- Tauri v2 GitHub Actions release automation: https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-github-actions-and-release-automation-part-22-2ef7
+- Shipping macOS Tauri 2 app with notarization: https://dev.to/0xmassi/shipping-a-production-macos-app-with-tauri-20-code-signing-notarization-and-homebrew-mc3
