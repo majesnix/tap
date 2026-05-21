@@ -80,7 +80,12 @@ export function MessageFeedTab() {
   };
 
   const messageCount = messages.length;
-  const countLabel = messageCount === 0 ? "No messages" : `${messageCount} messages`;
+  const countLabel =
+    messageCount === 0
+      ? "No messages"
+      : messageCount === 1
+        ? "1 message"
+        : `${messageCount} messages`;
 
   return (
     <div className="flex flex-col h-full">

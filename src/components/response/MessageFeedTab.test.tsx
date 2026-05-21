@@ -116,7 +116,7 @@ describe("MessageFeedTab", () => {
       ],
     });
     render(<MessageFeedTab />);
-    expect(screen.getByText("1 messages")).toBeInTheDocument();
+    expect(screen.getByText("1 message")).toBeInTheDocument();
   });
 
   test("calls drainMessages with selectedDecodeTypes on Drain", async () => {
