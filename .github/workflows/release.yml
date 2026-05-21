@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-macos:
-    runs-on: macos-13
+    runs-on: macos-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -17,6 +17,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -38,6 +43,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           args: --target universal-apple-darwin
+
+      # Phase 17: signing steps go here, guarded by: if: github.event_name == 'push'
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v7
@@ -64,6 +71,11 @@ jobs:
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
