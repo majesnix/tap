@@ -49,6 +49,9 @@ jobs:
       - name: Run frontend tests (Vitest)
         run: pnpm test
 
+      - name: Type-check frontend
+        run: pnpm build
+
       - name: Run Rust unit tests
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
