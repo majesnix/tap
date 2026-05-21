@@ -54,7 +54,7 @@ function getZodSchema(scalar: ScalarKind): z.ZodTypeAny {
 
     case "float":
     case "double":
-      return z.number({ invalid_type_error: "Must be a number" });
+      return z.number({ error: "Must be a number" });
 
     case "bool":
       return z.boolean();
