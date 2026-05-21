@@ -14,7 +14,7 @@ Action version numbering in the current `release.yml` (checkout@v6, setup-node@v
 
 The Swatinem/rust-cache `workspaces: src-tauri` pattern is already proven in `ci.yml` — copy it verbatim to both build jobs in `release.yml`.
 
-**Primary recommendation:** Four targeted changes to `release.yml` + replace `Entitlements.plist` contents + two file version bumps. No action version changes needed.
+**Primary recommendation:** Four targeted changes to `release.yml` + replace `Entitlements.plist` contents + three file version bumps (`tauri.conf.json`, `Cargo.toml`, `package.json`). No action version changes needed.
 
 ---
 
@@ -29,7 +29,7 @@ The Swatinem/rust-cache `workspaces: src-tauri` pattern is already proven in `ci
 - **D-04:** Use `macos-latest` (currently macOS 15 ARM64 — see environment note below).
 - **D-05:** Keep the Universal binary build (`--target universal-apple-darwin`) with both `aarch64-apple-darwin` and `x86_64-apple-darwin` targets.
 - **D-06:** Replace `Entitlements.plist` entirely. Remove `com.apple.security.temporary-exception.files.absolute-path.read-write`. Add the three Hardened Runtime WebView entitlements: `cs.allow-jit`, `cs.allow-unsigned-executable-memory`, `cs.allow-dyld-environment-variables`. Keep `com.apple.security.app-sandbox` = `false`.
-- **D-07:** Bump version to `1.5.0` in both `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (currently `1.3.0` in both).
+- **D-07:** Bump version to `1.5.0` in both `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` (currently `1.3.0` in both). **Also bump `package.json` `version` field** — discovered during research to also be `1.3.0` [VERIFIED: package.json line 4].
 
 ### Claude's Discretion
 
@@ -67,7 +67,7 @@ None.
 | Linux build | GitHub Actions ubuntu runner | Tauri CLI | Standard apt deps + tauri-action build |
 | Release artifact upload | GitHub Actions (upload-artifact) | — | upload-artifact stores artifacts between jobs; download-artifact + softprops publish on tag only |
 | App entitlements | Bundler (Tauri macOS bundle) | OS codesign tool (Phase 17) | plist is read by Tauri bundler; codesign applies it during signing |
-| Version identity | tauri.conf.json + Cargo.toml | Cargo.lock (auto-derived) | Both files must match; Cargo.lock auto-regenerates on first build |
+| Version identity | tauri.conf.json + Cargo.toml + package.json | Cargo.lock (auto-derived) | All three version strings must match; Cargo.lock auto-regenerates on first build |
 
 ---
 
@@ -150,6 +150,8 @@ src-tauri/
 ├── Entitlements.plist   # Full replacement (5 keys → 4 keys)
 ├── tauri.conf.json      # version: "1.3.0" → "1.5.0"
 └── Cargo.toml           # version = "1.3.0" → "1.5.0"
+
+package.json             # version: "1.3.0" → "1.5.0"  [repo root]
 ```
 
 ### Pattern 1: Swatinem/rust-cache with Workspace
@@ -238,7 +240,7 @@ These are standard for all Hardened Runtime macOS desktop apps that ship a WebVi
 | Live service config | No external services configured with version `1.3.0` | None |
 | OS-registered state | No OS-level registrations embed the version string | None |
 | Secrets/env vars | No env vars reference `1.3.0` directly | None |
-| Build artifacts | `src-tauri/Cargo.lock` contains `version = "1.3.0"` for the `tap` package (line 4762) | Auto-regenerates on next `cargo build`; no manual edit needed; planner should include a `cargo update -p tap` or note that first CI build regenerates it |
+| Build artifacts | (1) `src-tauri/Cargo.lock` has `version = "1.3.0"` for `tap` package (line 4762); (2) `package.json` root has `"version": "1.3.0"` (line 4) | Cargo.lock: run `cargo update -p tap` and commit; package.json: manual bump, no downstream artifacts affected |
 
 **Cargo.lock note:** The lockfile will have a stale `tap` version entry until rebuilt. `--frozen-lockfile` is NOT used in the Rust build step (only in `pnpm install`), so `cargo` will update the lockfile automatically during `tauri-action` execution. The updated `Cargo.lock` should be committed to source control after the version bump. [VERIFIED: grep of release.yml and ci.yml — neither uses --locked for cargo]
 
@@ -411,6 +413,11 @@ build-linux:
 ```toml
 # src-tauri/Cargo.toml — line 3
 version = "1.5.0"
+```
+
+```json
+// package.json — line 4 (root of repo)
+"version": "1.5.0"
 ```
 
 ```bash
