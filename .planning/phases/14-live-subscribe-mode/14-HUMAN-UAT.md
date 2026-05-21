@@ -1,32 +1,32 @@
 ---
-status: diagnosed
+status: partial
 phase: 14-live-subscribe-mode
 source: [14-VERIFICATION.md]
 started: 2026-05-21T00:00:00Z
-updated: 2026-05-21T00:00:00Z
+updated: 2026-05-21T12:00:00Z
 ---
 
 ## Current Test
 
-Human testing completed 2026-05-21.
+[awaiting human re-testing after gap closure (plan 14-04)]
 
 ## Tests
 
-### 1. Real-time message delivery
-expected: Publish to a live RabbitMQ queue while subscribed; messages appear in the feed within ~1 second without page refresh.
-result: FAILED — when subscribe fails, status stays "Error" with no way to reset back to Idle. User cannot retry. Also: sending a message while on Response panel navigates away to "History" tab instead of staying on Response panel.
+### 1. Real-time message delivery (re-test after gap closure)
+expected: Publish a message to the subscribed queue; it appears in the feed within ~1 second. User can stay on the Response panel while sending (GAP-2 fix) and retry after an error (GAP-1 fix). Full end-to-end Tauri Channel streaming must be confirmed.
+result: [pending] — original test FAILED due to GAP-1/GAP-2 blocking the path; both are now fixed
 
 ### 2. Status badge dot colors
 expected: Idle shows grey dot, Running shows emerald-500 green, Stopping shows amber-500, Error shows destructive Badge variant — all survive the production build's Tailwind purge step.
 result: PASSED
 
-### 3. Profile-change auto-stop user flow
-expected: Switch profiles while Running; consumer stops automatically and badge returns to Idle via the full Tauri IPC chain (prevProfileRef mechanism fires correctly).
-result: PARTIAL — switching profiles while in Error state does not reset the error (auto-stop useEffect only guards Running/Stopping, not Error). Locked state persists across profile switches.
+### 3. Profile-change auto-stop user flow (re-test after GAP-3 closure)
+expected: While Running, switch to a different profile. Consumer stops; badge transitions Running → Stopping → Idle with no error shown. Also verify: switching profiles while in Error state now resets badge to Idle (GAP-3 fix).
+result: [pending] — original test PARTIAL due to GAP-3; now fixed
 
-### 4. Mode toggle lock during active session
-expected: While Running, clicking "Drain" in the ToggleGroup is disabled (Radix UI disabled prop prevents mode switch in the browser).
-result: BLOCKED — could not test; subscribe is locked in Error state (dependent on gap 1 fix)
+### 4. Mode toggle lock during active session (first full test — was BLOCKED by GAP-1)
+expected: While subscribeStatus is Running, attempt to click the Drain toggle. The toggle must not change; it must appear visually disabled.
+result: [pending] — was BLOCKED in prior UAT; now unblocked by GAP-1 fix
 
 ### 5. Cross-platform build
 expected: Build and run on Windows and Linux; tauri::async_runtime::spawn prevents the Windows runtime panic (Tauri issue #10289).
@@ -36,24 +36,24 @@ result: SKIPPED
 
 total: 5
 passed: 1
-issues: 2
-pending: 0
+issues: 0
+pending: 3
 skipped: 1
-blocked: 1
+blocked: 0
 
 ## Gaps
 
 ### GAP-1: Error state is unrecoverable — no reset path to Idle
-status: failed
-description: When subscribeStatus is "Error", the Start button is disabled (condition: subscribeStatus !== "Idle"), and there is no Reset/Retry button. The user is stuck and must reload the app to subscribe again. Fix: allow Start button when status is "Error" (change disabled condition), or add an explicit Reset button that calls setSubscribeStatus("Idle").
+status: resolved
+description: Fixed in plan 14-04. Start button `disabled` condition changed to `(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || ...`. User can now click Start from Error state.
 files: src/components/response/SubscribePanel.tsx
 
 ### GAP-2: Sending a message navigates away from Response panel to History
-status: failed
-description: When the user sends a message while on the Response panel (subscribe mode or drain mode), the app switches to "History" instead of remaining on the Response panel. This breaks the subscribe UX where the user expects to see arriving messages. Likely a pre-existing tab-switch on send behavior that needs to be guarded in subscribe/response mode.
-files: src/components/response/MessageFeedTab.tsx, or the message-send handler that triggers the tab switch
+status: resolved
+description: Fixed in plan 14-04. `RightPanel.tsx` auto-switch useEffect now guards `if (activeTab !== "response")` before calling `setActiveTab("history")`. `activeTab` added to deps array.
+files: src/components/layout/RightPanel.tsx
 
 ### GAP-3: Profile switch while in Error state does not reset status
-status: failed
-description: The auto-stop useEffect guards on subscribeStatus === "Running" || "Stopping". When in Error state and user switches profiles, the error persists. The Error state should be cleared to Idle on profile change (since the session is already dead in Error state, a profile switch is a natural reset signal).
+status: resolved
+description: Fixed in plan 14-04. Auto-stop useEffect extended with `else if (subscribeStatus === "Error" && activeProfileName !== prevProfileRef.current) { setSubscribeStatus("Idle"); }`. No stopSubscribe call (no active session in Error state).
 files: src/components/response/SubscribePanel.tsx
