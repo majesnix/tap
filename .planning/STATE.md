@@ -1,7 +1,7 @@
 ---
 gsd_state_version: 1.0
 milestone: v1.4
-milestone_name: Advanced Response Consumer
+milestone_name: Response Stream
 status: milestone_complete
 stopped_at: Phase 15 UI-SPEC approved
 last_updated: "2026-05-21T16:41:12.343Z"
@@ -154,7 +154,7 @@ See: .planning/PROJECT.md (updated 2026-05-20 after v1.4 milestone start)
 - Phase 4 added (2026-05-18): Response Queue Reader — select reply queue, consume + deserialize incoming protobuf message, ack to remove from queue (RESP-01 to RESP-05)
 - Phases 6-8 added (2026-05-19): v1.2 Form Improvements — BytesField (Phase 6), MapField (Phase 7), JSON Override Toggle (Phase 8)
 - Phases 9-12 added (2026-05-19): v1.3 Publishing UX + Message Blocks — Routing Key Autocomplete (Phase 9), Publisher Confirms Badge (Phase 10), Block Library Store+Editor+Persistence (Phase 11), Block Library DnD Layer (Phase 12)
-- Phases 13-15 added (2026-05-20): v1.4 Advanced Response Consumer — Message Feed + Drain (Phase 13), Live Subscribe (Phase 14), Filter + Export (Phase 15)
+- Phases 13-15 added (2026-05-20): v1.4 Response Stream — Message Feed + Drain (Phase 13), Live Subscribe (Phase 14), Filter + Export (Phase 15)
 
 ## Deferred Items
 

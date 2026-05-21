@@ -1,7 +1,7 @@
 # Roadmap: Proto Sender
 
 **Last Milestone:** v1.3 Publishing UX + Message Blocks — SHIPPED 2026-05-20
-**Current:** v1.4 Advanced Response Consumer — In progress
+**Current:** v1.4 Response Stream — In progress
 
 ---
 
@@ -11,7 +11,7 @@
 - ✅ **v1.1 Dark Mode** — Phase 5 (shipped 2026-05-18)
 - ✅ **v1.2 Form Improvements** — Phases 6–8 (shipped 2026-05-19)
 - ✅ **v1.3 Publishing UX + Message Blocks** — Phases 9–12 (shipped 2026-05-20)
-- 🚧 **v1.4 Advanced Response Consumer** — Phases 13–15 (in progress)
+- 🚧 **v1.4 Response Stream** — Phases 13–15 (in progress)
 
 ---
 
@@ -61,7 +61,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 
 </details>
 
-### 🚧 v1.4 Advanced Response Consumer (In Progress)
+### 🚧 v1.4 Response Stream (In Progress)
 
 **Milestone Goal:** Replace the one-at-a-time basic_get reader with a full consume experience — drain mode, live subscribe, filtering, queue depth visibility, and export.
 
@@ -218,7 +218,7 @@ Plans:
 - Mapped: 16
 - Delivered: 16 ✓
 
-**v1.4 Advanced Response Consumer — 10 requirements**
+**v1.4 Response Stream — 10 requirements**
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|

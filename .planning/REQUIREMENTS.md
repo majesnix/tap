@@ -1,7 +1,7 @@
 # Requirements: Proto Sender
 
 **Defined:** 2026-05-20
-**Milestone:** v1.4 — Advanced Response Consumer
+**Milestone:** v1.4 — Response Stream
 **Core Value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
 
 ## v1.4 Requirements

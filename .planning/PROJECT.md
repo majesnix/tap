@@ -46,7 +46,7 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Block persistence — tauri-plugin-store persistence with hydration gate (`blocksLoaded` flag) — v1.3 (Phase 11)
 - ✓ Apply block by drag-and-drop — dnd-kit PointerSensor, dirtyFields guard, BLK-08 Sonner warning toast for unmatched keys — v1.3 (Phase 12)
 
-## Current Milestone: v1.4 Advanced Response Consumer
+## Current Milestone: v1.4 Response Stream
 
 **Goal:** Replace the one-at-a-time basic_get reader with a full consume experience — drain mode, live subscribe mode, filtering, queue depth visibility, and export.
 
