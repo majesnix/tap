@@ -144,7 +144,10 @@ Plans:
   4. App version reads 1.5.0 in `Cargo.toml` and `tauri.conf.json`
 **Plans**: 2 plans
 Plans:
+**Wave 1**
 - [ ] 16-01-PLAN.md — Fix release.yml (runner + Rust cache + signing gate comment), replace Entitlements.plist, bump version to 1.5.0
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 16-02-PLAN.md — Trigger workflow_dispatch dry-runs and verify both matrix jobs green + cache hit
 
 ### Phase 17: macOS Signing + Notarization
