@@ -61,6 +61,7 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 ### Active (v1.4)
 
 - ✓ Drain mode — drain up to 500 messages with multi-type first-success decode (decodedAs), FIFO-500 accordion feed, Decode-as multi-select combobox — v1.4 (Phase 13)
+- ✓ Live subscribe mode — persistent AMQP consumer, streaming messages via Tauri Channel, scrollable feed with expandable rows, auto-stop on profile/connection change, retry from Error state — v1.4 (Phase 14, complete 2026-05-21)
 
 ### Backlog (future milestones — candidates for v1.4+)
 
