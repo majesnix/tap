@@ -67,7 +67,7 @@ See [milestones/v1.3-ROADMAP.md](milestones/v1.3-ROADMAP.md) for full phase deta
 
 - [x] **Phase 13: Message Feed Foundation + Drain Mode** — Scrollable message list with AMQP metadata, queue depth indicator, and batch drain (completed 2026-05-20)
 - [x] **Phase 14: Live Subscribe Mode** — Persistent consumer streaming messages into the feed with status badge and auto-stop on profile change (completed 2026-05-21)
-- [ ] **Phase 15: Filter + Export** — Client-side filtering by routing key and content-type, plus JSON export of the feed
+- [x] **Phase 15: Filter + Export** — Client-side filtering by routing key and content-type, plus JSON export of the feed (completed 2026-05-21)
 
 ---
 
@@ -120,7 +120,7 @@ Plans:
   3. User can click Export and receive a JSON file containing all messages currently visible in the feed
 **Plans**: 1 plan
 Plans:
-- [ ] 15-01-PLAN.md — Tauri capability permissions + filter state/visibleMessages/export handler in MessageFeedTab + tests
+- [x] 15-01-PLAN.md — Tauri capability permissions + filter state/visibleMessages/export handler in MessageFeedTab + tests
 **UI hint**: yes
 
 ---
@@ -143,7 +143,7 @@ Plans:
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
 | 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete    | 2026-05-20 |
 | 14. Live Subscribe Mode | v1.4 | 4/4 | Complete    | 2026-05-21 |
-| 15. Filter + Export | v1.4 | 0/1 | Not started | - |
+| 15. Filter + Export | v1.4 | 1/1 | Complete   | 2026-05-21 |
 
 ---
 
