@@ -34,16 +34,16 @@ import { RightPanel } from "./RightPanel";
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
 function setProtoStore(overrides: { lastSendAt?: number | null; pendingReplayValues?: Record<string, unknown> | null }) {
-  (useProtoStore as ReturnType<typeof vi.fn>).mockImplementation(
-    (selector: (s: typeof overrides) => unknown) =>
-      selector({ lastSendAt: null, pendingReplayValues: null, ...overrides })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vi.mocked(useProtoStore).mockImplementation((selector: any) =>
+    selector({ lastSendAt: null, pendingReplayValues: null, ...overrides })
   );
 }
 
 function setResponseStore(overrides: { lastReadAt?: number | null }) {
-  (useResponseStore as ReturnType<typeof vi.fn>).mockImplementation(
-    (selector: (s: typeof overrides) => unknown) =>
-      selector({ lastReadAt: null, ...overrides })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vi.mocked(useResponseStore).mockImplementation((selector: any) =>
+    selector({ lastReadAt: null, ...overrides })
   );
 }
 
