@@ -33,9 +33,18 @@ export function SubscribePanel({
   // Initialized to activeProfileName on mount so the first render doesn't fire auto-stop
   const prevProfileRef = useRef<string | null>(activeProfileName);
 
+  // CR-03: guard against double-click / concurrent start calls during IPC await.
+  // The Start button's disabled state only updates after startSubscribe resolves (~500ms–3s),
+  // so a second click during that window would fire a second IPC call. This ref prevents it.
+  const isStartingRef = useRef(false);
+
   // ── Handlers ────────────────────────────────────────────────────────────────
 
   const handleStart = async () => {
+    // CR-03: bail out immediately if a start is already in progress
+    if (isStartingRef.current) return;
+    isStartingRef.current = true;
+
     const channel = new Channel<DrainResult>((msg) => {
       appendMessages([msg]);
       // CR-02: if the consumer self-terminated (e.g., broker closed, ack failure),
@@ -49,11 +58,17 @@ export function SubscribePanel({
       await startSubscribe(profileName, selectedQueue, decodeTypes, channel);
       setSubscribeStatus("Running");
     } catch (e) {
+      // WR-04: clear stale channel ref on failure so handleStop / cleanup never sees
+      // a ref from a failed session.
+      channelRef.current = null;
       // T-14-11: never surface raw error.message if it might contain AMQP URI/credentials
       // The Rust AppError variants are already sanitized (see plan 01 security mitigations),
       // but we use a fallback to be safe.
       const message = e instanceof Error ? e.message : "Subscribe failed";
       setSubscribeStatus("Error", message);
+    } finally {
+      // CR-03: always reset the guard so subsequent clicks work after the IPC resolves
+      isStartingRef.current = false;
     }
   };
 
@@ -67,6 +82,24 @@ export function SubscribePanel({
     }
   };
 
+  // ── Unmount cleanup (CR-04) ──────────────────────────────────────────────────
+  //
+  // When the component unmounts while a session is active (e.g., user switches from
+  // subscribe to drain mode, or navigates away), the backend consumer keeps running.
+  // This effect fires on unmount and stops any active session so the backend is not
+  // left running with no UI to control it.
+
+  useEffect(() => {
+    return () => {
+      const { subscribeStatus: status, setSubscribeStatus: setStatus } =
+        useResponseStore.getState();
+      if (status === "Running" || status === "Stopping") {
+        void stopSubscribe().catch(() => {});
+        setStatus("Idle");
+      }
+    };
+  }, []); // empty deps — runs only on unmount
+
   // ── Auto-stop useEffect (D-11, CONS-07) ─────────────────────────────────────
   //
   // Profile-change detection MUST use prevProfileRef rather than comparing
@@ -76,6 +109,9 @@ export function SubscribePanel({
   // activeProfileName !== profileName is always false at render time.
   //
   // The ref captures the previous value across renders and detects the transition.
+  //
+  // WR-05: subscribeStatus is included in deps so the effect re-runs on each status
+  // transition. The prevProfileRef guard ensures no false auto-stop on status-only changes.
 
   useEffect(() => {
     if (subscribeStatus === "Running" || subscribeStatus === "Stopping") {
@@ -85,8 +121,7 @@ export function SubscribePanel({
     }
     // Always update the ref AFTER the check so the next render can compare against this value
     prevProfileRef.current = activeProfileName;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeProfileName, connectionStatus]);
+  }, [activeProfileName, connectionStatus, subscribeStatus]);
 
   // ── Derived state ────────────────────────────────────────────────────────────
 
@@ -139,7 +174,7 @@ export function SubscribePanel({
         <Button
           variant="default"
           onClick={() => void handleStart()}
-          disabled={subscribeStatus !== "Idle" || !selectedQueue}
+          disabled={subscribeStatus !== "Idle" || !selectedQueue || isStartingRef.current}
         >
           <Play className="mr-2 h-4 w-4" />
           Start

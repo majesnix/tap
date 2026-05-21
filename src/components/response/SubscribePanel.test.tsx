@@ -248,3 +248,78 @@ describe("Auto-stop on profile change (CONS-07)", () => {
     });
   });
 });
+
+// ── Start button race guard (CR-03) ──────────────────────────────────────────
+
+describe("Start button double-click guard (CR-03)", () => {
+  test("second click while startSubscribe is pending is ignored", async () => {
+    // Arrange: startSubscribe never resolves during this test
+    let resolveStart: () => void = () => {};
+    mockStartSubscribe.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        resolveStart = resolve;
+      })
+    );
+
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    const startButton = screen.getByRole("button", { name: /start/i });
+
+    // Act: first click starts the async operation
+    fireEvent.click(startButton);
+    // Second click fires while first is pending
+    fireEvent.click(startButton);
+
+    // Assert: only one IPC call regardless of two clicks
+    expect(mockStartSubscribe).toHaveBeenCalledTimes(1);
+
+    // Cleanup: resolve the pending promise
+    act(() => resolveStart());
+  });
+
+  test("Start button is re-enabled after startSubscribe resolves", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    await waitFor(() => {
+      expect(useResponseStore.getState().subscribeStatus).toBe("Running");
+    });
+  });
+});
+
+// ── Unmount cleanup (CR-04) ───────────────────────────────────────────────────
+
+describe("Unmount cleanup (CR-04)", () => {
+  test("calls stopSubscribe on unmount when status is Running", async () => {
+    useResponseStore.getState().setSubscribeStatus("Running");
+    const { unmount } = render(<SubscribePanel {...DEFAULT_PROPS} />);
+
+    act(() => {
+      unmount();
+    });
+
+    await waitFor(() => {
+      expect(mockStopSubscribe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("sets subscribeStatus to Idle on unmount when status is Running", () => {
+    useResponseStore.getState().setSubscribeStatus("Running");
+    const { unmount } = render(<SubscribePanel {...DEFAULT_PROPS} />);
+
+    act(() => {
+      unmount();
+    });
+
+    expect(useResponseStore.getState().subscribeStatus).toBe("Idle");
+  });
+
+  test("does not call stopSubscribe on unmount when status is Idle", () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    const { unmount } = render(<SubscribePanel {...DEFAULT_PROPS} />);
+
+    act(() => {
+      unmount();
+    });
+
+    expect(mockStopSubscribe).not.toHaveBeenCalled();
+  });
+});
