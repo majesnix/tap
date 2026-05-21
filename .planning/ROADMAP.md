@@ -118,7 +118,9 @@ Plans:
   1. User can type a routing key substring and the feed list narrows to only matching messages without clearing the underlying data
   2. User can select a content-type from a dropdown and the feed shows only messages with that content-type
   3. User can click Export and receive a JSON file containing all messages currently visible in the feed
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 15-01-PLAN.md — Tauri capability permissions + filter state/visibleMessages/export handler in MessageFeedTab + tests
 **UI hint**: yes
 
 ---
@@ -141,7 +143,7 @@ Plans:
 | 12. Block Library — Drag-and-Drop Layer | v1.3 | 3/3 | Complete | 2026-05-20 |
 | 13. Message Feed Foundation + Drain Mode | v1.4 | 3/3 | Complete    | 2026-05-20 |
 | 14. Live Subscribe Mode | v1.4 | 4/4 | Complete    | 2026-05-21 |
-| 15. Filter + Export | v1.4 | 0/? | Not started | - |
+| 15. Filter + Export | v1.4 | 0/1 | Not started | - |
 
 ---
 
