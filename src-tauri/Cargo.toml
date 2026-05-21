@@ -28,7 +28,9 @@ serde_json = "1"
 thiserror = "2"
 protox = "0.9"
 prost-reflect = { version = "0.16", features = ["serde"] }
-tokio = { version = "1", features = ["rt", "time"] }
+tokio = { version = "1", features = ["rt", "time", "sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures-util = "0.3"
 lapin = { version = "4", features = ["tokio"] }
 percent-encoding = "2"
 tracing = "0.1"

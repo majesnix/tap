@@ -3647,6 +3647,7 @@ dependencies = [
  "apple-native-keyring-store",
  "base64 0.22.1",
  "dbus-secret-service-keyring-store",
+ "futures-util",
  "keyring-core",
  "lapin",
  "percent-encoding",
@@ -3663,6 +3664,7 @@ dependencies = [
  "tauri-plugin-store",
  "thiserror 2.0.18",
  "tokio",
+ "tokio-util",
  "tracing",
  "windows-native-keyring-store",
 ]
@@ -5288,6 +5290,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "futures-sink",
+ "futures-util",
  "pin-project-lite",
  "tokio",
 ]
