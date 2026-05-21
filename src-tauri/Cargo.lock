@@ -3647,6 +3647,7 @@ dependencies = [
  "apple-native-keyring-store",
  "base64 0.22.1",
  "dbus-secret-service-keyring-store",
+ "futures-util",
  "keyring-core",
  "lapin",
  "percent-encoding",

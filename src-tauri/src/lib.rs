@@ -31,6 +31,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(Mutex::new(Option::<prost_reflect::DescriptorPool>::None))
+        .manage(Mutex::new(Option::<commands::subscribe::SubscribeState>::None))
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
@@ -50,6 +51,8 @@ pub fn run() {
             commands::publish::publish_message,
             commands::consume::consume_message,
             commands::consume::drain_messages,
+            commands::subscribe::start_subscribe,
+            commands::subscribe::stop_subscribe,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
