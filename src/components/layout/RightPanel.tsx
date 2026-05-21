@@ -19,13 +19,17 @@ export function RightPanel() {
   const lastReadAt = useResponseStore((s) => s.lastReadAt);
   const prevLastReadAt = useRef<number | null>(null);
 
-  // Auto-switch to History tab after a successful send
+  // Auto-switch to History tab after a successful send —
+  // GAP-2: guard skips the switch when the user is already on the Response panel
+  // (subscribe mode UX: user should see arriving messages, not be pushed to History)
   useEffect(() => {
     if (lastSendAt !== null && lastSendAt !== prevLastSendAt.current) {
       prevLastSendAt.current = lastSendAt;
-      setActiveTab("history");
+      if (activeTab !== "response") {
+        setActiveTab("history");
+      }
     }
-  }, [lastSendAt]);
+  }, [lastSendAt, activeTab]);
 
   // Auto-switch to Hex tab when a replay is triggered (null → non-null transition only).
   // Edge-detection ensures clearing pendingReplayValues back to null does NOT

@@ -117,12 +117,21 @@ export function SubscribePanel({
   // (a) profile/connection changes always accompany status changes that need stopping,
   // (b) the "Running"/"Stopping" check uses the captured value which is only stale
   //     between renders — at worst we miss a one-tick window, not a correctness issue.
+  //
+  // GAP-3 fix: the Error branch resets status to Idle when the profile changes while
+  // there is no active session (Error = dead session). stopSubscribe is NOT called here
+  // because there is no active backend consumer to cancel in Error state.
+  // Only profile change triggers the reset (not connectionStatus change alone) because a
+  // connection drop while in Error is already a dead state — no action needed.
 
   useEffect(() => {
     if (subscribeStatus === "Running" || subscribeStatus === "Stopping") {
       if (connectionStatus !== "connected" || activeProfileName !== prevProfileRef.current) {
         void handleStop();
       }
+    } else if (subscribeStatus === "Error" && activeProfileName !== prevProfileRef.current) {
+      // GAP-3: dead Error session — reset to Idle on profile switch (no stopSubscribe needed)
+      setSubscribeStatus("Idle");
     }
     // Always update the ref AFTER the check so the next render can compare against this value
     prevProfileRef.current = activeProfileName;
@@ -180,7 +189,7 @@ export function SubscribePanel({
         <Button
           variant="default"
           onClick={() => void handleStart()}
-          disabled={subscribeStatus !== "Idle" || !selectedQueue || isStartingRef.current}
+          disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current}
         >
           <Play className="mr-2 h-4 w-4" />
           Start

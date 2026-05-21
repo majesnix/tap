@@ -323,3 +323,75 @@ describe("Unmount cleanup (CR-04)", () => {
     expect(mockStopSubscribe).not.toHaveBeenCalled();
   });
 });
+
+// ── GAP-1: Start button enabled in Error state ────────────────────────────────
+
+describe("Start button in Error state (GAP-1)", () => {
+  test("is enabled when subscribeStatus is Error and selectedQueue is set", () => {
+    useResponseStore.getState().setSubscribeStatus("Error", "connection failed");
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    expect(screen.getByRole("button", { name: /start/i })).not.toBeDisabled();
+  });
+
+  test("is disabled when subscribeStatus is Error and selectedQueue is empty", () => {
+    useResponseStore.getState().setSubscribeStatus("Error", "connection failed");
+    render(<SubscribePanel {...DEFAULT_PROPS} selectedQueue="" />);
+    expect(screen.getByRole("button", { name: /start/i })).toBeDisabled();
+  });
+
+  test("clicking Start from Error state calls startSubscribe and transitions to Running", async () => {
+    useResponseStore.getState().setSubscribeStatus("Error", "prior failure");
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /start/i }));
+    await waitFor(() => {
+      expect(mockStartSubscribe).toHaveBeenCalledTimes(1);
+      expect(useResponseStore.getState().subscribeStatus).toBe("Running");
+    });
+  });
+});
+
+// ── GAP-3: Error→Idle reset on profile change ─────────────────────────────────
+
+describe("Error state reset on profile change (GAP-3)", () => {
+  test("resets subscribeStatus to Idle when profile changes while in Error state", async () => {
+    useResponseStore.getState().setSubscribeStatus("Error", "prior failure");
+    render(<SubscribePanel {...DEFAULT_PROPS} profileName="test-profile" />);
+
+    act(() => {
+      useConnectionStore.setState({ activeProfileName: "new-profile" });
+    });
+
+    await waitFor(() => {
+      expect(useResponseStore.getState().subscribeStatus).toBe("Idle");
+    });
+  });
+
+  test("does NOT call stopSubscribe when resetting Error state on profile change", async () => {
+    useResponseStore.getState().setSubscribeStatus("Error", "prior failure");
+    render(<SubscribePanel {...DEFAULT_PROPS} profileName="test-profile" />);
+
+    act(() => {
+      useConnectionStore.setState({ activeProfileName: "new-profile" });
+    });
+
+    await waitFor(() => {
+      expect(useResponseStore.getState().subscribeStatus).toBe("Idle");
+    });
+
+    expect(mockStopSubscribe).not.toHaveBeenCalled();
+  });
+
+  test("does NOT reset Error state when only connectionStatus changes (not profile)", async () => {
+    useResponseStore.getState().setSubscribeStatus("Error", "prior failure");
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+
+    act(() => {
+      useConnectionStore.setState({ connectionStatus: "disconnected" });
+    });
+
+    // Status must still be Error — only profile change triggers reset in Error state
+    // Wait one tick for any potential useEffect to fire
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(useResponseStore.getState().subscribeStatus).toBe("Error");
+  });
+});
