@@ -1,6 +1,5 @@
 import { describe, beforeEach, test, expect, vi } from "vitest";
 import { render, act } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 
 // Use vi.hoisted for mock factories (Vitest hoisting requirement)
 const { mockCheck, mockUpdate, mockRelaunch } = vi.hoisted(() => {
