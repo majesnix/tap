@@ -10,11 +10,11 @@
 
 Phase 18 activates Tauri's built-in update mechanism (tauri-plugin-updater v2), ensures the Linux AppImage is built and signed on `ubuntu-22.04`, and adds a non-modal toast notification on startup when a new version is available.
 
-The primary gap is not new libraries — it is **missing wiring in three existing artifacts**: (1) `tauri.conf.json` lacks `bundle.createUpdaterArtifacts: true` and the `plugins.updater` block, (2) `src-tauri/Cargo.toml` and `src/lib.rs` lack the two new plugins, and (3) the Linux CI job (`build-linux`) lacks the `TAURI_SIGNING_PRIVATE_KEY` env var. The macOS job already has signing wired correctly (Apple Developer certificate); Linux has none. Without `.sig` files, `tauri-action` silently skips populating `latest.json` with the `linux-x86_64` entry, so Linux users receive no updates even if AppImage is distributed.
+The primary gap is not new libraries — it is **missing wiring in four existing artifacts**: (1) `tauri.conf.json` lacks `bundle.createUpdaterArtifacts: true` and the `plugins.updater` block, (2) `src-tauri/Cargo.toml` and `src/lib.rs` lack the two new plugins, (3) the Linux CI job (`build-linux`) lacks the `TAURI_SIGNING_PRIVATE_KEY` env var, and (4) **`releaseDraft: true` in release.yml means GitHub's `/releases/latest/` redirect skips all draft releases** — the update endpoint returns 404 until a draft is manually published. All three platform jobs currently use `releaseDraft: true`.
 
 The `build-windows` job must be **deleted** — Windows distribution is out of scope in v1.5 per REQUIREMENTS.md.
 
-**Primary recommendation:** Wire `createUpdaterArtifacts`, add signing env vars to the Linux CI job, register the two plugins in Rust and JS, add capability permissions, write a startup `useEffect` that calls `check()` and presents a Sonner toast.
+**Primary recommendation:** Wire `createUpdaterArtifacts`, add signing env vars to the Linux CI job, register the two plugins in Rust and JS, add capability permissions, write a startup `useEffect` that calls `check()` and presents a Sonner toast, and decide how to handle draft-vs-published releases (see Pitfall 7 and Open Question 3).
 
 ---
 
@@ -28,7 +28,7 @@ The `build-windows` job must be **deleted** — Windows distribution is out of s
 | UPD-02 | Non-modal update notification on app startup | Sonner `<Toaster>` already mounted in `src/App.tsx`; startup `useEffect([])` pattern; `@tauri-apps/plugin-updater` JS API |
 | UPD-03 | Download, install, and relaunch | `update.downloadAndInstall()` then `relaunch()` from `@tauri-apps/plugin-process`; `process:allow-restart` capability permission required |
 | UPD-04 | latest.json uploaded to GitHub release assets | `tauri-action@v0` generates and uploads `latest.json` via `upload-version-json.ts` when `bundle.createUpdaterArtifacts: true` and `.sig` files exist |
-| DOC-01 | docs/linux-keychain.md explaining libsecret runtime requirement | Document `gnome-keyring` / `kwallet` runtime deps and `dbus-secret-service-keyring-store` dependency |
+| DOC-01 | docs/linux-keychain.md explaining libsecret runtime requirement | Document `gnome-keyring` / `kwallet` runtime deps and `dbus-secret-service-keyring-store` behavior — see DOC-01 Content Outline section |
 </phase_requirements>
 
 ---
@@ -56,7 +56,7 @@ The `build-windows` job must be **deleted** — Windows distribution is out of s
 |---------|---------|---------|--------------|
 | `tauri-plugin-updater` | 2.10.1 | Auto-update check, download, signature verification | Official Tauri plugin; only supported updater mechanism |
 | `tauri-plugin-process` | 2.3.1 | App relaunch after update install | Official Tauri plugin; required for cross-platform relaunch |
-| `sonner` (JS) | already installed | Non-modal toast notification | Already wired in App.tsx; no new dependency |
+| `sonner` (JS) | 2.0.7 (already installed) | Non-modal toast notification | Already wired in App.tsx; no new dependency |
 | `@tauri-apps/plugin-updater` | 2.x | JS bindings for update check/install | Official JS binding for the Rust plugin |
 | `@tauri-apps/plugin-process` | 2.x | JS binding for `relaunch()` | Official JS binding for the process plugin |
 
@@ -75,15 +75,13 @@ The `build-windows` job must be **deleted** — Windows distribution is out of s
 
 **Installation:**
 ```bash
-# Rust (add to src-tauri/Cargo.toml)
-cargo add tauri-plugin-updater --target-os=desktop
-cargo add tauri-plugin-process --target-os=desktop
+# Rust — add manually to src-tauri/Cargo.toml (see Pattern 2 for the correct target section)
 
 # JS
 pnpm add @tauri-apps/plugin-updater @tauri-apps/plugin-process
 ```
 
-**Version verification:** [VERIFIED: crates.io] tauri-plugin-updater 2.10.1 (published May 2025); tauri-plugin-process 2.3.1 (published 2025).
+**Version verification:** [VERIFIED: crates.io] tauri-plugin-updater 2.10.1 (published May 2025); tauri-plugin-process 2.3.1. Sonner 2.0.7 confirmed from local `node_modules/sonner/package.json`.
 
 ---
 
@@ -97,35 +95,37 @@ App startup
     ▼
 useEffect([]) in App.tsx
     │
-    ├─── invoke tauri-plugin-updater.check()
+    ├─── @tauri-apps/plugin-updater.check()
     │        │
     │        ├── HTTP GET https://github.com/majesnix/tap/releases/latest/download/latest.json
+    │        │       NOTE: /releases/latest/ skips draft releases — release must be published
     │        │       └── compare latest.json version to current app version
     │        │
-    │        ├── [no update] → return null → no UI change
+    │        ├── [no update / 404 / error] → silent → no UI change
     │        │
     │        └── [update available] → return UpdateInfo object
     │                │
     │                ▼
-    │           toast("Update v{version} available", { action: "Install" })
+    │           Sonner toast("Update v{version} available", { action: "Install & Relaunch" })
     │                │
-    │                └── [user clicks Install]
+    │                └── [user clicks Install & Relaunch]
     │                        │
     │                        ▼
     │                  update.downloadAndInstall()
     │                        │
-    │                        └── relaunch()  ← tauri-plugin-process
+    │                        └── relaunch()  ← @tauri-apps/plugin-process
     │
-    └─── CI/CD (GitHub Actions)
+    └─── CI/CD (GitHub Actions) — on git tag push
              │
-             ├── build-macos (macOS universal, signed + notarized)
+             ├── build-macos (macOS universal, Apple-signed + notarized, Ed25519-signed)
              │       └── tauri-action uploads: .dmg, .dmg.sig, .app.tar.gz, .app.tar.gz.sig
              │
-             └── build-linux (ubuntu-22.04, Ed25519 signed)
+             └── build-linux (ubuntu-22.04, Ed25519-signed)
                      └── tauri-action uploads: .AppImage, .AppImage.sig
                              │
-                             └── tauri-action aggregates → latest.json
+                             └── Both jobs aggregate → latest.json (parallel, safe merge)
                                      platform keys: darwin-aarch64, darwin-x86_64, linux-x86_64
+                                     (available ONLY after release is manually published)
 ```
 
 ### Recommended Project Structure Changes
@@ -137,7 +137,7 @@ src-tauri/
 ├── capabilities/
 │   └── default.json         # Add updater:default, process:allow-restart
 └── src/
-    └── lib.rs               # Register updater + process plugins with #[cfg(desktop)] guards
+    └── lib.rs               # Add updater + process plugin calls to the builder chain
 
 src/
 └── App.tsx                  # Add startup useEffect for update check + Sonner toast
@@ -147,65 +147,27 @@ docs/
 
 .github/workflows/
 └── release.yml              # Add TAURI_SIGNING_PRIVATE_KEY to Linux job; remove Windows job
+                             # Decide: releaseDraft: true vs false (see Pitfall 7)
 ```
 
-### Pattern 1: Plugin Registration (Desktop-Only Guard)
+### Pattern 1: Plugin Registration in lib.rs
 
-**What:** Register updater and process plugins under `#[cfg(desktop)]` so mobile builds (if ever added) don't compile them.
-**When to use:** Always — both plugins are desktop-only per Tauri docs.
+**What:** Add two `.plugin()` calls to the existing `tauri::Builder::default()` chain in `src-tauri/src/lib.rs`.
+**When to use:** Always — both plugins are required for the updater flow.
+**Desktop gating:** Enforced via Cargo.toml target section (Pattern 2), not via `#[cfg]` at the call site. Because the crate symbols only exist under the desktop target cfg, no `#[cfg(desktop)]` guard is needed in lib.rs.
 
 ```rust
 // Source: https://v2.tauri.app/plugin/updater/
-// src-tauri/src/lib.rs — add inside tauri::Builder::default() chain
-#[cfg(desktop)]
-{
-    builder = builder
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init());
-}
+// src-tauri/src/lib.rs — insert after .plugin(tauri_plugin_opener::init())
+.plugin(tauri_plugin_updater::Builder::new().build())
+.plugin(tauri_plugin_process::init())
 ```
-
-Note: `lib.rs` currently uses a direct chain without a mutable `builder` variable. The implementation must adapt to the existing pattern (inline the two `.plugin()` calls into the chain, wrapped in `#[cfg(desktop)]`). Example adapted to the current style:
-
-```rust
-// Insert after .plugin(tauri_plugin_opener::init())
-.plugin({
-    #[cfg(desktop)]
-    { tauri_plugin_updater::Builder::new().build() }
-    #[cfg(not(desktop))]
-    { tauri::plugin::TauriPlugin::default() } // placeholder not needed — use conditional compilation differently
-})
-```
-
-Simpler approach that matches existing code style — use feature flags at the `.plugin()` call sites:
-
-```rust
-// This compiles fine: the cfg guards the whole plugin call
-#[cfg(desktop)]
-let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
-#[cfg(desktop)]
-let builder = builder.plugin(tauri_plugin_process::init());
-```
-
-**Actually**, reading `lib.rs` more carefully — it uses a builder chain, not mutable reassignment. The cleanest pattern for this codebase:
-
-```rust
-// Source: Context7 tauri-plugin-updater docs
-tauri::Builder::default()
-    // ... existing plugins ...
-    .plugin(tauri_plugin_opener::init())
-    // Add after existing plugins:
-    .plugin(tauri_plugin_updater::Builder::new().build())  // desktop-only via Cargo target
-    .plugin(tauri_plugin_process::init())                  // desktop-only via Cargo target
-```
-
-The desktop-only constraint is enforced via Cargo.toml target configuration (see Standard Stack installation), not via `#[cfg(desktop)]` in lib.rs.
 
 ### Pattern 2: Cargo.toml Desktop-Only Dependencies
 
 ```toml
 # Source: https://v2.tauri.app/plugin/updater/
-# Add to [dependencies] in src-tauri/Cargo.toml
+# Add as a new section in src-tauri/Cargo.toml:
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
@@ -236,10 +198,12 @@ tauri-plugin-process = "2"
 
 **CRITICAL:** `"createUpdaterArtifacts": true` must be inside `"bundle"`. Without it, Tauri does not produce `.sig` files and `tauri-action` logs "Signature not found for the updater JSON. Skipping upload..." — silently. The app builds fine but no update entry appears in latest.json.
 
+**DRAFT NOTE:** The endpoint `https://github.com/majesnix/tap/releases/latest/download/latest.json` uses GitHub's `/releases/latest/` redirect, which resolves to the most recent **published** (non-draft) release. Draft releases are excluded. Since all current platform jobs set `releaseDraft: true`, `check()` will return 404 until someone manually publishes the release. See Pitfall 7 for options.
+
 ### Pattern 4: Capability Permissions
 
 ```json
-// Source: Context7 tauri-plugin-updater permission reference
+// Source: Context7 tauri-plugin-updater permission reference [VERIFIED]
 // src-tauri/capabilities/default.json — add to "permissions" array:
 "updater:default",
 "process:allow-restart"
@@ -250,29 +214,37 @@ tauri-plugin-process = "2"
 ### Pattern 5: Frontend Update Check (Non-Modal)
 
 ```typescript
-// Source: Context7 @tauri-apps/plugin-updater docs
-// src/App.tsx — add to startup useEffect
+// Source: Context7 @tauri-apps/plugin-updater [VERIFIED v2.x]
+// Sonner action API verified from node_modules/sonner/dist/index.d.ts v2.0.7
+// src/App.tsx — add alongside the existing startup useEffect
 
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { toast } from 'sonner'
 
 useEffect(() => {
-  // Follow existing App.tsx pattern: startup side effects in useEffect([])
-  check().then((update) => {
-    if (update?.available) {
+  // Non-blocking: fires once on mount (React 18 strict mode fires twice in dev — idempotent)
+  check()
+    .then((update) => {
+      if (!update?.available) return
       toast(`Update ${update.version} available`, {
-        description: update.body ?? 'A new version is ready.',
+        description: update.body ?? 'A new version is ready to install.',
         action: {
-          label: 'Install',
+          label: 'Install & Relaunch',
           onClick: () => {
-            update.downloadAndInstall().then(() => relaunch())
+            update.downloadAndInstall()
+              .then(() => relaunch())
+              .catch((err) => console.error('Install failed:', err))
           }
         },
-        duration: Infinity  // Keep visible until user acts
+        duration: Infinity,  // Persist until user acts or dismisses
       })
-    }
-  }).catch(console.error)  // Non-blocking: update failure must not crash the app
+    })
+    .catch((err) => {
+      // Silent: update check failure must not affect app functionality
+      // 404 on first install (no published release yet) is a normal case
+      console.error('Update check failed:', err)
+    })
 }, [])
 ```
 
@@ -280,7 +252,7 @@ useEffect(() => {
 
 ```yaml
 # Source: https://v2.tauri.app/distribute/updater/#signing
-# Add to build-linux job, tauri-action step env block:
+# In .github/workflows/release.yml, replace the build-linux tauri-action step env block:
 - name: Build Tauri app (Linux x86_64)
   uses: tauri-apps/tauri-action@v0
   env:
@@ -290,11 +262,11 @@ useEffect(() => {
   with:
     tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
     releaseName: "Tap v__VERSION__"
-    releaseDraft: true
+    releaseDraft: true   # or false — see Pitfall 7
     releasePrerelease: ${{ contains(github.ref_name, '-') }}
 ```
 
-Note: `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is optional — only needed if a passphrase was set during key generation. Add the secret as an empty string if no passphrase used, or omit the env line entirely.
+Note: `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is only needed if a passphrase was set during key generation. If no passphrase: omit the env line, or add the GitHub secret with an empty value.
 
 ### Pattern 7: Key Generation (One-Time, Local)
 
@@ -302,29 +274,26 @@ Note: `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` is optional — only needed if a pass
 # Source: https://v2.tauri.app/distribute/updater/#signing
 pnpm tauri signer generate -w ~/.tauri/tap.key
 
-# This creates:
-#   ~/.tauri/tap.key       — private key (never commit; add to GitHub secrets)
-#   ~/.tauri/tap.key.pub   — public key (paste content into tauri.conf.json plugins.updater.pubkey)
+# Creates:
+#   ~/.tauri/tap.key       — private key (NEVER commit; add to GitHub secrets)
+#   ~/.tauri/tap.key.pub   — public key (paste full content into tauri.conf.json plugins.updater.pubkey)
 
-# Add to GitHub secrets:
-#   TAURI_SIGNING_PRIVATE_KEY = content of ~/.tauri/tap.key
-#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD = passphrase (if used, otherwise leave blank)
+# Add to GitHub → Settings → Secrets and variables → Actions:
+#   TAURI_SIGNING_PRIVATE_KEY = full content of ~/.tauri/tap.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD = passphrase (if used; leave blank if not)
 ```
 
 ### Pattern 8: latest.json Merge Behavior (tauri-action)
 
-**What happens when parallel jobs run:**
+Each platform job independently calls `upload-version-json.ts` which performs read-modify-write:
+1. Fetches the existing `latest.json` from the release (404 → start fresh)
+2. Merges its own platform key(s) into the existing `platforms` map
+3. Deletes the old `latest.json` asset
+4. Uploads the merged version
 
-Each platform job independently calls `upload-version-json.ts` which:
-1. Fetches the existing `latest.json` from the release (if present)
-2. Reads `platforms` from it
-3. Merges its own platform key(s) into the existing map
-4. Deletes the old asset
-5. Uploads the merged version
+Platform keys are non-overlapping (`linux-x86_64`, `darwin-aarch64`, `darwin-x86_64`), so parallel job execution is safe. [VERIFIED: tauri-action source `upload-version-json.ts`]
 
-Platform keys are non-overlapping (`linux-x86_64`, `darwin-aarch64`, `darwin-x86_64`), so parallel execution is safe — no job overwrites another's entries. [VERIFIED: tauri-action source `upload-version-json.ts`]
-
-**macOS universal note:** `--target universal-apple-darwin` expands to both `darwin-aarch64` and `darwin-x86_64` entries in latest.json.
+`--target universal-apple-darwin` expands to both `darwin-aarch64` and `darwin-x86_64` entries.
 
 ### Anti-Patterns to Avoid
 
@@ -333,6 +302,36 @@ Platform keys are non-overlapping (`linux-x86_64`, `darwin-aarch64`, `darwin-x86
 - **Blocking the UI on update check:** The `check()` call must be fire-and-forget. A network failure checking for updates must not crash or hang the app.
 - **Putting the private key in tauri.conf.json:** Only the public key goes in config. Private key is a GitHub Actions secret only.
 - **Modal dialog for update notification:** UPD-02 requires non-modal. Use Sonner toast, not `dialog.ask()`.
+
+---
+
+## DOC-01 Content Outline
+
+`docs/linux-keychain.md` must explain why the Tap app on Linux requires a running Secret Service daemon and what users need to install.
+
+**Required topics:**
+
+1. **What it stores**: Tap uses the OS keychain to store RabbitMQ connection credentials (AMQP URIs). On Linux this uses the D-Bus Secret Service API via `dbus-secret-service-keyring-store`.
+
+2. **Runtime dependencies**: Users need either:
+   - `gnome-keyring` (GNOME/GTK environments — most Ubuntu, Fedora, etc.)
+   - `kwallet` (KDE Plasma environments)
+   - Any other Secret Service-compatible daemon
+
+3. **System libraries required at runtime**:
+   - `libdbus-1-3` — D-Bus message bus client library (usually pre-installed)
+   - `libsecret-1-0` — if the keyring store uses libsecret C API (check at implementation time — `dbus-secret-service-keyring-store` with `crypto-rust` feature uses `dbus` crate C FFI, not `libsecret` directly)
+
+4. **Headless / server installs**: If no Secret Service daemon is running, the app will fail to save or load connection profiles. Users on headless systems must run `gnome-keyring-daemon --start` or equivalent, or configure a fallback.
+
+5. **Verification command**: How to check if a Secret Service daemon is running (`secret-tool list`, `dbus-send` introspection, or `gdbus`).
+
+6. **Distro-specific install commands**:
+   - Ubuntu/Debian: `sudo apt-get install gnome-keyring`
+   - Fedora: `sudo dnf install gnome-keyring`
+   - Arch: `sudo pacman -S gnome-keyring`
+
+**Note for implementation:** The `dbus-secret-service-keyring-store` crate with `crypto-rust` feature uses the `dbus` crate (C FFI against `libdbus-1`, NOT `zbus` pure Rust). It does NOT require `libsecret-1-dev` at build time; the keyring store communicates with the Secret Service protocol over D-Bus directly. Clarify this in the doc to avoid confusion with other tools that depend on `libsecret`.
 
 ---
 
@@ -352,7 +351,7 @@ Platform keys are non-overlapping (`linux-x86_64`, `darwin-aarch64`, `darwin-x86
 
 ## Runtime State Inventory
 
-> This phase is not a rename/refactor/migration phase. However, it introduces a new GitHub Actions secret that is runtime-only state.
+> This phase is not a rename/refactor/migration phase. However, it introduces new GitHub Actions secrets that are runtime-only state.
 
 | Category | Items Found | Action Required |
 |----------|-------------|------------------|
@@ -420,6 +419,22 @@ Platform keys are non-overlapping (`linux-x86_64`, `darwin-aarch64`, `darwin-x86
 
 **How to avoid:** `~/.tauri/tap.key.pub` content → `plugins.updater.pubkey` in tauri.conf.json (committed). `~/.tauri/tap.key` content → `TAURI_SIGNING_PRIVATE_KEY` GitHub secret (never committed).
 
+### Pitfall 7: Draft Releases Block the Update Endpoint (BLOCKING)
+
+**What goes wrong:** All three platform jobs use `releaseDraft: true`. GitHub's `/releases/latest/` redirect resolves to the most recent **published** release only. Draft releases are invisible to this endpoint. `check()` returns 404 until a human manually publishes the release in the GitHub UI.
+
+**Verified:** `gh release list` shows the existing v1.5.0 release as `Draft`. The endpoint `https://github.com/majesnix/tap/releases/latest/download/latest.json` currently returns 404 because no published release exists.
+
+**Options (choose one — planner must decide):**
+
+| Option | Change Required | Tradeoff |
+|--------|----------------|----------|
+| Keep `releaseDraft: true` | Document "publish draft" as required release step | Maintainer must manually publish after each tagged build; update endpoint is live only post-publish |
+| Change to `releaseDraft: false` | Set `releaseDraft: false` on both platform jobs | Releases publish automatically on tag push; no safety review window |
+| Use separate manifest endpoint | Host `latest.json` on a non-draft release or static URL | Significant CI complexity; not worth it for a team tool |
+
+**Recommended:** Keep `releaseDraft: true` (consistent with the existing macOS notarization/review workflow) and document the "publish draft" step in the release runbook. The planner should create a verification task: "After CI completes, publish the GitHub draft release, then verify `curl https://github.com/majesnix/tap/releases/latest/download/latest.json` returns 200."
+
 ---
 
 ## Code Examples
@@ -459,6 +474,7 @@ Platform keys are non-overlapping (`linux-x86_64`, `darwin-aarch64`, `darwin-x86
 
 ```toml
 # Source: https://v2.tauri.app/plugin/updater/
+# Add as new section in src-tauri/Cargo.toml:
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
 tauri-plugin-process = "2"
@@ -469,18 +485,18 @@ tauri-plugin-process = "2"
 ```rust
 // Source: https://v2.tauri.app/plugin/updater/
 // Add to tauri::Builder::default() chain in src-tauri/src/lib.rs
-// Place after existing plugin registrations, before .invoke_handler()
+// Insert after .plugin(tauri_plugin_opener::init()), before .invoke_handler(...)
 .plugin(tauri_plugin_updater::Builder::new().build())
 .plugin(tauri_plugin_process::init())
 ```
 
-Note: No `#[cfg(desktop)]` guard needed at the call site if Cargo.toml uses the desktop-only target configuration above — the symbols simply won't exist on mobile targets.
+Desktop-only gating is enforced by the Cargo.toml target section — no `#[cfg(desktop)]` guard needed at these call sites.
 
 ### capabilities/default.json — Permission Additions
 
 ```json
 // Source: Context7 tauri-plugin-updater permission reference [VERIFIED]
-// Add to "permissions" array:
+// Add to "permissions" array in src-tauri/capabilities/default.json:
 "updater:default",
 "process:allow-restart"
 ```
@@ -489,12 +505,14 @@ Note: No `#[cfg(desktop)]` guard needed at the call site if Cargo.toml uses the 
 
 ```typescript
 // Source: Context7 @tauri-apps/plugin-updater [VERIFIED v2.x]
+// Sonner action API: { label: ReactNode, onClick: (e) => void } — verified from sonner 2.0.7 types
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { toast } from 'sonner'
 
-// Inside the App component, alongside existing startup useEffect:
+// Inside the App component, add alongside the existing startup useEffect:
 useEffect(() => {
+  // Non-blocking background check; React 18 strict mode fires twice in dev (idempotent)
   check()
     .then((update) => {
       if (!update?.available) return
@@ -508,11 +526,12 @@ useEffect(() => {
               .catch((err) => console.error('Install failed:', err))
           }
         },
-        duration: Infinity,
+        duration: Infinity,  // Persist until user acts; 404 on first install is silently swallowed
       })
     })
     .catch((err) => {
-      // Silent: update check failure must not affect app functionality
+      // Silent: update check failure (including 404 before first published release)
+      // must not surface to user
       console.error('Update check failed:', err)
     })
 }, [])
@@ -527,11 +546,11 @@ useEffect(() => {
 | ubuntu-22.04 runner | PKG-01 AppImage build | ✓ | GitHub-hosted | — |
 | pnpm tauri signer | UPD-01 keypair generation | ✓ | bundled with tauri-cli | — |
 | GitHub Actions secrets UI | UPD-01 secret storage | ✓ | n/a | — |
-| `https://github.com/majesnix/tap/releases/latest/download/latest.json` endpoint | UPD-02/UPD-04 | Created on first tagged release | — | — |
+| `https://github.com/majesnix/tap/releases/latest/download/latest.json` endpoint | UPD-02/UPD-04 | ✗ (no published release yet) | — | Silent 404 caught in .catch() |
 
-Missing dependencies with no fallback: none.
+Missing dependencies with no fallback: none — the 404 case is handled in startup code.
 
-Note: The `latest.json` endpoint does not exist until the first signed release is published. The app's `check()` call on first install will fail with a 404 — this is expected and must be caught (see Pitfall 4).
+Note: The endpoint returns 404 until the first signed release draft is manually published. This is a known workflow constraint, not an error.
 
 ---
 
@@ -552,9 +571,9 @@ Note: The `latest.json` endpoint does not exist until the first signed release i
 |--------|----------|-----------|-------------------|-------------|
 | UPD-02 | `check()` called on startup; no crash when update unavailable | unit (mock plugin) | `pnpm test --run` | ❌ Wave 0 |
 | UPD-02 | Toast shown when update available | unit (mock check()) | `pnpm test --run` | ❌ Wave 0 |
-| UPD-03 | `downloadAndInstall` → `relaunch` invoked | unit (mock plugin) | `pnpm test --run` | ❌ Wave 0 |
+| UPD-03 | `downloadAndInstall` → `relaunch` invoked on button click | unit (mock plugin) | `pnpm test --run` | ❌ Wave 0 |
 | PKG-01 | AppImage produced in CI | CI smoke | `gh run view` (manual) | ❌ manual only |
-| UPD-04 | latest.json has linux-x86_64 entry with signature | CI smoke | `curl latest.json` (manual) | ❌ manual only |
+| UPD-04 | latest.json has linux-x86_64 entry with non-empty signature | CI smoke | `curl latest.json` (manual, post-publish) | ❌ manual only |
 | DOC-01 | docs/linux-keychain.md exists and is non-empty | file existence | `test -f docs/linux-keychain.md` | ❌ Wave 0 |
 
 ### Wave 0 Gaps
@@ -607,20 +626,25 @@ Note: The `latest.json` endpoint does not exist until the first signed release i
 |---|-------|---------|---------------|
 | A1 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secret can be omitted if no passphrase was used during key gen | Pattern 6 / CI | CI build fails with "passphrase required" if key was generated with passphrase and secret is absent |
 | A2 | tauri-plugin-updater 2.x and tauri-plugin-process 2.x are compatible with the project's current `tauri = "2"` dep | Standard Stack | Cargo version conflict if minor version constraints clash — verify with `cargo tree` after adding |
+| A3 | The team's release workflow already includes a manual "publish draft" step (consistent with macOS notarization review) | Pitfall 7 | If team expects fully automatic releases on tag push, `releaseDraft: true` silently blocks the update endpoint |
 
 ---
 
 ## Open Questions
 
 1. **Will the first CI run after this phase succeed without a pre-existing `latest.json`?**
-   - What we know: tauri-action's `upload-version-json.ts` gracefully handles the case where no existing asset is present (the fetch returns 404 and it starts a fresh object)
-   - What's unclear: Whether the Tauri app's `check()` endpoint returning 404 on first install is handled gracefully by the plugin
-   - Recommendation: Verify by testing `check()` against a 404 endpoint in unit tests; catch the error in the startup handler (already in Pattern 5)
+   - What we know: tauri-action's `upload-version-json.ts` gracefully handles 404 (starts fresh)
+   - What's unclear: Whether tauri-plugin-updater's `check()` handles 404 gracefully without throwing
+   - Recommendation: Catch all errors in the startup handler (already in Pattern 5); test with a mock 404 in unit tests
 
 2. **Should the Sonner toast use `duration: Infinity` or a long timeout?**
-   - What we know: UPD-02 requires non-modal; user must be able to dismiss and act later
-   - What's unclear: UX preference — Infinity means the toast persists until clicked/dismissed; a long timeout (e.g., 30s) means it auto-dismisses
-   - Recommendation: Use `duration: Infinity` since an update prompt should not disappear without user intent; discuss with user at plan stage
+   - What we know: UPD-02 requires non-modal; user must be able to act
+   - Recommendation: Use `duration: Infinity` — an update prompt should not auto-dismiss; confirm with user at plan stage
+
+3. **Draft vs published releases for the update endpoint** (BLOCKING — planner must decide)
+   - What we know: `releaseDraft: true` means `/releases/latest/` returns 404; current v1.5.0 release is a draft
+   - What's unclear: Whether the team wants fully automatic publishing or retains the manual review step
+   - Recommendation: Keep `releaseDraft: true`; add "publish draft" as a documented release runbook step; see Pitfall 7
 
 ---
 
@@ -633,12 +657,13 @@ Note: The `latest.json` endpoint does not exist until the first signed release i
 - Context7 `tauri-plugin-process` — `relaunch()`, `process:allow-restart` permission [VERIFIED]
 - https://v2.tauri.app/plugin/updater/ — official Tauri 2 updater documentation
 - tauri-action `upload-version-json.ts` (GitHub raw) — latest.json merge logic [VERIFIED from source]
-- `release.yml` in this repo (read directly) — actual CI structure [VERIFIED]
+- `.github/workflows/release.yml` in this repo (read directly) — actual CI structure; Linux job missing signing env vars confirmed [VERIFIED]
 - `src-tauri/tauri.conf.json` (read directly) — missing `createUpdaterArtifacts` confirmed [VERIFIED]
 - `src-tauri/Cargo.toml` (read directly) — missing updater/process plugins confirmed [VERIFIED]
 - `src-tauri/capabilities/default.json` (read directly) — missing permissions confirmed [VERIFIED]
 - `src-tauri/src/lib.rs` (read directly) — missing plugin registrations confirmed [VERIFIED]
-- `src/App.tsx` (confirmed from prior session) — Sonner Toaster already mounted [VERIFIED]
+- `node_modules/sonner/dist/index.d.ts` + `package.json` (read directly) — Sonner 2.0.7; `Action` interface `{ label, onClick }` confirmed [VERIFIED]
+- `gh release list` output — v1.5.0 is Draft; `/releases/latest/` endpoint currently 404 [VERIFIED]
 
 ### Secondary (MEDIUM confidence)
 
@@ -653,10 +678,11 @@ Note: The `latest.json` endpoint does not exist until the first signed release i
 ## Metadata
 
 **Confidence breakdown:**
-- Standard stack: HIGH — both plugins verified on crates.io; JS bindings are official
+- Standard stack: HIGH — both plugins verified on crates.io; Sonner API verified from local types
 - Architecture: HIGH — based on reading actual source files in this repo
-- Pitfalls: HIGH — identified from direct inspection of release.yml and tauri.conf.json; not speculative
+- Pitfalls: HIGH — identified from direct inspection of release.yml, tauri.conf.json, and `gh release list`; not speculative
 - CI signing gap: HIGH — confirmed by reading release.yml lines 127-135 (no `TAURI_SIGNING_PRIVATE_KEY` in Linux job)
+- Draft release endpoint gap: HIGH — confirmed by `gh release list` (v1.5.0 is Draft)
 - latest.json merge behavior: HIGH — verified from tauri-action source code
 
 **Research date:** 2026-05-22
