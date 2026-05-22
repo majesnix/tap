@@ -312,22 +312,22 @@ build-macos job
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **KEYCHAIN_PASSWORD: 9th secret not in ROADMAP 8-list**
    - What we know: `release.yml` uses `${{ secrets.KEYCHAIN_PASSWORD }}` in the certificate import step. The ROADMAP lists 8 secrets for human one-time setup; KEYCHAIN_PASSWORD is not among them.
    - What's unclear: Was KEYCHAIN_PASSWORD intentionally omitted from the ROADMAP (implying it should be generated at plan time and added to the instructions), or was it an oversight?
-   - Recommendation: Plan should include adding KEYCHAIN_PASSWORD to the human setup checklist. It can be any strong random string (e.g., `openssl rand -base64 32`). It only secures the temporary CI keychain and has no external dependency.
+   - RESOLVED: Plan should include adding KEYCHAIN_PASSWORD to the human setup checklist. It can be any strong random string (e.g., `openssl rand -base64 32`). It only secures the temporary CI keychain and has no external dependency.
 
 2. **Should `cs.allow-dyld-environment-variables` be restored alongside `cs.allow-unsigned-executable-memory`?**
    - What we know: WR-03 removed both. `cs.allow-unsigned-executable-memory` is required (WKWebView crash). `cs.allow-dyld-environment-variables` enables custom dyld env overrides, primarily used for debugging (e.g., `DYLD_LIBRARY_PATH`).
    - What's unclear: Whether any production behavior of Tap depends on this entitlement.
-   - Recommendation: Leave `cs.allow-dyld-environment-variables` out — it is genuinely optional and the security reviewer's concern about it was valid. Only restore `cs.allow-unsigned-executable-memory`.
+   - RESOLVED: Leave `cs.allow-dyld-environment-variables` out — it is genuinely optional and the security reviewer's concern about it was valid. Only restore `cs.allow-unsigned-executable-memory`.
 
 3. **`spctl --assess` syntax for .dmg files**
    - What we know: For `.app` bundles, `spctl --assess --type exec`. For `.dmg`, the correct type is `open` (Gatekeeper's "open" assessment).
    - What's unclear: Some sources use `--type exec` for .dmg files; this may work on some macOS versions and fail on others.
-   - Recommendation: Use `spctl --assess --type open --context context:primary-signature --verbose "$DMG"`. If that fails, fall back to `spctl --assess --verbose "$DMG"` (omitting --type lets Gatekeeper infer).
+   - RESOLVED: Use `spctl --assess --type open --context context:primary-signature --verbose "$DMG"`. If that fails, fall back to `spctl --assess --verbose "$DMG"` (omitting --type lets Gatekeeper infer).
 
 ---
 
