@@ -177,7 +177,15 @@ Plans:
   3. User clicks the update notification, the app downloads and installs the update, and offers to relaunch — after relaunch the version number reflects the new release
   4. The Linux AppImage built on ubuntu-22.04 launches and runs on both Ubuntu 22.04 and Ubuntu 24.04
   5. `docs/linux-keychain.md` exists and contains instructions for installing `libsecret-1-0` / `gnome-keyring` on Debian/Ubuntu and Fedora/RHEL
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+**Wave 1** (parallel)
+- [ ] 18-01-PLAN.md — Rust/Tauri config: desktop-only Cargo deps, lib.rs plugin registration, tauri.conf.json createUpdaterArtifacts + plugins.updater placeholder, capabilities permissions
+- [ ] 18-02-PLAN.md — Frontend UpdateChecker component + tests (UPD-02/UPD-03), mounted in App.tsx
+- [ ] 18-03-PLAN.md — CI signing env vars on Linux job, delete Windows job, docs/linux-keychain.md
+
+**Wave 2** *(blocked on Wave 1 completion)*
+- [ ] 18-04-PLAN.md — Ed25519 keygen, real pubkey into tauri.conf.json, GitHub secrets checkpoint, pipeline verify + latest.json smoke test
 **UI hint**: yes
 
 ---
@@ -203,7 +211,7 @@ Plans:
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
 | 16. Pipeline Foundation | v1.5 | 2/2 | Complete    | 2026-05-21 |
 | 17. macOS Signing + Notarization | v1.5 | 0/2 | Planned    |  |
-| 18. Auto-Update + Linux + Docs | v1.5 | 0/TBD | Not started | - |
+| 18. Auto-Update + Linux + Docs | v1.5 | 0/4 | Planned | - |
 
 ---
 
