@@ -9,9 +9,6 @@ on:
 jobs:
   build-macos:
     runs-on: macos-latest
-    env:
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -39,38 +36,57 @@ jobs:
         run: pnpm install --frozen-lockfile
       
       - name: Import Apple Developer Certificate
+        if: github.event_name == 'push'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          echo $APPLE_CERTIFICATE | base64 --decode > certificate.p12
+          echo "$APPLE_CERTIFICATE" | base64 --decode > certificate.p12
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security import certificate.p12 -k build.keychain -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          security list-keychains -d user -s build.keychain $(security list-keychains -d user | tr -d '"')
           security find-identity -v -p codesigning build.keychain
+
       - name: Verify Certificate
+        if: github.event_name == 'push'
+        env:
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application")
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
           if [ -z "$CERT_ID" ]; then
+            echo "All identities in keychain:"
+            security find-identity -v build.keychain
             echo "ERROR: Developer ID Application certificate not found in keychain"
             exit 1
           fi
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
-          echo "Certificate: $CERT_ID"
+          echo "Certificate found: $CERT_ID"
 
       - name: Build Tauri app (universal macOS)
         uses: tauri-apps/tauri-action@v0.6.2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ env.CERT_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           args: --target universal-apple-darwin
 
-      # Phase 17: signing steps go here, guarded by: if: github.event_name == 'push'
+      - name: Verify Gatekeeper (notarization check)
+        if: github.event_name == 'push'
+        run: |
+          DMG=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
+          echo "Verifying: $DMG"
+          spctl --assess --type open --context context:primary-signature --verbose "$DMG"
 
       - name: Upload macOS artifacts
         uses: actions/upload-artifact@v7
@@ -182,7 +198,7 @@ jobs:
             **/*.msi
             **/*.exe
           generate_release_notes: true
-          draft: false
+          draft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
