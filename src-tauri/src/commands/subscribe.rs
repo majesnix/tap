@@ -143,7 +143,7 @@ pub async fn start_subscribe(
     // Load credentials (sync, no await) — same pattern as consume.rs
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)
-            .map_err(|e| { if let Ok(mut g) = subscribe_state.lock() { *g = None; } e })?;
+            .inspect_err(|_| { if let Ok(mut g) = subscribe_state.lock() { *g = None; } })?;
 
     // Open connection in tight URI scope (SECURITY: password dropped before .await; uri dropped at block end)
     let conn = {

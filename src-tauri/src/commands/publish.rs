@@ -26,6 +26,7 @@ pub struct PublishOutcome {
 /// SECURITY: AMQP URI contains cleartext password — built in a tight scope and
 /// immediately dropped; error messages from Connection::connect are sanitized to
 /// avoid leaking the URI/password in AppError payloads sent to the frontend.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn publish_message(
     app: AppHandle,

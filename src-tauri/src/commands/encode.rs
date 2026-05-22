@@ -404,14 +404,14 @@ fn parse_duration_string(s: &str) -> i64 {
         return n;
     }
     let s = s.trim();
-    if s.ends_with('s') {
-        s[..s.len() - 1].parse::<i64>().unwrap_or(0)
-    } else if s.ends_with('m') {
-        s[..s.len() - 1].parse::<i64>().unwrap_or(0) * 60
-    } else if s.ends_with('h') {
-        s[..s.len() - 1].parse::<i64>().unwrap_or(0) * 3600
-    } else if s.ends_with('d') {
-        s[..s.len() - 1].parse::<i64>().unwrap_or(0) * 86400
+    if let Some(n) = s.strip_suffix('s') {
+        n.parse::<i64>().unwrap_or(0)
+    } else if let Some(n) = s.strip_suffix('m') {
+        n.parse::<i64>().unwrap_or(0) * 60
+    } else if let Some(n) = s.strip_suffix('h') {
+        n.parse::<i64>().unwrap_or(0) * 3600
+    } else if let Some(n) = s.strip_suffix('d') {
+        n.parse::<i64>().unwrap_or(0) * 86400
     } else {
         0
     }
