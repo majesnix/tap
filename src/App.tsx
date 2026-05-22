@@ -3,6 +3,7 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { load } from "@tauri-apps/plugin-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Toaster } from "@/components/ui/sonner";
+import { UpdateChecker } from "./UpdateChecker";
 
 const THEME_STORE_PATH = "tap.json";
 const THEME_MODE_KEY = "theme-mode";
@@ -52,6 +53,7 @@ export default function App() {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ThemeBootstrap />
+      <UpdateChecker />
       <AppLayout />
       <Toaster />
     </ThemeProvider>
