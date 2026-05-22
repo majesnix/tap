@@ -34,9 +34,9 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
-      
+
       - name: Import Apple Developer Certificate
-        if: github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/tags/')
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -52,16 +52,15 @@ jobs:
           security find-identity -v -p codesigning build.keychain
 
       - name: Verify Certificate
-        if: github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
-          security find-identity -v -p codesigning build.keychain
           CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep "Developer ID Application" || true)
           CERT_ID=$(echo "$CERT_INFO" | awk -F'"' '{print $2}')
           echo "CERT_ID=$CERT_ID" >> $GITHUB_ENV
           echo "Signing identity: $CERT_ID"
 
       - name: Build Tauri app (universal macOS)
-        uses: tauri-apps/tauri-action@v0.6.2
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -71,20 +70,18 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: "Tap v__VERSION__"
+          releaseDraft: true
+          releasePrerelease: ${{ contains(github.ref_name, '-') }}
           args: --target universal-apple-darwin
 
       - name: Verify Gatekeeper (notarization check)
-        if: github.event_name == 'push'
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           DMG=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
           echo "Verifying: $DMG"
           spctl --assess --type open --context context:primary-signature --verbose "$DMG"
-
-      - name: Upload macOS artifacts
-        uses: actions/upload-artifact@v7
-        with:
-          name: macos-artifacts
-          path: src-tauri/target/universal-apple-darwin/release/bundle/
 
   build-linux:
     runs-on: ubuntu-22.04
@@ -124,15 +121,14 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app (Linux x86_64)
-        uses: tauri-apps/tauri-action@v0.6.2
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Linux artifacts
-        uses: actions/upload-artifact@v7
         with:
-          name: linux-artifacts
-          path: src-tauri/target/release/bundle/
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: "Tap v__VERSION__"
+          releaseDraft: true
+          releasePrerelease: ${{ contains(github.ref_name, '-') }}
 
   build-windows:
     runs-on: windows-latest
@@ -161,36 +157,11 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build Tauri app (Windows x86_64)
-        uses: tauri-apps/tauri-action@v0.6.2
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Windows artifacts
-        uses: actions/upload-artifact@v7
         with:
-          name: windows-artifacts
-          path: src-tauri/target/release/bundle/
-
-  create-release:
-    runs-on: ubuntu-22.04
-    needs: [build-macos, build-linux, build-windows]
-    if: startsWith(github.ref, 'refs/tags/')
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v8
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            **/*.dmg
-            **/*.AppImage
-            **/*.deb
-            **/*.rpm
-            **/*.msi
-            **/*.exe
-          generate_release_notes: true
-          draft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: "Tap v__VERSION__"
+          releaseDraft: true
+          releasePrerelease: ${{ contains(github.ref_name, '-') }}
