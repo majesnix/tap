@@ -630,21 +630,16 @@ Note: The endpoint returns 404 until the first signed release draft is manually 
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Will the first CI run after this phase succeed without a pre-existing `latest.json`?**
-   - What we know: tauri-action's `upload-version-json.ts` gracefully handles 404 (starts fresh)
-   - What's unclear: Whether tauri-plugin-updater's `check()` handles 404 gracefully without throwing
-   - Recommendation: Catch all errors in the startup handler (already in Pattern 5); test with a mock 404 in unit tests
+   - RESOLVED: CI handles gracefully, no initial latest.json needed — the release workflow generates and uploads it on first tag push. tauri-action's `upload-version-json.ts` starts fresh on 404. The frontend `check()` call also handles 404 silently via `.catch()` in Pattern 5 (already confirmed in unit test scaffold).
 
 2. **Should the Sonner toast use `duration: Infinity` or a long timeout?**
-   - What we know: UPD-02 requires non-modal; user must be able to act
-   - Recommendation: Use `duration: Infinity` — an update prompt should not auto-dismiss; confirm with user at plan stage
+   - RESOLVED: Use `duration: Infinity` per UI-SPEC (non-dismissable until user acts). An update prompt that auto-dismisses would cause users to miss it. This is wired in Pattern 5 and Plan 02 UpdateChecker.
 
-3. **Draft vs published releases for the update endpoint** (BLOCKING — planner must decide)
-   - What we know: `releaseDraft: true` means `/releases/latest/` returns 404; current v1.5.0 release is a draft
-   - What's unclear: Whether the team wants fully automatic publishing or retains the manual review step
-   - Recommendation: Keep `releaseDraft: true`; add "publish draft" as a documented release runbook step; see Pitfall 7
+3. **Draft vs published releases for the update endpoint**
+   - RESOLVED: Keep `releaseDraft: true` in tauri.conf.json for normal releases; developers must manually publish the draft to make updates available to users. Documented as a required release step in Plan 04 Task 3 (Step 6: "Publish the draft release").
 
 ---
 
