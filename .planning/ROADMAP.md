@@ -202,7 +202,7 @@ Plans:
 | 14. Live Subscribe Mode | v1.4 | 3/3 | Complete | 2026-05-21 |
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
 | 16. Pipeline Foundation | v1.5 | 2/2 | Complete    | 2026-05-21 |
-| 17. macOS Signing + Notarization | v1.5 | 0/2 | Not started | - |
+| 17. macOS Signing + Notarization | v1.5 | 0/2 | Planned    |  |
 | 18. Auto-Update + Linux + Docs | v1.5 | 0/TBD | Not started | - |
 
 ---
