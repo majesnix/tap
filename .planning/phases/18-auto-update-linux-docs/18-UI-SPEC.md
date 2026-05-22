@@ -62,9 +62,11 @@ phase. Reference values from the existing shadcn nova preset:
 | Role | Size | Weight | Line Height | Source |
 |------|------|--------|-------------|--------|
 | Body | 14px | 400 (regular) | 1.5 | shadcn default / Geist Variable |
-| Label | 12px | 500 (medium) | 1.4 | shadcn default / Geist Variable |
+| Label | 12px | 400 (regular) | 1.4 | shadcn default / Geist Variable |
 | Heading | 20px | 600 (semibold) | 1.2 | shadcn default / Geist Variable |
 | Display | 28px | 600 (semibold) | 1.2 | shadcn default / Geist Variable |
+
+Weights used: 400 (regular) for body and label; 600 (semibold) for heading and display — 2 weights total.
 
 The update toast uses Sonner's own typography (body-weight text for title and description).
 No override of Sonner typographic styles is required for this phase.
