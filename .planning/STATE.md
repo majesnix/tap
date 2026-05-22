@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Distribution
 status: executing
-stopped_at: Phase 18 planned — 4 plans ready to execute
-last_updated: "2026-05-22T15:00:00.000Z"
+stopped_at: Phase 18 UI-SPEC approved
+last_updated: "2026-05-22T15:24:34.936Z"
 last_activity: 2026-05-22
 progress:
   total_phases: 6
   completed_phases: 1
-  total_plans: 4
+  total_plans: 8
   completed_plans: 2
-  percent: 50
+  percent: 25
 ---
 
 # Project State: Tap
@@ -20,7 +20,7 @@ progress:
 
 Phase: 17
 Plan: Not started
-Status: Executing Phase 17
+Status: Executing Phase 18
 Last activity: 2026-05-22
 
 ## Project Reference
@@ -28,7 +28,7 @@ Last activity: 2026-05-22
 See: .planning/PROJECT.md (updated 2026-05-21 after v1.5 milestone start)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 17 — macos-signing-notarization
+**Current focus:** Phase 18 — auto-update-linux-docs
 
 ## Phase History
 
@@ -189,10 +189,10 @@ Next action: Run `/gsd-plan-phase 16` to begin Phase 16 (Pipeline Foundation)
 
 ## Current Position
 
-Phase: 17 (macos-signing-notarization) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 17
-Last activity: 2026-05-22 -- Phase 17 execution started
+Phase: 18 (auto-update-linux-docs) — EXECUTING
+Plan: 1 of 4
+Status: Executing Phase 18
+Last activity: 2026-05-22 -- Phase 18 execution started
 
 ## Operator Next Steps
 
