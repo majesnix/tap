@@ -1,5 +1,5 @@
 import { describe, beforeEach, test, expect, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 
 const { mockDrainMessages } = vi.hoisted(() => ({
   mockDrainMessages: vi.fn(),
@@ -128,6 +128,10 @@ beforeEach(() => {
   // Default: save() cancelled (returns null) — individual tests override as needed
   mockSave.mockResolvedValue(null);
   mockWriteTextFile.mockResolvedValue(undefined);
+});
+
+afterEach(async () => {
+  await act(async () => {});
 });
 
 describe("MessageFeedTab", () => {

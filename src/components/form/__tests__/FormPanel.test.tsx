@@ -100,7 +100,8 @@ beforeEach(() => {
   vi.mocked(useTheme).mockReturnValue({ resolvedTheme: "light" } as ReturnType<typeof useTheme>);
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await act(async () => {});
   act(() => {
     useProtoStore.getState().reset();
   });

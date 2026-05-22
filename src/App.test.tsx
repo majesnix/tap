@@ -77,7 +77,7 @@ describe("ThemeBootstrap", () => {
     expect(mockSet).not.toHaveBeenCalled();
 
     // Cleanup: resolve the pending promise so no dangling work
-    resolvePending(null);
+    await act(async () => { resolvePending(null); });
   });
 
   test("mirror effect writes to store after bootstrap completes", async () => {

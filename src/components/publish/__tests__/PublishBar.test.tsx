@@ -58,6 +58,10 @@ vi.mock("../RoutingKeyCombobox", () => ({
 import { invoke } from "@tauri-apps/api/core";
 const mockInvoke = vi.mocked(invoke);
 
+afterEach(async () => {
+  await act(async () => {});
+});
+
 describe("buildPublishArgs", () => {
   it("PUBL-01: queue mode uses empty string exchange and queue name as routing key", () => {
     const result = buildPublishArgs("queue", "orders", "", "");

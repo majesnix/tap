@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ProfileManagementModal } from "@/components/connection/ProfileManagementModal";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 
@@ -19,6 +19,10 @@ vi.mock("@tauri-apps/plugin-store", () => ({
 
 import { invoke } from "@tauri-apps/api/core";
 const mockInvoke = vi.mocked(invoke);
+
+afterEach(async () => {
+  await act(async () => {});
+});
 
 const mockOnClose = vi.fn();
 

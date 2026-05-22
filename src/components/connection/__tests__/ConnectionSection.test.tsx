@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { ConnectionSection } from "@/components/sidebar/ConnectionSection";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 
@@ -38,6 +38,10 @@ vi.mock("@/components/ui/select", () => ({
 
 import { invoke } from "@tauri-apps/api/core";
 const mockInvoke = vi.mocked(invoke);
+
+afterEach(async () => {
+  await act(async () => {});
+});
 
 describe("ConnectionSection", () => {
   beforeEach(() => {

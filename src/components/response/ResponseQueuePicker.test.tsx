@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, test, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useResponseStore } from "@/stores/useResponseStore";
 
@@ -82,6 +82,10 @@ beforeEach(() => {
   // Default mock: happy path returning a list of queues + depth 0
   mockFetchQueues.mockResolvedValue(["queue-a", "queue-b"]);
   mockFetchQueueDepth.mockResolvedValue(0);
+});
+
+afterEach(async () => {
+  await act(async () => {});
 });
 
 describe("ResponseQueuePicker", () => {
