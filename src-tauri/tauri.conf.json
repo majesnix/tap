@@ -38,7 +38,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "UPDATER_PUBKEY_PLACEHOLDER",
+      "pubkey": "untrusted comment: minisign public key: 47DE72BD11907EBC\nRWS8fpARvXLeR6x4Bbx5fhhzIGQSZoQWH/6nCWBfXmF40CEiR56FP6Dy\n",
       "endpoints": [
         "https://github.com/majesnix/tap/releases/latest/download/latest.json"
       ]
