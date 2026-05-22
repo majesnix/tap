@@ -180,9 +180,9 @@ Plans:
 **Plans**: 4 plans
 Plans:
 **Wave 1** (parallel)
-- [ ] 18-01-PLAN.md — Rust/Tauri config: desktop-only Cargo deps, lib.rs plugin registration, tauri.conf.json createUpdaterArtifacts + plugins.updater placeholder, capabilities permissions
-- [ ] 18-02-PLAN.md — Frontend UpdateChecker component + tests (UPD-02/UPD-03), mounted in App.tsx
-- [ ] 18-03-PLAN.md — CI signing env vars on Linux job, delete Windows job, docs/linux-keychain.md
+- [x] 18-01-PLAN.md — Rust/Tauri config: desktop-only Cargo deps, lib.rs plugin registration, tauri.conf.json createUpdaterArtifacts + plugins.updater placeholder, capabilities permissions
+- [x] 18-02-PLAN.md — Frontend UpdateChecker component + tests (UPD-02/UPD-03), mounted in App.tsx
+- [x] 18-03-PLAN.md — CI signing env vars on Linux job, delete Windows job, docs/linux-keychain.md
 
 **Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 18-04-PLAN.md — Ed25519 keygen, real pubkey into tauri.conf.json, GitHub secrets checkpoint, pipeline verify + latest.json smoke test
@@ -211,7 +211,7 @@ Plans:
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
 | 16. Pipeline Foundation | v1.5 | 2/2 | Complete    | 2026-05-21 |
 | 17. macOS Signing + Notarization | v1.5 | 0/2 | Planned    |  |
-| 18. Auto-Update + Linux + Docs | v1.5 | 0/4 | Planned | - |
+| 18. Auto-Update + Linux + Docs | v1.5 | 3/4 | In Progress|  |
 
 ---
 
