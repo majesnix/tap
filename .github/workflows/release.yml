@@ -81,9 +81,9 @@ jobs:
       - name: Verify Gatekeeper (notarization check)
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          DMG=$(find src-tauri/target/universal-apple-darwin/release/bundle/dmg -name "*.dmg" | head -1)
-          echo "Verifying: $DMG"
-          spctl --assess --type open --context context:primary-signature --verbose "$DMG"
+          APP=$(find src-tauri/target/universal-apple-darwin/release/bundle/macos -name "*.app" | head -1)
+          echo "Verifying: $APP"
+          spctl --assess --type exec --verbose "$APP"
 
   build-linux:
     runs-on: ubuntu-22.04
