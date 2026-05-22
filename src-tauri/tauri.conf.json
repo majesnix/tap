@@ -14,7 +14,8 @@
       {
         "title": "Tap",
         "width": 1280,
-        "height": 800
+        "height": 800,
+        "icon": "icons/icon.png"
       }
     ],
     "security": {
