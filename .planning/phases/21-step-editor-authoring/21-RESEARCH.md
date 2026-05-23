@@ -684,6 +684,35 @@ Step 2.6: SKIPPED — Phase 21 is purely frontend code changes. No new external 
 
 ---
 
+## Security Domain
+
+> `security_enforcement` is absent from `.planning/config.json` — treated as enabled per researcher instructions.
+
+### Applicable ASVS Categories
+
+Phase 21 is a local-only desktop authoring UI (Tauri app, no network-facing endpoints, no user authentication). ASVS categories are assessed against the phase scope only.
+
+| ASVS Category | Applies | Standard Control |
+|---------------|---------|-----------------|
+| V2 Authentication | no | Phase 21 has no login, session, or identity — Tauri desktop app with no multi-user auth |
+| V3 Session Management | no | No sessions — desktop app, single-user, local state only |
+| V4 Access Control | no | No roles or permissions in scope for Phase 21 |
+| V5 Input Validation | yes | Step name (inline rename): trim + reject empty. JSON `field_values`: validated by `safeParseFieldValues` (JSON.parse + fallback). Proto path: read-only selector from `useProtoStore.openFiles` (no free-text path input). |
+| V6 Cryptography | no | No encryption, hashing, or token generation in Phase 21 |
+
+### Known Threat Patterns for This Stack
+
+| Pattern | STRIDE | Standard Mitigation |
+|---------|--------|---------------------|
+| `JSON.parse` of untrusted `field_values` string | Tampering | `safeParseFieldValues` wrapper with try/catch + fallback to `buildDefaultValues` — never propagate a parse exception to render |
+| Prototype pollution via `JSON.parse` on `field_values` | Tampering | Zustand serializes field values from react-hook-form `watch()` — values are user-controlled form inputs, not server-originated; risk is low but `safeParseFieldValues` isolates the parse |
+| XSS via step name in AlertDialog | Tampering | React renders step names as text nodes (JSX string interpolation), not `dangerouslySetInnerHTML` — no XSS vector |
+| Stale form values written to wrong step | Tampering | `currentStepIdRef` guard in debounced auto-save prevents writes to a step whose row has since changed (see Pitfall 5) |
+
+**Summary:** Phase 21's security surface is minimal — local desktop UI, no network endpoints, no auth. The only actionable control is input validation on `field_values` deserialization and step name handling, both of which are addressed in the standard patterns.
+
+---
+
 ## Sources
 
 ### Primary (HIGH confidence)
