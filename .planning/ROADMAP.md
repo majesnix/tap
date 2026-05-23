@@ -170,7 +170,10 @@ Plans:
   3. Navigating back to the main form and returning to the plan view preserves plan list state; Zustand stores persist across view switches
 **Plans**: 2 plans
 Plans:
+**Wave 1**
 - [ ] 20-01-PLAN.md — PlanView + PlanListPanel + PlanDetailPanel components (dropdown-menu install, inline CRUD, kebab menu, AlertDialog)
+
+**Wave 2** *(blocked on Wave 1 completion)*
 - [ ] 20-02-PLAN.md — App.tsx viewMode state + loadPlans at mount + conditional render; AppLayout/Sidebar prop threading; Plans nav button
 **UI hint**: yes
 
