@@ -89,7 +89,7 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 
 - [ ] **Phase 19: Plan Data Model and Persistence** — Type contract, `usePlanStore` CRUD, `plans.json` persistence — no UI
 - [ ] **Phase 20: Plan View Shell and Navigation** — Full-screen plan library view, plan list panel, CRUD UI, nav button
-- [ ] **Phase 21: Step Editor (Authoring)** — Step authoring, drag-and-drop reorder, import from history + block library
+- [x] **Phase 21: Step Editor (Authoring)** — Step authoring, drag-and-drop reorder, import from history + block library (completed 2026-05-23)
 - [ ] **Phase 22: Plan Runner — Sequential Execution** — JS runner loop, all three response modes, run controls, new Rust commands
 - [ ] **Phase 23: Response View — Inline and Shared Feed** — Decoded response per step, shared scrollable plan execution feed
 
@@ -196,8 +196,8 @@ Plans:
 - [x] 21-02-PLAN.md — @dnd-kit/sortable install + PlanDetailPanel sub-split + StepListPanel (DnD, inline rename, AlertDialog) + StepFieldEditor stub
 
 **Wave 3** *(parallel with each other, blocked on Wave 2)*
-- [ ] 21-03-PLAN.md — StepFieldEditor full implementation (isolated form, auto-save debounce, field primitives, target + response mode sections)
-- [ ] 21-04-PLAN.md — StepHistoryPicker + StepBlockPicker + wire into StepListPanel
+- [x] 21-03-PLAN.md — StepFieldEditor full implementation (isolated form, auto-save debounce, field primitives, target + response mode sections)
+- [x] 21-04-PLAN.md — StepHistoryPicker + StepBlockPicker + wire into StepListPanel
 **UI hint**: yes
 
 ### Phase 22: Plan Runner — Sequential Execution
@@ -252,7 +252,7 @@ Plans:
 | 18. Auto-Update + Linux + Docs | v1.5 | 4/4 | Complete | 2026-05-23 |
 | 19. Plan Data Model and Persistence | v1.6 | 1/1 | Complete | 2026-05-23 |
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
-| 21. Step Editor (Authoring) | v1.6 | 2/4 | In Progress|  |
+| 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete   | 2026-05-23 |
 | 22. Plan Runner — Sequential Execution | v1.6 | 0/? | Not started | - |
 | 23. Response View — Inline and Shared Feed | v1.6 | 0/? | Not started | - |
 
