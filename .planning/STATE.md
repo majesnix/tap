@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Distribution
-status: executing
-stopped_at: Phase 18 complete — UPD-02/UPD-03 live UAT pending
+status: complete
+stopped_at: v1.5 milestone archived — ready for /gsd-new-milestone
 last_updated: "2026-05-23T00:00:00.000Z"
 last_activity: 2026-05-23
 progress:
-  total_phases: 6
+  total_phases: 3
   completed_phases: 3
   total_plans: 8
   completed_plans: 8
@@ -18,29 +18,23 @@ progress:
 
 ## Current Phase
 
-Phase: 18
+Phase: 18 (complete)
 Plan: 4 of 4 (complete)
-Status: All phases complete — v1.5 Distribution ready to close
+Status: v1.5 milestone archived — all phases and plans complete
 Last activity: 2026-05-23
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-21 after v1.5 milestone start)
+See: .planning/PROJECT.md (updated 2026-05-23 after v1.5 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 18 — auto-update-linux-docs
+**Current focus:** Planning next milestone
 
 ## Phase History
 
-*(v1.0–v1.4 phase history archived — see milestones/ directory)*
+*(v1.0–v1.5 phase history archived — see milestones/ directory)*
 
 ---
-
-## Performance Metrics
-
-- Plans completed: 0 (v1.5 not yet started)
-- Requirements delivered: 0/12
-- Phases completed: 0/3
 
 ## Accumulated Context
 
@@ -135,11 +129,15 @@ See: .planning/PROJECT.md (updated 2026-05-21 after v1.5 milestone start)
 
 ### Key Decisions for v1.5
 
-*(to be populated during execution)*
+- cs.allow-unsigned-executable-memory required in Entitlements.plist for WKWebView JIT under Hardened Runtime; removing it causes launch crash despite passing notarization
+- Repository must be public for unauthenticated tauri-plugin-updater latest.json fetch; private repo causes silent 404
+- runUpdateCheck({ manual }) extraction: startup auto-check stays silent on failure; manual trigger shows visible error/up-to-date toast
+- macOS Check for Updates in native menu bar: built in setup() with #[cfg(target_os = "macos")], Tauri MenuBuilder, emits "check-for-updates" event to UpdateChecker listener
+- Version must be bumped in Cargo.toml, tauri.conf.json, AND package.json — all three must match for releases to show correct version
 
 ### Roadmap Evolution
 
-- Phases 16–18 added (2026-05-21): v1.5 Distribution — Pipeline Foundation (Phase 16), macOS Signing + Notarization (Phase 17), Auto-Update + Linux + Docs (Phase 18)
+- Phases 16–18 added (2026-05-21): v1.5 Distribution — Pipeline Foundation, macOS Signing + Notarization, Auto-Update + Linux + Docs
 
 ## Deferred Items
 
@@ -166,36 +164,18 @@ Items acknowledged and deferred at milestone close on 2026-05-21 (v1.4 Response 
 | 260519-q01 | mfld03-send-block-fix | Fix MFLD-03 — restore send-button blocking on duplicate map keys | 2d1a027 | 2026-05-19 |
 | 260519-s1j | harden-tauri-security-remove-unused-fs-p | Narrow fs:scope to $HOME, add strict CSP, remove unused fs permissions | cf7bbc6 | 2026-05-21 |
 
-### Active TODOs
-
-- Run `/gsd-plan-phase 16` to plan Phase 16 (Pipeline Foundation)
-
-### Blockers
-
-(none)
-
-### Research Flags
-
-- shadcn/ui + Tailwind 4 Vite config: VERIFIED — @tailwindcss/vite plugin works, no tailwind.config.js
-- macOS arbitrary file read entitlements: Entitlements.plist approach confirmed (bundle.macOS.entitlements path string)
-- Linux keychain (libsecret): install notes needed — covered by DOC-01 in Phase 18
-- v1.5 open flag: `process:default` vs `process:allow-restart` as capability permission name for relaunch() — check installed tauri-plugin-process version at implementation time
-
 ## Session Continuity
 
-Last updated: 2026-05-21 — v1.5 roadmap created; Phases 16–18 defined
-Stopped at: Phase 18 UI-SPEC approved
-Next action: Run `/gsd-plan-phase 16` to begin Phase 16 (Pipeline Foundation)
+Last updated: 2026-05-23 — v1.5 milestone archived
+Stopped at: Milestone complete — ready for /gsd-new-milestone
+Next action: Run `/gsd-new-milestone` to begin planning v1.6
 
 ## Current Position
 
-Phase: 18 (auto-update-linux-docs) — COMPLETE
-Plan: 4 of 4
-Status: All v1.5 phases complete
-Last activity: 2026-05-23 — Phase 18 complete; version bumped to 1.5.7 (prior releases mislabelled 1.5.0)
+Milestone: v1.5 Distribution — COMPLETE and ARCHIVED
+Status: All phases archived, REQUIREMENTS.md removed, git tag v1.5 created
+Next: `/gsd-new-milestone` to plan v1.6
 
 ## Operator Next Steps
 
-- Push `v1.5.7` tag for first correctly-versioned release: `git tag v1.5.7 && git push origin v1.5.7`
-- Run live auto-update UAT (UPD-02/UPD-03): install v1.5.6, publish v1.5.7, verify update toast + relaunch
-- Run `/gsd-complete-milestone` to archive v1.5 and prepare for v1.6
+- Run `/gsd-new-milestone` to begin v1.6 planning

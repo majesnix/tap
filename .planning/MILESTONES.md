@@ -1,5 +1,25 @@
 # Milestones: Tap
 
+## v1.5 Distribution (Shipped: 2026-05-23)
+
+**Phases completed:** 3 phases (16–18), 8 plans | **Requirements:** 12/12 (CICD-01–03, SIGN-01–03, PKG-01, UPD-01–04, DOC-01)
+**Git range:** fc9b859..HEAD — ~50 commits, 106 files, +4,390 / −158 lines
+
+**Key accomplishments:**
+
+1. GitHub Actions release pipeline — signed + notarized Universal .dmg and Linux AppImage on every `v*` tag push; Rust build cache cuts macOS cold-build from ~20 min to ~5 min (Phase 16)
+2. Apple Developer ID code signing + `notarytool` notarization; `spctl --assess` Gatekeeper gate in CI; first notarized release (v1.5.5) verified on clean Mac — no quarantine warning (Phase 17)
+3. Ed25519 auto-update keypair wired end-to-end: tauri-plugin-updater on startup, Sonner toast with Install & Relaunch action; live UAT confirmed update installs and relaunches correctly (Phase 18)
+4. Linux AppImage passes smoke test on Ubuntu 22.04 and 24.04; `docs/linux-keychain.md` covers libsecret install for Debian/Ubuntu and Fedora/RHEL (Phase 18)
+5. "Check for Updates..." in macOS native menu bar (Tap application menu); sidebar button for Windows/Linux; `runUpdateCheck({ manual })` shows visible error / "up to date" toast (bonus — this session)
+6. Version mislabelling fix: all binaries were shipping as 1.5.0 despite tags v1.5.1–v1.5.6; corrected by bumping Cargo.toml, tauri.conf.json, and package.json to 1.5.7
+
+**Known deferred items at close:** 8 (see STATE.md Deferred Items — Phase 13 live-broker UAT, carried from v1.4)
+
+**Archive:** [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) | [milestones/v1.5-REQUIREMENTS.md](milestones/v1.5-REQUIREMENTS.md)
+
+---
+
 ## v1.4 Response Stream (Shipped: 2026-05-21)
 
 **Phases completed:** 3 phases, 8 plans | **Requirements:** 11/11 (CONS-01–08, FILT-01–02, XPRT-01)

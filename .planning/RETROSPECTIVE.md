@@ -2,6 +2,47 @@
 
 ---
 
+## Milestone: v1.5 — Distribution
+
+**Shipped:** 2026-05-23
+**Phases:** 3 (16–18) | **Plans:** 8
+
+### What Was Built
+
+- GitHub Actions release pipeline: signed + notarized Universal .dmg and Linux AppImage on every `v*` tag push, with Rust build cache cutting cold-build from ~20 min to ~5 min
+- Apple Developer ID code signing + `notarytool` notarization; `spctl --assess` Gatekeeper gate in CI; verified on clean Mac
+- Ed25519 auto-update keypair end-to-end: startup check, Sonner toast with Install & Relaunch, live UAT confirmed
+- Linux AppImage passing on Ubuntu 22.04 + 24.04; `docs/linux-keychain.md` for libsecret
+- "Check for Updates..." in macOS native menu bar + sidebar button for Windows/Linux (bonus, this session)
+
+### What Worked
+
+- Wave-based execution kept signing (Phase 17) blocked on infrastructure (Phase 16) properly — no wasted work
+- Human one-time secrets setup documented upfront (docs/release-setup.md checklist) — no back-and-forth during execution
+- Silent/visible error split in `runUpdateCheck({ manual })`: startup swallows failures, manual trigger surfaces them — clean UX
+
+### What Was Inefficient
+
+- Version mislabelling went undetected for 6 releases (v1.5.1–v1.5.6 all shipped as 1.5.0) — no automated check that Cargo.toml / tauri.conf.json / package.json match the git tag
+- Root cause of update check failure (private repo) not diagnosed until user tested with installed binary — would have been caught by curling the endpoint without auth
+- REQUIREMENTS.md traceability table never updated during execution; all requirements stayed "Pending" — misleading state mid-milestone
+- ROADMAP.md Phase 17/18 checkboxes not updated during execution — same tracking drift
+
+### Patterns Established
+
+- `runUpdateCheck({ manual })` shared async function; caller controls error visibility — reusable for future triggers
+- macOS native menu via `#[cfg(target_os = "macos")]` in `setup()` + `on_menu_event` emitting Tauri events to frontend
+- `cs.allow-unsigned-executable-memory` is required for WKWebView JIT under Hardened Runtime — do not remove in security reviews
+
+### Key Lessons
+
+1. Verify release artifact URL is accessible without auth before declaring pipeline complete — curl from unauthenticated context
+2. Bump version atomically across all three files (Cargo.toml, tauri.conf.json, package.json) and verify the built binary reports the correct version
+3. Keep REQUIREMENTS.md traceability up-to-date during execution — stale "Pending" rows create false alarms on readiness checks
+4. Distribution milestone acceptance: test on a clean machine with no cached credentials, not just CI green
+
+---
+
 ## Milestone: v1.0 — MVP
 
 **Shipped:** 2026-05-18

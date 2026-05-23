@@ -52,6 +52,11 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ JSON export — native OS save dialog, `{ exportedAt, messageCount, messages[] }` shape, `dialog:allow-save` + `fs:allow-write-text-file` Tauri capabilities — v1.4 (Phase 15)
 - ✓ Tauri security hardening — strict CSP replacing `null`, `fs:scope` narrowed to `$HOME/**`, unused `fs:default` and `fs:allow-read-text-file` permissions removed — v1.4 (s1j)
 
+- ✓ GitHub Actions release pipeline: signed + notarized Universal .dmg and Linux AppImage on every `v*` tag push, Rust build cache, Entitlements.plist with all required WebView entitlements — v1.5 (Phases 16–17)
+- ✓ macOS Developer ID code signing + `notarytool` notarization; `spctl --assess` Gatekeeper gate in CI; release verified on clean Mac — v1.5 (Phase 17)
+- ✓ In-app auto-update: `tauri-plugin-updater` startup check, Sonner toast with Install & Relaunch, "Check for Updates..." in macOS native menu bar, sidebar button for Windows/Linux — v1.5 (Phase 18)
+- ✓ Linux AppImage built on ubuntu-22.04, passes on Ubuntu 22.04 + 24.04; `docs/linux-keychain.md` for libsecret prerequisite — v1.5 (Phase 18)
+
 ## Backlog (future milestones)
 
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)
@@ -75,19 +80,18 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - This is a developer productivity tool, analogous to Postman but for RabbitMQ + protobuf.
 - The proto parsing must happen at runtime (no pre-compilation step) — developers drop in `.proto` files.
 - Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
-- Team use means packaging/distribution matters — the app should be distributable as a binary.
+- Team use means packaging/distribution matters — distributed via signed GitHub Releases (macOS: notarized .dmg; Linux: .AppImage + .deb + .rpm).
+- v1.5 shipped 2026-05-23. Distribution pipeline complete: signed notarized macOS releases, Linux AppImage, in-app auto-update with native macOS menu integration. Repository is public.
 
-**Known issues / tech debt at v1.4:**
-- Linux keychain (libsecret) install documentation needed for distribution.
-- No CI/CD pipeline — builds are manual.
-- No app distribution pipeline (notarization, signing) — binary not yet packaged for team.
+**Known issues / tech debt at v1.5:**
 - No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
 - JSON mode + map field round-trip (Flow 4) has no automated test — FormPanel.test.tsx uses scalar-only schema.
 - oneof / WellKnownType / map fields not eligible for block apply (skipped with toast) — complex field type support deferred to future milestone.
 - No automated browser-level DnD test for dnd-kit drag gestures — manual UAT is the current coverage.
 - Phase 13 live-broker UAT deferred (8 items): ack-before-decode, AMQP metadata, multi-type decode, queue depth badge, accordion UX, RightPanel auto-switch, FIFO-500 cap, partial-error toast.
-- tauri-plugin-store store filename renamed from `proto-sender.json` to `tap.json` — existing users will lose saved data on upgrade.
 - Export format is JSON only (CSV deferred to future milestone).
+- Auto-update requires public GitHub repository; no solution for teams wanting private distribution.
+- Windows distribution not yet supported (no EV/OV certificate + Authenticode signing strategy).
 
 ## Constraints
 
@@ -128,6 +132,10 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | DndContext + DragOverlay mounted at AppLayout level | Overlay needs to escape DOM subtree for correct z-index | ✓ Good — prevents clipping inside nested scroll containers |
 | applyBlockRef contract (not store-integrated dirtyFields) | ProtoFormRenderer switch is frozen; ref wiring is the safe extension point | ✓ Good — no switch changes needed; form-level drop zone wires the ref |
 | Two-view local state (PanelView list/editor) in BlockLibraryPanel | Panel view is local UI state, not shared across components | ✓ Good — kept Zustand stores focused on persistent data |
+| cs.allow-unsigned-executable-memory restored in Entitlements.plist | WKWebView JIT requires this under Hardened Runtime; app crashes at launch without it despite passing notarization | ✓ Good — critical fix; removing it was a false positive from security review |
+| Repository made public for auto-update | tauri-plugin-updater makes unauthenticated HTTP requests; private repo causes silent 404 | ✓ Good — release artifacts contain no secrets; acceptable for a team dev tool |
+| runUpdateCheck({ manual }) extracted from UpdateChecker | Startup check should be silent on failure; manual trigger should surface errors | ✓ Good — clean separation; user gets feedback from manual check, not disruptive error on startup |
+| macOS menu built in setup() with #[cfg(target_os = "macos")] | Native menu item placement is the macOS convention for Check for Updates | ✓ Good — Tauri MenuBuilder + on_menu_event emits Tauri event; frontend listener calls runUpdateCheck |
 
 ## Evolution
 
@@ -177,6 +185,6 @@ Phase 16 complete 2026-05-21. Release pipeline foundation delivered: `macos-late
 ---
 Phase 17 complete 2026-05-23. macOS signing + notarization pipeline operational: Developer ID cert imported in CI, notarytool submits to Apple notary service, `spctl --assess` Gatekeeper gate in CI, draft release on tag push. Tag v1.5.5 verified: `accepted source=Notarized Developer ID` on clean Mac, no quarantine warning. `cs.allow-unsigned-executable-memory` restored in Entitlements.plist (was removed by WR-03; required for WKWebView JIT under Hardened Runtime). docs/release-setup.md added with 8-secret setup checklist.
 
-Phase 18 complete 2026-05-23. Auto-update infrastructure wired: tauri-plugin-updater + tauri-plugin-process registered, UpdateChecker component (Sonner toast, Install & Relaunch), CI signing env vars on Linux job, docs/linux-keychain.md, Ed25519 pubkey in tauri.conf.json. AppImage passes smoke test on Ubuntu 22.04 + 24.04. Version bumped to 1.5.7 (releases v1.5.1–v1.5.6 were mislabelled 1.5.0). Live auto-update flow (UPD-02/UPD-03) pending human UAT. Next: push v1.5.7 tag, run live update test, then `/gsd-complete-milestone`.
+v1.5 shipped 2026-05-23. All 12 distribution requirements delivered across 3 phases (8 plans): signed/notarized macOS releases, Linux AppImage, in-app auto-update with live UAT confirmed, libsecret docs, and "Check for Updates..." in macOS native menu bar. Repository is now public. Current release: v1.5.7.
 
-*Last updated: 2026-05-23 — Phase 18 complete*
+*Last updated: 2026-05-23 after v1.5 milestone*
