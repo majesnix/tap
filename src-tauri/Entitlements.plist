@@ -2,9 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <!-- Sandbox DISABLED — required for arbitrary file read (.proto files) -->
   <key>com.apple.security.app-sandbox</key>
   <false/>
+
+  <!-- JIT execution — required by WKWebView -->
   <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+
+  <!-- Unsigned executable memory — required by WKWebView for JS JIT engine -->
+  <!-- Restored: WR-03 (Phase 16) incorrectly removed this. Without it, notarized app crashes at launch. -->
+  <!-- Apple Hardened Runtime docs: required for apps embedding WebKit. -->
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
   <true/>
 </dict>
 </plist>
