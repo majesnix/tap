@@ -93,7 +93,9 @@ Destructive is reserved for: "Delete plan" confirm button in the AlertDialog onl
 | Label | `"Plans"` (text label beside icon — not icon-only) |
 | Active style | `bg-accent text-accent-foreground` when `viewMode === "plans"` |
 | Inactive style | `ghost` variant, standard hover state |
-| onClick | `onViewChange("plans")` |
+| onClick | Toggle: `onViewChange(viewMode === "plans" ? "main" : "plans")` |
+
+**Toggle behavior note (authorized):** The Plans nav button acts as the back-navigation mechanism when `viewMode === "plans"`. Clicking it while already in Plans view returns to `"main"` rather than doing nothing. This deviates from the original `onViewChange("plans")` one-way spec and is intentional — it is the sole back mechanism for the Plans view (no separate Back button is specified). The `bg-accent` active state still applies only when `viewMode === "plans"`.
 
 ### 2. PlanView Layout
 

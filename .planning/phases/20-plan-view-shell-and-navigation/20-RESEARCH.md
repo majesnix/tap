@@ -481,27 +481,27 @@ interface SidebarProps {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **loadPlans() hydration location (D-11 vs convention)**
    - What we know: D-11 says App mount; existing stores hydrate in consumers; both work correctly due to `plansLoaded` guard
    - What's unclear: Should Plan 20 establish a new App-level hydration convention, or follow the consumer-local pattern?
-   - Recommendation: Planner must state the choice explicitly in the plan (Option A = App.tsx, Option B = PlanListPanel). Option B requires less change to `App.tsx` and is lower risk.
+   - RESOLVED: Option A chosen — `loadPlans()` is called in `App.tsx` `useEffect` at mount (per D-11). PlanListPanel does not call `loadPlans()`. Plan 02 implements this.
 
 2. **Sidebar prop threading scope**
    - What we know: `AppLayout` currently renders `<Sidebar />` with no props. `Sidebar` currently accepts no props.
    - What's unclear: Does `AppLayout` receive `viewMode`/`onViewChange` and pass them to `Sidebar`, or does `App.tsx` render `<Sidebar>` separately?
-   - Recommendation: Follow the current architecture: `App.tsx` → `AppLayout` (receives `viewMode` + `onViewChange` as props) → `Sidebar` (receives them). This is the prop-drill path stated in D-10 and the UI-SPEC.
+   - RESOLVED: `AppLayout` receives `viewMode` + `onViewChange` as props and passes them to `Sidebar` (D-10 prop-drill path). Implemented in Plan 02.
 
 3. **Sidebar rendering in PlanView (which layout hosts Sidebar?)**
    - What we know: `PlanView` replaces `AppLayout` entirely when `viewMode === "plans"`. `AppLayout` currently owns `<Sidebar />`. The `PlanView` code example shows Sidebar as a placeholder comment.
    - What's unclear: Does `PlanView` render `<Sidebar viewMode="plans" onViewChange={onViewChange} />` directly? Or does `App.tsx` restructure to render `<Sidebar>` at the top level so only the content area swaps?
-   - Recommendation: `PlanView` renders its own `<Sidebar viewMode="plans" onViewChange={onViewChange} />` alongside the two-pane content. This is the simpler change — `AppLayout` is not restructured. Consistent with the UI-SPEC diagram showing Sidebar as a sibling to PlanListPanel and PlanDetailPanel inside the full-screen view.
+   - RESOLVED: `PlanView` renders `<Sidebar viewMode="plans" onViewChange={onViewChange} />` directly. `AppLayout` is not restructured. Implemented in Plan 01 (PlanView.tsx).
 
 4. **Success criterion 3: "preserves plan list state" vs selectedPlanId reset**
    - What we know: Success criterion 3 says navigating back and returning "preserves plan list state". `selectedPlanId` is local state in `PlanView` (D-12), which means it resets to `null` on every view switch.
    - What's unclear: A verifier could read criterion 3 as requiring selectedPlanId to persist across view switches — contradicting D-12.
-   - Recommendation: "Preserves plan list state" refers to the Zustand `plans` array (store singleton, always live) — not selection. The selection reset is intentional per D-12. No plan survives an unmount of `PlanView` as selected — this is correct behavior, not a regression.
+   - RESOLVED: "Preserves plan list state" refers to the Zustand `plans` array (always live in the store singleton) — not `selectedPlanId`. The selection reset on `PlanView` unmount is intentional per D-12 and is correct behavior. Verifiers should not flag this as a regression.
 
 ---
 
