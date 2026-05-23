@@ -16,7 +16,7 @@ findings:
   warning: 3
   info: 2
   total: 5
-status: issues_found
+status: fixed
 ---
 
 # Phase 20: Code Review Report
@@ -24,17 +24,17 @@ status: issues_found
 **Reviewed:** 2026-05-23T19:23:03Z
 **Depth:** standard
 **Files Reviewed:** 7
-**Status:** issues_found
+**Status:** fixed (WR-01, WR-02, WR-03 resolved 2026-05-23)
 
 ## Summary
 
 This phase adds the Plan View shell and navigation: a new `PlanView` component with a sidebar, `PlanListPanel` (CRUD + inline rename/create), and a `PlanDetailPanel` placeholder. The `usePlanStore` is wired to `App.tsx` for hydration, and `Sidebar.tsx` gains a Plans toggle button.
 
-The architecture is sound. The `selectedPlanId` in local state, the AlertDialog rendered outside ScrollArea, and the kebab `stopPropagation` pattern are all correct. Three issues require fixes before shipping: a silent data-loss on fast creation, unhandled rejections on every CRUD operation, and an AlertDialog title that flashes empty during its exit animation.
+The architecture is sound. The `selectedPlanId` in local state, the AlertDialog rendered outside ScrollArea, and the kebab `stopPropagation` pattern are all correct. Three issues were identified and have been fixed: a silent data-loss on fast creation (WR-01), unhandled rejections on every CRUD operation (WR-02), and an AlertDialog title that flashed empty during its exit animation (WR-03).
 
 ## Warnings
 
-### WR-01: Silent `createPlan` failure when store is not yet hydrated
+### WR-01: Silent `createPlan` failure when store is not yet hydrated ✓ fixed
 
 **File:** `src/components/plans/PlanListPanel.tsx:150-157`
 
@@ -63,7 +63,7 @@ And gate the create row:
 
 ---
 
-### WR-02: Unhandled promise rejections on all CRUD operations
+### WR-02: Unhandled promise rejections on all CRUD operations ✓ fixed
 
 **File:** `src/components/plans/PlanListPanel.tsx:176, 187, 199, 223`
 
@@ -92,7 +92,7 @@ Apply the same `.catch` pattern to `renamePlan`, `duplicatePlan`, and `deletePla
 
 ---
 
-### WR-03: AlertDialog title flashes `Delete ""?` during exit animation
+### WR-03: AlertDialog title flashes `Delete ""?` during exit animation ✓ fixed
 
 **File:** `src/components/plans/PlanListPanel.tsx:219-226`
 
