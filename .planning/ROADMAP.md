@@ -156,7 +156,9 @@ Plans:
   2. Hydration gate (`plansLoaded` flag) prevents any write operation from executing before the store has loaded from disk — identical pattern to `useHistoryStore` and `useBlockStore`
   3. `Plan`, `PlanStep`, and `StepStatus` TypeScript types are defined with a `schema_version` field for migration safety
   4. `field_values` stored as a serialized JSON string per step (not `Record<string, unknown>`) so `undefined` to `null` coercion cannot corrupt saved plans
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 19-01-PLAN.md — Plan/PlanStep/StepStatus types in lib/types.ts + usePlanStore CRUD + plans.json persistence + tests
 
 ### Phase 20: Plan View Shell and Navigation
 **Goal**: Users can access a dedicated full-screen plan library view, see their plans listed, and perform all plan CRUD actions from the UI
