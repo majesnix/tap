@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 
 function showUpdateToast(update: Awaited<ReturnType<typeof check>>) {
@@ -40,6 +41,15 @@ export async function runUpdateCheck({ manual = false } = {}) {
 export function UpdateChecker() {
   useEffect(() => {
     runUpdateCheck();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const unlisten = listen("check-for-updates", () => {
+      runUpdateCheck({ manual: true });
+    });
+    return () => {
+      unlisten.then((fn) => fn());
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return null;

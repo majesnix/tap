@@ -17,6 +17,8 @@ import { RefreshCw } from "lucide-react";
 import { RELEASE_NAME } from "@/lib/release";
 import { runUpdateCheck } from "@/UpdateChecker";
 
+const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/.test(navigator.userAgent);
+
 export function Sidebar() {
   const { schema, selectedMessageType, setSelectedType } = useProtoStore();
   const [appVersion, setAppVersion] = useState<string>("");
@@ -72,16 +74,18 @@ export function Sidebar() {
           {appVersion ? `v${appVersion}` : "v1.3.0"} — {RELEASE_NAME}
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-8"
-            onClick={() => runUpdateCheck({ manual: true })}
-            aria-label="Check for updates"
-            title="Check for updates"
-          >
-            <RefreshCw className="size-4" />
-          </Button>
+          {!isMac && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8"
+              onClick={() => runUpdateCheck({ manual: true })}
+              aria-label="Check for updates"
+              title="Check for updates"
+            >
+              <RefreshCw className="size-4" />
+            </Button>
+          )}
           <ThemeToggle />
         </div>
       </div>

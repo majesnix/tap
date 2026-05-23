@@ -1,4 +1,5 @@
 use std::sync::Mutex;
+use tauri::Emitter;
 
 mod commands;
 mod error;
@@ -32,6 +33,46 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(Option::<prost_reflect::DescriptorPool>::None))
         .manage(Mutex::new(Option::<commands::subscribe::SubscribeState>::None))
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            {
+                use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
+                let check_updates = MenuItem::with_id(
+                    app,
+                    "check-for-updates",
+                    "Check for Updates...",
+                    true,
+                    None::<&str>,
+                )?;
+                let app_menu = SubmenuBuilder::new(app, "Tap")
+                    .item(&PredefinedMenuItem::about(app, None::<&str>, None)?)
+                    .separator()
+                    .item(&check_updates)
+                    .separator()
+                    .item(&PredefinedMenuItem::quit(app, None::<&str>)?)
+                    .build()?;
+                let edit_menu = SubmenuBuilder::new(app, "Edit")
+                    .undo()
+                    .redo()
+                    .separator()
+                    .cut()
+                    .copy()
+                    .paste()
+                    .select_all()
+                    .build()?;
+                let menu = MenuBuilder::new(app)
+                    .item(&app_menu)
+                    .item(&edit_menu)
+                    .build()?;
+                app.set_menu(menu)?;
+            }
+            Ok(())
+        })
+        .on_menu_event(|app, event| {
+            if event.id() == "check-for-updates" {
+                let _ = app.emit("check-for-updates", ());
+            }
+        })
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
