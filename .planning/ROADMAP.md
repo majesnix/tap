@@ -158,7 +158,7 @@ Plans:
   4. `field_values` stored as a serialized JSON string per step (not `Record<string, unknown>`) so `undefined` to `null` coercion cannot corrupt saved plans
 **Plans**: 1 plan
 Plans:
-- [ ] 19-01-PLAN.md — Plan/PlanStep/StepStatus types in lib/types.ts + usePlanStore CRUD + plans.json persistence + tests
+- [x] 19-01-PLAN.md — Plan/PlanStep/StepStatus types in lib/types.ts + usePlanStore CRUD + plans.json persistence + tests (Complete 2026-05-23)
 
 ### Phase 20: Plan View Shell and Navigation
 **Goal**: Users can access a dedicated full-screen plan library view, see their plans listed, and perform all plan CRUD actions from the UI
@@ -350,11 +350,11 @@ Plans:
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| PLAN-01 | Phase 19 | Pending |
-| PLAN-02 | Phase 19 | Pending |
-| PLAN-03 | Phase 19 | Pending |
-| PLAN-04 | Phase 19 | Pending |
-| PLAN-05 | Phase 19 | Pending |
+| PLAN-01 | Phase 19 | Complete |
+| PLAN-02 | Phase 19 | Complete |
+| PLAN-03 | Phase 19 | Complete |
+| PLAN-04 | Phase 19 | Complete |
+| PLAN-05 | Phase 19 | Complete |
 | PLAN-06 | Phase 20 | Pending |
 | STEP-01 | Phase 21 | Pending |
 | STEP-02 | Phase 21 | Pending |
