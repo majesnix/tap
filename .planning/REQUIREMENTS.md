@@ -19,12 +19,12 @@
 
 ### Step Authoring
 
-- [ ] **STEP-01**: User can add a step to a plan by selecting a .proto file + message type, filling field values, choosing a target queue/exchange + routing key, and setting a response mode (no-wait / correlationId / first-arrival)
-- [ ] **STEP-02**: User can import a step from message history — field values pre-filled from a selected past send
-- [ ] **STEP-03**: User can import a step from the block library — field values pre-filled from a selected saved block
-- [ ] **STEP-04**: User can duplicate an existing step within the same plan
-- [ ] **STEP-05**: User can reorder steps in a plan via drag-and-drop
-- [ ] **STEP-06**: User can rename or delete individual steps
+- [x] **STEP-01**: User can add a step to a plan by selecting a .proto file + message type, filling field values, choosing a target queue/exchange + routing key, and setting a response mode (no-wait / correlationId / first-arrival)
+- [x] **STEP-02**: User can import a step from message history — field values pre-filled from a selected past send
+- [x] **STEP-03**: User can import a step from the block library — field values pre-filled from a selected saved block
+- [x] **STEP-04**: User can duplicate an existing step within the same plan
+- [x] **STEP-05**: User can reorder steps in a plan via drag-and-drop
+- [x] **STEP-06**: User can rename or delete individual steps
 
 ### Execution Engine
 
@@ -76,12 +76,12 @@
 | PLAN-04 | Phase 19 | Pending |
 | PLAN-05 | Phase 19 | Pending |
 | PLAN-06 | Phase 20 | Pending |
-| STEP-01 | Phase 21 | Pending |
-| STEP-02 | Phase 21 | Pending |
-| STEP-03 | Phase 21 | Pending |
-| STEP-04 | Phase 21 | Pending |
-| STEP-05 | Phase 21 | Pending |
-| STEP-06 | Phase 21 | Pending |
+| STEP-01 | Phase 21 | Complete |
+| STEP-02 | Phase 21 | Complete |
+| STEP-03 | Phase 21 | Complete |
+| STEP-04 | Phase 21 | Complete |
+| STEP-05 | Phase 21 | Complete |
+| STEP-06 | Phase 21 | Complete |
 | RUN-01 | Phase 22 | Pending |
 | RUN-02 | Phase 22 | Pending |
 | RUN-03 | Phase 22 | Pending |
