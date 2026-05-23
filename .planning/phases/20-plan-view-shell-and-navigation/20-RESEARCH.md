@@ -378,7 +378,18 @@ Option A matches D-11. Option B is safer (no behavior change to `App.tsx`). Both
 
 ---
 
+### Pitfall 6: Radix portal components incompatible with jsdom in tests
+
+**What goes wrong:** If the planner adds Vitest tests for `PlanListPanel`, the `DropdownMenu` (and by extension any Radix portal component) will not render correctly in jsdom — pointer events and portal mounting fail silently.
+
+**Why it happens:** This is a known codebase pattern. `STATE.md` records: *"Mocked shadcn Select with native `<select>` in tests — Radix UI portal/pointer events incompatible with jsdom"*. The same applies to `DropdownMenu`.
+
+**How to avoid:** Since `nyquist_validation: false`, testing is optional. If tests are written for `PlanListPanel`, mock the `DropdownMenu` component with a simple `<div>` or `<button>` at the test boundary, consistent with the mocking approach already used for `Select` in the existing test suite. Do not attempt to test Radix portal behavior in jsdom.
+
+---
+
 ## Code Examples
+
 
 ### PlanView root structure
 
@@ -481,6 +492,16 @@ interface SidebarProps {
    - What we know: `AppLayout` currently renders `<Sidebar />` with no props. `Sidebar` currently accepts no props.
    - What's unclear: Does `AppLayout` receive `viewMode`/`onViewChange` and pass them to `Sidebar`, or does `App.tsx` render `<Sidebar>` separately?
    - Recommendation: Follow the current architecture: `App.tsx` → `AppLayout` (receives `viewMode` + `onViewChange` as props) → `Sidebar` (receives them). This is the prop-drill path stated in D-10 and the UI-SPEC.
+
+3. **Sidebar rendering in PlanView (which layout hosts Sidebar?)**
+   - What we know: `PlanView` replaces `AppLayout` entirely when `viewMode === "plans"`. `AppLayout` currently owns `<Sidebar />`. The `PlanView` code example shows Sidebar as a placeholder comment.
+   - What's unclear: Does `PlanView` render `<Sidebar viewMode="plans" onViewChange={onViewChange} />` directly? Or does `App.tsx` restructure to render `<Sidebar>` at the top level so only the content area swaps?
+   - Recommendation: `PlanView` renders its own `<Sidebar viewMode="plans" onViewChange={onViewChange} />` alongside the two-pane content. This is the simpler change — `AppLayout` is not restructured. Consistent with the UI-SPEC diagram showing Sidebar as a sibling to PlanListPanel and PlanDetailPanel inside the full-screen view.
+
+4. **Success criterion 3: "preserves plan list state" vs selectedPlanId reset**
+   - What we know: Success criterion 3 says navigating back and returning "preserves plan list state". `selectedPlanId` is local state in `PlanView` (D-12), which means it resets to `null` on every view switch.
+   - What's unclear: A verifier could read criterion 3 as requiring selectedPlanId to persist across view switches — contradicting D-12.
+   - Recommendation: "Preserves plan list state" refers to the Zustand `plans` array (store singleton, always live) — not selection. The selection reset is intentional per D-12. No plan survives an unmount of `PlanView` as selected — this is correct behavior, not a regression.
 
 ---
 
