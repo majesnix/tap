@@ -45,7 +45,7 @@
 
 - Step list column width: ~240px fixed (`w-60` class)
 - StepFieldEditor layout: scrollable with dividers + section headers (no tabs)
-- "+" button placement: header of step list column (adjacent to "Steps" label)
+- "+" button placement: footer of step list column (bottom, after the step rows), above any scrollarea constraint. *(Note: 21-UI-SPEC.md Layout Contract overrides this to header placement — planner should follow UI-SPEC.)*
 - Response mode defaults when creating a blank step: `{ mode: 'no-wait', delay_ms: 200 }`
 - PointerSensor activationConstraint: `{ distance: 4 }` (per UI-SPEC; AppLayout uses 8 — see Pitfall 6)
 
@@ -295,6 +295,7 @@ reorderSteps: async (planId: string, fromIndex: number, toIndex: number): Promis
 
 ```typescript
 // Source: @dnd-kit/sortable@10.0.0 API (VERIFIED via npm pack dist inspection)
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, closestCenter } from "@dnd-kit/core";
 import {
   SortableContext,
   useSortable,
