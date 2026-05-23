@@ -168,7 +168,10 @@ Plans:
   1. A Plans nav button in the sidebar switches the entire app to a full-screen plan library view (`viewMode: "main" | "plans"` switcher at `App.tsx`) without a route change
   2. The plan list panel shows all saved plans; user can create, rename, duplicate, and delete plans (with confirmation dialog on delete) from this view
   3. Navigating back to the main form and returning to the plan view preserves plan list state; Zustand stores persist across view switches
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 20-01-PLAN.md — PlanView + PlanListPanel + PlanDetailPanel components (dropdown-menu install, inline CRUD, kebab menu, AlertDialog)
+- [ ] 20-02-PLAN.md — App.tsx viewMode state + loadPlans at mount + conditional render; AppLayout/Sidebar prop threading; Plans nav button
 **UI hint**: yes
 
 ### Phase 21: Step Editor (Authoring)
