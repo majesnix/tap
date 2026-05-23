@@ -175,4 +175,6 @@ The app now has a full consume experience: drain, subscribe, filter, and export.
 Phase 16 complete 2026-05-21. Release pipeline foundation delivered: `macos-latest` runner, `Swatinem/rust-cache@v2` on both build jobs, Hardened Runtime Entitlements.plist (4 cs.* WebView keys), version bumped to 1.5.0 across all 3 config files. Two green workflow_dispatch dry-runs confirm pipeline structure (CICD-02, CICD-03 ✓). Phase 17 (macOS signing + notarization) unblocked.
 
 ---
-*Last updated: 2026-05-21 — Phase 16 complete*
+Phase 17 complete 2026-05-23. macOS signing + notarization pipeline operational: Developer ID cert imported in CI, notarytool submits to Apple notary service, `spctl --assess` Gatekeeper gate in CI, draft release on tag push. Tag v1.5.5 verified: `accepted source=Notarized Developer ID` on clean Mac, no quarantine warning. `cs.allow-unsigned-executable-memory` restored in Entitlements.plist (was removed by WR-03; required for WKWebView JIT under Hardened Runtime). docs/release-setup.md added with 8-secret setup checklist.
+
+*Last updated: 2026-05-23 — Phase 17 complete*

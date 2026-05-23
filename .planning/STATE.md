@@ -3,25 +3,25 @@ gsd_state_version: 1.0
 milestone: v1.5
 milestone_name: Distribution
 status: executing
-stopped_at: Phase 18 UI-SPEC approved
-last_updated: "2026-05-22T15:24:34.936Z"
-last_activity: 2026-05-22
+stopped_at: Phase 17 complete — Phase 18 plan 04 pending
+last_updated: "2026-05-23T00:00:00.000Z"
+last_activity: 2026-05-23
 progress:
   total_phases: 6
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 8
-  completed_plans: 2
-  percent: 25
+  completed_plans: 4
+  percent: 50
 ---
 
 # Project State: Tap
 
 ## Current Phase
 
-Phase: 17
-Plan: Not started
-Status: Executing Phase 18
-Last activity: 2026-05-22
+Phase: 18
+Plan: 4 of 4 (pending)
+Status: Phase 17 complete — Phase 18 plan 04 is next
+Last activity: 2026-05-23
 
 ## Project Reference
 
@@ -189,12 +189,11 @@ Next action: Run `/gsd-plan-phase 16` to begin Phase 16 (Pipeline Foundation)
 
 ## Current Position
 
-Phase: 18 (auto-update-linux-docs) — EXECUTING
-Plan: 1 of 4
-Status: Executing Phase 18
-Last activity: 2026-05-22 -- Phase 18 execution started
+Phase: 18 (auto-update-linux-docs) — IN PROGRESS (plan 04 pending)
+Plan: 4 of 4
+Status: Phase 17 complete — execute Phase 18 plan 04 next
+Last activity: 2026-05-23 — Phase 17 complete (Gatekeeper verified on v1.5.5; Entitlements.plist fixed for v1.5.6+)
 
 ## Operator Next Steps
 
-- Start Phase 16 with `/gsd-plan-phase 16`
-- Before Phase 17: complete human one-time Apple Developer setup (register App ID, create Developer ID cert, store 8 GitHub secrets)
+- Run `/gsd-execute-phase 18 --wave 2` to execute Plan 18-04 (Ed25519 keygen, pipeline verify, latest.json smoke test)

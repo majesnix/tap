@@ -162,10 +162,10 @@ Plans:
 **Plans**: 2 plans
 Plans:
 **Wave 1**
-- [ ] 17-01-PLAN.md — Wire 6 signing env vars onto tauri-action step, add if-guards on cert steps, add Gatekeeper spctl verification step, flip draft: true, restore cs.allow-unsigned-executable-memory in Entitlements.plist
+- [x] 17-01-PLAN.md — Wire 6 signing env vars onto tauri-action step, add if-guards on cert steps, add Gatekeeper spctl verification step, flip draft: true, restore cs.allow-unsigned-executable-memory in Entitlements.plist
 
 **Wave 2** *(blocked on Wave 1 completion and human secret setup)*
-- [ ] 17-02-PLAN.md — Human setup checklist (docs/release-setup.md, 8 secrets), tag-push trigger, clean-Mac Gatekeeper verification
+- [x] 17-02-PLAN.md — Human setup checklist (docs/release-setup.md, 8 secrets), tag-push trigger, clean-Mac Gatekeeper verification
 
 ### Phase 18: Auto-Update + Linux + Docs
 **Goal**: Installed users receive an in-app update notification when a new version is tagged, Linux users can install and run the AppImage, and the libsecret prerequisite is documented
@@ -210,7 +210,7 @@ Plans:
 | 14. Live Subscribe Mode | v1.4 | 3/3 | Complete | 2026-05-21 |
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
 | 16. Pipeline Foundation | v1.5 | 2/2 | Complete    | 2026-05-21 |
-| 17. macOS Signing + Notarization | v1.5 | 0/2 | Planned    |  |
+| 17. macOS Signing + Notarization | v1.5 | 2/2 | Complete   | 2026-05-23 |
 | 18. Auto-Update + Linux + Docs | v1.5 | 3/4 | In Progress|  |
 
 ---
@@ -298,16 +298,16 @@ Plans:
 | FILT-02 | Phase 15 | ✅ Complete |
 | XPRT-01 | Phase 15 | ✅ Complete |
 
-**v1.5 Distribution — 0/11 requirements delivered**
+**v1.5 Distribution — 6/12 requirements delivered**
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CICD-02 | Phase 16 | Pending |
-| CICD-03 | Phase 16 | Pending |
-| SIGN-03 | Phase 16 | Pending |
-| CICD-01 | Phase 17 | Pending |
-| SIGN-01 | Phase 17 | Pending |
-| SIGN-02 | Phase 17 | Pending |
+| CICD-02 | Phase 16 | ✅ Complete |
+| CICD-03 | Phase 16 | ✅ Complete |
+| SIGN-03 | Phase 16 | ✅ Complete |
+| CICD-01 | Phase 17 | ✅ Complete |
+| SIGN-01 | Phase 17 | ✅ Complete |
+| SIGN-02 | Phase 17 | ✅ Complete |
 | PKG-01 | Phase 18 | Pending |
 | UPD-01 | Phase 18 | Pending |
 | UPD-02 | Phase 18 | Pending |
@@ -317,4 +317,4 @@ Plans:
 
 - Total v1.5: 12
 - Mapped: 12
-- Delivered: 0 (in progress)
+- Delivered: 6 (Phase 16 + 17 complete; Phase 18 in progress)
