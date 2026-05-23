@@ -151,6 +151,7 @@ export function PlanListPanel({ selectedPlanId, onSelectPlan }: PlanListPanelPro
           variant="ghost"
           size="sm"
           className="gap-1"
+          disabled={!plansLoaded}
           onClick={() => setIsCreating(true)}
         >
           <Plus size={14} />New Plan
@@ -189,7 +190,7 @@ export function PlanListPanel({ selectedPlanId, onSelectPlan }: PlanListPanelPro
               />
         ))}
         {/* Inline create row — appears at bottom when isCreating */}
-        {isCreating && (
+        {plansLoaded && isCreating && (
           <InlineEditRow
             key="__new__"
             initialValue="Untitled Plan"
