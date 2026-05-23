@@ -664,17 +664,17 @@ All other claims are VERIFIED against source code or npm registry.
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Target reconstruction from HistoryEntry**
    - What we know: `HistoryEntry` has `exchange: string` and `routingKey: string`. When `exchange === ""`, it was a queue-mode send (PUBL-01: queue name is routingKey, exchange is empty string).
    - What's unclear: Should the importer reconstruct as `{ kind: 'queue', queue: entry.routingKey }` when `entry.exchange === ""`?
-   - Recommendation: Yes — this matches `buildPublishArgs` inverse logic in PublishBar. Document in the plan.
+   - RESOLVED: Yes — this matches `buildPublishArgs` inverse logic in PublishBar. Document in the plan.
 
 2. **Step name for history import**
    - What we know: UI-SPEC copywriting doesn't specify the auto-generated step name for history imports.
    - What's unclear: Use `entry.messageTypeName` (full qualified name) or the short name (after last `.`)?
-   - Recommendation: Use short name `entry.messageTypeName.split(".").pop() ?? entry.messageTypeName` — matches how HistoryTable displays type names.
+   - RESOLVED: Use short name `entry.messageTypeName.split(".").pop() ?? entry.messageTypeName` — matches how HistoryTable displays type names.
 
 ---
 
