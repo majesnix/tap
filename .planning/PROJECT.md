@@ -82,6 +82,7 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
 - Team use means packaging/distribution matters — distributed via signed GitHub Releases (macOS: notarized .dmg; Linux: .AppImage + .deb + .rpm).
 - v1.5 shipped 2026-05-23. Distribution pipeline complete: signed notarized macOS releases, Linux AppImage, in-app auto-update with native macOS menu integration. Repository is public.
+- v1.6 (Plan Runner) in progress. Phase 21 complete: step editor authoring — full step CRUD, drag-and-drop reorder (@dnd-kit/sortable), StepFieldEditor (isolated form, auto-save debounce), import from history and block library. Plans: 4, commits: ~14.
 
 **Known issues / tech debt at v1.5:**
 - No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
