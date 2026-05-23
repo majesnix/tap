@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { ThemeProvider, useTheme } from "next-themes";
 import { load } from "@tauri-apps/plugin-store";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { usePlanStore } from "@/stores/usePlanStore";
+import { PlanView } from "@/components/plans/PlanView";
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateChecker } from "./UpdateChecker";
 
@@ -50,11 +52,23 @@ export function ThemeBootstrap() {
 }
 
 export default function App() {
+  // D-10: viewMode is local state in App.tsx — NOT in any Zustand store
+  const [viewMode, setViewMode] = useState<"main" | "plans">("main");
+
+  // D-11: loadPlans() called at App mount so plan data is available immediately
+  // on first navigation to the plan view. Pattern mirrors existing store loads.
+  useEffect(() => {
+    void usePlanStore.getState().loadPlans();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ThemeBootstrap />
       <UpdateChecker />
-      <AppLayout />
+      {viewMode === "main"
+        ? <AppLayout viewMode={viewMode} onViewChange={setViewMode} />
+        : <PlanView onViewChange={setViewMode} />
+      }
       <Toaster />
     </ThemeProvider>
   );
