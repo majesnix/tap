@@ -8,7 +8,12 @@ import { PublishBar } from "@/components/publish/PublishBar";
 import { BlockLibraryPanel } from "@/components/blocks/BlockLibraryPanel";
 import { useBlockStore } from "@/stores/useBlockStore";
 
-export function AppLayout() {
+interface AppLayoutProps {
+  viewMode: "main" | "plans";
+  onViewChange: (mode: "main" | "plans") => void;
+}
+
+export function AppLayout({ viewMode, onViewChange }: AppLayoutProps) {
   const [isBlockLibraryOpen, setIsBlockLibraryOpen] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const blocks = useBlockStore((s) => s.blocks);
@@ -30,7 +35,7 @@ export function AppLayout() {
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
       {/* Left sidebar: file picker + message type selector */}
       <aside className="w-72 min-w-60 max-w-xs border-r border-border flex flex-col shrink-0">
-        <Sidebar />
+        <Sidebar viewMode={viewMode} onViewChange={onViewChange} />
       </aside>
 
       {/* Center: publish bar above, panel + form side by side below */}

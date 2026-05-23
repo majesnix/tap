@@ -13,13 +13,19 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/sidebar/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, ListChecks } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { RELEASE_NAME } from "@/lib/release";
 import { runUpdateCheck } from "@/UpdateChecker";
 
 const isMac = /Macintosh|MacIntel|MacPPC|Mac68K/.test(navigator.userAgent);
 
-export function Sidebar() {
+interface SidebarProps {
+  viewMode?: "main" | "plans";
+  onViewChange?: (mode: "main" | "plans") => void;
+}
+
+export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
   const { schema, selectedMessageType, setSelectedType } = useProtoStore();
   const [appVersion, setAppVersion] = useState<string>("");
 
@@ -35,6 +41,19 @@ export function Sidebar() {
           Load a .proto file to get started
         </p>
       </div>
+
+      {/* Plans nav button — toggle: active state when viewMode === "plans", click toggles to main or plans */}
+      <Button
+        variant="ghost"
+        className={cn(
+          "w-full justify-start gap-2",
+          viewMode === "plans" && "bg-accent text-accent-foreground"
+        )}
+        onClick={() => onViewChange?.(viewMode === "plans" ? "main" : "plans")}
+      >
+        <ListChecks size={16} />
+        Plans
+      </Button>
 
       <Separator />
 
