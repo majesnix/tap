@@ -1,34 +1,34 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.5
-milestone_name: Distribution
-status: complete
-stopped_at: v1.5 milestone archived — ready for /gsd-new-milestone
+milestone: v1.6
+milestone_name: Plan Runner
+status: planning
+stopped_at: ""
 last_updated: "2026-05-23T00:00:00.000Z"
 last_activity: 2026-05-23
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Tap
 
-## Current Phase
+## Current Position
 
-Phase: 18 (complete)
-Plan: 4 of 4 (complete)
-Status: v1.5 milestone archived — all phases and plans complete
-Last activity: 2026-05-23
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-23 — Milestone v1.6 started
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-23 after v1.5 milestone)
+See: .planning/PROJECT.md (updated 2026-05-23 for v1.6)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Planning next milestone
+**Current focus:** v1.6 Plan Runner — defining requirements
 
 ## Phase History
 
@@ -166,16 +166,6 @@ Items acknowledged and deferred at milestone close on 2026-05-21 (v1.4 Response 
 
 ## Session Continuity
 
-Last updated: 2026-05-23 — v1.5 milestone archived
-Stopped at: Milestone complete — ready for /gsd-new-milestone
-Next action: Run `/gsd-new-milestone` to begin planning v1.6
-
-## Current Position
-
-Milestone: v1.5 Distribution — COMPLETE and ARCHIVED
-Status: All phases archived, REQUIREMENTS.md removed, git tag v1.5 created
-Next: `/gsd-new-milestone` to plan v1.6
-
-## Operator Next Steps
-
-- Run `/gsd-new-milestone` to begin v1.6 planning
+Last updated: 2026-05-23 — Milestone v1.6 Plan Runner started
+Stopped at: Requirements being defined
+Next action: Complete requirements, then run `/gsd-plan-phase 19` to start execution

@@ -149,16 +149,17 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.5 Distribution
+## Current Milestone: v1.6 Plan Runner
 
-**Goal:** Make Tap installable by any team member — signed, auto-updating packages for macOS and Linux, built and released automatically via GitHub Actions.
+**Goal:** Let developers define, save, and execute ordered sequences of protobuf messages — each step with its own schema, target, and response config — and monitor all replies inline and in a shared feed.
 
 **Target features:**
-- GitHub Actions release pipeline: triggered on git tag, builds macOS (.dmg, signed + notarized) and Linux (.deb + .AppImage), uploads artifacts to GitHub Releases
-- macOS code signing + notarization via Apple Developer ID and `notarytool`, stored as GH Actions secrets
-- Linux packages: `.deb` (Debian/Ubuntu) and `.AppImage` (universal)
-- In-app auto-update: `tauri-plugin-updater` checking GitHub Releases endpoint, update notification UI, one-click install
-- Linux keychain install docs for `libsecret`
+- Plan library: named plans saved to disk, accessible via a dedicated full-screen view
+- Step editor: ordered list of steps; each step picks its own .proto file + message type, fills field values, selects a target queue/exchange, and configures response behaviour (wait for correlationId match / wait for first arrival on reply queue / no-wait with configurable delay before next step)
+- Step authoring: compose from scratch, import from message history, or pull from the block library
+- Plan runner: sequential execution with per-step status (Pending → Sending → WaitingResponse → Done / Error) and Run / Pause / Stop controls
+- Response view: decoded response shown inline under each step that received one, plus a shared scrollable feed of all messages arriving on watched queues during the run
+- Plan CRUD: create, rename, duplicate, delete; steps reorderable via drag-and-drop
 
 ---
 
