@@ -11,6 +11,7 @@ export interface HistoryEntry {
   messageTypeName: string;              // selectedMessageType from store
   exchange: string;                     // exchange arg passed to publishMessage
   routingKey: string;                   // routingKey arg passed to publishMessage
+  protoPath?: string;                   // D-10: activeFilePath at send time; undefined for entries created before Phase 21
   status: "sent" | "failed";
   errorMessage?: string;                // only on failed
   fieldValues: Record<string, unknown>; // latestValues from useProtoStore at send time

@@ -103,6 +103,43 @@ describe("clearHistory", () => {
   });
 });
 
+// ── protoPath round-trip (D-10) ───────────────────────────────────────────────
+
+describe("protoPath on HistoryEntry (D-10)", () => {
+  test("appendEntry stores protoPath when provided", async () => {
+    useHistoryStore.setState({ entries: [], historyLoaded: true });
+    await useHistoryStore.getState().appendEntry({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      messageTypeName: "my.package.MyMessage",
+      exchange: "",
+      routingKey: "test-queue",
+      protoPath: "/some/path.proto",
+      status: "sent",
+      fieldValues: {},
+      payloadBytes: [],
+    });
+    const { entries } = useHistoryStore.getState();
+    expect(entries[0].protoPath).toBe("/some/path.proto");
+  });
+
+  test("appendEntry allows protoPath to be undefined (backward compat)", async () => {
+    useHistoryStore.setState({ entries: [], historyLoaded: true });
+    await useHistoryStore.getState().appendEntry({
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      messageTypeName: "my.package.MyMessage",
+      exchange: "",
+      routingKey: "test-queue",
+      status: "sent",
+      fieldValues: {},
+      payloadBytes: [],
+    });
+    const { entries } = useHistoryStore.getState();
+    expect(entries[0].protoPath).toBeUndefined();
+  });
+});
+
 // ── loadHistory ───────────────────────────────────────────────────────────────
 
 describe("loadHistory", () => {

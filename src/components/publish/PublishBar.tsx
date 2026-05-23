@@ -223,7 +223,7 @@ export function PublishBar() {
     const payload = hexToBytes(hexPreview);
 
     // Capture proto store fields synchronously BEFORE any await (Zustand getState() is synchronous)
-    const { latestValues, selectedMessageType } = useProtoStore.getState();
+    const { latestValues, selectedMessageType, activeFilePath } = useProtoStore.getState();
 
     // Capture AMQP properties synchronously BEFORE any await (Pitfall 3)
     const { properties } = useAmqpStore.getState();
@@ -265,6 +265,7 @@ export function PublishBar() {
         messageTypeName: selectedMessageType ?? "unknown",
         exchange,
         routingKey: targetRoutingKey,
+        protoPath: activeFilePath ?? undefined, // D-10: captures active file path at send time
         status: "sent",
         fieldValues: latestValues ?? {},
         payloadBytes: payload,
@@ -284,6 +285,7 @@ export function PublishBar() {
         messageTypeName: selectedMessageType ?? "unknown",
         exchange,
         routingKey: targetRoutingKey,
+        protoPath: activeFilePath ?? undefined, // D-10: captures active file path at send time
         status: "failed",
         errorMessage: message,
         fieldValues: latestValues ?? {},
