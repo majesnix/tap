@@ -252,7 +252,7 @@ commands::plan_runner::cancel_plan_run,
 
 ### Pattern 2: execute_step — Three-Branch tokio::select! (RESP-02 / RESP-03)
 
-**What:** Consumer opens before publish (pitfall #59). `tokio::select!` on delivery / timeout / cancellation (pitfall #70). Correlation-id is read from `delivery.properties.correlation_id()` via `.as_ref().map(|s| s.as_str())` (pitfall #58). Non-matching replies are NACKed with `requeue: true` (pitfall #60).
+**What:** Consumer opens before publish (pitfall #59). `tokio::select!` on delivery / timeout / cancellation (pitfall #70). Correlation-id is read from `delivery.properties.correlation_id()` via `.as_ref().map(|s| s.as_str())` (pitfall #58). Non-matching replies are NACKed with `requeue: true` (pitfall #60). Timeout uses `tokio::pin!` OUTSIDE the loop so the deadline is not reset on each iteration.
 
 **When to use:** correlation-id and first-arrival response modes only. No-wait mode skips the consumer entirely.
 
@@ -293,7 +293,13 @@ let props = BasicProperties::default()
 // confirm_select + basic_publish omitted for brevity (see publish.rs)
 
 // 3. Three-branch select! (pitfall #70)
-let timeout_duration = Duration::from_millis(timeout_ms);
+// IMPORTANT: Create the deadline OUTSIDE the loop using tokio::pin! so it is NOT
+// reset on each iteration. Creating sleep() inside the loop gives each iteration
+// a fresh timeout — that is a bug for correlation-id mode where many non-matching
+// messages may arrive before the match (pitfall #4 below).
+let deadline = tokio::time::sleep(Duration::from_millis(timeout_ms));
+tokio::pin!(deadline);
+
 loop {
     tokio::select! {
         delivery_opt = consumer.next() => {
@@ -309,6 +315,11 @@ loop {
                         // Match: ack + decode + return done
                         let _ = delivery.acker.ack(BasicAckOptions::default()).await;
                         // decode payload ...
+                        // Explicit cleanup before return (security: prevent resource leak)
+                        let _ = channel
+                            .basic_cancel("tap-plan-runner", BasicCancelOptions::default())
+                            .await;
+                        let _ = conn.close(0, "step done").await;
                         break; // return StepResult done
                     } else {
                         // Pitfall #60: non-matching — selective NACK with requeue
@@ -319,36 +330,34 @@ loop {
                         // continue loop — wait for next delivery
                     }
                 }
-                _ => { /* broker closed consumer — return error */ break; }
+                _ => {
+                    // Broker closed consumer — surface as step error
+                    let _ = conn.close(0, "broker closed consumer").await;
+                    break;
+                }
             }
         }
-        _ = tokio::time::sleep(timeout_duration) => {
-            // Timeout: clean up consumer + connection, return error
-            break;
+        _ = &mut deadline => {
+            // Timeout: explicit cleanup before returning error result
+            let _ = channel
+                .basic_cancel("tap-plan-runner", BasicCancelOptions::default())
+                .await;
+            let _ = conn.close(0, "step timeout").await;
+            break; // return StepResult { status: "error", error: "Timeout" }
         }
         _ = token.cancelled() => {
-            // Cancellation: clean up consumer + connection, return { status: "error", error: "Cancelled" }
-            break;
+            // Cancellation: explicit cleanup before returning cancelled result
+            let _ = channel
+                .basic_cancel("tap-plan-runner", BasicCancelOptions::default())
+                .await;
+            let _ = conn.close(0, "step cancelled").await;
+            break; // return StepResult { status: "error", error: "Cancelled" }
         }
     }
 }
 ```
 
-**Note:** For first-arrival mode, the select! body is the same but the delivery branch unconditionally acks and returns without correlation-id matching.
-
-**Note on `tokio::time::sleep` in select!:** The timeout branch using `sleep(duration)` must be created OUTSIDE the select! macro if the loop is a `loop {}` that re-enters select! — otherwise the sleep is reset on each iteration. For a timeout that spans the entire wait period, pin it before the loop:
-
-```rust
-let deadline = tokio::time::sleep(Duration::from_millis(timeout_ms));
-tokio::pin!(deadline);
-loop {
-    tokio::select! {
-        _ = &mut deadline => { /* timeout */ break; }
-        delivery_opt = consumer.next() => { /* ... */ }
-        _ = token.cancelled() => { /* ... */ break; }
-    }
-}
-```
+**Note:** For first-arrival mode, the select! body is the same but the delivery branch unconditionally acks (no correlation-id matching) and returns.
 
 ### Pattern 3: usePlanExecutionStore (Ephemeral Zustand)
 
@@ -767,6 +776,15 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
    - What's unclear: Should `execute_step` check for an already-running plan and return an error? Or is it the JS runner's responsibility to not call it while another is running?
    - Recommendation: JS runner owns the guard (only one active run via `runningPlanId` in the store). `execute_step` on the Rust side atomically stores the token into `PlanRunState` and clears it on return (similar to subscribe.rs CR-01 pattern). If a second call arrives, it replaces the previous token (effectively cancelling the in-flight one), but since JS is sequential this race only occurs during a Stop + immediate Re-run. Safe enough for v1; planner should add a note.
 
+4. **Reply decoding strategy for execute_step — which type(s) to try against DescriptorPool**
+   - What we know: D-03 locks that `execute_step` decodes the reply payload in Rust using the loaded `DescriptorPool`. D-02 defines `ReplyMessage { decoded, hex_string, error, decoded_as }` — the `decoded_as` field mirrors `DrainResult` and implies a multi-type-try strategy (try several candidate types, report which one succeeded). However, `PlanStep` in `src/lib/types.ts` currently has a `message_type` field for the request type but NO `reply_type` field. The decode candidate list is therefore undefined.
+   - What's unclear: Four possible resolutions exist:
+     - **(a) Use same `message_type` as the request** — ping-pong assumption: reply payload has the same proto type as the request. Simple, zero schema changes, but wrong if services use different request/response types (e.g., `FooRequest` / `FooResponse`).
+     - **(b) Try all types in the loaded DescriptorPool** — identical to `drain_messages` multi-type strategy; `decoded_as` reports the winning type. Works but is O(N) over all loaded types and may produce ambiguous matches if multiple types parse the same bytes.
+     - **(c) Add `reply_type` field to `ResponseMode`** — cleanest for correctness, but requires a schema change to `PlanStep` / `ResponseMode` (affects Phase 21 step editor UI). This is a scope expansion.
+     - **(d) Return raw bytes only (hex_string)** — skip Rust-side decode entirely; Phase 23 owns reply display. `decoded` and `decoded_as` would be `None`. Aligns with deferred RESP-04/RESP-05 scope but means Phase 22 delivers no decoded output even when pool is loaded.
+   - Recommendation: **This is a planning blocker.** The planner cannot finalize `ReplyMessage` struct shape or `execute_step` decode logic without knowing which strategy is intended. **Escalate to user via discuss-phase before committing to struct shapes.** If the user is unreachable, use **(a) same `message_type` as request** as the v1 fallback — it is the simplest, requires no schema change, and covers the common RPC case. Document the assumption explicitly so Phase 23 can override it.
+
 ---
 
 ## Environment Availability
@@ -792,7 +810,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 | Pattern | STRIDE | Standard Mitigation |
 |---------|--------|---------------------|
 | AMQP URI credential exposure in error messages | Information Disclosure | Follow existing subscribe.rs/publish.rs pattern: sanitize error messages, drop URI before await |
-| Open consumer never closed on cancellation | Denial of Service (resource leak) | `basic_cancel` + `conn.close()` in the cancellation branch of `tokio::select!` |
+| Open consumer never closed on cancellation | Denial of Service (resource leak) | Explicit `basic_cancel` + `conn.close()` in ALL three exit branches of `tokio::select!` (see Pattern 2 code example) |
 | Unvalidated reply queue name | Tampering | Validate queue name is non-empty at system boundary; AMQP enforces the rest |
 | UUID correlation_id predictability | No meaningful threat for dev tool | Uuid::new_v4() is random; acceptable for internal tooling |
 
