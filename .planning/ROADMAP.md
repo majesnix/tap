@@ -171,10 +171,10 @@ Plans:
 **Plans**: 2 plans
 Plans:
 **Wave 1**
-- [ ] 20-01-PLAN.md — PlanView + PlanListPanel + PlanDetailPanel components (dropdown-menu install, inline CRUD, kebab menu, AlertDialog)
+- [x] 20-01-PLAN.md — PlanView + PlanListPanel + PlanDetailPanel components (dropdown-menu install, inline CRUD, kebab menu, AlertDialog)
 
 **Wave 2** *(blocked on Wave 1 completion)*
-- [ ] 20-02-PLAN.md — App.tsx viewMode state + loadPlans at mount + conditional render; AppLayout/Sidebar prop threading; Plans nav button
+- [x] 20-02-PLAN.md — App.tsx viewMode state + loadPlans at mount + conditional render; AppLayout/Sidebar prop threading; Plans nav button
 **UI hint**: yes
 
 ### Phase 21: Step Editor (Authoring)
@@ -240,8 +240,8 @@ Plans:
 | 16. Pipeline Foundation | v1.5 | 2/2 | Complete | 2026-05-21 |
 | 17. macOS Signing + Notarization | v1.5 | 2/2 | Complete | 2026-05-23 |
 | 18. Auto-Update + Linux + Docs | v1.5 | 4/4 | Complete | 2026-05-23 |
-| 19. Plan Data Model and Persistence | v1.6 | 0/? | Not started | - |
-| 20. Plan View Shell and Navigation | v1.6 | 0/? | Not started | - |
+| 19. Plan Data Model and Persistence | v1.6 | 1/1 | Complete | 2026-05-23 |
+| 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
 | 21. Step Editor (Authoring) | v1.6 | 0/? | Not started | - |
 | 22. Plan Runner — Sequential Execution | v1.6 | 0/? | Not started | - |
 | 23. Response View — Inline and Shared Feed | v1.6 | 0/? | Not started | - |
@@ -361,7 +361,7 @@ Plans:
 | PLAN-03 | Phase 19 | Complete |
 | PLAN-04 | Phase 19 | Complete |
 | PLAN-05 | Phase 19 | Complete |
-| PLAN-06 | Phase 20 | Pending |
+| PLAN-06 | Phase 20 | ✅ Complete |
 | STEP-01 | Phase 21 | Pending |
 | STEP-02 | Phase 21 | Pending |
 | STEP-03 | Phase 21 | Pending |
