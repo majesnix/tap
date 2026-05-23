@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { usePlanStore } from "@/stores/usePlanStore";
 import type { Plan, PlanStep } from "@/lib/types";
+import { StepHistoryPicker } from "./StepHistoryPicker";
+import { StepBlockPicker } from "./StepBlockPicker";
 
 // ── InlineEditRow ─────────────────────────────────────────────────────────────
 // Copied verbatim from PlanListPanel.tsx pattern — all three behaviors required:
@@ -192,9 +194,9 @@ export function StepListPanel({
 }: StepListPanelProps) {
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [stepToDelete, setStepToDelete] = useState<PlanStep | null>(null);
-  // Picker open state — pickers are implemented in Plan 04; setters wired here, readers unused until then
-  const [, setHistoryPickerOpen] = useState(false);
-  const [, setBlockPickerOpen] = useState(false);
+  // Picker open state — pickers implemented in Plan 04
+  const [historyPickerOpen, setHistoryPickerOpen] = useState(false);
+  const [blockPickerOpen, setBlockPickerOpen] = useState(false);
 
   const { addStep, updateStep, deleteStep, duplicateStep, plansLoaded } = usePlanStore();
 
@@ -336,13 +338,22 @@ export function StepListPanel({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/*
-        Picker placeholders — StepHistoryPicker and StepBlockPicker are implemented in Plan 04.
-        The open state (_historyPickerOpen / _blockPickerOpen) is declared here and passed to pickers
-        once they exist. For now, these are no-ops; the DropdownMenu items above set the state but
-        nothing renders.
-        TODO Plan 04: import StepHistoryPicker and StepBlockPicker here and pass open/onOpenChange props.
-      */}
+      <StepHistoryPicker
+        open={historyPickerOpen}
+        onOpenChange={setHistoryPickerOpen}
+        planId={plan.id}
+        onSelectStep={(id) => {
+          onSelectStep(id);
+        }}
+      />
+      <StepBlockPicker
+        open={blockPickerOpen}
+        onOpenChange={setBlockPickerOpen}
+        planId={plan.id}
+        onSelectStep={(id) => {
+          onSelectStep(id);
+        }}
+      />
     </div>
   );
 }
