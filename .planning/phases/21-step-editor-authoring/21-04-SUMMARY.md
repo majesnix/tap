@@ -128,6 +128,19 @@ No new network endpoints, auth paths, or file access patterns introduced. All tr
 - STEP-02 and STEP-03 requirements fulfilled
 - Phase 21 wave 3 complete
 
+## Self-Check: PASSED
+
+Files exist:
+- src/components/plans/StepHistoryPicker.tsx: FOUND
+- src/components/plans/StepBlockPicker.tsx: FOUND
+- src/components/plans/StepListPanel.tsx: FOUND
+- .planning/phases/21-step-editor-authoring/21-04-SUMMARY.md: FOUND
+
+Commits exist:
+- 9749ebe (Task 1 - StepHistoryPicker + StepBlockPicker): FOUND
+- 37ebf6c (Task 2 - Wire into StepListPanel): FOUND
+- ff22742 (Summary): FOUND
+
 ---
 *Phase: 21-step-editor-authoring*
 *Completed: 2026-05-24*
