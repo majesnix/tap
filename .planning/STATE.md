@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v1.6
 milestone_name: Plan Runner
-status: planning
+status: executing
 stopped_at: ""
 last_updated: "2026-05-23T00:00:00.000Z"
 last_activity: 2026-05-23
 progress:
-  total_phases: 0
+  total_phases: 5
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,17 +18,21 @@ progress:
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: Phase 19 — Plan Data Model and Persistence (not started)
 Plan: —
-Status: Defining requirements
-Last activity: 2026-05-23 — Milestone v1.6 started
+Status: Roadmap created — ready to begin Phase 19
+Last activity: 2026-05-23 — v1.6 roadmap created (Phases 19–23)
+
+```
+Progress: [░░░░░░░░░░░░░░░░░░░░] 0% (0/5 phases)
+```
 
 ## Project Reference
 
 See: .planning/PROJECT.md (updated 2026-05-23 for v1.6)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** v1.6 Plan Runner — defining requirements
+**Current focus:** v1.6 Plan Runner — Phase 19: Plan Data Model and Persistence
 
 ## Phase History
 
@@ -135,9 +139,25 @@ See: .planning/PROJECT.md (updated 2026-05-23 for v1.6)
 - macOS Check for Updates in native menu bar: built in setup() with #[cfg(target_os = "macos")], Tauri MenuBuilder, emits "check-for-updates" event to UpdateChecker listener
 - Version must be bumped in Cargo.toml, tauri.conf.json, AND package.json — all three must match for releases to show correct version
 
+### Key Decisions for v1.6 (accumulating)
+
+- viewMode: "main" | "plans" local state in App.tsx — no react-router-dom; exactly two views in this app
+- StepFieldEditor is a new isolated component — NOT ProtoFormRenderer; routes onValuesChange to isolated local state only, never useProtoStore
+- Two Zustand stores: usePlanStore (persistent, plans.json) + usePlanExecutionStore (ephemeral, never persisted, resets on every run start)
+- Plan-scoped DndContext inside PlanView (not AppLayout) — prevents DndContext scope interference with block-apply DnD
+- field_values stored as a serialized JSON string per step (Block.content: string pattern from useBlockStore line 9)
+- plansLoaded hydration gate in usePlanStore — identical to useHistoryStore line 47 and useBlockStore line 52
+- One persistent lapin::Connection per plan run (intentional deviation from "ephemeral connection per operation" Key Decision in PROJECT.md — first feature spanning N publishes + M concurrent reply consumers)
+- uuid = { version = "1", features = ["v4"] } — only new direct Rust dependency for v1.6 (already transitive at v1.23.1)
+- Consumer-before-publish ordering is mandatory for correlationId steps — fast replies on localhost missed if consumer starts after publish
+- Non-matching correlationId replies must NACK with requeue: true (NOT ack) — prevents discarding later steps' replies
+- Read correlation_id from AMQP properties (delivery.properties.correlation_id()) NOT from message headers
+- Separate Mutex<Option<PlanRunState>> managed state slot — must NOT reuse or extend SubscribeState
+
 ### Roadmap Evolution
 
 - Phases 16–18 added (2026-05-21): v1.5 Distribution — Pipeline Foundation, macOS Signing + Notarization, Auto-Update + Linux + Docs
+- Phases 19–23 added (2026-05-23): v1.6 Plan Runner — Data Model, View Shell, Step Editor, Runner Engine, Response View
 
 ## Deferred Items
 
@@ -166,6 +186,6 @@ Items acknowledged and deferred at milestone close on 2026-05-21 (v1.4 Response 
 
 ## Session Continuity
 
-Last updated: 2026-05-23 — Milestone v1.6 Plan Runner started
-Stopped at: Requirements being defined
-Next action: Complete requirements, then run `/gsd-plan-phase 19` to start execution
+Last updated: 2026-05-23 — v1.6 roadmap created (Phases 19–23)
+Stopped at: Roadmap complete
+Next action: `/gsd-discuss-phase 22` is strongly recommended before planning Phase 22 (riskiest phase — new Rust, persistent AMQP connection). Start with `/gsd-plan-phase 19` to begin the data model phase.

@@ -68,30 +68,28 @@
 
 ## Traceability
 
-*Filled by roadmapper.*
-
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| PLAN-01 | — | pending |
-| PLAN-02 | — | pending |
-| PLAN-03 | — | pending |
-| PLAN-04 | — | pending |
-| PLAN-05 | — | pending |
-| PLAN-06 | — | pending |
-| STEP-01 | — | pending |
-| STEP-02 | — | pending |
-| STEP-03 | — | pending |
-| STEP-04 | — | pending |
-| STEP-05 | — | pending |
-| STEP-06 | — | pending |
-| RUN-01 | — | pending |
-| RUN-02 | — | pending |
-| RUN-03 | — | pending |
-| RUN-04 | — | pending |
-| RUN-05 | — | pending |
-| RUN-06 | — | pending |
-| RESP-01 | — | pending |
-| RESP-02 | — | pending |
-| RESP-03 | — | pending |
-| RESP-04 | — | pending |
-| RESP-05 | — | pending |
+| PLAN-01 | Phase 19 | Pending |
+| PLAN-02 | Phase 19 | Pending |
+| PLAN-03 | Phase 19 | Pending |
+| PLAN-04 | Phase 19 | Pending |
+| PLAN-05 | Phase 19 | Pending |
+| PLAN-06 | Phase 20 | Pending |
+| STEP-01 | Phase 21 | Pending |
+| STEP-02 | Phase 21 | Pending |
+| STEP-03 | Phase 21 | Pending |
+| STEP-04 | Phase 21 | Pending |
+| STEP-05 | Phase 21 | Pending |
+| STEP-06 | Phase 21 | Pending |
+| RUN-01 | Phase 22 | Pending |
+| RUN-02 | Phase 22 | Pending |
+| RUN-03 | Phase 22 | Pending |
+| RUN-04 | Phase 22 | Pending |
+| RUN-05 | Phase 22 | Pending |
+| RUN-06 | Phase 22 | Pending |
+| RESP-01 | Phase 22 | Pending |
+| RESP-02 | Phase 22 | Pending |
+| RESP-03 | Phase 22 | Pending |
+| RESP-04 | Phase 23 | Pending |
+| RESP-05 | Phase 23 | Pending |
