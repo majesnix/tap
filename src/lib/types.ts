@@ -159,3 +159,70 @@ export interface ExchangeSummary {
 export interface PublishOutcome {
   status: "ack" | "nack" | "returned" | "timeout";
 }
+
+// ── Phase 19: Plan library types ──────────────────────────────────────────────
+
+/**
+ * Publish target for a plan step. Discriminated union on `kind`.
+ * Phase 22 exhaustive-switches on `kind`. (D-03)
+ */
+export type PublishTarget =
+  | { kind: 'queue'; queue: string }
+  | { kind: 'exchange'; exchange: string; routing_key: string };
+
+/**
+ * Response mode for a plan step. Discriminated union on `mode`.
+ * Default values: delay_ms: 200, timeout_ms: 10000. (D-04)
+ * Phase 22 exhaustive-switches on `mode`.
+ */
+export type ResponseMode =
+  | { mode: 'no-wait'; delay_ms: number }
+  | { mode: 'correlation-id'; reply_queue: string; timeout_ms: number }
+  | { mode: 'first-arrival'; reply_queue: string; timeout_ms: number };
+
+/**
+ * Runtime execution status for a plan step.
+ * Defined in Phase 19 for type contract stability; consumed by Phase 22's
+ * usePlanExecutionStore (which is NOT implemented in Phase 19). (D-08)
+ */
+export type StepStatus = 'pending' | 'sending' | 'waiting-response' | 'done' | 'error';
+
+/**
+ * A single step within a Plan. All fields are defined now (Phase 19) to avoid
+ * a schema_version bump mid-milestone when Phase 21 (Step Editor) and Phase 22
+ * (Runner) use them. (D-01, D-02)
+ *
+ * field_values: serialized JSON string — mirrors Block.content: string from
+ * useBlockStore. Never stored as Record<string, unknown>: undefined→null coercion
+ * in JSON.stringify can silently corrupt saved plans. Consumers parse on use. (D-12)
+ *
+ * NOTE: PlanStep does NOT have schema_version — versioning lives on Plan only. (D-06)
+ */
+export interface PlanStep {
+  id: string;            // crypto.randomUUID() at creation time
+  name: string;          // user-defined step label
+  proto_path: string;    // absolute path to the .proto file
+  message_type: string;  // fully-qualified message type name
+  /**
+   * Serialized JSON string (not Record<string, unknown>).
+   * Mirrors Block.content: string. Parse at use-time only.
+   */
+  field_values: string;
+  target: PublishTarget;
+  response_mode: ResponseMode;
+}
+
+/**
+ * A saved plan containing an ordered list of steps.
+ * schema_version starts at 1. Migration logic is written when the first
+ * schema change happens — no migration stubs now. (D-05, D-06, D-07)
+ */
+export interface Plan {
+  id: string;             // crypto.randomUUID() at creation time
+  name: string;           // user-defined plan name
+  schema_version: number; // starts at 1; incremented only when Plan shape changes
+  steps: PlanStep[];
+}
+
+/** Current schema version constant. Bump only when Plan shape changes. (D-07) */
+export const PLAN_SCHEMA_VERSION = 1 as const;
