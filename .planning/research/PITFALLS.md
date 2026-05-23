@@ -1343,3 +1343,444 @@ RabbitMQ management UI shows a consumer registered on a queue even after the app
 - Existing codebase: `useResponseStore.ts` — `lastResult` single-result store shape
 - Existing codebase: `useHistoryStore.ts` — FIFO cap at 100 (HIST-CAP-01 precedent)
 - react-window (FixedSizeList, VariableSizeList): https://react-window.vercel.app/
+
+---
+
+## v1.6 Plan Runner Pitfalls
+
+The following pitfalls are specific to the v1.6 milestone: Plan Runner added to Tap. All
+findings are grounded in the actual v1.5.7 source tree. References cite specific files and
+line numbers verified during research.
+
+---
+
+## Critical: CorrelationId Tracking
+
+### 58. Reading the Wrong AMQP Property for CorrelationId Matching
+
+**Phase:** Runner engine phase (correlationId response matching)
+
+**What goes wrong:**
+A plan step configured with "wait for correlationId match" starts a consumer on the reply
+queue. The consumer must read `delivery.properties.correlation_id()` from lapin's
+`AMQPProperties`. If the implementation reads a custom AMQP header, or reads `message_id`,
+every response fails the match and the step times out even when the broker delivers the
+correct reply.
+
+**Why it happens:**
+The existing subscribe.rs reads only `content_type` and `timestamp` from delivery properties
+(lines 238-244). The `correlation_id` property extraction does not exist in the codebase yet.
+The publish path (`publish.rs` line 121) sets it via `props.with_correlation_id(cid.into())`
+— the consumer must use the matching lapin accessor.
+
+**Prevention:**
+- Extract with `delivery.properties.correlation_id().as_ref().map(|s| s.to_string())`.
+- Generate the correlationId in Rust via `uuid::Uuid::new_v4().to_string()` at publish time,
+  not on the frontend. Avoids an extra IPC round-trip.
+- Write a focused unit test: construct a synthetic `BasicProperties` with a known
+  correlationId, extract via the accessor, assert equality — before wiring to the full runner.
+
+**Detection:**
+Every step with a correlationId wait times out, even with a real reply on the queue. Adding a
+debug log of `delivery.properties.correlation_id()` inside the consumer loop reveals the value.
+
+---
+
+### 59. Consumer Started After Publish — Fast Replies Are Missed
+
+**Phase:** Runner engine phase (correlationId response matching)
+
+**What goes wrong:**
+The runner publishes step N, then starts the reply consumer. On localhost, the responding
+service can deliver a reply before `basic_consume` is called. If the reply queue has a short
+TTL configured by the broker admin, the message expires in the window between publish and
+consumer start. The runner times out, but the reply was delivered and discarded.
+
+**Why it happens:**
+Tap's existing model opens a connection per operation and closes it when done. A naive plan
+runner that calls "publish step N" then "start consumer for step N" as two sequential IPC
+commands violates the ordering constraint.
+
+**Prevention:**
+- Start the reply consumer BEFORE publishing. Order per step:
+  (1) `basic_consume` on reply queue, (2) publish with correlationId,
+  (3) wait on consumer stream with timeout, (4) close consumer.
+- The reply consumer connection must survive the full step duration. Use a persistent
+  `lapin::Connection` held in `PlanRunState` (mirroring `SubscribeState`).
+
+---
+
+### 60. Ack-Before-Decode Discards Unmatched Replies
+
+**Phase:** Runner engine phase (correlationId response matching)
+
+**What goes wrong:**
+Tap uses ack-before-decode everywhere: `subscribe.rs` line 249 ("ACK BEFORE DECODE D-13")
+and `consume.rs` "D-10 DEVIATION." If the plan reply consumer adopts the same pattern, it
+ACKs every arriving message regardless of whether the correlationId matches. Non-matching
+replies are permanently removed from the queue. If those messages were replies intended for a
+later step, step N+1's wait times out because its reply was already discarded.
+
+**Prevention:**
+- For the correlationId-matching consumer only: do NOT ack-before-decode.
+- Only ACK after verifying the correlationId matches the expected value.
+- For non-matching messages: NACK with `requeue=true` so they remain in the queue.
+  `BasicNackOptions { requeue: true, multiple: false }`
+- Per-step timeout is mandatory to bound the NACK+requeue loop on busy reply queues.
+
+---
+
+## Critical: Complex Nested Storage
+
+### 61. field_values undefined→null Corruption on Store Round-Trip
+
+**Phase:** Plan storage/persistence phase
+
+**What goes wrong:**
+Each `PlanStep` stores `field_values: Record<string, unknown>` — arbitrary proto form values.
+JavaScript `undefined` (from unset optional proto fields) is coerced to `null` by
+`JSON.stringify` inside tauri-plugin-store. On reload, those fields appear as `null` rather
+than the empty-string or zero-value defaults that `buildDefaultValues()` produces. The user
+sees zod validation errors in a plan they successfully ran before saving.
+
+**Why it happens:**
+`useHistoryStore.ts` (line 16) stores `fieldValues: Record<string, unknown>` directly. The
+same `undefined`→`null` coercion exists there, but history is consumed via `form.reset()`
+which treats `null` as a reset signal. Plan steps reuse saved field values on every run,
+making the corruption visible on repeated executions.
+
+**Prevention:**
+Store `field_values` as a pre-serialized JSON string per step — matching the pattern from
+`useBlockStore` (`Block.content: string`, line 9). On plan step load:
+`JSON.parse(step.fieldValues)`. On save: `JSON.stringify(formValues)`. Makes the
+serialization boundary explicit and eliminates the `undefined`→`null` coercion.
+
+---
+
+### 62. Write-Before-Hydration Race in Plan Store
+
+**Phase:** Plan storage/persistence phase
+
+**What goes wrong:**
+A plan mutation fires before `loadPlans()` completes. The mutation writes to the store with
+only in-memory state (empty array), overwriting previously persisted plans.
+
+This is the identical race solved in:
+- `useHistoryStore.ts` line 47: `if (!get().historyLoaded) return;`
+- `useBlockStore.ts` line 52: `if (!get().blocksLoaded) return;`
+
+**Prevention:**
+Add `plansLoaded: boolean` to `usePlanStore`. Gate every write action with
+`if (!get().plansLoaded) return;`. Render the plan library in a loading state until
+`plansLoaded` is `true`. Exact same pattern as both existing stores.
+
+---
+
+### 63. load() With Options Requires `defaults` Field
+
+**Phase:** Plan storage/persistence phase
+
+**What goes wrong:**
+Calling `load(path, { autoSave: false })` without `defaults` throws a runtime error in
+tauri-plugin-store. Documented in CLAUDE.md ("StoreOptions.defaults required when passing
+options") and confirmed by both existing stores using `load(path)` with no options.
+
+**Prevention:**
+Use `load(PLANS_STORE_PATH)` with no options object. Follow `useHistoryStore.ts` line 31
+and `useBlockStore.ts` line 35 exactly.
+
+---
+
+## Critical: Frozen Component Constraints
+
+### 64. Plan Step Editor Leaks into useProtoStore
+
+**Phase:** Step editor UI phase
+
+**What goes wrong:**
+Mounting `ProtoFormRenderer` inside a `PlanStepEditor` and routing its `onValuesChange`
+through `useProtoStore.setLatestValues()` (as `FormPanel` does) pollutes global proto store
+with per-step state. The main form panel shows the last-edited plan step's values when the
+user returns to the main view.
+
+Additionally, `resetRef` and `applyBlockRef` in `FormPanel.tsx` (lines 46-50) are single
+imperative refs set to `ref.current` by the last-mounted `ProtoFormRenderer`. Multiple
+instances cannot share one ref — the last one wins, breaking replay and block-apply in the
+main form.
+
+**Prevention:**
+Route plan step `onValuesChange` to per-step local state. Never route through `useProtoStore`
+for plan step forms. Keep `useProtoStore` exclusively for the main form's active message. The
+ProtoFormRenderer switch is frozen — no plan-specific concepts go inside the switch.
+
+---
+
+### 65. "Import from History" — fieldValues Are Form Values, Not Bytes
+
+**Phase:** Step authoring/import phase
+
+**What goes wrong:**
+The milestone context states: "field_values in history are stored as encoded bytes — round-
+trip decode needed." This is incorrect. In `useHistoryStore.ts` (line 16), `fieldValues` is
+`Record<string, unknown>` — RHF form values from `useProtoStore.getState().latestValues` at
+send time. Encoded bytes are the separate `payloadBytes: number[]` field (line 18).
+
+The actual pitfall: `fieldValues` from history may contain fields not present in the plan
+step's schema (schema drift), or may be missing fields added since the history entry was
+written. Importing without handling drift causes silent incorrect form state.
+
+**Prevention:**
+- Call `buildDefaultValues(stepSchema)` first, then shallow-merge `entry.fieldValues` on top.
+  Unknown history keys are harmlessly overridden; missing keys get schema defaults.
+- Validate that `entry.messageTypeName` matches the step's message type before importing.
+- Do NOT attempt to decode `entry.payloadBytes` — the form values are already in
+  `entry.fieldValues`.
+
+---
+
+## Moderate Pitfalls
+
+### 66. Ephemeral Connection Cannot Hold a Reply Consumer Across a Step
+
+**Phase:** Runner engine phase
+
+**What goes wrong:**
+Tap opens one `lapin::Connection` per operation and closes it when done. A plan step waiting
+for a correlationId reply needs a persistent consumer open from before the publish until the
+reply arrives. Opening two connections per step (one for publish, one for reply consumer)
+doubles broker resource usage and TLS handshake latency. For a 10-step plan on a remote
+broker, this adds seconds of overhead.
+
+**Prevention:**
+Open one `lapin::Connection` per plan run. Create separate AMQP channels on it for publish
+and for the reply consumer. Keep both open for the plan's duration. Manage via `PlanRunState`
+in Tauri managed state:
+```rust
+pub struct PlanRunState {
+    pub token: CancellationToken,
+    pub handle: Option<tauri::async_runtime::JoinHandle<()>>,
+}
+```
+`run_plan` stores state. `stop_plan` cancels and awaits. Mirrors `SubscribeState` exactly.
+
+---
+
+### 67. Navigation Away While Plan Is Running — Orphaned Backend Session
+
+**Phase:** Runner engine + plan library view phase
+
+**What goes wrong:**
+The plan view component unmounts when the user navigates to the main view. The backend plan
+runner continues executing. The Tauri Channel used for step status updates has no receiver.
+Messages accumulate in memory. The plan cannot be stopped from the UI.
+
+`SubscribePanel.tsx` solves this with a `useEffect` cleanup (lines 92-101):
+```typescript
+useEffect(() => {
+  return () => {
+    const { subscribeStatus: status } = useResponseStore.getState();
+    if (status === "Running" || status === "Stopping") {
+      void stopSubscribe().catch(() => {});
+    }
+  };
+}, []);
+```
+
+**Prevention:**
+Implement the identical unmount cleanup pattern for the plan view: on unmount, call
+`stop_plan()` if plan execution status is "Running" or "Stopping". For v1.6 this is the
+correct approach — plans are not long-running background jobs. Never leave a Tauri Channel
+open with no receiver.
+
+---
+
+### 68. PlanRunState Must Be Separate From SubscribeState
+
+**Phase:** Runner engine phase
+
+**What goes wrong:**
+Reusing `SubscribeState` for plan runner sessions causes `stop_subscribe` to also stop the
+plan runner (it takes the slot and sets it to `None`).
+
+**Prevention:**
+Register a separate entry in `lib.rs`:
+```rust
+.manage(Mutex::new(Option::<commands::plan::PlanRunState>::None))
+```
+alongside the existing subscribe state. The two are fully independent.
+
+---
+
+### 69. DndContext Scope for Step Reordering Interferes With Block DnD
+
+**Phase:** Step editor UI phase
+
+**What goes wrong:**
+The `DndContext` in `AppLayout.tsx` (line 39) is for block-library-to-form drag. If the plan
+step list shares this context, plan step drag events trigger `AppLayout`'s `handleDragEnd`,
+which searches `blocks` for the dragged ID, finds nothing, and renders a broken `DragOverlay`.
+
+**Prevention:**
+Mount a separate `DndContext` inside the plan view for step reordering. Use `PointerSensor`
+with `activationConstraint: { distance: 8 }` — same as `AppLayout`. WKWebView breaks HTML5
+DnD; PointerSensor is required on Tauri macOS (learned mid-v1.3). Mount the plan step
+`DragOverlay` inside the plan view's own `DndContext`, not in `AppLayout`.
+
+---
+
+### 70. Per-Step Timeout Must Use tokio::select! With Cancellation Branch
+
+**Phase:** Runner engine phase
+
+**What goes wrong:**
+Implementing the per-step timeout as a plain `tokio::time::timeout()` wrapper means a user
+clicking Stop during the timeout wait must wait the full timeout duration before the step
+exits. Additionally, if timeout fires while the consumer has buffered messages, those messages
+are dropped without NACK.
+
+**Prevention:**
+Three-branch `tokio::select!` — same pattern as `subscribe.rs` line 231:
+```rust
+tokio::select! {
+    delivery_opt = consumer.next() => { /* match */ },
+    _ = tokio::time::sleep(per_step_timeout) => { /* mark TimedOut */ },
+    _ = token_child.cancelled() => { /* NACK buffered, close, break */ },
+}
+```
+
+---
+
+### 71. No-Wait Step Delay Must Use tokio::time::sleep
+
+**Phase:** Runner engine phase
+
+**What goes wrong:**
+`std::thread::sleep` in an async Tauri command blocks the tokio executor thread, starving all
+other tasks. The app appears frozen during the delay.
+
+**Prevention:**
+```rust
+tokio::select! {
+    _ = tokio::time::sleep(delay) => { /* proceed */ },
+    _ = token.cancelled() => { break; }
+}
+```
+
+---
+
+### 72. Full-Screen Plan View Without a Router
+
+**Phase:** Plan library view / navigation phase
+
+**What goes wrong:**
+Adding `react-router-dom` mid-project is a significant scope change and risks breaking
+existing layout state management. All stores are Zustand, not route-scoped.
+
+**Prevention:**
+Do NOT add `react-router-dom` for v1.6. Use a `viewMode` enum at `App.tsx` level:
+```typescript
+type ViewMode = "main" | "plan-library";
+const [viewMode, setViewMode] = useState<ViewMode>("main");
+```
+Render `<AppLayout />` or `<PlanLibraryLayout />` conditionally alongside `<ThemeBootstrap />`
+and `<UpdateChecker />`. Zustand stores persist across view switches — the active connection
+and loaded proto files survive navigation.
+
+---
+
+### 73. DescriptorPool Replaced Mid-Run Breaks Response Decoding
+
+**Phase:** Runner engine phase
+
+**What goes wrong:**
+If the user loads a new proto file while a plan is running, the `DescriptorPool` in managed
+state changes. Steps that started before the change use the cloned old pool correctly. Steps
+that start after the change use the new pool, potentially decoding responses against the wrong
+schema with no error (protobuf is lenient about unknown fields — decode succeeds with wrong
+values).
+
+**Prevention:**
+Clone the `DescriptorPool` once at plan run start. Store the clone in `PlanRunState`. Do not
+re-lock the managed pool per step. Show a UI warning if the user loads a new proto file while
+a plan is running.
+
+---
+
+## Minor Pitfalls
+
+### 74. Plan Feed Re-Render at High Message Volume
+
+**Phase:** Response feed / runner UI phase
+
+**What goes wrong:**
+The shared response feed accumulates messages from all watched queues during a run. Without
+a FIFO cap and component memoization, the UI becomes unresponsive above ~100 new messages
+per second. The existing `useResponseStore` enforces FIFO-500 (line 5) — apply the same cap.
+
+**Prevention:**
+- Reuse `useResponseStore`'s FIFO-500 cap or define an equivalent for the plan feed.
+- `React.memo` on feed row components.
+- Batch incoming channel messages: `appendMessages([msg1, msg2, ...])` not one call per message.
+- Consider `@tanstack/react-virtual` only if testing reveals jank with realistic volumes.
+
+---
+
+### 75. Store Write Latency for Large Plans
+
+**Phase:** Plan storage/persistence phase
+
+**What goes wrong:**
+tauri-plugin-store rewrites the entire file on every `store.save()`. A plan with 50 steps
+and deeply nested proto messages can produce a file of hundreds of KB. Full rewrites on slow
+storage (encrypted home, network home) cause 200ms+ write latency on every step edit.
+
+**Prevention:**
+- Accept the latency for first implementation. Test with realistic sizes (5-20 steps).
+- Debounce plan persistence to 200ms after the last change — mirrors `useDebounce(latestValues, 200)` in `FormPanel.tsx`.
+- Soft caps: 50 plans max, 100 steps per plan, with UI warnings at limits.
+
+---
+
+## v1.6 Phase-Specific Warning Table
+
+| Phase Topic | Pitfall | Mitigation |
+|-------------|---------|------------|
+| Plan storage schema | field_values undefined→null (#61) | Store field_values as serialized JSON string |
+| Plan storage hydration | Write-before-hydration race (#62) | `plansLoaded` guard on all mutations |
+| Plan storage options | load() options require defaults (#63) | Use `load(path)` with no options |
+| Step editor UI | ProtoFormRenderer leaks into useProtoStore (#64) | Per-step isolated form state |
+| Step authoring from history | fieldValues vs bytes confusion + schema drift (#65) | Merge onto buildDefaultValues baseline |
+| Runner engine — correlationId | Wrong AMQP property (#58) | `delivery.properties.correlation_id()` |
+| Runner engine — reply ordering | Consumer after publish misses fast replies (#59) | Start consumer BEFORE publishing |
+| Runner engine — ack | Ack-before-decode discards unmatched replies (#60) | NACK+requeue non-matching; ack only on match |
+| Runner engine — connection | Ephemeral model cannot hold reply consumer (#66) | One persistent connection per plan run via PlanRunState |
+| Runner engine — navigation | Orphaned backend on view switch (#67) | useEffect cleanup calling stop_plan() on unmount |
+| Runner engine — state | Reusing SubscribeState for plan (#68) | Separate PlanRunState in lib.rs |
+| Runner engine — timeout | No cancellation inside timeout (#70) | Three-branch tokio::select! |
+| Runner engine — delay | std::thread::sleep blocks tokio (#71) | tokio::time::sleep + select! |
+| Runner engine — schema | DescriptorPool replaced mid-run (#73) | Clone once at plan start, hold in PlanRunState |
+| Plan view layout | Adding react-router mid-project (#72) | viewMode conditional render at App.tsx |
+| Plan DnD step reorder | Outer DndContext interference (#69) | Nested DndContext inside plan view |
+| Performance | Feed re-render at volume (#74) | FIFO cap + React.memo |
+| Performance | Store rewrite latency (#75) | Debounce + soft caps |
+
+---
+
+## v1.6 Sources
+
+All findings verified in the Tap v1.5.7 source tree:
+
+- `src-tauri/src/commands/subscribe.rs` — CancellationToken, SubscribeState, ack-before-decode (D-13), tokio::select! pattern, CR-01 slot claim
+- `src-tauri/src/commands/publish.rs` — correlationId property path (`with_correlation_id`), ephemeral connection model
+- `src-tauri/src/commands/consume.rs` — ack-before-decode (D-10 DEVIATION)
+- `src-tauri/src/lib.rs` — SubscribeState at line 35, DescriptorPool at line 34
+- `src/stores/useHistoryStore.ts` — fieldValues shape (line 16), payloadBytes (line 18), historyLoaded guard (line 47)
+- `src/stores/useBlockStore.ts` — content-as-string (line 9), blocksLoaded guard (line 52), load() no-options (line 35)
+- `src/stores/useResponseStore.ts` — FIFO-500 cap (line 5), appendMessages batching (line 62)
+- `src/stores/useProtoStore.ts` — latestValues, pendingReplayValues
+- `src/stores/useAmqpStore.ts` — correlationId in AmqpProperties (line 14)
+- `src/components/response/SubscribePanel.tsx` — unmount cleanup (lines 92-101), auto-stop on profile change (lines 127-139)
+- `src/components/layout/AppLayout.tsx` — DndContext scope (line 39), PointerSensor constraint (line 17)
+- `src/components/history/MessageHistoryPanel.tsx` — handleReplay fieldValues path (lines 31-42)
+- `src/components/form/FormPanel.tsx` — resetRef and applyBlockRef (lines 46-50)
+- `src/App.tsx` — no router; conditional render pattern at App level

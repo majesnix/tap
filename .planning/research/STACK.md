@@ -1,354 +1,258 @@
-# Stack Research — Distribution (v1.5)
+# Technology Stack — v1.6 Plan Runner
 
-**Project:** Tap v1.5
-**Researched:** 2026-05-21
-**Focus:** GitHub Actions build pipeline, macOS signing + notarization, Linux packages, tauri-plugin-updater
+**Project:** Tap
+**Milestone:** v1.6 Plan Runner
+**Researched:** 2026-05-23
+**Scope:** Additions and changes needed beyond the existing v1.5 stack.
 
 ---
 
-## New Dependencies
+## Verdict: Minimal additions. One new Rust crate. Zero new npm packages.
 
-### Rust (Cargo.toml additions)
+The Plan Runner feature maps cleanly onto the existing stack. The analysis below documents what each new capability uses, which existing primitive covers it, and what (little) needs to be added.
 
-| Crate | Version | Purpose | Target | Confidence |
-|-------|---------|---------|--------|------------|
-| `tauri-plugin-updater` | `"2"` (resolves to 2.10.1) | In-app update check, download, install | `cfg(not(android, ios))` | HIGH — crates.io confirmed 2.10.1 |
-| `tauri-plugin-process` | `"2"` | `relaunch()` after update installs | `cfg(not(android, ios))` | HIGH — required by updater flow |
+---
 
-**Cargo.toml placement** — use desktop-only target to avoid mobile compile errors:
+## New Rust Crate: `uuid`
 
+**Add to Cargo.toml:**
 ```toml
-[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-tauri-plugin-updater = "2"
-tauri-plugin-process = "2"
+uuid = { version = "1", features = ["v4"] }
 ```
 
-### JavaScript / npm
+**Why:** The Plan Runner needs to generate correlation IDs to match responses to their originating steps. `uuid::Uuid::new_v4().to_string()` is the standard approach.
 
-| Package | Version | Purpose | Confidence |
-|---------|---------|---------|------------|
-| `@tauri-apps/plugin-updater` | `^2.10.0` | JS bindings for update check/install | HIGH — npm confirmed 2.10.1 |
-| `@tauri-apps/plugin-process` | `^2` | JS `relaunch()` call post-install | HIGH — official Tauri plugin |
+**Status:** Already present in `Cargo.lock` as a transitive dependency at v1.23.1. Adding it as a direct dependency makes the intent explicit and locks the feature set. No version resolution impact — the same version is used.
 
-**Version sync rule:** the npm package major.minor must match the Rust crate major.minor. Both are currently 2.10.x; pin the npm package to `^2.10.0` to avoid accidental minor drift during `pnpm update`.
+**Why not a string timestamp or counter?** Correlation IDs must be globally unique even if two plans run concurrently or if the reply queue has leftover messages from a previous run. UUID v4 is collision-free without coordination.
 
 ---
 
-## GitHub Actions Setup
+## No New npm Packages
 
-### What Needs to Change in `release.yml`
+All Plan Runner frontend capabilities are covered by the existing stack:
 
-The existing `release.yml` has the right skeleton (matrix split, tauri-action@v0, tag trigger) but is missing:
+| Capability | Existing package |
+|---|---|
+| Step reordering drag-and-drop | `@dnd-kit/core` 6.x — already integrated at AppLayout level |
+| Step editor form state | `react-hook-form` 7.x + `zod` 4.x |
+| Runner state machine (Pending / Sending / WaitingResponse / Done / Error) | Zustand 5.x discriminated union slice |
+| Toast notifications (step errors, plan done) | `sonner` 2.x |
+| JSON field values, block apply | `@uiw/react-codemirror` 4.x — already present |
+| Plan persistence | `@tauri-apps/plugin-store` 2.x — already present |
 
-1. **`macos-13` is dead** — deprecated September 2025, fully unsupported December 2025. Replace with `macos-latest` (now macOS 15, ARM). For a universal binary build the runner must be ARM; `--target universal-apple-darwin` compiles both slices on the same runner.
-2. **No signing/notarization env vars wired** — the macOS job has zero `APPLE_*` secrets.
-3. **No updater signing env vars** — `TAURI_SIGNING_PRIVATE_KEY` is absent from both jobs.
-4. **Separate create-release job** — currently correct but needs `latest.json` in the upload glob so the updater endpoint works.
-5. **Missing Rust cache** — the macOS job has no `swatinem/rust-cache@v2` step; cold Rust builds on macOS take 15–20 min. Add it.
-6. **`actions/checkout@v6`, `setup-node@v6`, `download-artifact@v8`** — these action versions do not exist at time of writing (latest are v4/v4/v4). The workflow will fail on checkout. Use v4 for all three.
-
-### Revised Workflow Structure
-
-```yaml
-name: Release
-
-on:
-  push:
-    tags:
-      - "v*.*.*"
-  workflow_dispatch:
-
-jobs:
-  build-macos:
-    runs-on: macos-latest           # macOS 15 ARM; supports universal-apple-darwin
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
-
-      - name: Cache Rust build artifacts
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: pnpm
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build and release (macOS universal)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: v__VERSION__
-          releaseName: "Tap v__VERSION__"
-          releaseBody: "See the assets below to download and install."
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          args: --target universal-apple-darwin
-
-  build-linux:
-    runs-on: ubuntu-22.04           # 22.04 required — libwebkit2gtk-4.1-dev is in its repos
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            file
-
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build artifacts
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: pnpm
-
-      - name: Install frontend dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build and release (Linux x86_64)
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          tagName: v__VERSION__
-          releaseName: "Tap v__VERSION__"
-          releaseDraft: true
-          prerelease: ${{ contains(github.ref_name, '-') }}
-```
-
-### Why `tauri-action@v0` handles the release
-
-`tauri-action@v0` (latest release 0.6.2, March 2026) both builds the app **and** creates/uploads to a GitHub Release when `tagName` is set. With `createUpdaterArtifacts: true` in `tauri.conf.json`, it also uploads `latest.json` (per-platform) automatically (`uploadUpdaterJson: true` is the default). The separate `create-release` job in the existing workflow is then redundant and should be removed — two jobs racing to create the same release causes non-deterministic failures.
-
-**Do not set `releaseDraft: false` initially** — keep as `true` so you can verify artifacts before publishing.
-
-### Required GitHub Secrets
-
-All must be set in **Settings → Secrets and variables → Actions → Repository secrets**:
-
-| Secret | How to obtain |
-|--------|---------------|
-| `APPLE_CERTIFICATE` | Export Developer ID Application cert as `.p12` from Keychain Access; `base64 -i cert.p12` |
-| `APPLE_CERTIFICATE_PASSWORD` | Password set when exporting the `.p12` |
-| `APPLE_SIGNING_IDENTITY` | Run `security find-identity -v -p codesigning`; copy the full string e.g. `Developer ID Application: Jane Smith (TEAMID)` |
-| `APPLE_ID` | Apple Developer account email |
-| `APPLE_PASSWORD` | App-specific password from appleid.apple.com (not primary password) |
-| `APPLE_TEAM_ID` | 10-char team ID from developer.apple.com/account/membership |
-| `TAURI_SIGNING_PRIVATE_KEY` | Run `npm run tauri signer generate -- -w ~/.tauri/tap.key`; store the private key file content |
-| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password chosen during key generation (can be empty string) |
-
-`GITHUB_TOKEN` is auto-injected by GitHub Actions — no setup needed, but the job needs `permissions: contents: write`.
-
-### Notarization method choice
-
-Both Apple ID (`APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`) and App Store Connect API (`APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_PATH`) work. The table above uses Apple ID because it requires no separate API key file management. If rotating credentials is a concern, the App Store Connect API method is more robust (key never expires), but adds the `APPLE_API_KEY_PATH` setup complexity in CI.
+**Do NOT add:** XState, any workflow/state-machine library, JSON Schema validators, or a second form library. The per-step status is a discriminated union (`{ status: 'pending' | 'sending' | 'waiting_response' | 'done' | 'error' }`), not a state chart that needs a library.
 
 ---
 
-## Tauri Config Changes
+## Existing Crates — How Each Covers a Plan Runner Capability
 
-### 1. `tauri.conf.json` — bundle section
+### 1. Plan + Step Data Serialization (`serde` + `tauri-plugin-store`)
 
-Add `createUpdaterArtifacts`, updater plugin config, and macOS signing settings:
+**Capability:** Persist complex nested plan/step structures across restarts.
 
-```json
-{
-  "bundle": {
-    "active": true,
-    "targets": "all",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "createUpdaterArtifacts": true,
-    "macOS": {
-      "entitlements": "./Entitlements.plist",
-      "hardenedRuntime": true,
-      "minimumSystemVersion": "11.0"
-    }
-  },
-  "plugins": {
-    "updater": {
-      "pubkey": "<CONTENT_OF_PUBLICKEY.PEM>",
-      "endpoints": [
-        "https://github.com/YOUR_ORG/YOUR_REPO/releases/latest/download/latest.json"
-      ]
-    }
-  }
+**How it works:** `tauri-plugin-store` serializes arbitrary `serde_json::Value` trees. A `Plan` struct with nested `Vec<Step>` serializes via `#[derive(Serialize, Deserialize)]` identically to the flat structures already stored (message history, blocks). There is no documented depth or size cap on the store.
+
+**Required discipline — add a `schema_version` field to the plan root:**
+```rust
+#[derive(Serialize, Deserialize, Clone)]
+pub struct Plan {
+    pub schema_version: u32,  // = 1; increment on breaking changes
+    pub id: String,
+    pub name: String,
+    pub steps: Vec<Step>,
+    pub created_at: u64,
+    pub updated_at: u64,
 }
 ```
+Mirror with a zod schema on the JS side for runtime validation at load time. This prevents silent data corruption if the store file is edited manually or migrated between app versions.
 
-**Notes:**
-- `signingIdentity` is intentionally **omitted from the config file** — set it only via `APPLE_SIGNING_IDENTITY` env var in CI. This keeps the repo clean (no developer-specific string in source).
-- `hardenedRuntime: true` — confirmed key in official Tauri docs (`bundle.macOS.hardenedRuntime`). Required for notarization with Developer ID.
-- `minimumSystemVersion: "11.0"` — recommended; macOS 11 is the practical baseline for Tauri 2. The Tauri default is `"10.13"` but macOS 10.x is out of Apple security support and WKWebView compatibility is uncertain.
-- `pubkey` — the public key content from `tap.key.pub`. Safe to commit; the private key must never be committed.
-- `endpoints` — `tauri-action` uploads `latest.json` to GitHub Releases automatically; this URL pattern works without a separate update server.
+**Confidence:** HIGH — pattern is identical to existing block storage.
 
-### 2. `Entitlements.plist` — MUST REPLACE EXISTING FILE
+### 2. Multi-Queue Concurrent Response Monitoring (Tauri Channel + lapin + tokio)
 
-**The current `Entitlements.plist` will fail notarization.** It contains:
+**Capability:** Watch N reply queues simultaneously during a plan run, stream all arriving messages to the frontend's shared feed.
 
-```xml
-<key>com.apple.security.temporary-exception.files.absolute-path.read-write</key>
+**Key fact verified:** `tauri::ipc::Channel<T>` implements `Clone`, `Send`, and `Sync` (confirmed via docs.rs). It can be safely cloned across tasks — each spawned task gets its own clone that writes to the same frontend listener.
+
+**Pattern — single Channel, N consumer tasks:**
+```rust
+// channel: tauri::ipc::Channel<PlanEvent> — passed in from the Tauri command
+// For each reply queue the plan needs to watch:
+let ch = channel.clone();
+let token = root_token.child_token();
+tauri::async_runtime::spawn(async move {
+    let mut consumer = amqp_channel
+        .basic_consume(queue_name, consumer_tag, opts, FieldTable::default())
+        .await?;
+    loop {
+        tokio::select! {
+            delivery_opt = consumer.next() => { /* decode, send via ch */ }
+            _ = token.cancelled() => break,
+        }
+    }
+});
 ```
 
-This is an App Sandbox temporary exception. With Hardened Runtime + Developer ID distribution (no sandbox), it is invalid and Apple's notarization service will reject it.
+All tasks write to the same `Channel<PlanEvent>`. The frontend receives a single ordered stream and dispatches by `queue` and `correlation_id` fields on the event.
 
-**Replace the entire file** with:
+**Why not `futures::stream::select_all`?** The per-task + shared Channel approach gives independent cancellation per queue using child `CancellationToken`s. This is needed when a step's wait-window closes but other steps' response queues are still open. `select_all` would require polling all streams from a single task and loses per-stream cancellation without additional complexity.
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>com.apple.security.cs.allow-jit</key>
-    <true/>
-    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
-    <true/>
-    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
-    <true/>
-</dict>
-</plist>
+**Existing primitives used:**
+
+| Primitive | Source | Already in project |
+|---|---|---|
+| `tauri::ipc::Channel<T>` clone | tauri 2.x | Yes — used in `subscribe.rs` |
+| `lapin::Consumer` (impl `Stream`) | lapin 4.x | Yes — confirmed in lapin source |
+| `futures_util::StreamExt` | futures-util 0.3 | Yes — imported in `subscribe.rs` |
+| `tokio_util::sync::CancellationToken` child tokens | tokio-util 0.7 | Yes — used in `subscribe.rs` |
+| `tauri::async_runtime::spawn` | tauri 2.x | Yes — established pattern |
+
+**No new crate needed.**
+
+### 3. CorrelationId-Based Response Matching (`tokio::sync`)
+
+**Capability:** When a step sends a message with a correlation ID, match the reply on the reply queue by that same ID.
+
+**Pattern — oneshot registry:**
+```rust
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::{Mutex, oneshot};
+
+type CorrelationRegistry = Arc<Mutex<HashMap<String, oneshot::Sender<Delivery>>>>;
 ```
 
-**Why these three:** Tauri's embedded WKWebView requires JIT compilation and unsigned executable memory to function under Hardened Runtime. `allow-dyld-environment-variables` is required for WebView dylib loading. All three are standard Hardened Runtime exceptions documented for WebView-based apps. Confidence: HIGH — confirmed by two independent community guides and cross-referenced against Apple's Hardened Runtime entitlement documentation.
+The runner holds a `CorrelationRegistry`. Before sending a step's message, it inserts `(correlation_id, tx)`. The reply-queue consumer checks each delivery's `correlation_id` property; on match, fires the `oneshot::Sender` and removes the entry. The runner step awaits `rx` with `tokio::time::timeout`.
 
-**Why no `keychain-access-groups`:** The app uses `apple-native-keyring-store` with `features = ["keychain"]` (not `protected`). On macOS with a Developer ID certificate and no provisioning profile, the traditional file-based keychain is used. Apple's developer forums explicitly state that error -34018 (`errSecMissingEntitlement`) only applies when using the data protection keychain, which requires a provisioning profile. Developer ID apps use the file-based keychain and need no `keychain-access-groups` entitlement. Confidence: MEDIUM — Apple developer forum post confirmed the distinction, but no official Apple documentation page addresses this combination explicitly.
+The three step execution modes map as follows:
 
-**Why no `com.apple.security.app-sandbox`:** The app is a developer tool requiring broad filesystem access (loading arbitrary `.proto` files). Sandboxing would break this. Developer ID distribution does not require the App Store sandbox.
+| Mode | Implementation |
+|---|---|
+| Wait for correlationId match | `tokio::time::timeout(step.timeout, rx).await` where rx is the oneshot receiver |
+| Wait for first arrival | Reply consumer sends all deliveries to a `tokio::sync::mpsc`; step awaits first recv with timeout |
+| No-wait with delay | `tokio::time::sleep(step.delay).await` after publish; no consumer needed |
 
-### 3. `capabilities/default.json` — add updater permissions
+**Existing primitives used:**
 
-Add to the existing permissions array:
+| Primitive | Tokio feature | Already enabled |
+|---|---|---|
+| `tokio::sync::oneshot` | "sync" | Yes |
+| `tokio::sync::Mutex` | "sync" | Yes |
+| `tokio::time::timeout` | "time" | Yes |
+| `tokio::time::sleep` | "time" | Yes |
+| `std::collections::HashMap` | stdlib | Yes |
 
-```json
-"updater:default",
-"process:default"
-```
+**No new crate needed.**
 
-`updater:default` includes `allow-check`, `allow-download`, `allow-install`, `allow-download-and-install`. `process:default` enables `relaunch()` after install.
+### 4. Plan Run Cancellation (`tokio-util` + `tokio`)
 
-### 4. `src-tauri/src/lib.rs` — register new plugins
+**Capability:** "Stop" button cancels an in-flight plan, tearing down all consumer tasks cleanly.
 
-Add after existing plugin registrations:
+**Pattern:** One root `CancellationToken` per plan run. Each consumer task holds a child token (`root_token.child_token()`). `root_token.cancel()` propagates to all children. Use `tokio::task::JoinSet` to collect and await all spawned tasks:
 
 ```rust
-.plugin(tauri_plugin_updater::Builder::new().build())
-.plugin(tauri_plugin_process::init())
+let mut set = tokio::task::JoinSet::new();
+set.spawn(consumer_task_a);
+set.spawn(consumer_task_b);
+// On stop:
+root_token.cancel();
+let _ = tokio::time::timeout(Duration::from_secs(5), set.join_all()).await;
 ```
 
-Or with the desktop guard pattern:
+`tokio::task::JoinSet` is in the `"rt"` feature which is already enabled.
 
-```rust
-#[cfg(desktop)]
-app.handle().plugin(tauri_plugin_updater::Builder::new().build())?;
-```
+**Existing primitives used:**
+- `tokio_util::sync::CancellationToken` — already in Cargo.toml
+- `tokio::task::JoinSet` — in existing tokio "rt" feature
+- `tauri::async_runtime::spawn` — established pattern
 
-### 5. Updater key generation (one-time, run locally)
+**No new crate needed.**
 
-```bash
-npm run tauri signer generate -- -w ~/.tauri/tap.key
-```
+### 5. Reply Queue Lifecycle (lapin — existing)
 
-Outputs:
-- `~/.tauri/tap.key` — private key → store as `TAURI_SIGNING_PRIVATE_KEY` in GitHub Secrets AND in a team password vault
-- `~/.tauri/tap.key.pub` — public key → paste content into `tauri.conf.json` `plugins.updater.pubkey`
+Two reply queue strategies are viable with existing lapin — this is a design decision, not a stack gap:
 
-**Critical:** losing the private key means existing installed users can never receive auto-updates. They would need to manually reinstall.
+| Strategy | lapin call | Tradeoff |
+|---|---|---|
+| Per-run exclusive auto-delete queue | `queue_declare` with `exclusive: true, auto_delete: true` | Clean teardown; no name collision; queue disappears when connection closes |
+| User-specified persistent reply queue per step | Reuse existing queue config | User controls lifetime; leftover messages from prior runs possible |
 
-### 6. `Info.plist` — no changes needed
-
-Tauri auto-generates `Info.plist` from `tauri.conf.json`. No custom `Info.plist` is required for this milestone.
+Both use the existing `lapin::Channel::queue_declare` API. The recommended approach is to allow an optional `reply_queue` override per step, with a fallback to a per-run auto-generated exclusive queue (declared once on plan start, shared across all steps). This keeps noise out of the broker and removes manual cleanup.
 
 ---
 
-## What NOT to Add
+## Tokio Feature Additions: None Required
 
-| Rejected Approach | Reason |
-|------------------|--------|
-| Custom `latest.json` generation script | `tauri-action@v0` generates and uploads it automatically when `createUpdaterArtifacts: true`; adding a custom step creates duplication and drift risk |
-| `softprops/action-gh-release` in release workflow | `tauri-action` already creates the GitHub Release; the existing separate `create-release` job races and conflicts — remove it |
-| `tauri-plugin-sparkle-updater` | Sparkle is macOS-only; this app targets Linux too; `tauri-plugin-updater` is cross-platform |
-| App Store signing / provisioning profiles | App is distributed outside the App Store; Developer ID Application cert is the correct certificate type |
-| `com.apple.security.app-sandbox: true` | Developer ID distribution doesn't require sandbox; enabling it would break loading `.proto` files from arbitrary paths |
-| `com.apple.security.temporary-exception.*` | Invalid under Hardened Runtime without the sandbox; notarization will reject it — this is in the current file and must be removed |
-| Windows build job | Not in v1.5 scope; adding without a Windows code signing strategy produces SmartScreen-blocked unsigned binaries |
-| `macos-13` runner | Deprecated and fully unsupported since December 2025; `macos-latest` (macOS 15) is the replacement |
-| `actions/checkout@v6` / `setup-node@v6` / `download-artifact@v8` | These version tags do not exist; latest stable is v4 for all three |
-| `KEYCHAIN_PASSWORD` secret | Only needed if unlocking a CI keychain manually; `tauri-action` handles the macOS keychain import automatically using `APPLE_CERTIFICATE` + `APPLE_CERTIFICATE_PASSWORD` |
+Current Cargo.toml:
+```toml
+tokio = { version = "1", features = ["rt", "time", "sync"] }
+```
+
+- `"rt"` covers `tokio::task::JoinSet` and `tauri::async_runtime::spawn`
+- `"time"` covers `tokio::time::timeout` and `tokio::time::sleep`
+- `"sync"` covers `tokio::sync::oneshot`, `tokio::sync::Mutex`, `tokio::sync::mpsc`
+
+No feature additions needed.
 
 ---
 
-## Version Constraint Notes
+## Summary of Changes
 
-| Item | Version | Notes |
-|------|---------|-------|
-| `tauri-plugin-updater` (Rust) | `2.10.1` | Keep in sync with npm package |
-| `@tauri-apps/plugin-updater` (npm) | `2.10.1` | Keep in sync with Rust crate |
-| `tauri-plugin-process` (Rust) | `2.x` | Check crates.io for current |
-| `tauri-action` (GHA) | `v0` (latest release 0.6.2, 2026-03-14) | `v0` is the semver-pinned tag; do not use `@main` |
-| macOS runner | `macos-latest` (macOS 15 ARM as of 2025-09) | `macos-13` is dead |
-| Ubuntu runner | `ubuntu-22.04` | 22.04 specifically — `libwebkit2gtk-4.1-dev` was removed from Ubuntu 24.04 repos |
+### Cargo.toml — one addition
+
+```toml
+uuid = { version = "1", features = ["v4"] }
+```
+
+### package.json — no additions
+
+### Existing stack coverage for all new capabilities
+
+| Capability | Crate / package | API |
+|---|---|---|
+| Correlation ID generation | `uuid` (new direct dep) | `Uuid::new_v4().to_string()` |
+| Multi-queue streaming | `tauri::ipc::Channel<T>` clone | `channel.clone()` per spawned task |
+| Consumer stream iteration | `lapin::Consumer` + `futures_util::StreamExt` | `consumer.next()` in `tokio::select!` |
+| Per-task cancellation | `tokio_util::sync::CancellationToken` | `root_token.child_token()` per task |
+| Task collection + stop | `tokio::task::JoinSet` | `set.spawn()` / `set.join_all()` |
+| CorrelationId match | `tokio::sync::oneshot` | `tx.send(delivery)` from consumer |
+| No-wait delay | `tokio::time::sleep` | `sleep(step.delay).await` |
+| Plan/step persistence | `tauri-plugin-store` + `serde` | Nested struct with `schema_version: u32` |
+| Step form state | `react-hook-form` 7.x | Existing `useFieldArray` pattern |
+| Runner state | Zustand 5.x | Discriminated union slice |
+| Step reordering | `@dnd-kit/core` 6.x | Already at AppLayout level |
+| Reply queue declaration | `lapin::Channel::queue_declare` | `exclusive: true, auto_delete: true` for per-run queue |
+
+---
+
+## Confidence Assessment
+
+| Area | Confidence | Basis |
+|---|---|---|
+| `uuid` as only new Rust dep | HIGH | Cargo.lock confirms it is the only missing direct dep; all other capabilities map to existing crates |
+| Channel clone across tasks | HIGH | `impl Clone for Channel<TSend>` + `impl Send + Sync` confirmed via docs.rs |
+| lapin Consumer as Stream | HIGH | `impl Stream for Consumer` confirmed in lapin 4.x source (Context7) |
+| tokio JoinSet in "rt" feature | HIGH | Standard tokio documentation |
+| oneshot/Mutex in "sync" feature | HIGH | Standard tokio documentation |
+| tauri-plugin-store nested JSON | HIGH | Backed by `serde_json::Value`; no documented cap; identical to existing block/history storage |
+| Zero new npm packages | HIGH | Feature-by-feature mapping against existing deps leaves no gap |
+
+---
+
+## Note for Architecture Phase
+
+**AMQP connection topology is a key design decision.** PROJECT.md records "Ephemeral lapin connections per operation" as a validated Key Decision. The Plan Runner is the first feature where one user action spans N publishes plus M concurrent reply-queue consumers within a coherent unit of work.
+
+Following the ephemeral-connection pattern strictly would mean opening N+M lapin connections per plan run — incorrect for this shape of work. The correct pattern is: **one `lapin::Connection` per plan run, with multiple `lapin::Channel`s on that connection** (one for publishes, one per concurrent reply-queue consumer). lapin fully supports this; it changes nothing about the stack, but it is an intentional deviation from the stated Key Decision that needs explicit documentation during architecture.
 
 ---
 
 ## Sources
 
-- tauri-plugin-updater crate: https://crates.io/crates/tauri-plugin-updater (confirmed 2.10.1)
-- Tauri updater plugin docs: https://v2.tauri.app/plugin/updater/ (Context7 verified)
-- Tauri GitHub Actions pipeline: https://v2.tauri.app/distribute/pipelines/github/ (official)
-- Tauri macOS signing: https://v2.tauri.app/distribute/sign/macos/ (official)
-- tauri.conf.json macOS bundle reference (hardenedRuntime key confirmed): https://v2.tauri.app/reference/config/ (Context7 verified)
-- tauri-action GitHub repo: https://github.com/tauri-apps/tauri-action
-- macos-13 deprecation announcement: https://github.blog/changelog/2025-09-19-github-actions-macos-13-runner-image-is-closing-down/
-- apple-native-keyring-store keychain vs protected modules: https://github.com/open-source-cooperative/apple-native-keyring-store
-- macOS Developer ID + traditional keychain, no entitlement required: https://developer.apple.com/forums/thread/114456
-- Community walkthrough Tauri v2 signing: https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-code-signing-for-macos-and-windows-part-12-3o9n
-- Community walkthrough Tauri v2 release automation: https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-github-actions-and-release-automation-part-22-2ef7
+- `tauri::ipc::Channel` Clone + Send + Sync: https://docs.rs/tauri/latest/tauri/ipc/struct.Channel.html
+- `lapin::Consumer` Stream impl: https://docs.rs/lapin/latest/src/lapin/consumer.rs.html (Context7 verified)
+- `tokio_util::sync::CancellationToken` existing usage: `src-tauri/src/commands/subscribe.rs`
+- `uuid` v1.23.1 in Cargo.lock: `src-tauri/Cargo.lock`
+- `tauri::async_runtime::spawn` pattern: established in `subscribe.rs` (not `tokio::spawn`)
+- tokio feature flags: https://docs.rs/tokio/latest/tokio/#feature-flags
