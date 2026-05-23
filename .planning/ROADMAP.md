@@ -193,7 +193,7 @@ Plans:
 - [x] 21-01-PLAN.md — usePlanStore step actions (addStep/updateStep/deleteStep/duplicateStep/reorderSteps) + HistoryEntry.protoPath + PublishBar protoPath capture
 
 **Wave 2**
-- [ ] 21-02-PLAN.md — @dnd-kit/sortable install + PlanDetailPanel sub-split + StepListPanel (DnD, inline rename, AlertDialog) + StepFieldEditor stub
+- [x] 21-02-PLAN.md — @dnd-kit/sortable install + PlanDetailPanel sub-split + StepListPanel (DnD, inline rename, AlertDialog) + StepFieldEditor stub
 
 **Wave 3** *(parallel with each other, blocked on Wave 2)*
 - [ ] 21-03-PLAN.md — StepFieldEditor full implementation (isolated form, auto-save debounce, field primitives, target + response mode sections)
@@ -252,7 +252,7 @@ Plans:
 | 18. Auto-Update + Linux + Docs | v1.5 | 4/4 | Complete | 2026-05-23 |
 | 19. Plan Data Model and Persistence | v1.6 | 1/1 | Complete | 2026-05-23 |
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
-| 21. Step Editor (Authoring) | v1.6 | 1/4 | In Progress|  |
+| 21. Step Editor (Authoring) | v1.6 | 2/4 | In Progress|  |
 | 22. Plan Runner — Sequential Execution | v1.6 | 0/? | Not started | - |
 | 23. Response View — Inline and Shared Feed | v1.6 | 0/? | Not started | - |
 
