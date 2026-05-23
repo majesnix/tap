@@ -12,7 +12,10 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/sidebar/ThemeToggle";
+import { Button } from "@/components/ui/button";
+import { RefreshCw } from "lucide-react";
 import { RELEASE_NAME } from "@/lib/release";
+import { runUpdateCheck } from "@/UpdateChecker";
 
 export function Sidebar() {
   const { schema, selectedMessageType, setSelectedType } = useProtoStore();
@@ -68,7 +71,19 @@ export function Sidebar() {
         <div className="text-xs text-muted-foreground">
           {appVersion ? `v${appVersion}` : "v1.3.0"} — {RELEASE_NAME}
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-8"
+            onClick={() => runUpdateCheck({ manual: true })}
+            aria-label="Check for updates"
+            title="Check for updates"
+          >
+            <RefreshCw className="size-4" />
+          </Button>
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );
