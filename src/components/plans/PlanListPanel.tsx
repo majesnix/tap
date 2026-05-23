@@ -220,9 +220,9 @@ export function PlanListPanel({ selectedPlanId, onSelectPlan }: PlanListPanelPro
               onClick={() => {
                 if (planToDelete) {
                   const id = planToDelete.id;
-                  setPlanToDelete(null);
+                  const wasSelected = selectedPlanId === id;
                   deletePlan(id).catch((err) => console.error("[PlanListPanel] deletePlan failed:", err));
-                  if (selectedPlanId === id) onSelectPlan(null);  // D-13: reset selection on delete
+                  if (wasSelected) onSelectPlan(null);  // D-13: reset selection on delete
                 }
               }}
             >
