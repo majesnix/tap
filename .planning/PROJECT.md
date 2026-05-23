@@ -188,4 +188,6 @@ Phase 17 complete 2026-05-23. macOS signing + notarization pipeline operational:
 
 v1.5 shipped 2026-05-23. All 12 distribution requirements delivered across 3 phases (8 plans): signed/notarized macOS releases, Linux AppImage, in-app auto-update with live UAT confirmed, libsecret docs, and "Check for Updates..." in macOS native menu bar. Repository is now public. Current release: v1.5.7.
 
-*Last updated: 2026-05-23 after v1.5 milestone*
+Phase 19 complete 2026-05-23. Plan data contract established: `Plan`, `PlanStep`, `StepStatus`, `PublishTarget`, `ResponseMode` types exported from `src/lib/types.ts`; `usePlanStore` with CRUD + `plans.json` persistence (mirrors useBlockStore pattern exactly); 21 Vitest tests covering all D-14 conditions. Phases 20–23 can import from this foundation immediately.
+
+*Last updated: 2026-05-23 after Phase 19 (v1.6 Plan Data Model)*
