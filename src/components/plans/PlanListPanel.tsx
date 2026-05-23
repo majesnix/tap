@@ -174,7 +174,7 @@ export function PlanListPanel({ selectedPlanId, onSelectPlan }: PlanListPanelPro
                 initialValue={plan.name}
                 isSelected={plan.id === selectedPlanId}
                 onCommit={(name) => {
-                  void renamePlan(plan.id, name);
+                  renamePlan(plan.id, name).catch((err) => console.error("[PlanListPanel] renamePlan failed:", err));
                   setRenamingId(null);
                 }}
                 onCancel={() => setRenamingId(null)}
@@ -185,7 +185,7 @@ export function PlanListPanel({ selectedPlanId, onSelectPlan }: PlanListPanelPro
                 isSelected={plan.id === selectedPlanId}
                 onSelect={() => onSelectPlan(plan.id)}
                 onStartRename={() => setRenamingId(plan.id)}
-                onDuplicate={() => void duplicatePlan(plan.id)}
+                onDuplicate={() => duplicatePlan(plan.id).catch((err) => console.error("[PlanListPanel] duplicatePlan failed:", err))}
                 onDelete={() => setPlanToDelete(plan)}
               />
         ))}
@@ -197,7 +197,7 @@ export function PlanListPanel({ selectedPlanId, onSelectPlan }: PlanListPanelPro
             isSelected={false}
             onCommit={(name) => {
               setIsCreating(false);
-              void createPlan(name);
+              createPlan(name).catch((err) => console.error("[PlanListPanel] createPlan failed:", err));
             }}
             onCancel={() => setIsCreating(false)}
           />
@@ -221,7 +221,7 @@ export function PlanListPanel({ selectedPlanId, onSelectPlan }: PlanListPanelPro
                 if (planToDelete) {
                   const id = planToDelete.id;
                   setPlanToDelete(null);
-                  void deletePlan(id);
+                  deletePlan(id).catch((err) => console.error("[PlanListPanel] deletePlan failed:", err));
                   if (selectedPlanId === id) onSelectPlan(null);  // D-13: reset selection on delete
                 }
               }}
