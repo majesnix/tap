@@ -1,6 +1,6 @@
 [package]
 name = "tap"
-version = "1.5.0"
+version = "1.5.7"
 description = "Tap — load .proto files and send protobuf messages to RabbitMQ"
 authors = ["majesnix"]
 edition = "2021"
