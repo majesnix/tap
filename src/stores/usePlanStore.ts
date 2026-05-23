@@ -17,6 +17,12 @@ interface PlanStore {
   renamePlan: (id: string, name: string) => Promise<void>;
   deletePlan: (id: string) => Promise<void>;
   duplicatePlan: (id: string) => Promise<Plan | null>;
+  // Phase 21: step-level actions
+  addStep: (planId: string, step: PlanStep) => Promise<void>;
+  updateStep: (planId: string, stepId: string, partial: Partial<PlanStep>) => Promise<void>;
+  deleteStep: (planId: string, stepId: string) => Promise<void>;
+  duplicateStep: (planId: string, stepId: string) => Promise<PlanStep | null>;
+  reorderSteps: (planId: string, fromIndex: number, toIndex: number) => Promise<void>;
 }
 
 // ── Type guard ────────────────────────────────────────────────────────────────
@@ -159,5 +165,117 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       throw err;
     }
     return duplicate;
+  },
+
+  // ── Phase 21: Step-level actions ──────────────────────────────────────────
+
+  addStep: async (planId: string, step: PlanStep): Promise<void> => {
+    if (!get().plansLoaded) return;
+    let previous: Plan[] = [];
+    let updated: Plan[] = [];
+    set((state) => {
+      previous = state.plans;
+      updated = state.plans.map((p) =>
+        p.id === planId ? { ...p, steps: [...p.steps, step] } : p
+      );
+      return { plans: updated };
+    });
+    try {
+      await persistPlans(updated);
+    } catch (err) {
+      set({ plans: previous });
+      throw err;
+    }
+  },
+
+  updateStep: async (planId: string, stepId: string, partial: Partial<PlanStep>): Promise<void> => {
+    if (!get().plansLoaded) return;
+    let previous: Plan[] = [];
+    let updated: Plan[] = [];
+    set((state) => {
+      previous = state.plans;
+      updated = state.plans.map((p) =>
+        p.id === planId
+          ? { ...p, steps: p.steps.map((s) => s.id === stepId ? { ...s, ...partial } : s) }
+          : p
+      );
+      return { plans: updated };
+    });
+    try {
+      await persistPlans(updated);
+    } catch (err) {
+      set({ plans: previous });
+      throw err;
+    }
+  },
+
+  deleteStep: async (planId: string, stepId: string): Promise<void> => {
+    if (!get().plansLoaded) return;
+    let previous: Plan[] = [];
+    let updated: Plan[] = [];
+    set((state) => {
+      previous = state.plans;
+      updated = state.plans.map((p) =>
+        p.id === planId ? { ...p, steps: p.steps.filter((s) => s.id !== stepId) } : p
+      );
+      return { plans: updated };
+    });
+    try {
+      await persistPlans(updated);
+    } catch (err) {
+      set({ plans: previous });
+      throw err;
+    }
+  },
+
+  duplicateStep: async (planId: string, stepId: string): Promise<PlanStep | null> => {
+    if (!get().plansLoaded) return null;
+    const plan = get().plans.find((p) => p.id === planId);
+    const original = plan?.steps.find((s) => s.id === stepId);
+    if (!original) return null;
+    const duplicate: PlanStep = {
+      ...original,
+      id: crypto.randomUUID(),
+      name: `${original.name} (copy)`, // UI-SPEC copywriting — intentionally different from plan duplication "Copy of {name}"
+    };
+    let previous: Plan[] = [];
+    let updated: Plan[] = [];
+    set((state) => {
+      previous = state.plans;
+      updated = state.plans.map((p) =>
+        p.id === planId ? { ...p, steps: [...p.steps, duplicate] } : p
+      );
+      return { plans: updated };
+    });
+    try {
+      await persistPlans(updated);
+      return duplicate;
+    } catch (err) {
+      set({ plans: previous });
+      throw err;
+    }
+  },
+
+  reorderSteps: async (planId: string, fromIndex: number, toIndex: number): Promise<void> => {
+    if (!get().plansLoaded) return;
+    let previous: Plan[] = [];
+    let updated: Plan[] = [];
+    set((state) => {
+      previous = state.plans;
+      updated = state.plans.map((p) => {
+        if (p.id !== planId) return p;
+        const steps = [...p.steps];
+        const [moved] = steps.splice(fromIndex, 1);
+        steps.splice(toIndex, 0, moved);
+        return { ...p, steps };
+      });
+      return { plans: updated };
+    });
+    try {
+      await persistPlans(updated);
+    } catch (err) {
+      set({ plans: previous });
+      throw err;
+    }
   },
 }));
