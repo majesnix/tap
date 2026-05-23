@@ -190,4 +190,4 @@ v1.5 shipped 2026-05-23. All 12 distribution requirements delivered across 3 pha
 
 Phase 19 complete 2026-05-23. Plan data contract established: `Plan`, `PlanStep`, `StepStatus`, `PublishTarget`, `ResponseMode` types exported from `src/lib/types.ts`; `usePlanStore` with CRUD + `plans.json` persistence (mirrors useBlockStore pattern exactly); 21 Vitest tests covering all D-14 conditions. Phases 20–23 can import from this foundation immediately.
 
-*Last updated: 2026-05-23 after Phase 19 (v1.6 Plan Data Model)*
+*Last updated: 2026-05-23 after Phase 20 (v1.6 Plan View Shell and Navigation)*
