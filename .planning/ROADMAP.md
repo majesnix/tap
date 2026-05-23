@@ -187,7 +187,17 @@ Plans:
   3. User can import a step from the block library — the step form pre-fills with field values from the selected saved block
   4. User can rename, duplicate, and delete individual steps within a plan
   5. User can reorder steps via drag-and-drop within the plan detail panel (plan-scoped DndContext, not AppLayout DndContext)
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+**Wave 1**
+- [ ] 21-01-PLAN.md — usePlanStore step actions (addStep/updateStep/deleteStep/duplicateStep/reorderSteps) + HistoryEntry.protoPath + PublishBar protoPath capture
+
+**Wave 2**
+- [ ] 21-02-PLAN.md — @dnd-kit/sortable install + PlanDetailPanel sub-split + StepListPanel (DnD, inline rename, AlertDialog) + StepFieldEditor stub
+
+**Wave 3** *(parallel with each other, blocked on Wave 2)*
+- [ ] 21-03-PLAN.md — StepFieldEditor full implementation (isolated form, auto-save debounce, field primitives, target + response mode sections)
+- [ ] 21-04-PLAN.md — StepHistoryPicker + StepBlockPicker + wire into StepListPanel
 **UI hint**: yes
 
 ### Phase 22: Plan Runner — Sequential Execution
