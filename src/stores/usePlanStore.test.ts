@@ -288,3 +288,162 @@ describe("field_values JSON round-trip (D-14 condition 3)", () => {
     expect(deserialized[0].steps[0].field_values).toBe(rawFieldValues);
   });
 });
+
+// ── Step actions (Phase 21) ───────────────────────────────────────────────────
+
+describe("addStep (STEP-01)", () => {
+  test("addStep when plansLoaded===false is a no-op", async () => {
+    const plan = makePlan({ id: "plan-add" });
+    const step = makeStep({ id: "step-add" });
+    usePlanStore.setState({ plans: [plan], plansLoaded: false });
+    await usePlanStore.getState().addStep("plan-add", step);
+    expect(usePlanStore.getState().plans[0].steps).toHaveLength(0);
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  test("addStep appends step to correct plan and persists", async () => {
+    const plan = makePlan({ id: "plan-add2" });
+    const step = makeStep({ id: "step-new", name: "My Step" });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    await usePlanStore.getState().addStep("plan-add2", step);
+    const { plans } = usePlanStore.getState();
+    expect(plans[0].steps).toHaveLength(1);
+    expect(plans[0].steps[0].id).toBe("step-new");
+    expect(mockSet).toHaveBeenCalledOnce();
+    expect(mockSave).toHaveBeenCalledOnce();
+  });
+
+  test("addStep rolls back on persist failure", async () => {
+    const plan = makePlan({ id: "plan-add-fail" });
+    const step = makeStep();
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("disk"));
+    await expect(usePlanStore.getState().addStep("plan-add-fail", step)).rejects.toThrow("disk");
+    expect(usePlanStore.getState().plans[0].steps).toHaveLength(0);
+  });
+});
+
+describe("updateStep (STEP-01, STEP-06)", () => {
+  test("updateStep merges partial into the correct step", async () => {
+    const step = makeStep({ id: "s1", name: "Original" });
+    const plan = makePlan({ id: "p1", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    await usePlanStore.getState().updateStep("p1", "s1", { name: "Renamed" });
+    const stored = usePlanStore.getState().plans[0].steps[0];
+    expect(stored.name).toBe("Renamed");
+    expect(stored.proto_path).toBe(step.proto_path); // other fields untouched
+    expect(mockSave).toHaveBeenCalledOnce();
+  });
+
+  test("updateStep when plansLoaded===false is a no-op", async () => {
+    const step = makeStep({ id: "s2", name: "A" });
+    const plan = makePlan({ id: "p2", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: false });
+    await usePlanStore.getState().updateStep("p2", "s2", { name: "B" });
+    expect(usePlanStore.getState().plans[0].steps[0].name).toBe("A");
+    expect(mockSet).not.toHaveBeenCalled();
+  });
+
+  test("updateStep rolls back on persist failure", async () => {
+    const step = makeStep({ id: "s3", name: "Before" });
+    const plan = makePlan({ id: "p3", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("err"));
+    await expect(usePlanStore.getState().updateStep("p3", "s3", { name: "After" })).rejects.toThrow("err");
+    expect(usePlanStore.getState().plans[0].steps[0].name).toBe("Before");
+  });
+});
+
+describe("deleteStep (STEP-06)", () => {
+  test("deleteStep removes the correct step and persists", async () => {
+    const s1 = makeStep({ id: "del1" });
+    const s2 = makeStep({ id: "del2" });
+    const plan = makePlan({ id: "pdel", steps: [s1, s2] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    await usePlanStore.getState().deleteStep("pdel", "del1");
+    const { plans } = usePlanStore.getState();
+    expect(plans[0].steps).toHaveLength(1);
+    expect(plans[0].steps[0].id).toBe("del2");
+    expect(mockSave).toHaveBeenCalledOnce();
+  });
+
+  test("deleteStep rolls back on persist failure", async () => {
+    const step = makeStep({ id: "dfail" });
+    const plan = makePlan({ id: "pdfail", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("err"));
+    await expect(usePlanStore.getState().deleteStep("pdfail", "dfail")).rejects.toThrow("err");
+    expect(usePlanStore.getState().plans[0].steps).toHaveLength(1);
+  });
+});
+
+describe("duplicateStep (STEP-04)", () => {
+  test("duplicateStep returns null when step not found", async () => {
+    const plan = makePlan({ id: "pdup0" });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    const result = await usePlanStore.getState().duplicateStep("pdup0", "nonexistent");
+    expect(result).toBeNull();
+  });
+
+  test("duplicateStep name is '{original} (copy)' not 'Copy of {original}'", async () => {
+    const step = makeStep({ id: "orig", name: "My Step" });
+    const plan = makePlan({ id: "pdup1", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    const dup = await usePlanStore.getState().duplicateStep("pdup1", "orig");
+    expect(dup!.name).toBe("My Step (copy)");
+  });
+
+  test("duplicateStep produces a new UUID different from original", async () => {
+    const step = makeStep({ id: "orig2", name: "Step" });
+    const plan = makePlan({ id: "pdup2", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    const dup = await usePlanStore.getState().duplicateStep("pdup2", "orig2");
+    expect(dup!.id).not.toBe("orig2");
+  });
+
+  test("duplicateStep appends duplicate after original in the steps array", async () => {
+    const step = makeStep({ id: "orig3" });
+    const plan = makePlan({ id: "pdup3", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    await usePlanStore.getState().duplicateStep("pdup3", "orig3");
+    expect(usePlanStore.getState().plans[0].steps).toHaveLength(2);
+    expect(usePlanStore.getState().plans[0].steps[0].id).toBe("orig3"); // original first
+  });
+
+  test("duplicateStep rolls back on persist failure", async () => {
+    const step = makeStep({ id: "dfail2" });
+    const plan = makePlan({ id: "pdfail2", steps: [step] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("err"));
+    await expect(usePlanStore.getState().duplicateStep("pdfail2", "dfail2")).rejects.toThrow("err");
+    expect(usePlanStore.getState().plans[0].steps).toHaveLength(1);
+  });
+});
+
+describe("reorderSteps (STEP-05)", () => {
+  test("reorderSteps moves a step from fromIndex to toIndex", async () => {
+    const s1 = makeStep({ id: "r1", name: "A" });
+    const s2 = makeStep({ id: "r2", name: "B" });
+    const s3 = makeStep({ id: "r3", name: "C" });
+    const plan = makePlan({ id: "preorder", steps: [s1, s2, s3] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    // Move index 2 (C) to index 0 → [C, A, B]
+    await usePlanStore.getState().reorderSteps("preorder", 2, 0);
+    const steps = usePlanStore.getState().plans[0].steps;
+    expect(steps[0].id).toBe("r3");
+    expect(steps[1].id).toBe("r1");
+    expect(steps[2].id).toBe("r2");
+    expect(mockSave).toHaveBeenCalledOnce();
+  });
+
+  test("reorderSteps rolls back on persist failure", async () => {
+    const s1 = makeStep({ id: "rr1" });
+    const s2 = makeStep({ id: "rr2" });
+    const plan = makePlan({ id: "preo2", steps: [s1, s2] });
+    usePlanStore.setState({ plans: [plan], plansLoaded: true });
+    mockSave.mockRejectedValueOnce(new Error("err"));
+    await expect(usePlanStore.getState().reorderSteps("preo2", 0, 1)).rejects.toThrow("err");
+    // Original order preserved
+    expect(usePlanStore.getState().plans[0].steps[0].id).toBe("rr1");
+  });
+});
