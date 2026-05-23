@@ -177,4 +177,6 @@ Phase 16 complete 2026-05-21. Release pipeline foundation delivered: `macos-late
 ---
 Phase 17 complete 2026-05-23. macOS signing + notarization pipeline operational: Developer ID cert imported in CI, notarytool submits to Apple notary service, `spctl --assess` Gatekeeper gate in CI, draft release on tag push. Tag v1.5.5 verified: `accepted source=Notarized Developer ID` on clean Mac, no quarantine warning. `cs.allow-unsigned-executable-memory` restored in Entitlements.plist (was removed by WR-03; required for WKWebView JIT under Hardened Runtime). docs/release-setup.md added with 8-secret setup checklist.
 
-*Last updated: 2026-05-23 — Phase 17 complete*
+Phase 18 complete 2026-05-23. Auto-update infrastructure wired: tauri-plugin-updater + tauri-plugin-process registered, UpdateChecker component (Sonner toast, Install & Relaunch), CI signing env vars on Linux job, docs/linux-keychain.md, Ed25519 pubkey in tauri.conf.json. AppImage passes smoke test on Ubuntu 22.04 + 24.04. Version bumped to 1.5.7 (releases v1.5.1–v1.5.6 were mislabelled 1.5.0). Live auto-update flow (UPD-02/UPD-03) pending human UAT. Next: push v1.5.7 tag, run live update test, then `/gsd-complete-milestone`.
+
+*Last updated: 2026-05-23 — Phase 18 complete*

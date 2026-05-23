@@ -211,7 +211,7 @@ Plans:
 | 15. Filter + Export | v1.4 | 1/1 | Complete | 2026-05-21 |
 | 16. Pipeline Foundation | v1.5 | 2/2 | Complete    | 2026-05-21 |
 | 17. macOS Signing + Notarization | v1.5 | 2/2 | Complete   | 2026-05-23 |
-| 18. Auto-Update + Linux + Docs | v1.5 | 3/4 | In Progress|  |
+| 18. Auto-Update + Linux + Docs | v1.5 | 4/4 | Complete   | 2026-05-23 |
 
 ---
 
@@ -298,7 +298,7 @@ Plans:
 | FILT-02 | Phase 15 | ✅ Complete |
 | XPRT-01 | Phase 15 | ✅ Complete |
 
-**v1.5 Distribution — 6/12 requirements delivered**
+**v1.5 Distribution — 10/12 requirements delivered**
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
@@ -308,13 +308,13 @@ Plans:
 | CICD-01 | Phase 17 | ✅ Complete |
 | SIGN-01 | Phase 17 | ✅ Complete |
 | SIGN-02 | Phase 17 | ✅ Complete |
-| PKG-01 | Phase 18 | Pending |
-| UPD-01 | Phase 18 | Pending |
-| UPD-02 | Phase 18 | Pending |
-| UPD-03 | Phase 18 | Pending |
-| UPD-04 | Phase 18 | Pending |
-| DOC-01 | Phase 18 | Pending |
+| PKG-01 | Phase 18 | ✅ Complete |
+| UPD-01 | Phase 18 | ✅ Complete |
+| UPD-02 | Phase 18 | ⏳ Human UAT pending |
+| UPD-03 | Phase 18 | ⏳ Human UAT pending |
+| UPD-04 | Phase 18 | ✅ Complete |
+| DOC-01 | Phase 18 | ✅ Complete |
 
 - Total v1.5: 12
 - Mapped: 12
-- Delivered: 6 (Phase 16 + 17 complete; Phase 18 in progress)
+- Delivered: 10 (UPD-02/03 pending live auto-update UAT)
