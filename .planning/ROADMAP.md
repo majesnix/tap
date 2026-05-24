@@ -275,7 +275,20 @@ Plans:
   2. A shared scrollable feed shows all messages arriving on watched reply queues during the plan run in chronological order
   3. The feed is FIFO-capped to prevent unbounded memory growth at high message volume
 
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+**Wave 1**
+
+- [ ] 23-01-PLAN.md — usePlanExecutionStore extension (stepReplies, planReplyFeed, paneMode) + usePlanRunner reply dispatch
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 23-02-PLAN.md — New components: StepReplyView + PlanReplyFeedTab
+
+**Wave 3** *(blocked on Waves 1 and 2)*
+
+- [ ] 23-03-PLAN.md — UI integration: PlanDetailPanel tab strip + StepListPanel reply dot and toggle
+
 **UI hint**: yes
 
 ---
