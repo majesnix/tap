@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -10,8 +11,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import { cn } from "@/lib/utils";
+import { fetchQueues, fetchExchanges } from "@/lib/ipc";
 import { buildDefaultValues } from "@/components/form/ProtoFormRenderer";
 import { ScalarField } from "@/components/form/fields/ScalarField";
 import { EnumField } from "@/components/form/fields/EnumField";
@@ -123,6 +136,94 @@ function renderField(
   }
 }
 
+// ── LiveCombobox ──────────────────────────────────────────────────────────────
+// Combobox with live server-side items and free-text input.
+// Falls back to plain Input when items is empty (no management API or not yet loaded).
+// Shows an error below when the typed value matches no available item.
+
+interface LiveComboboxProps {
+  value: string;
+  onChange: (value: string) => void;
+  /** Called with the committed value on item selection or input blur. */
+  onCommit?: (value: string) => void;
+  items: string[];
+  placeholder?: string;
+  id?: string;
+}
+
+function LiveCombobox({ value, onChange, onCommit, items, placeholder, id }: LiveComboboxProps) {
+  const [open, setOpen] = useState(false);
+
+  if (items.length === 0) {
+    return (
+      <Input
+        id={id}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => onCommit?.(value)}
+        placeholder={placeholder}
+        className="text-sm"
+      />
+    );
+  }
+
+  const filtered = items.filter((i) => i.toLowerCase().includes(value.toLowerCase()));
+  const noMatch = value.length > 0 && filtered.length === 0;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full h-9 justify-between border-input bg-background font-normal text-sm"
+          >
+            <span className="truncate text-left flex-1">
+              {value || <span className="text-muted-foreground">{placeholder}</span>}
+            </span>
+            <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="p-0 min-w-[12rem]">
+          <Command>
+            <CommandInput
+              placeholder="Filter…"
+              value={value}
+              onValueChange={onChange}
+            />
+            <CommandList>
+              <CommandEmpty>No results found.</CommandEmpty>
+              <CommandGroup>
+                {items.map((item) => (
+                  <CommandItem
+                    key={item}
+                    value={item}
+                    onSelect={() => {
+                      onChange(item);
+                      onCommit?.(item);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn("mr-2 h-4 w-4", value === item ? "opacity-100" : "opacity-0")}
+                    />
+                    {item}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+      {noMatch && (
+        <p className="text-xs text-destructive">No results for &ldquo;{value}&rdquo;</p>
+      )}
+    </div>
+  );
+}
+
 // ── TargetSection ─────────────────────────────────────────────────────────────
 
 interface TargetSectionProps {
@@ -149,6 +250,20 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
     step.target.kind === "exchange" ? step.target.routing_key : ""
   );
   const queues = useConnectionStore((s) => s.queues);
+  const exchanges = useConnectionStore((s) => s.exchanges);
+  const activeProfileName = useConnectionStore((s) => s.activeProfileName);
+  const setQueues = useConnectionStore((s) => s.setQueues);
+  const setExchanges = useConnectionStore((s) => s.setExchanges);
+
+  // Populate queues + exchanges from the management API whenever the active
+  // profile changes — independent of whether PublishBar has been visited.
+  useEffect(() => {
+    if (!activeProfileName) return;
+    fetchQueues(activeProfileName).then(setQueues).catch(() => {});
+    fetchExchanges(activeProfileName).then(setExchanges).catch(() => {});
+  }, [activeProfileName, setQueues, setExchanges]);
+
+  const exchangeNames = exchanges.map((e) => e.name);
 
   function handleKindChange(kind: "queue" | "exchange") {
     setTargetKind(kind);
@@ -159,13 +274,7 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
     updateStep(planId, step.id, { target: newTarget }).catch(console.error);
   }
 
-  function handleQueueBlur() {
-    updateStep(planId, step.id, {
-      target: { kind: "queue", queue: queueName },
-    }).catch(console.error);
-  }
-
-  function handleExchangeBlur() {
+  function handleRoutingKeyBlur() {
     updateStep(planId, step.id, {
       target: {
         kind: "exchange",
@@ -214,50 +323,32 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
             >
               Queue name
             </Label>
-            {queues.length > 0 ? (
-              <Select
-                value={queueName}
-                onValueChange={(val) => {
-                  setQueueName(val);
-                  updateStep(planId, step.id, { target: { kind: "queue", queue: val } }).catch(console.error);
-                }}
-              >
-                <SelectTrigger className="text-sm">
-                  <SelectValue placeholder="Select queue…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {queues.map((name) => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                id={`queue-name-${step.id}`}
-                value={queueName}
-                onChange={(e) => setQueueName(e.target.value)}
-                onBlur={handleQueueBlur}
-                placeholder="queue-name"
-                className="text-sm"
-              />
-            )}
+            <LiveCombobox
+              id={`queue-name-${step.id}`}
+              value={queueName}
+              onChange={setQueueName}
+              onCommit={(val) =>
+                updateStep(planId, step.id, { target: { kind: "queue", queue: val } }).catch(console.error)
+              }
+              items={queues}
+              placeholder="queue-name"
+            />
           </div>
         ) : (
           <div className="flex flex-col gap-2">
             <div className="flex flex-col gap-1">
-              <Label
-                htmlFor={`exchange-${step.id}`}
-                className="text-xs text-muted-foreground"
-              >
-                Exchange
-              </Label>
-              <Input
+              <Label className="text-xs text-muted-foreground">Exchange</Label>
+              <LiveCombobox
                 id={`exchange-${step.id}`}
                 value={exchangeName}
-                onChange={(e) => setExchangeName(e.target.value)}
-                onBlur={handleExchangeBlur}
+                onChange={setExchangeName}
+                onCommit={(val) =>
+                  updateStep(planId, step.id, {
+                    target: { kind: "exchange", exchange: val, routing_key: routingKey },
+                  }).catch(console.error)
+                }
+                items={exchangeNames}
                 placeholder="exchange-name"
-                className="text-sm"
               />
             </div>
             <div className="flex flex-col gap-1">
@@ -271,7 +362,7 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
                 id={`routing-key-${step.id}`}
                 value={routingKey}
                 onChange={(e) => setRoutingKey(e.target.value)}
-                onBlur={handleExchangeBlur}
+                onBlur={handleRoutingKeyBlur}
                 placeholder="routing.key"
                 className="text-sm"
               />
@@ -413,35 +504,18 @@ function ResponseModeSection({
               >
                 Reply queue
               </Label>
-              {queues.length > 0 ? (
-                <Select
-                  value={replyQueue}
-                  onValueChange={(val) => {
-                    setReplyQueue(val);
-                    updateStep(planId, step.id, {
-                      response_mode: buildResponseMode(mode, val),
-                    }).catch(console.error);
-                  }}
-                >
-                  <SelectTrigger className="text-sm">
-                    <SelectValue placeholder="Select queue…" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {queues.map((name) => (
-                      <SelectItem key={name} value={name}>{name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : (
-                <Input
-                  id={`reply-queue-${step.id}`}
-                  value={replyQueue}
-                  onChange={(e) => setReplyQueue(e.target.value)}
-                  onBlur={handleInputBlur}
-                  placeholder="reply-queue-name"
-                  className="text-sm"
-                />
-              )}
+              <LiveCombobox
+                id={`reply-queue-${step.id}`}
+                value={replyQueue}
+                onChange={setReplyQueue}
+                onCommit={(val) =>
+                  updateStep(planId, step.id, {
+                    response_mode: buildResponseMode(mode, val),
+                  }).catch(console.error)
+                }
+                items={queues}
+                placeholder="reply-queue-name"
+              />
             </div>
             <div className="flex flex-col gap-1">
               <Label
