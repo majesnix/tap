@@ -98,136 +98,183 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 ## Phase Details
 
 ### Phase 13: Message Feed Foundation + Drain Mode
+
 **Goal**: Users can drain messages from a queue and see them all in a scrollable, expandable list with full AMQP metadata and queue depth
 **Depends on**: Phase 12
 **Requirements**: CONS-01, CONS-02, CONS-03, CONS-04, CONS-08
 **Success Criteria** (what must be TRUE):
+
   1. User can see routing key, exchange, content-type, and timestamp on each consumed message row in the list
   2. User can expand any message row to reveal the decoded protobuf payload and raw hex
   3. User can drain up to N messages from a queue in one shot and see all of them appear in the list
   4. User can see the current queue message count before clicking drain, and the count updates after draining
   5. The list displays newest messages at the top and older messages are dropped when the list reaches capacity
   6. User can select one or more candidate message types for decoding; the first type that decodes without error is used and shown on each row
+
 **Plans**: 3 plans
 Plans:
+
 - [x] 13-01-PLAN.md — Rust drain_messages command + TypeScript IPC contract (DrainResult, DrainOutcome, FeedMessage types; drainMessages() IPC function)
 - [x] 13-02-PLAN.md — Accordion install + ResponseHexSection props refactor (TS compilation bridge)
 - [x] 13-03-PLAN.md — Store evolution + Drain UI + MessageFeedTab/Row + test migration
+
 **UI hint**: yes
 
 ### Phase 14: Live Subscribe Mode
+
 **Goal**: Users can start a persistent subscribe session that streams messages into the feed continuously until they stop it, with a visible status badge and automatic shutdown on profile change
 **Depends on**: Phase 13
 **Requirements**: CONS-05, CONS-06, CONS-07
 **Success Criteria** (what must be TRUE):
+
   1. User can click Start and messages published to the selected queue arrive in the feed in real time without manual polling
   2. User can click Stop and the stream halts cleanly with no further messages arriving
   3. User can see a status badge showing Running, Stopping, Idle, or Error reflecting the current subscribe state
   4. When the user switches to a different connection profile, any running subscribe session stops automatically
+
 **Plans**: 3 plans
 Plans:
 **Wave 1**
+
 - [x] 14-01-PLAN.md — Rust backend: Cargo.toml changes + subscribe.rs (SubscribeState, start_subscribe, stop_subscribe) + lib.rs + mod.rs wiring
 - [x] 14-02-PLAN.md — Frontend foundation: SubscribeStatus type + IPC wrappers + useResponseStore extensions + toggle-group.tsx
 
 **Wave 2**
+
 - [x] 14-03-PLAN.md — UI integration: SubscribePanel + MessageFeedTab mode toggle + ResponseQueuePicker mode prop
+
 **UI hint**: yes
 
 ### Phase 15: Filter + Export
+
 **Goal**: Users can narrow the message feed by routing key or content-type and export the current feed to a JSON file
 **Depends on**: Phase 14
 **Requirements**: FILT-01, FILT-02, XPRT-01
 **Success Criteria** (what must be TRUE):
+
   1. User can type a routing key substring and the feed list narrows to only matching messages without clearing the underlying data
   2. User can select a content-type from a dropdown and the feed shows only messages with that content-type
   3. User can click Export and receive a JSON file containing all messages currently visible in the feed
+
 **Plans**: 1 plan
 Plans:
+
 - [x] 15-01-PLAN.md — Tauri capability permissions + filter state/visibleMessages/export handler in MessageFeedTab + tests
+
 **UI hint**: yes
 
 ### Phase 19: Plan Data Model and Persistence
+
 **Goal**: The plan data contract is defined, testable, and persists correctly — every subsequent phase builds on this foundation
 **Depends on**: Nothing (first phase of v1.6 milestone)
 **Requirements**: PLAN-01, PLAN-02, PLAN-03, PLAN-04, PLAN-05
 **Success Criteria** (what must be TRUE):
+
   1. `usePlanStore` create / rename / delete / duplicate operations round-trip through `plans.json` and reload correctly after app restart
   2. Hydration gate (`plansLoaded` flag) prevents any write operation from executing before the store has loaded from disk — identical pattern to `useHistoryStore` and `useBlockStore`
   3. `Plan`, `PlanStep`, and `StepStatus` TypeScript types are defined with a `schema_version` field for migration safety
   4. `field_values` stored as a serialized JSON string per step (not `Record<string, unknown>`) so `undefined` to `null` coercion cannot corrupt saved plans
+
 **Plans**: 1 plan
 Plans:
+
 - [x] 19-01-PLAN.md — Plan/PlanStep/StepStatus types in lib/types.ts + usePlanStore CRUD + plans.json persistence + tests (Complete 2026-05-23)
 
 ### Phase 20: Plan View Shell and Navigation
+
 **Goal**: Users can access a dedicated full-screen plan library view, see their plans listed, and perform all plan CRUD actions from the UI
 **Depends on**: Phase 19
 **Requirements**: PLAN-06
 **Success Criteria** (what must be TRUE):
+
   1. A Plans nav button in the sidebar switches the entire app to a full-screen plan library view (`viewMode: "main" | "plans"` switcher at `App.tsx`) without a route change
   2. The plan list panel shows all saved plans; user can create, rename, duplicate, and delete plans (with confirmation dialog on delete) from this view
   3. Navigating back to the main form and returning to the plan view preserves plan list state; Zustand stores persist across view switches
+
 **Plans**: 2 plans
 Plans:
 **Wave 1**
+
 - [x] 20-01-PLAN.md — PlanView + PlanListPanel + PlanDetailPanel components (dropdown-menu install, inline CRUD, kebab menu, AlertDialog)
 
 **Wave 2** *(blocked on Wave 1 completion)*
+
 - [x] 20-02-PLAN.md — App.tsx viewMode state + loadPlans at mount + conditional render; AppLayout/Sidebar prop threading; Plans nav button
+
 **UI hint**: yes
 
 ### Phase 21: Step Editor (Authoring)
+
 **Goal**: Users can fully author plan steps — composing field values, picking targets, configuring response modes, reordering, and importing from history or blocks
 **Depends on**: Phase 20
 **Requirements**: STEP-01, STEP-02, STEP-03, STEP-04, STEP-05, STEP-06
 **Success Criteria** (what must be TRUE):
+
   1. User can add a step to a plan: select a `.proto` file and message type, fill field values using an isolated step form editor (StepFieldEditor — not ProtoFormRenderer), choose a target queue/exchange and routing key, and set a response mode (no-wait / correlationId / first-arrival)
   2. User can import a step from message history — the step form pre-fills with field values from the selected past send
   3. User can import a step from the block library — the step form pre-fills with field values from the selected saved block
   4. User can rename, duplicate, and delete individual steps within a plan
   5. User can reorder steps via drag-and-drop within the plan detail panel (plan-scoped DndContext, not AppLayout DndContext)
+
 **Plans**: 4 plans
 Plans:
 **Wave 1**
+
 - [x] 21-01-PLAN.md — usePlanStore step actions (addStep/updateStep/deleteStep/duplicateStep/reorderSteps) + HistoryEntry.protoPath + PublishBar protoPath capture
 
 **Wave 2**
+
 - [x] 21-02-PLAN.md — @dnd-kit/sortable install + PlanDetailPanel sub-split + StepListPanel (DnD, inline rename, AlertDialog) + StepFieldEditor stub
 
 **Wave 3** *(parallel with each other, blocked on Wave 2)*
+
 - [x] 21-03-PLAN.md — StepFieldEditor full implementation (isolated form, auto-save debounce, field primitives, target + response mode sections)
 - [x] 21-04-PLAN.md — StepHistoryPicker + StepBlockPicker + wire into StepListPanel
+
 **UI hint**: yes
 
 ### Phase 22: Plan Runner — Sequential Execution
+
 **Goal**: Users can run a plan end-to-end — steps execute sequentially with live status feedback, all three response modes work correctly, and the run can be stopped at any time
 **Depends on**: Phase 21
 **Requirements**: RUN-01, RUN-02, RUN-03, RUN-04, RUN-05, RUN-06, RESP-01, RESP-02, RESP-03
 **Success Criteria** (what must be TRUE):
+
   1. User can press Run on a plan and watch steps execute sequentially, each step transitioning through Pending → Sending → WaitingResponse (if applicable) → Done / Error status badges in real time
   2. No-wait steps fire the publish and advance after the configured per-step delay (default 200 ms; 0 = immediate) — no reply consumer opened
   3. CorrelationId steps publish with a generated UUID `correlation_id` + `reply_to` AMQP property, open a consumer before publishing, and match the reply; step gets Error status if no matching reply arrives within the configured timeout (default 10 s)
   4. First-arrival steps open a consumer on the specified reply queue and accept the first message that arrives; step gets Error status on timeout (default 10 s)
   5. User can stop a running plan at any time; the run halts cleanly and the backend plan-run session is torn down
   6. A run summary is shown on completion: how many steps succeeded and how many failed; per-plan stop-on-error vs continue-on-error setting is respected
-**Plans**: 4 plans
-Plans:
+
+**Plans**: 4 plansPlans:
+**Wave 1**
+
 - [ ] 22-01-PLAN.md — TypeScript foundation: Plan type + IPC wrappers + updatePlan store action
 - [ ] 22-02-PLAN.md — Rust backend: execute_step (3 response modes) + cancel_plan_run + PlanRunState
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
 - [ ] 22-03-PLAN.md — Execution store + usePlanRunner hook + StepStatusBadge component
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
 - [ ] 22-04-PLAN.md — UI integration: PlanRunBar + PlanDetailPanel + StepListPanel step badges
+
 **Research**: Strongly recommend `/gsd-discuss-phase 22` before `/gsd-plan-phase 22` — riskiest phase in the milestone. Only phase with new Rust code (`run_plan` / `stop_plan` commands, `PlanRunState` managed state, one persistent AMQP connection per plan run — intentional deviation from the "ephemeral connection per operation" Key Decision in PROJECT.md). Critical pitfalls: consumer-must-start-before-publish ordering (#59), selective NACK for non-matching correlationId replies (#60), read `correlation_id` from AMQP properties not headers (#58), separate `PlanRunState` slot from `SubscribeState` (#68), three-branch `tokio::select!` for timeout/delivery/cancellation (#70).
 **UI hint**: yes
 
 ### Phase 23: Response View — Inline and Shared Feed
+
 **Goal**: Users can see decoded protobuf responses inline under each step that received one, and monitor all messages arriving on watched reply queues in a single chronological feed
 **Depends on**: Phase 22
 **Requirements**: RESP-04, RESP-05
 **Success Criteria** (what must be TRUE):
+
   1. Steps that received a reply show the decoded protobuf response inline below the step — collapsible key-value tree reusing the existing response decode component
   2. A shared scrollable feed shows all messages arriving on watched reply queues during the plan run in chronological order
   3. The feed is FIFO-capped to prevent unbounded memory growth at high message volume
+
 **Plans**: TBD
 **UI hint**: yes
 
