@@ -9,12 +9,16 @@ import {
 } from "@dnd-kit/core";
 import type { DragStartEvent, DragEndEvent } from "@dnd-kit/core";
 import { ClipboardList } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { PlanRunBar } from "./PlanRunBar";
 import { StepListPanel } from "./StepListPanel";
 import { StepFieldEditor } from "./StepFieldEditor";
+import { StepReplyView } from "./StepReplyView";
+import { PlanReplyFeedTab } from "./PlanReplyFeedTab";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
-import type { Plan } from "@/lib/types";
+import type { Plan, ReplyMessage } from "@/lib/types";
 
 interface PlanDetailPanelProps {
   selectedPlan: Plan | null;
@@ -29,8 +33,14 @@ export function PlanDetailPanel({ selectedPlan }: PlanDetailPanelProps) {
 
   // D-10: during a run, auto-switch the editor to show the active step's fields
   // NOTE: must be called before any early return to comply with React rules of hooks
-  const { activeStepId, runningPlanId } = usePlanExecutionStore();
+  const { activeStepId, runningPlanId, paneMode, stepReplies, planReplyFeed, stepStatuses } = usePlanExecutionStore();
   const isRunning = runningPlanId !== null;
+
+  // Local tab state — NOT in global store (tab strip is UI-only; paneMode controls content inside editor tab)
+  const [activeTab, setActiveTab] = useState<'editor' | 'reply-feed'>('editor');
+
+  // Pitfall 4: hasRunStarted must use stepStatuses/planReplyFeed — NOT isRunning or runningPlanId (which clear post-run)
+  const hasRunStarted = Object.keys(stepStatuses).length > 0 || planReplyFeed.length > 0;
 
   // PointerSensor with distance: 4 per UI-SPEC (AppLayout uses 8 — intentionally different)
   const sensors = useSensors(
@@ -58,6 +68,11 @@ export function PlanDetailPanel({ selectedPlan }: PlanDetailPanelProps) {
     isRunning && activeStepId !== null ? activeStepId : selectedStepId;
 
   const selectedStep = steps.find((s) => s.id === effectiveSelectedStepId) ?? null;
+
+  // Derive selected step's stored reply and name for StepReplyView
+  const selectedStepReply: ReplyMessage | null =
+    effectiveSelectedStepId ? (stepReplies[effectiveSelectedStepId] ?? null) : null;
+  const selectedStepName = selectedStep?.name ?? '';
 
   function handleDragStart(event: DragStartEvent) {
     setActiveDragId(String(event.active.id));
@@ -101,11 +116,40 @@ export function PlanDetailPanel({ selectedPlan }: PlanDetailPanelProps) {
           </DragOverlay>
         </DndContext>
         {/* D-09: StepFieldEditor inputs disabled during run */}
-        <StepFieldEditor
-          step={selectedStep}
-          planId={planId}
-          disabled={isRunning}
-        />
+        {/* RESP-04/RESP-05: show tab strip after first run; bare editor before */}
+        {!hasRunStarted ? (
+          <StepFieldEditor
+            step={selectedStep}
+            planId={planId}
+            disabled={isRunning}
+          />
+        ) : (
+          <Tabs
+            value={activeTab}
+            onValueChange={(v) => setActiveTab(v as 'editor' | 'reply-feed')}
+            className="flex flex-col flex-1 min-h-0"
+          >
+            <TabsList className="w-full rounded-none border-b border-border justify-start px-2">
+              <TabsTrigger value="editor" className="text-xs">Step Editor</TabsTrigger>
+              <TabsTrigger value="reply-feed" className="text-xs">
+                Reply Feed{planReplyFeed.length > 0 ? ` (${planReplyFeed.length})` : ''}
+              </TabsTrigger>
+            </TabsList>
+            {/* forceMount keeps StepFieldEditor mounted during Reply Feed tab display (Pitfall 1) */}
+            <TabsContent
+              value="editor"
+              forceMount
+              className={cn("flex-1 overflow-hidden m-0 p-0", activeTab !== 'editor' && 'hidden')}
+            >
+              {paneMode === 'reply' && selectedStepReply !== null
+                ? <StepReplyView reply={selectedStepReply} stepName={selectedStepName} />
+                : <StepFieldEditor step={selectedStep} planId={planId} disabled={isRunning} />}
+            </TabsContent>
+            <TabsContent value="reply-feed" className="flex-1 overflow-hidden m-0 p-0">
+              <PlanReplyFeedTab />
+            </TabsContent>
+          </Tabs>
+        )}
       </div>
     </div>
   );
