@@ -62,6 +62,7 @@ pub enum ResponseMode {
 
 /// A single step within a plan execution.
 #[derive(Debug, serde::Deserialize)]
+#[allow(dead_code)] // name + proto_path are deserialized from the IPC payload but not used in Rust
 pub struct PlanStep {
     pub id: String,
     pub name: String,
@@ -398,72 +399,52 @@ pub async fn execute_step(
                 .await
                 .map_err(|e| AppError::AmqpError(e.to_string()))?;
 
-            // Pin deadline OUTSIDE the loop (pitfall #4)
+            // Pin deadline OUTSIDE the select (pitfall #4)
             let deadline = tokio::time::sleep(Duration::from_millis(timeout));
             tokio::pin!(deadline);
 
-            let step_result;
-            loop {
-                tokio::select! {
-                    biased;
-                    _ = token.cancelled() => {
-                        step_result = StepResult {
+            // FirstArrival: every arm is terminal — no loop needed (unlike CorrelationId
+            // which may NACK and continue).
+            tokio::select! {
+                biased;
+                _ = token.cancelled() => StepResult {
+                    step_id: step.id.clone(),
+                    status: "error".into(),
+                    reply: None,
+                    error: Some("Cancelled".to_string()),
+                },
+                _ = &mut deadline => StepResult {
+                    step_id: step.id.clone(),
+                    status: "error".into(),
+                    reply: None,
+                    error: Some("Timeout waiting for reply".to_string()),
+                },
+                maybe_delivery = consumer.next() => match maybe_delivery {
+                    Some(Ok(delivery)) => {
+                        // First arrival — ack and return done (no correlation check)
+                        let _ = delivery.ack(BasicAckOptions::default()).await;
+                        let reply = build_reply_message(&delivery, &pool, &step.message_type);
+                        StepResult {
                             step_id: step.id.clone(),
-                            status: "error".into(),
-                            reply: None,
-                            error: Some("Cancelled".to_string()),
-                        };
-                        break;
-                    }
-                    _ = &mut deadline => {
-                        step_result = StepResult {
-                            step_id: step.id.clone(),
-                            status: "error".into(),
-                            reply: None,
-                            error: Some("Timeout waiting for reply".to_string()),
-                        };
-                        break;
-                    }
-                    maybe_delivery = consumer.next() => {
-                        match maybe_delivery {
-                            Some(Ok(delivery)) => {
-                                // First arrival — ack and return done (no correlation check)
-                                let _ = delivery
-                                    .ack(BasicAckOptions::default())
-                                    .await;
-                                let reply = build_reply_message(&delivery, &pool, &step.message_type);
-                                step_result = StepResult {
-                                    step_id: step.id.clone(),
-                                    status: "done".into(),
-                                    reply: Some(reply),
-                                    error: None,
-                                };
-                                break;
-                            }
-                            Some(Err(e)) => {
-                                step_result = StepResult {
-                                    step_id: step.id.clone(),
-                                    status: "error".into(),
-                                    reply: None,
-                                    error: Some(format!("Consumer error: {}", e)),
-                                };
-                                break;
-                            }
-                            None => {
-                                step_result = StepResult {
-                                    step_id: step.id.clone(),
-                                    status: "error".into(),
-                                    reply: None,
-                                    error: Some("Consumer channel closed".to_string()),
-                                };
-                                break;
-                            }
+                            status: "done".into(),
+                            reply: Some(reply),
+                            error: None,
                         }
                     }
-                }
+                    Some(Err(e)) => StepResult {
+                        step_id: step.id.clone(),
+                        status: "error".into(),
+                        reply: None,
+                        error: Some(format!("Consumer error: {}", e)),
+                    },
+                    None => StepResult {
+                        step_id: step.id.clone(),
+                        status: "error".into(),
+                        reply: None,
+                        error: Some("Consumer channel closed".to_string()),
+                    },
+                },
             }
-
-            step_result
         }
     };
 
