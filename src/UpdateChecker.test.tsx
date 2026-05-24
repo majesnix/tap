@@ -29,6 +29,10 @@ const { mockToast } = vi.hoisted(() => {
 
 vi.mock("sonner", () => ({ toast: mockToast }));
 
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: vi.fn().mockResolvedValue(() => {}),
+}));
+
 import { UpdateChecker } from "./UpdateChecker";
 
 beforeEach(() => {
