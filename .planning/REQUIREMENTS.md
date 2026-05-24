@@ -28,18 +28,18 @@
 
 ### Execution Engine
 
-- [ ] **RUN-01**: User can run a plan sequentially — steps execute one at a time in order
-- [ ] **RUN-02**: User can stop a running plan at any time
-- [ ] **RUN-03**: Each step shows a status badge throughout execution (Pending / Sending / WaitingResponse / Done / Error)
-- [ ] **RUN-04**: User can configure a per-plan setting: stop on first error, or continue to remaining steps
-- [ ] **RUN-05**: A run summary is shown on completion showing how many steps succeeded and how many failed
-- [ ] **RUN-06**: No-wait steps advance after a configurable per-step delay (default 200 ms, 0 = immediate)
+- [x] **RUN-01**: User can run a plan sequentially — steps execute one at a time in order
+- [x] **RUN-02**: User can stop a running plan at any time
+- [x] **RUN-03**: Each step shows a status badge throughout execution (Pending / Sending / WaitingResponse / Done / Error)
+- [x] **RUN-04**: User can configure a per-plan setting: stop on first error, or continue to remaining steps
+- [x] **RUN-05**: A run summary is shown on completion showing how many steps succeeded and how many failed
+- [x] **RUN-06**: No-wait steps advance after a configurable per-step delay (default 200 ms, 0 = immediate)
 
 ### Response Handling
 
-- [ ] **RESP-01**: No-wait steps fire the publish and advance after the configured delay — no reply consumer opened
-- [ ] **RESP-02**: CorrelationId steps publish with a generated UUID `correlation_id` + `reply_to` AMQP property, wait for a matching reply on the configured reply queue (configurable timeout per step, default 10 s); step gets Error status on timeout
-- [ ] **RESP-03**: First-arrival steps open a consumer on a specified reply queue and accept the first message that arrives (configurable timeout per step, default 10 s); step gets Error status on timeout
+- [x] **RESP-01**: No-wait steps fire the publish and advance after the configured delay — no reply consumer opened
+- [x] **RESP-02**: CorrelationId steps publish with a generated UUID `correlation_id` + `reply_to` AMQP property, wait for a matching reply on the configured reply queue (configurable timeout per step, default 10 s); step gets Error status on timeout
+- [x] **RESP-03**: First-arrival steps open a consumer on a specified reply queue and accept the first message that arrives (configurable timeout per step, default 10 s); step gets Error status on timeout
 - [ ] **RESP-04**: Steps that receive a reply show the decoded protobuf response inline below the step (same collapsible key-value tree as the existing Response tab)
 - [ ] **RESP-05**: A shared scrollable feed shows all messages arriving on watched reply queues during the plan run, in chronological order
 
@@ -82,14 +82,14 @@
 | STEP-04 | Phase 21 | Complete |
 | STEP-05 | Phase 21 | Complete |
 | STEP-06 | Phase 21 | Complete |
-| RUN-01 | Phase 22 | Pending |
-| RUN-02 | Phase 22 | Pending |
-| RUN-03 | Phase 22 | Pending |
-| RUN-04 | Phase 22 | Pending |
-| RUN-05 | Phase 22 | Pending |
-| RUN-06 | Phase 22 | Pending |
-| RESP-01 | Phase 22 | Pending |
-| RESP-02 | Phase 22 | Pending |
-| RESP-03 | Phase 22 | Pending |
+| RUN-01 | Phase 22 | Complete |
+| RUN-02 | Phase 22 | Complete |
+| RUN-03 | Phase 22 | Complete |
+| RUN-04 | Phase 22 | Complete |
+| RUN-05 | Phase 22 | Complete |
+| RUN-06 | Phase 22 | Complete |
+| RESP-01 | Phase 22 | Complete |
+| RESP-02 | Phase 22 | Complete |
+| RESP-03 | Phase 22 | Complete |
 | RESP-04 | Phase 23 | Pending |
 | RESP-05 | Phase 23 | Pending |
