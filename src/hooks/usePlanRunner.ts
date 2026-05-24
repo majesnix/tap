@@ -76,11 +76,11 @@ export function usePlanRunner() {
             `Step '${step.name}' failed: ${result.error ?? "Unknown error"}`
           );
 
-          // Pitfall #8: if isCancelling is true, the error came from a
-          // cancellation signal — do NOT count it as a real failure and do NOT
-          // break the loop (it will exit naturally as the cancellation propagates).
+          // Break on stopOnError (user-configured) OR isCancelling (Stop clicked).
+          // Both require aborting remaining steps. The Rust guard is cleared after
+          // cancel, so the loop must break before the next executeStep call.
           const { isCancelling } = usePlanExecutionStore.getState();
-          if (stopOnError && !isCancelling) {
+          if (stopOnError || isCancelling) {
             break;
           }
         }
@@ -91,7 +91,7 @@ export function usePlanRunner() {
         toast.error(`Step '${step.name}' failed: ${message}`);
 
         const { isCancelling } = usePlanExecutionStore.getState();
-        if (stopOnError && !isCancelling) {
+        if (stopOnError || isCancelling) {
           break;
         }
       }
