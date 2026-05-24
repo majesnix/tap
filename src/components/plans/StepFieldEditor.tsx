@@ -470,9 +470,10 @@ function ResponseModeSection({
 interface StepFieldEditorProps {
   step: PlanStep | null;
   planId: string;
+  disabled?: boolean;
 }
 
-export function StepFieldEditor({ step, planId }: StepFieldEditorProps) {
+export function StepFieldEditor({ step, planId, disabled = false }: StepFieldEditorProps) {
   const { updateStep } = usePlanStore();
   const openFiles = useProtoStore((s) => s.openFiles);
 
@@ -502,6 +503,7 @@ export function StepFieldEditor({ step, planId }: StepFieldEditorProps) {
       message={message}
       matchedFile={matchedFile !== undefined}
       openFiles={openFiles}
+      disabled={disabled}
     />
   );
 }
@@ -528,6 +530,7 @@ interface StepFieldEditorInnerProps {
   message: MessageSchema | null;
   matchedFile: boolean;
   openFiles: OpenFileEntry[];
+  disabled?: boolean;
 }
 
 function StepFieldEditorInner({
@@ -538,6 +541,7 @@ function StepFieldEditorInner({
   message,
   matchedFile,
   openFiles,
+  disabled = false,
 }: StepFieldEditorInnerProps) {
   // Isolated react-hook-form instance (D-07) — NOT shared with useProtoStore
   const methods = useForm({
@@ -581,6 +585,9 @@ function StepFieldEditorInner({
 
   return (
     <ScrollArea className="flex-1 min-h-0">
+      {/* fieldset[disabled] cascades disabled state to all descendant form controls
+          without prop drilling into deeply nested field components (D-09) */}
+      <fieldset disabled={disabled} className="contents">
       <FormProvider {...methods}>
         <form onSubmit={(e) => e.preventDefault()}>
           {/* Section 1: Proto file + message type */}
@@ -687,6 +694,7 @@ function StepFieldEditorInner({
         planId={planId}
         updateStep={updateStep}
       />
+      </fieldset>
     </ScrollArea>
   );
 }
