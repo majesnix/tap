@@ -26,7 +26,9 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { usePlanStore } from "@/stores/usePlanStore";
-import type { Plan, PlanStep } from "@/lib/types";
+import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
+import type { Plan, PlanStep, StepStatus } from "@/lib/types";
+import { StepStatusBadge } from "./StepStatusBadge";
 import { StepHistoryPicker } from "./StepHistoryPicker";
 import { StepBlockPicker } from "./StepBlockPicker";
 
@@ -100,6 +102,8 @@ function InlineEditRow({ initialValue, isSelected, onCommit, onCancel }: InlineE
 interface SortableStepRowProps {
   step: PlanStep;
   isSelected: boolean;
+  isActiveStep: boolean;
+  stepStatus: StepStatus | undefined;
   onSelect: () => void;
   onStartRename: () => void;
   onDuplicate: () => void;
@@ -109,6 +113,8 @@ interface SortableStepRowProps {
 function SortableStepRow({
   step,
   isSelected,
+  isActiveStep,
+  stepStatus,
   onSelect,
   onStartRename,
   onDuplicate,
@@ -117,11 +123,26 @@ function SortableStepRow({
   const {
     attributes,
     listeners,
-    setNodeRef,
+    setNodeRef: setSortableRef,
     transform,
     transition,
     isDragging,
   } = useSortable({ id: step.id });
+
+  // D-10: scroll the active step into view when it becomes active
+  const rowRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (isActiveStep) {
+      rowRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [isActiveStep]);
+
+  // Combine sortable ref + row ref via callback ref
+  function setRef(el: HTMLDivElement | null) {
+    (rowRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    setSortableRef(el);
+  }
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -130,11 +151,13 @@ function SortableStepRow({
 
   return (
     <div
-      ref={setNodeRef}
+      ref={setRef}
       style={style}
       className={cn(
         "flex items-center py-2 px-3 cursor-pointer select-none",
-        isSelected ? "bg-accent text-accent-foreground" : "hover:bg-muted/50",
+        isSelected || isActiveStep
+          ? "bg-accent text-accent-foreground"
+          : "hover:bg-muted/50",
         isDragging && "opacity-50"
       )}
       onClick={onSelect}
@@ -149,6 +172,10 @@ function SortableStepRow({
         <GripVertical size={14} className="text-muted-foreground" />
       </div>
       <span className="text-sm truncate flex-1">{step.name}</span>
+      {/* StepStatusBadge — shown when execution is in progress or completed (RUN-03) */}
+      {stepStatus !== undefined && (
+        <StepStatusBadge status={stepStatus} />
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -199,6 +226,9 @@ export function StepListPanel({
   const [blockPickerOpen, setBlockPickerOpen] = useState(false);
 
   const { addStep, updateStep, deleteStep, duplicateStep, plansLoaded } = usePlanStore();
+
+  // Execution state — stepStatuses and activeStepId from usePlanExecutionStore (RUN-03, D-10)
+  const { stepStatuses, activeStepId } = usePlanExecutionStore();
 
   const steps = plan.steps;
 
@@ -296,6 +326,8 @@ export function StepListPanel({
                 key={step.id}
                 step={step}
                 isSelected={selectedStepId === step.id}
+                isActiveStep={activeStepId === step.id}
+                stepStatus={stepStatuses[step.id]}
                 onSelect={() => onSelectStep(step.id)}
                 onStartRename={() => {
                   onSelectStep(step.id);
