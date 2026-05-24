@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DepthCapPlaceholder } from "./DepthCapPlaceholder";
-import { useProtoStore } from "@/stores/useProtoStore";
+import { useMessageMap } from "@/components/form/ProtoSchemaContext";
 import type { FieldSchema, RenderFieldFn } from "@/lib/types";
 
 interface NestedMessageFieldProps {
@@ -24,7 +24,7 @@ export function NestedMessageField({
   renderChildField,
 }: NestedMessageFieldProps) {
   const [open, setOpen] = useState(true);
-  const schema = useProtoStore((s) => s.schema);
+  const messageMap = useMessageMap();
 
   // Depth gate: at depth >= 5, show placeholder — prevents unbounded recursion (FORM-08)
   if (depth >= 5) return <DepthCapPlaceholder />;
@@ -32,7 +32,7 @@ export function NestedMessageField({
   if (field.kind.type !== "message") return null;
 
   const messageFullName = field.kind.full_name;
-  const messageSchema = schema?.message_map[messageFullName];
+  const messageSchema = messageMap?.[messageFullName];
 
   if (!messageSchema) {
     return (

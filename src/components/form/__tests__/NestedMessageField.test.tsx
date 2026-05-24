@@ -1,8 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import { FormProvider, useForm } from "react-hook-form";
 import { NestedMessageField } from "../fields/NestedMessageField";
-import { useProtoStore } from "@/stores/useProtoStore";
-import type { FieldSchema, MessageSchema, ProtoSchema } from "@/lib/types";
+import { ProtoSchemaContext } from "../ProtoSchemaContext";
+import type { FieldSchema, MessageSchema } from "@/lib/types";
 
 // Build a minimal schema for use in all tests
 const stringField: FieldSchema = {
@@ -17,7 +17,7 @@ const innerMessage: MessageSchema = {
   full_name: "com.Inner",
   fields: [stringField],
 };
-const testSchema: ProtoSchema = {
+const testSchema = {
   messages: [innerMessage],
   message_map: { "com.Inner": innerMessage },
 };
@@ -30,26 +30,25 @@ const innerField: FieldSchema = {
 };
 
 /**
- * Wraps NestedMessageField in a FormProvider for isolated testing.
+ * Wraps NestedMessageField in a FormProvider and ProtoSchemaContext for isolated testing.
  * Uses the `path` prop to match ProtoFormRenderer callsite.
  */
 function renderNested(depth: number) {
-  // Seed Zustand store with schema so NestedMessageField can look up the message type
-  useProtoStore.setState({ schema: testSchema });
-
   const Wrapper = () => {
     const methods = useForm({ defaultValues: { inner: { title: "" } } });
     return (
-      <FormProvider {...methods}>
-        <NestedMessageField
-          field={innerField}
-          path="inner"
-          depth={depth}
-          renderChildField={(_f: FieldSchema, childPath: string) => (
-            <input key={childPath} data-testid={childPath} />
-          )}
-        />
-      </FormProvider>
+      <ProtoSchemaContext.Provider value={testSchema.message_map}>
+        <FormProvider {...methods}>
+          <NestedMessageField
+            field={innerField}
+            path="inner"
+            depth={depth}
+            renderChildField={(_f: FieldSchema, childPath: string) => (
+              <input key={childPath} data-testid={childPath} />
+            )}
+          />
+        </FormProvider>
+      </ProtoSchemaContext.Provider>
     );
   };
   return render(<Wrapper />);

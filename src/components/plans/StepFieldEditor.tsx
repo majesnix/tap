@@ -23,6 +23,8 @@ import { MapField } from "@/components/form/fields/MapField";
 import { WellKnownTypeField } from "@/components/form/fields/WellKnownTypeField";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { useProtoStore } from "@/stores/useProtoStore";
+import { useConnectionStore } from "@/stores/useConnectionStore";
+import { ProtoSchemaContext } from "@/components/form/ProtoSchemaContext";
 import type {
   FieldSchema,
   MessageSchema,
@@ -146,6 +148,7 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
   const [routingKey, setRoutingKey] = useState(
     step.target.kind === "exchange" ? step.target.routing_key : ""
   );
+  const queues = useConnectionStore((s) => s.queues);
 
   function handleKindChange(kind: "queue" | "exchange") {
     setTargetKind(kind);
@@ -211,14 +214,33 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
             >
               Queue name
             </Label>
-            <Input
-              id={`queue-name-${step.id}`}
-              value={queueName}
-              onChange={(e) => setQueueName(e.target.value)}
-              onBlur={handleQueueBlur}
-              placeholder="queue-name"
-              className="text-sm"
-            />
+            {queues.length > 0 ? (
+              <Select
+                value={queueName}
+                onValueChange={(val) => {
+                  setQueueName(val);
+                  updateStep(planId, step.id, { target: { kind: "queue", queue: val } }).catch(console.error);
+                }}
+              >
+                <SelectTrigger className="text-sm">
+                  <SelectValue placeholder="Select queue…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {queues.map((name) => (
+                    <SelectItem key={name} value={name}>{name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id={`queue-name-${step.id}`}
+                value={queueName}
+                onChange={(e) => setQueueName(e.target.value)}
+                onBlur={handleQueueBlur}
+                placeholder="queue-name"
+                className="text-sm"
+              />
+            )}
           </div>
         ) : (
           <div className="flex flex-col gap-2">
@@ -296,8 +318,9 @@ function ResponseModeSection({
       ? String(step.response_mode.timeout_ms)
       : "10000"
   );
+  const queues = useConnectionStore((s) => s.queues);
 
-  function buildResponseMode(currentMode: string): ResponseMode {
+  function buildResponseMode(currentMode: string, replyQueueOverride?: string): ResponseMode {
     if (currentMode === "no-wait") {
       return { mode: "no-wait", delay_ms: parseInt(delayMs, 10) || 200 };
     }
@@ -305,7 +328,7 @@ function ResponseModeSection({
       currentMode === "correlation-id" ? "correlation-id" : "first-arrival";
     return {
       mode: rm,
-      reply_queue: replyQueue,
+      reply_queue: replyQueueOverride ?? replyQueue,
       timeout_ms: parseInt(timeoutMs, 10) || 10000,
     };
   }
@@ -390,14 +413,35 @@ function ResponseModeSection({
               >
                 Reply queue
               </Label>
-              <Input
-                id={`reply-queue-${step.id}`}
-                value={replyQueue}
-                onChange={(e) => setReplyQueue(e.target.value)}
-                onBlur={handleInputBlur}
-                placeholder="reply-queue-name"
-                className="text-sm"
-              />
+              {queues.length > 0 ? (
+                <Select
+                  value={replyQueue}
+                  onValueChange={(val) => {
+                    setReplyQueue(val);
+                    updateStep(planId, step.id, {
+                      response_mode: buildResponseMode(mode, val),
+                    }).catch(console.error);
+                  }}
+                >
+                  <SelectTrigger className="text-sm">
+                    <SelectValue placeholder="Select queue…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {queues.map((name) => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  id={`reply-queue-${step.id}`}
+                  value={replyQueue}
+                  onChange={(e) => setReplyQueue(e.target.value)}
+                  onBlur={handleInputBlur}
+                  placeholder="reply-queue-name"
+                  className="text-sm"
+                />
+              )}
             </div>
             <div className="flex flex-col gap-1">
               <Label
@@ -550,6 +594,7 @@ function StepFieldEditorInner({
   }, [watchedValues, message]); // message added: re-evaluate when schema loads
 
   return (
+    <ProtoSchemaContext.Provider value={schema?.message_map ?? null}>
     <ScrollArea className="flex-1 min-h-0">
       {/* fieldset[disabled] cascades disabled state to all descendant form controls
           without prop drilling into deeply nested field components (D-09) */}
@@ -681,5 +726,6 @@ function StepFieldEditorInner({
       />
       </fieldset>
     </ScrollArea>
+    </ProtoSchemaContext.Provider>
   );
 }

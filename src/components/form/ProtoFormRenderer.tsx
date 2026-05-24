@@ -9,6 +9,8 @@ import { OneofField } from "./fields/OneofField";
 import { WellKnownTypeField } from "./fields/WellKnownTypeField";
 import { BytesField } from "./fields/BytesField";
 import { MapField } from "./fields/MapField";
+import { useProtoStore } from "@/stores/useProtoStore";
+import { ProtoSchemaContext } from "./ProtoSchemaContext";
 
 const MAX_DEPTH = 5;
 
@@ -109,6 +111,7 @@ export function ProtoFormRenderer({
   resetRef,
   applyBlockRef,
 }: ProtoFormRendererProps) {
+  const messageMap = useProtoStore((s) => s.schema?.message_map ?? null);
   const methods = useForm({
     defaultValues: buildDefaultValues(message),
     mode: "onBlur",
@@ -255,27 +258,29 @@ export function ProtoFormRenderer({
   };
 
   return (
-    <FormProvider {...methods}>
-      <form className="flex flex-col gap-4 p-4" onSubmit={(e) => e.preventDefault()}>
-        {message.fields.map((field) => {
-          const path = field.name;
+    <ProtoSchemaContext.Provider value={messageMap}>
+      <FormProvider {...methods}>
+        <form className="flex flex-col gap-4 p-4" onSubmit={(e) => e.preventDefault()}>
+          {message.fields.map((field) => {
+            const path = field.name;
 
-          // Repeated fields are dispatched to RepeatedField regardless of inner kind
-          if (field.repeated) {
-            return (
-              <RepeatedField
-                key={path}
-                field={field}
-                path={path}
-                depth={0}
-                renderItem={renderField}
-              />
-            );
-          }
+            // Repeated fields are dispatched to RepeatedField regardless of inner kind
+            if (field.repeated) {
+              return (
+                <RepeatedField
+                  key={path}
+                  field={field}
+                  path={path}
+                  depth={0}
+                  renderItem={renderField}
+                />
+              );
+            }
 
-          return renderField(field, path, 0);
-        })}
-      </form>
-    </FormProvider>
+            return renderField(field, path, 0);
+          })}
+        </form>
+      </FormProvider>
+    </ProtoSchemaContext.Provider>
   );
 }
