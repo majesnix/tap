@@ -18,6 +18,7 @@ import { StepReplyView } from "./StepReplyView";
 import { PlanReplyFeedTab } from "./PlanReplyFeedTab";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
+import { usePlanProtoAutoLoad } from "@/hooks/usePlanProtoAutoLoad";
 import type { Plan, ReplyMessage } from "@/lib/types";
 
 interface PlanDetailPanelProps {
@@ -41,6 +42,9 @@ export function PlanDetailPanel({ selectedPlan }: PlanDetailPanelProps) {
 
   // Pitfall 4: hasRunStarted must use stepStatuses/planReplyFeed — NOT isRunning or runningPlanId (which clear post-run)
   const hasRunStarted = Object.keys(stepStatuses).length > 0 || planReplyFeed.length > 0;
+
+  // Auto-load proto files referenced by the plan's steps (must be before early return)
+  usePlanProtoAutoLoad(selectedPlan?.steps ?? []);
 
   // PointerSensor with distance: 4 per UI-SPEC (AppLayout uses 8 — intentionally different)
   const sensors = useSensors(

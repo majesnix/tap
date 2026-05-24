@@ -17,16 +17,18 @@ interface MessageFeedRowProps {
  * Expanded: ResponseDecodedView + ResponseHexSection with per-row data (D-08).
  */
 export function MessageFeedRow({ message }: MessageFeedRowProps) {
-  const formattedTimestamp =
-    message.timestamp !== null
-      ? new Date(message.timestamp).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          fractionalSecondDigits: 3,
-          hour12: false,
-        })
-      : "—";
+  const formattedTimestamp = (() => {
+    if (message.timestamp === null) return "—";
+    const d = new Date(message.timestamp);
+    const base = d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    });
+    const ms = String(d.getMilliseconds()).padStart(3, "0");
+    return `${base}.${ms}`;
+  })();
 
   const triggerText = [
     message.routingKey,
