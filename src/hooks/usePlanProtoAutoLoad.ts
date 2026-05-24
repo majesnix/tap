@@ -17,7 +17,7 @@ const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
  * Shows a warning toast if a file cannot be loaded (moved/deleted/inaccessible).
  */
 export function usePlanProtoAutoLoad(steps: PlanStep[]): void {
-  const addOrActivateFile = useProtoStore((s) => s.addOrActivateFile);
+  const addFileBackground = useProtoStore((s) => s.addFileBackground);
 
   useEffect(() => {
     const missingPaths = [
@@ -46,7 +46,7 @@ export function usePlanProtoAutoLoad(steps: PlanStep[]): void {
 
           const includePaths = savedPaths ?? [parentDir];
           const schema = await parseProto(filePath, includePaths);
-          addOrActivateFile(filePath, schema);
+          addFileBackground(filePath, schema);
         } catch {
           const fileName = filePath.split(/[\\/]/).pop() ?? filePath;
           toast.warning(`Could not auto-load ${fileName} — open it manually.`);

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppError;
 
-pub const KEYRING_SERVICE: &str = "dev.protosender.app";
+pub const KEYRING_SERVICE: &str = "dev.majesnix.tap";
 pub const PROFILES_STORE_KEY: &str = "connection-profiles";
 
 /// Non-secret connection profile fields stored in tauri-plugin-store JSON.

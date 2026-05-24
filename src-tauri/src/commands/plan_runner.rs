@@ -62,7 +62,7 @@ pub enum ResponseMode {
 
 /// A single step within a plan execution.
 #[derive(Debug, serde::Deserialize)]
-#[allow(dead_code)] // name + proto_path are deserialized from the IPC payload but not used in Rust
+#[allow(dead_code)] // name is deserialized from the IPC payload but not read in Rust logic
 pub struct PlanStep {
     pub id: String,
     pub name: String,
@@ -148,8 +148,55 @@ pub async fn execute_step(
     };
     // Guard dropped here — before first .await
 
-    // ── 3. Clone DescriptorPool BEFORE any .await (MutexGuard not Send) ──────
-    //    pool_state IS Mutex<Option<DescriptorPool>> directly — no .descriptor_pool subfield
+    // ── 3. Validate message type is configured ───────────────────────────────
+    if step.message_type.is_empty() {
+        return Ok(StepResult {
+            step_id: step.id,
+            status: "error".into(),
+            reply: None,
+            error: Some(
+                "Step has no message type configured — open the step editor to select one"
+                    .to_string(),
+            ),
+        });
+    }
+
+    // ── 3b. Ensure pool contains the step's message type; compile if needed ──
+    {
+        let has_type = pool_state
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|p| p.get_message_by_name(&step.message_type).is_some())
+            .unwrap_or(false);
+
+        if !has_type {
+            if step.proto_path.is_empty() {
+                return Ok(StepResult {
+                    step_id: step.id,
+                    status: "error".into(),
+                    reply: None,
+                    error: Some(format!(
+                        "Message type '{}' not found in pool and step has no proto file configured",
+                        step.message_type
+                    )),
+                });
+            }
+            if let Err(e) = compile_and_merge_proto(&step.proto_path, &*pool_state) {
+                return Ok(StepResult {
+                    step_id: step.id,
+                    status: "error".into(),
+                    reply: None,
+                    error: Some(format!(
+                        "Could not load '{}': {}",
+                        step.proto_path, e
+                    )),
+                });
+            }
+        }
+    }
+
+    // ── 4. Clone DescriptorPool BEFORE any .await (MutexGuard not Send) ──────
     let pool = {
         let guard = pool_state.lock().unwrap();
         guard
@@ -159,7 +206,7 @@ pub async fn execute_step(
     };
     // Guard dropped here — before first .await
 
-    // ── 4. Parse field_values JSON and encode message ─────────────────────────
+    // ── 5. Parse field_values JSON and encode message ─────────────────────────
     let field_values_json: serde_json::Value = match serde_json::from_str(&step.field_values) {
         Ok(v) => v,
         Err(e) => {
@@ -172,25 +219,20 @@ pub async fn execute_step(
         }
     };
 
-    let encoded_bytes = match crate::commands::encode::encode_message(
-        step.message_type.clone(),
-        field_values_json,
-        pool_state.clone(),
-    )
-    .await
-    {
-        Ok(bytes) => bytes,
-        Err(e) => {
-            return Ok(StepResult {
-                step_id: step.id,
-                status: "error".into(),
-                reply: None,
-                error: Some(e.to_string()),
-            });
-        }
-    };
+    let encoded_bytes =
+        match crate::commands::encode::encode_message_with_pool(&pool, &step.message_type, &field_values_json) {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                return Ok(StepResult {
+                    step_id: step.id,
+                    status: "error".into(),
+                    reply: None,
+                    error: Some(e.to_string()),
+                });
+            }
+        };
 
-    // ── 5. Open AMQP connection ────────────────────────────────────────────────
+    // ── 6. Open AMQP connection ────────────────────────────────────────────────
     //    Follow the tight-scope URI pattern from publish.rs (WR-01: password not leaked).
     let conn = {
         use crate::profiles::build_amqp_uri;
@@ -217,7 +259,7 @@ pub async fn execute_step(
         .await
         .map_err(|e| AppError::AmqpError(e.to_string()))?;
 
-    // ── 6. Determine routing info from step.target ────────────────────────────
+    // ── 7. Determine routing info from step.target ────────────────────────────
     let (exchange, routing_key) = match &step.target {
         PublishTarget::Queue { queue } => ("".to_string(), queue.clone()),
         PublishTarget::Exchange { exchange, routing_key } => {
@@ -225,7 +267,7 @@ pub async fn execute_step(
         }
     };
 
-    // ── 7. Branch on response_mode ────────────────────────────────────────────
+    // ── 8. Branch on response_mode ────────────────────────────────────────────
     let result = match &step.response_mode {
         // Branch A: NoWait — publish and sleep delay_ms
         ResponseMode::NoWait { delay_ms } => {
@@ -452,6 +494,53 @@ pub async fn execute_step(
     let _ = conn.close(0, "".into()).await;
 
     Ok(result)
+}
+
+// ─── Proto compilation helper ────────────────────────────────────────────────
+
+/// Compile `proto_path` and merge its descriptors into the global pool.
+/// Uses the file's parent directory as the only include path (same fallback
+/// as usePlanProtoAutoLoad on the frontend). Skips files already present by
+/// name to avoid conflicts with shared imports.
+fn compile_and_merge_proto(
+    proto_path: &str,
+    pool: &Mutex<Option<DescriptorPool>>,
+) -> Result<(), AppError> {
+    let sep = if proto_path.contains('\\') { '\\' } else { '/' };
+    let parent_dir = {
+        let parts: Vec<&str> = proto_path.split(sep).collect();
+        let dir_parts = &parts[..parts.len().saturating_sub(1)];
+        let joined = dir_parts.join(&sep.to_string());
+        if joined.is_empty() { sep.to_string() } else { joined }
+    };
+
+    let mut compiler = protox::Compiler::new(&[parent_dir.as_str()])
+        .map_err(|e| AppError::ParseError(e.to_string()))?;
+    compiler.include_imports(true);
+    compiler
+        .open_file(proto_path)
+        .map_err(|e| AppError::ParseError(e.to_string()))?;
+    let fds = compiler.file_descriptor_set();
+
+    let mut guard = pool.lock().unwrap();
+    match guard.as_mut() {
+        None => {
+            let new_pool = DescriptorPool::from_file_descriptor_set(fds)
+                .map_err(|e| AppError::ParseError(e.to_string()))?;
+            *guard = Some(new_pool);
+        }
+        Some(existing) => {
+            for file_proto in fds.file {
+                let name = file_proto.name().to_string();
+                if existing.get_file_by_name(&name).is_none() {
+                    existing
+                        .add_file_descriptor_proto(file_proto)
+                        .map_err(|e| AppError::ParseError(e.to_string()))?;
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 // ─── Reply decoding helper ────────────────────────────────────────────────────

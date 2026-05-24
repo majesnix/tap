@@ -548,16 +548,21 @@ function StepFieldEditorInner({
     defaultValues: safeParseFieldValues(step.field_values, message),
   });
 
-  // Reset ONLY when step.id changes — NEVER include step.field_values in deps
-  // (would cause echo loop: auto-save writes → field_values changes → reset → auto-save → …)
+  // Reset when step.id changes OR when message becomes available for the first time.
+  // NEVER include step.field_values in deps — would cause echo loop:
+  // auto-save writes → field_values changes → reset → auto-save → …
   const prevStepIdRef = useRef(step.id);
+  const messagePrevNullRef = useRef(message === null);
   useEffect(() => {
-    if (prevStepIdRef.current !== step.id) {
+    const stepChanged = prevStepIdRef.current !== step.id;
+    const messageFirstLoaded = messagePrevNullRef.current && message !== null;
+    messagePrevNullRef.current = message === null;
+    if (stepChanged || messageFirstLoaded) {
       prevStepIdRef.current = step.id;
       methods.reset(safeParseFieldValues(step.field_values, message));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step.id]); // Deliberately omit step.field_values and message from deps
+  }, [step.id, message]); // Deliberately omit step.field_values from deps
 
   // Debounced auto-save with stale-step guard (T-21-09)
   const watchedValues = useWatch({ control: methods.control });
@@ -567,6 +572,8 @@ function StepFieldEditorInner({
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
+    // Don't persist when schema isn't loaded — writing {} would wipe real field values.
+    if (!message) return;
     const capturedStepId = step.id;
     debounceRef.current = setTimeout(() => {
       if (currentStepIdRef.current === capturedStepId) {
@@ -581,7 +588,7 @@ function StepFieldEditorInner({
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [watchedValues]); // Only watchedValues — planId/step.id captured via closures/refs
+  }, [watchedValues, message]); // message added: re-evaluate when schema loads
 
   return (
     <ScrollArea className="flex-1 min-h-0">
@@ -597,17 +604,24 @@ function StepFieldEditorInner({
               <Label className="text-xs text-muted-foreground">File</Label>
               <Select
                 value={step.proto_path}
-                onValueChange={(path) =>
-                  updateStep(planId, step.id, {
-                    proto_path: path,
-                    message_type: "",
-                  }).catch(console.error)
-                }
+                onValueChange={(path) => {
+                  // Only reset message_type when the file actually changes.
+                  // Radix UI fires onValueChange even when the user clicks the
+                  // already-selected item, which would otherwise wipe message_type.
+                  const changes: Partial<PlanStep> = { proto_path: path };
+                  if (path !== step.proto_path) changes.message_type = "";
+                  updateStep(planId, step.id, changes).catch(console.error);
+                }}
               >
                 <SelectTrigger className="text-sm">
                   <SelectValue placeholder="Select a .proto file" />
                 </SelectTrigger>
                 <SelectContent>
+                  {step.proto_path && !openFiles.some((f) => f.filePath === step.proto_path) && (
+                    <SelectItem value={step.proto_path}>
+                      {step.proto_path.split("/").pop() ?? step.proto_path} (not open)
+                    </SelectItem>
+                  )}
                   {openFiles.map((f) => (
                     <SelectItem key={f.filePath} value={f.filePath}>
                       {f.filePath.split("/").pop() ?? f.filePath}
@@ -615,6 +629,16 @@ function StepFieldEditorInner({
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Message type read-only display when file is saved but schema not yet loaded */}
+              {step.proto_path && !schema && step.message_type && (
+                <p className="text-xs text-muted-foreground">
+                  Message type:{" "}
+                  <span className="font-mono">
+                    {step.message_type.split(".").pop() ?? step.message_type}
+                  </span>
+                </p>
+              )}
 
               {/* Message type selector — only shown when file is selected and open */}
               {step.proto_path && schema && (
@@ -624,11 +648,13 @@ function StepFieldEditorInner({
                   </Label>
                   <Select
                     value={step.message_type}
-                    onValueChange={(type) =>
-                      updateStep(planId, step.id, {
-                        message_type: type,
-                      }).catch(console.error)
-                    }
+                    onValueChange={(type) => {
+                      if (type !== step.message_type) {
+                        updateStep(planId, step.id, {
+                          message_type: type,
+                        }).catch(console.error);
+                      }
+                    }}
                   >
                     <SelectTrigger className="text-sm">
                       <SelectValue placeholder="Select a message type" />

@@ -31,6 +31,7 @@ interface ProtoStore {
 
   // Actions
   addOrActivateFile: (filePath: string, schema: ProtoSchema) => void;
+  addFileBackground: (filePath: string, schema: ProtoSchema) => void;
   closeFile: (index: number) => void;
   setActiveIndex: (index: number) => void;
 
@@ -102,6 +103,28 @@ export const useProtoStore = create<ProtoStore>((set) => ({
         hexPreview: "",
         encodeError: null,
       };
+    }),
+
+  addFileBackground: (filePath, schema) =>
+    set((s) => {
+      if (s.openFiles.some((f) => f.filePath === filePath)) return s;
+      if (s.openFiles.length >= MAX_OPEN_FILES) {
+        toast.error(`Maximum ${MAX_OPEN_FILES} files open at once`);
+        return s;
+      }
+      const newFiles = [...s.openFiles, { filePath, schema }];
+      if (s.activeIndex === -1) {
+        return {
+          openFiles: newFiles,
+          activeIndex: newFiles.length - 1,
+          activeFilePath: filePath,
+          schema,
+          selectedMessageType: schema.messages[0]?.full_name ?? null,
+          hexPreview: "",
+          encodeError: null,
+        };
+      }
+      return { openFiles: newFiles };
     }),
 
   closeFile: (index) =>

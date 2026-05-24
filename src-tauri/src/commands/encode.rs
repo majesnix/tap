@@ -42,6 +42,35 @@ pub async fn encode_message(
     Ok(buf)
 }
 
+/// Encode a message using a pre-resolved pool reference.
+/// Extracted so plan_runner can encode without going through the Tauri State
+/// wrapper (which isn't Send across awaits).
+pub fn encode_message_with_pool(
+    pool: &prost_reflect::DescriptorPool,
+    message_type: &str,
+    form_values: &JsonValue,
+) -> Result<Vec<u8>, AppError> {
+    let msg_desc = pool
+        .get_message_by_name(message_type)
+        .ok_or_else(|| AppError::EncodeError {
+            field: "<root>".to_string(),
+            message: format!("Message type '{}' not found in pool", message_type),
+        })?;
+
+    let mut dyn_msg = DynamicMessage::new(msg_desc.clone());
+    populate_message(&mut dyn_msg, &msg_desc, form_values)?;
+
+    let mut buf = Vec::new();
+    dyn_msg
+        .encode(&mut buf)
+        .map_err(|e| AppError::EncodeError {
+            field: "<root>".to_string(),
+            message: e.to_string(),
+        })?;
+
+    Ok(buf)
+}
+
 fn populate_message(
     dyn_msg: &mut DynamicMessage,
     msg_desc: &MessageDescriptor,

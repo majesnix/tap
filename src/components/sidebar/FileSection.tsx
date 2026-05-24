@@ -114,6 +114,7 @@ export function FileSection() {
           <p className="text-xs text-muted-foreground">No file open</p>
         ) : (
           <Tabs
+            orientation="vertical"
             value={String(activeIndex)}
             onValueChange={(v) => setActiveIndex(Number(v))}
           >
