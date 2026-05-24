@@ -222,7 +222,45 @@ export interface Plan {
   name: string;           // user-defined plan name
   schema_version: number; // starts at 1; incremented only when Plan shape changes
   steps: PlanStep[];
+  /**
+   * When true (or absent), the runner stops on the first step that returns
+   * status 'error'. When false, the runner continues to the next step.
+   * Absence is treated as true for backward compatibility — old plans without
+   * this field behave as stop_on_error = true. See isPlan() in usePlanStore. (D-07)
+   */
+  stop_on_error?: boolean;
 }
 
 /** Current schema version constant. Bump only when Plan shape changes. (D-07) */
 export const PLAN_SCHEMA_VERSION = 1 as const;
+
+// ── Phase 22: Plan runner types ───────────────────────────────────────────────
+
+/**
+ * Decoded reply message received in response to a plan step.
+ * Q4 resolved: decoded via pool_state using step.message_type (same type as request).
+ * decoded is null when protobuf decode failed — this is not a step error. (D-03)
+ */
+export interface ReplyMessage {
+  routingKey: string;
+  contentType: string | null;
+  /** Decoded protobuf payload; null when decode failed (not a step error). */
+  decoded: Record<string, unknown> | null;
+  /** step.message_type on decode success; null on failure. */
+  decodedAs: string | null;
+  hexString: string;
+}
+
+/**
+ * Terminal result of a single plan step execution.
+ * status is 'done' | 'error' — the two terminal states the runner cares about.
+ * reply is null for no-wait steps or when no reply was received. (D-02)
+ */
+export interface StepResult {
+  stepId: string;
+  status: 'done' | 'error';
+  /** Decoded reply message; null for no-wait mode or when no reply arrived. */
+  reply: ReplyMessage | null;
+  /** Error description when status is 'error'; null when status is 'done'. */
+  error: string | null;
+}

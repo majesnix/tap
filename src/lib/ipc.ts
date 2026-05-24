@@ -1,5 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome, DrainResult } from "./types";
+import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome, DrainResult, PlanStep, StepResult, ReplyMessage } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -155,4 +155,32 @@ export function startSubscribe(
  */
 export function stopSubscribe(): Promise<void> {
   return invoke("stop_subscribe");
+}
+
+// ── Phase 22: Plan runner IPC types ──────────────────────────────────────────
+
+/**
+ * ReplyMessage as serialized by the Rust backend over Tauri IPC.
+ * Rust applies #[serde(rename_all = "camelCase")] to ReplyMessage, so all
+ * fields arrive as camelCase. No raw_bytes field — not serialized to JS (internal only).
+ * No exchange field — not present in the Rust ReplyMessage IPC shape.
+ */
+export interface ReplyMessageIpc {
+  routingKey: string;
+  contentType: string | null;
+  decoded: Record<string, unknown> | null;
+  decodedAs: string | null;
+  hexString: string;
+}
+
+/**
+ * StepResult as returned by the execute_step Tauri command.
+ * Rust does NOT apply rename_all to StepResult, so top-level fields use
+ * snake_case (step_id). The reply field is already camelCase (from ReplyMessageIpc).
+ */
+export interface StepResultIpc {
+  step_id: string;
+  status: 'done' | 'error';
+  reply: ReplyMessageIpc | null;
+  error: string | null;
 }
