@@ -104,6 +104,7 @@ interface SortableStepRowProps {
   isSelected: boolean;
   isActiveStep: boolean;
   stepStatus: StepStatus | undefined;
+  stepErrorMsg: string | undefined;
   stepReplies: Record<string, ReplyMessage>;
   onSelect: () => void;
   onStartRename: () => void;
@@ -116,6 +117,7 @@ function SortableStepRow({
   isSelected,
   isActiveStep,
   stepStatus,
+  stepErrorMsg,
   stepReplies,
   onSelect,
   onStartRename,
@@ -176,7 +178,7 @@ function SortableStepRow({
       <span className="text-sm truncate flex-1">{step.name}</span>
       {/* StepStatusBadge — shown when execution is in progress or completed (RUN-03) */}
       {stepStatus !== undefined && (
-        <StepStatusBadge status={stepStatus} />
+        <StepStatusBadge status={stepStatus} errorMsg={stepErrorMsg} />
       )}
       {/* Reply indicator dot — shown when step has a stored reply (RESP-04) */}
       {stepReplies[step.id] != null && (
@@ -237,7 +239,7 @@ export function StepListPanel({
   const { addStep, updateStep, deleteStep, duplicateStep, plansLoaded } = usePlanStore();
 
   // Execution state — stepStatuses, activeStepId, stepReplies, setPaneMode from usePlanExecutionStore (RUN-03, D-10, RESP-04)
-  const { stepStatuses, activeStepId, stepReplies, setPaneMode } = usePlanExecutionStore();
+  const { stepStatuses, stepErrors, activeStepId, stepReplies, setPaneMode } = usePlanExecutionStore();
 
   const steps = plan.steps;
 
@@ -337,6 +339,7 @@ export function StepListPanel({
                 isSelected={selectedStepId === step.id}
                 isActiveStep={activeStepId === step.id}
                 stepStatus={stepStatuses[step.id]}
+                stepErrorMsg={stepErrors[step.id]}
                 stepReplies={stepReplies}
                 onSelect={() => {
                   // D-03: second click on same step while paneMode === 'reply' toggles back to editor

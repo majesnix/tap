@@ -1,5 +1,11 @@
 import { Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { StepStatus } from "@/lib/types";
 
 // ── Badge config map ──────────────────────────────────────────────────────────
@@ -45,17 +51,18 @@ const BADGE_CONFIG: Record<StepStatus, BadgeConfig> = {
 
 interface StepStatusBadgeProps {
   status: StepStatus;
+  errorMsg?: string;
 }
 
 /**
  * Renders a shadcn Badge for the given step execution status.
- * Variant is always "outline"; className overrides apply tint + border color
- * per the UI-SPEC for each status. (RUN-03, D-14)
+ * When status is 'error' and errorMsg is provided, wraps the badge in a
+ * Tooltip so the user can inspect the failure reason after the toast is gone.
  */
-export function StepStatusBadge({ status }: StepStatusBadgeProps) {
+export function StepStatusBadge({ status, errorMsg }: StepStatusBadgeProps) {
   const { className, text, showSpinner } = BADGE_CONFIG[status];
 
-  return (
+  const badge = (
     <Badge variant="outline" className={className}>
       {showSpinner && (
         <Loader2 size={14} className="animate-spin mr-1" />
@@ -63,4 +70,19 @@ export function StepStatusBadge({ status }: StepStatusBadgeProps) {
       {text}
     </Badge>
   );
+
+  if (status === "error" && errorMsg) {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>{badge}</TooltipTrigger>
+          <TooltipContent side="left" className="max-w-64 break-words">
+            {errorMsg}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
+  }
+
+  return badge;
 }

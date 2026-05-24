@@ -27,6 +27,7 @@ export function usePlanRunner() {
     isRunning,
     setStepReply,
     setPaneMode,
+    setStepError,
     appendReplyFeedEntry,
   } = usePlanExecutionStore();
 
@@ -91,10 +92,10 @@ export function usePlanRunner() {
           succeeded++;
         } else {
           // result.status === 'error'
+          const errMsg = result.error ?? "Unknown error";
           setStepStatus(step.id, "error");
-          toast.error(
-            `Step '${step.name}' failed: ${result.error ?? "Unknown error"}`
-          );
+          setStepError(step.id, errMsg);
+          toast.error(`Step '${step.name}' failed: ${errMsg}`);
 
           // Break on stopOnError (user-configured) OR isCancelling (Stop clicked).
           // Both require aborting remaining steps. The Rust guard is cleared after
@@ -106,8 +107,9 @@ export function usePlanRunner() {
         }
       } catch (err: unknown) {
         // Unexpected throw from executeStep (should not happen in normal operation)
-        setStepStatus(step.id, "error");
         const message = err instanceof Error ? err.message : "Unknown error";
+        setStepStatus(step.id, "error");
+        setStepError(step.id, message);
         toast.error(`Step '${step.name}' failed: ${message}`);
 
         const { isCancelling } = usePlanExecutionStore.getState();

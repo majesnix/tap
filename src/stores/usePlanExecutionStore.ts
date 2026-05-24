@@ -18,6 +18,8 @@ interface PlanExecutionState {
   planReplyFeed: FeedMessage[];
   /** Controls which pane the editor/reply split shows (D-04) */
   paneMode: 'editor' | 'reply';
+  /** Error message for each failed step, keyed by step.id */
+  stepErrors: Record<string, string>;
 }
 
 // ── Actions ───────────────────────────────────────────────────────────────────
@@ -55,6 +57,8 @@ interface PlanExecutionActions {
   appendReplyFeedEntry: (entry: FeedMessage) => void;
   /** Switch the editor/reply pane mode. (D-04) */
   setPaneMode: (mode: 'editor' | 'reply') => void;
+  /** Store the error message for a failed step so it survives toast dismissal. */
+  setStepError: (stepId: string, msg: string) => void;
 }
 
 type PlanExecutionStore = PlanExecutionState & PlanExecutionActions;
@@ -71,6 +75,7 @@ const INITIAL_STATE: PlanExecutionState = {
   stepReplies: {} as Record<string, ReplyMessage>,
   planReplyFeed: [] as FeedMessage[],
   paneMode: 'editor' as const,
+  stepErrors: {} as Record<string, string>,
 };
 
 // ── Store ─────────────────────────────────────────────────────────────────────
@@ -95,6 +100,7 @@ export const usePlanExecutionStore = create<PlanExecutionStore>((set) => ({
       stepReplies: {},
       planReplyFeed: [],
       paneMode: 'editor',
+      stepErrors: {},
     }),
 
   setStepStatus: (stepId, status) =>
@@ -124,6 +130,9 @@ export const usePlanExecutionStore = create<PlanExecutionStore>((set) => ({
     set((s) => ({ planReplyFeed: [entry, ...s.planReplyFeed].slice(0, 500) })),
 
   setPaneMode: (mode) => set({ paneMode: mode }),
+
+  setStepError: (stepId, msg) =>
+    set((state) => ({ stepErrors: { ...state.stepErrors, [stepId]: msg } })),
 }));
 
 /**
