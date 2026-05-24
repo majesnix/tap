@@ -15,6 +15,8 @@ interface PlanStore {
   loadPlans: () => Promise<void>;
   createPlan: (name: string) => Promise<Plan | null>;
   renamePlan: (id: string, name: string) => Promise<void>;
+  /** Apply a partial Plan update optimistically with rollback on persist failure. (D-08) */
+  updatePlan: (id: string, partial: Partial<Plan>) => Promise<void>;
   deletePlan: (id: string) => Promise<void>;
   duplicatePlan: (id: string) => Promise<Plan | null>;
   // Phase 21: step-level actions
@@ -107,6 +109,23 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
     set((state) => {
       previous = state.plans;
       updated = state.plans.map((p) => (p.id === id ? { ...p, name } : p));
+      return { plans: updated };
+    });
+    try {
+      await persistPlans(updated);
+    } catch (err) {
+      set({ plans: previous });
+      throw err;
+    }
+  },
+
+  updatePlan: async (id: string, partial: Partial<Plan>): Promise<void> => {
+    if (!get().plansLoaded) return;
+    let previous: Plan[] = [];
+    let updated: Plan[] = [];
+    set((state) => {
+      previous = state.plans;
+      updated = state.plans.map((p) => (p.id === id ? { ...p, ...partial } : p));
       return { plans: updated };
     });
     try {

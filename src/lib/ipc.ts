@@ -184,3 +184,32 @@ export interface StepResultIpc {
   reply: ReplyMessageIpc | null;
   error: string | null;
 }
+
+// ── Phase 22: Plan runner invoke wrappers ─────────────────────────────────────
+
+/**
+ * Execute a single plan step on the Rust backend.
+ * Maps StepResultIpc → StepResult: only step_id → stepId at the top level;
+ * the reply object is passed through as-is because Rust applies
+ * rename_all="camelCase" to ReplyMessage so fields are already camelCase. (D-01, D-03)
+ */
+export async function executeStep(
+  profileName: string,
+  step: PlanStep,
+): Promise<StepResult> {
+  const ipc = await invoke<StepResultIpc>('execute_step', { profileName, step });
+  return {
+    stepId: ipc.step_id,
+    status: ipc.status,
+    error: ipc.error,
+    reply: ipc.reply as ReplyMessage | null,
+  };
+}
+
+/**
+ * Cancel the currently running plan execution.
+ * Triggers cancellation in the Rust backend; returns immediately. (D-04)
+ */
+export async function cancelPlanRun(): Promise<void> {
+  return invoke('cancel_plan_run');
+}
