@@ -175,11 +175,12 @@ export interface ReplyMessageIpc {
 
 /**
  * StepResult as returned by the execute_step Tauri command.
- * Rust does NOT apply rename_all to StepResult, so top-level fields use
- * snake_case (step_id). The reply field is already camelCase (from ReplyMessageIpc).
+ * Rust applies #[serde(rename_all = "camelCase")] to StepResult (plan_runner.rs:97),
+ * so the top-level field arrives as stepId over the Tauri IPC channel. (D-02, D-03)
+ * The reply field is already camelCase (from ReplyMessageIpc).
  */
 export interface StepResultIpc {
-  step_id: string;
+  stepId: string;
   status: 'done' | 'error';
   reply: ReplyMessageIpc | null;
   error: string | null;
@@ -189,9 +190,8 @@ export interface StepResultIpc {
 
 /**
  * Execute a single plan step on the Rust backend.
- * Maps StepResultIpc → StepResult: only step_id → stepId at the top level;
- * the reply object is passed through as-is because Rust applies
- * rename_all="camelCase" to ReplyMessage so fields are already camelCase. (D-01, D-03)
+ * Rust applies rename_all="camelCase" to both StepResult and ReplyMessage,
+ * so all fields arrive as camelCase — no field renaming needed. (D-01, D-03)
  */
 export async function executeStep(
   profileName: string,
@@ -199,7 +199,7 @@ export async function executeStep(
 ): Promise<StepResult> {
   const ipc = await invoke<StepResultIpc>('execute_step', { profileName, step });
   return {
-    stepId: ipc.step_id,
+    stepId: ipc.stepId,
     status: ipc.status,
     error: ipc.error,
     reply: ipc.reply as ReplyMessage | null,
