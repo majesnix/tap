@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
-import type { Plan, PlanStep, StepStatus } from "@/lib/types";
+import type { Plan, PlanStep, StepStatus, ReplyMessage } from "@/lib/types";
 import { StepStatusBadge } from "./StepStatusBadge";
 import { StepHistoryPicker } from "./StepHistoryPicker";
 import { StepBlockPicker } from "./StepBlockPicker";
@@ -104,6 +104,7 @@ interface SortableStepRowProps {
   isSelected: boolean;
   isActiveStep: boolean;
   stepStatus: StepStatus | undefined;
+  stepReplies: Record<string, ReplyMessage>;
   onSelect: () => void;
   onStartRename: () => void;
   onDuplicate: () => void;
@@ -115,6 +116,7 @@ function SortableStepRow({
   isSelected,
   isActiveStep,
   stepStatus,
+  stepReplies,
   onSelect,
   onStartRename,
   onDuplicate,
@@ -176,6 +178,13 @@ function SortableStepRow({
       {stepStatus !== undefined && (
         <StepStatusBadge status={stepStatus} />
       )}
+      {/* Reply indicator dot — shown when step has a stored reply (RESP-04) */}
+      {stepReplies[step.id] != null && (
+        <span
+          className="w-1.5 h-1.5 rounded-full bg-primary shrink-0"
+          aria-label="has reply"
+        />
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -227,8 +236,8 @@ export function StepListPanel({
 
   const { addStep, updateStep, deleteStep, duplicateStep, plansLoaded } = usePlanStore();
 
-  // Execution state — stepStatuses and activeStepId from usePlanExecutionStore (RUN-03, D-10)
-  const { stepStatuses, activeStepId } = usePlanExecutionStore();
+  // Execution state — stepStatuses, activeStepId, stepReplies, setPaneMode from usePlanExecutionStore (RUN-03, D-10, RESP-04)
+  const { stepStatuses, activeStepId, stepReplies, setPaneMode } = usePlanExecutionStore();
 
   const steps = plan.steps;
 
@@ -328,7 +337,21 @@ export function StepListPanel({
                 isSelected={selectedStepId === step.id}
                 isActiveStep={activeStepId === step.id}
                 stepStatus={stepStatuses[step.id]}
-                onSelect={() => onSelectStep(step.id)}
+                stepReplies={stepReplies}
+                onSelect={() => {
+                  // D-03: second click on same step while paneMode === 'reply' toggles back to editor
+                  const { paneMode } = usePlanExecutionStore.getState();
+                  if (selectedStepId === step.id && paneMode === 'reply') {
+                    setPaneMode('editor');
+                    return;
+                  }
+                  onSelectStep(step.id);
+                  if (stepReplies[step.id]) {
+                    setPaneMode('reply');
+                  } else {
+                    setPaneMode('editor');
+                  }
+                }}
                 onStartRename={() => {
                   onSelectStep(step.id);
                   setRenamingId(step.id);
