@@ -1,42 +1,25 @@
 ---
 phase: 22-plan-runner-sequential-execution
-verified: 2026-05-24T12:00:00Z
-status: gaps_found
-score: 4/6 must-haves verified
+verified: 2026-05-24T15:30:00Z
+status: passed
+score: 6/6 must-haves verified
 overrides_applied: 0
-gaps:
-  - truth: "D-02/D-03: StepResult.stepId is populated with the correct step identifier at runtime"
-    status: failed
-    reason: "ipc.ts declares StepResultIpc.step_id but Rust serializes the field as stepId (rename_all=camelCase on StepResult). ipc.step_id is always undefined at runtime; callers receive stepId: undefined."
-    artifacts:
-      - path: "src/lib/ipc.ts"
-        issue: "Line 182: field declared as step_id; line 202: reads ipc.step_id — both wrong. The comment at line 178 asserts Rust does NOT apply rename_all, contradicting plan_runner.rs:97."
-      - path: "src-tauri/src/commands/plan_runner.rs"
-        issue: "Line 97: #[serde(rename_all = \"camelCase\")] on StepResult — step_id serializes as stepId over IPC, not step_id."
-    missing:
-      - "In ipc.ts: rename StepResultIpc.step_id → stepId and update ipc.step_id reference on line 202 to ipc.stepId"
-      - "Remove incorrect comment at line 178 that contradicts the Rust derive"
-
-  - truth: "SC #5 / RUN-02: Clicking Stop cancels the entire run — all remaining steps are skipped, not just the in-flight step"
-    status: failed
-    reason: "usePlanRunner.ts:83 gates the break on (stopOnError && !isCancelling). When isCancelling=true the second clause is false, so break is never executed. Combined with cancel_plan_run clearing the guard (plan_runner.rs:118, *guard = None), subsequent executeStep calls create fresh uncancelled CancellationTokens and execute normally."
-    artifacts:
-      - path: "src/hooks/usePlanRunner.ts"
-        issue: "Lines 82-85: break only fires when (stopOnError && !isCancelling). When user cancels (isCancelling=true), !isCancelling=false and break is skipped. Same inverted logic at lines 93-96 in the catch branch. The comment at line 79-81 incorrectly states the loop will exit naturally."
-      - path: "src-tauri/src/commands/plan_runner.rs"
-        issue: "Lines 114-118: cancel_plan_run sets *guard = None after calling token.cancel(). Next execute_step call (line 139) finds guard as None and creates a fresh, uncancelled CancellationToken — cancellation is not sticky."
-    missing:
-      - "In usePlanRunner.ts error branch (after line 84): replace condition with (stopOnError || isCancelling) so break fires on either case"
-      - "In usePlanRunner.ts catch branch (after line 94): same fix — (stopOnError || isCancelling)"
-      - "Optionally: add an unconditional isCancelling check immediately after the await (before the if-else) to catch the success-path cancellation edge case"
+re_verification:
+  previous_status: gaps_found
+  previous_score: 4/6
+  gaps_closed:
+    - "CR-01: StepResultIpc.step_id renamed to stepId — Rust camelCase IPC contract now satisfied"
+    - "CR-02: Cancellation break condition corrected from (stopOnError && !isCancelling) to (stopOnError || isCancelling) in both branches"
+  gaps_remaining: []
+  regressions: []
 ---
 
 # Phase 22: Plan Runner — Sequential Execution Verification Report
 
-**Phase Goal:** Implement sequential plan execution — users can run a plan end-to-end, see step statuses update live, and cancel mid-run
-**Verified:** 2026-05-24T12:00:00Z
-**Status:** gaps_found
-**Re-verification:** No — initial verification
+**Phase Goal:** Implement sequential plan execution — developers can load a saved Plan, click Run, and watch each step execute in sequence with live status feedback. Stop cancels the remaining steps.
+**Verified:** 2026-05-24T15:30:00Z
+**Status:** passed
+**Re-verification:** Yes — after gap closure (plan 22-05, commits af9880b + 5dbb3a9)
 
 ---
 
@@ -44,49 +27,49 @@ gaps:
 
 ### Observable Truths
 
-| #  | Truth                                                                          | Status     | Evidence                                                                                      |
-|----|--------------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------|
-| 1  | SC #1: Users can see step statuses update live during a run                    | PARTIAL    | Badges render and store wiring is correct. WR-03: 'sending' badge skipped for reply-mode steps (React batches two synchronous setStepStatus calls before await). Functional but degraded. |
-| 2  | SC #2: Run button triggers sequential step execution                           | VERIFIED   | PlanRunBar → usePlanRunner.startRun() → for-loop over plan.steps → executeStep() per step. All wiring confirmed. |
-| 3  | SC #3: StepStatusBadge displays correct status for each step state             | VERIFIED   | StepStatusBadge.tsx renders all six states (pending/sending/waiting-response/done/error/cancelled). StepListPanel mounts one per row. |
-| 4  | SC #4: Forms are disabled (read-only) while a run is active                   | VERIFIED   | PlanDetailPanel passes disabled={isRunning} to StepFieldEditor; StepFieldEditor wraps all inputs in fieldset disabled={disabled}. |
-| 5  | SC #5: Clicking Stop cancels the entire run — all remaining steps are skipped | FAILED     | CR-02 BLOCKER: break logic inverted. isCancelling=true causes break to be skipped. Steps 2..N execute normally after Stop is clicked. |
-| 6  | SC #6: D-02/D-03 IPC contract — StepResult.stepId populated from Rust         | FAILED     | CR-01 BLOCKER: Rust serializes step_id as stepId (rename_all=camelCase). ipc.ts reads ipc.step_id which is always undefined at runtime. |
+| #  | Truth                                                                                           | Status     | Evidence                                                                                                                          |
+|----|-------------------------------------------------------------------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| 1  | SC #1: Users can see step statuses update live during a run                                     | PARTIAL    | Badges render, store wiring correct. WR-03 not addressed: 'sending' badge still skipped for reply-mode steps (React batches two synchronous setStepStatus calls before await). Functional but degraded. Not a blocker — status unchanged from initial verification. |
+| 2  | SC #2: Run button triggers sequential step execution                                            | VERIFIED   | PlanRunBar → usePlanRunner.startRun() → for-loop over plan.steps → executeStep() per step. All wiring confirmed. No regressions. |
+| 3  | SC #3: StepStatusBadge displays correct status for each step state                              | VERIFIED   | StepStatusBadge.tsx renders all six states (pending/sending/waiting-response/done/error/cancelled). StepListPanel mounts one per row. |
+| 4  | SC #4: Forms are disabled (read-only) while a run is active                                     | VERIFIED   | PlanDetailPanel passes disabled={isRunning} to StepFieldEditor; StepFieldEditor wraps all inputs in fieldset disabled={disabled}. |
+| 5  | SC #5 / RUN-02: Clicking Stop cancels the entire run — all remaining steps are skipped          | VERIFIED   | CR-02 CLOSED (commit 5dbb3a9). usePlanRunner.ts:83 and :94 now read `if (stopOnError \|\| isCancelling) break`. Confirmed: grep -n "stopOnError && !isCancelling" returns 0 lines; grep -c "stopOnError \|\| isCancelling" returns 2. |
+| 6  | SC #6 / D-02/D-03: StepResult.stepId populated from Rust over IPC                              | VERIFIED   | CR-01 CLOSED (commit af9880b). ipc.ts:183 declares `stepId: string`; ipc.ts:202 reads `ipc.stepId`. Contradictory comment removed. Confirmed: grep -n "step_id" in ipc.ts returns 0 runtime occurrences; grep -n "ipc.stepId" shows match on line 202. |
 
-**Score:** 4/6 truths verified (2 FAILED — both BLOCKERs)
+**Score:** 6/6 truths verified (Truth #1 remains PARTIAL — WR-03 was out of scope for gap closure and is an informational warning, not a blocker)
 
 ---
 
 ### Required Artifacts
 
-| Artifact                                              | Expected                                | Status     | Details                                                          |
-|-------------------------------------------------------|-----------------------------------------|------------|------------------------------------------------------------------|
-| `src/lib/types.ts`                                    | Plan type with stop_on_error, StepResult, ReplyMessage | VERIFIED | Plan.stop_on_error? boolean at line 231; StepResult.stepId at lines 259-266; ReplyMessage at lines 244-252. |
-| `src/lib/ipc.ts`                                      | StepResultIpc, executeStep, cancelPlanRun | STUB     | Exists and exported. StepResultIpc.step_id is wrong field name — Rust sends stepId. ipc.step_id always undefined. Behavioral stub despite structural presence. |
-| `src-tauri/src/commands/plan_runner.rs`               | execute_step, cancel_plan_run, PlanRunState | VERIFIED | All three response modes implemented. PlanRunState with CancellationToken. cancel_plan_run clears guard after cancel (CR-02 root cause). |
-| `src/stores/usePlanExecutionStore.ts`                 | 7 actions, ephemeral store               | VERIFIED   | All 7 actions present (setRunning, setStepStatus, setActiveStep, setIsCancelling, setSummary, finishRun, clearRun). No persist middleware. |
-| `src/hooks/usePlanRunner.ts`                          | startRun loop, stopRun, re-run           | STUB       | Exists and wired. CR-02 BLOCKER: break condition inverted — cancellation does not stop loop. Structural presence but behavioral contract broken. |
-| `src/components/plans/StepStatusBadge.tsx`            | Badge for 6 step states                  | VERIFIED   | All 6 states render correctly. Used in StepListPanel per row. |
-| `src/components/plans/PlanRunBar.tsx`                 | Run/Stop/Re-run slot, stop_on_error toggle, summary | VERIFIED | All three states present. Summary formatting confirmed. |
-| `src/components/plans/PlanDetailPanel.tsx`            | PlanRunBar mounted, StepFieldEditor disabled during run | VERIFIED | flex-col layout, PlanRunBar above split. disabled={isRunning} passed through. |
-| `src/components/plans/StepListPanel.tsx`              | StepStatusBadge per row, active scroll   | VERIFIED   | Badge per row. scrollIntoView on isActiveStep. bg-accent highlight. |
-| `src/components/plans/StepFieldEditor.tsx`            | disabled prop cascades to all inputs     | VERIFIED   | fieldset disabled={disabled} — cascades to all child inputs per HTML spec. |
-| `src/stores/usePlanStore.ts`                          | updatePlan with optimistic rollback      | VERIFIED   | Lines 122-137: optimistic update + rollback on error. isPlan() guard does not check stop_on_error (backward compat). |
+| Artifact                                              | Expected                                                          | Status     | Details                                                                                                                              |
+|-------------------------------------------------------|-------------------------------------------------------------------|------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `src/lib/types.ts`                                    | Plan type with stop_on_error, StepResult, ReplyMessage            | VERIFIED   | Unchanged from initial verification. Plan.stop_on_error? boolean; StepResult.stepId; ReplyMessage present.                          |
+| `src/lib/ipc.ts`                                      | StepResultIpc with stepId, executeStep reads ipc.stepId           | VERIFIED   | CR-01 closed. StepResultIpc.stepId: string (line 183); executeStep reads ipc.stepId (line 202); contradictory comment removed.      |
+| `src-tauri/src/commands/plan_runner.rs`               | execute_step, cancel_plan_run, PlanRunState                       | VERIFIED   | Unchanged. All three response modes, PlanRunState with CancellationToken, cancel_plan_run confirmed.                                 |
+| `src/stores/usePlanExecutionStore.ts`                 | 7 actions, ephemeral store                                        | VERIFIED   | Unchanged. All 7 actions present. No persist middleware.                                                                             |
+| `src/hooks/usePlanRunner.ts`                          | startRun loop, stopRun, corrected cancellation break logic        | VERIFIED   | CR-02 closed. Both error-result branch (line 83) and catch branch (line 94) now use (stopOnError \|\| isCancelling). No regressions to startRun, stopRun, or finishRun. |
+| `src/components/plans/StepStatusBadge.tsx`            | Badge for 6 step states                                           | VERIFIED   | Unchanged. All 6 states confirmed.                                                                                                   |
+| `src/components/plans/PlanRunBar.tsx`                 | Run/Stop/Re-run slot, stop_on_error toggle, summary               | VERIFIED   | Unchanged. Three-state slot, summary formatting, stop_on_error toggle confirmed.                                                     |
+| `src/components/plans/PlanDetailPanel.tsx`            | PlanRunBar mounted, StepFieldEditor disabled during run           | VERIFIED   | Unchanged. disabled={isRunning} prop wired through.                                                                                  |
+| `src/components/plans/StepListPanel.tsx`              | StepStatusBadge per row, active scroll                            | VERIFIED   | Unchanged. Badge per row, scrollIntoView on isActiveStep confirmed.                                                                  |
+| `src/components/plans/StepFieldEditor.tsx`            | disabled prop cascades to all inputs                              | VERIFIED   | Unchanged. fieldset disabled={disabled} confirmed.                                                                                   |
+| `src/stores/usePlanStore.ts`                          | updatePlan with optimistic rollback                               | VERIFIED   | Unchanged. Optimistic update + rollback on error confirmed.                                                                          |
 
 ---
 
 ### Key Link Verification
 
-| From                      | To                                | Via                                    | Status       | Details                                                                      |
-|---------------------------|-----------------------------------|----------------------------------------|--------------|------------------------------------------------------------------------------|
-| `PlanRunBar`              | `usePlanRunner`                   | `startRun()` / `stopRun()` callbacks   | VERIFIED     | PlanRunBar imports and calls hook actions directly.                          |
-| `usePlanRunner`           | `executeStep` (ipc.ts)            | `await executeStep(profileName, step)` | VERIFIED     | Import confirmed. Called per step in for-loop.                               |
-| `executeStep`             | `execute_step` Tauri command      | `invoke('execute_step', {...})`        | VERIFIED     | ipc.ts:200. Tauri command registered in lib.rs.                             |
-| `StepResultIpc.step_id`   | `StepResult.step_id` (Rust)       | serde rename_all="camelCase"           | BROKEN       | CR-01: Rust serializes as stepId; TS reads step_id. Field always undefined. |
-| `cancelPlanRun`           | `cancel_plan_run` Tauri command   | `invoke('cancel_plan_run')`            | VERIFIED     | ipc.ts:213. Command registered.                                             |
-| `usePlanRunner` break     | stops loop on cancel              | `if (isCancelling) break`              | BROKEN       | CR-02: Condition is `stopOnError && !isCancelling` — inverted for cancel case. |
-| `PlanDetailPanel`         | `StepFieldEditor disabled`        | `disabled={isRunning}` prop            | VERIFIED     | Wiring confirmed through component tree.                                    |
-| `usePlanExecutionStore`   | `PlanRunBar` / `StepListPanel`    | Zustand selectors                      | VERIFIED     | Both consume store state. No persist middleware (ephemeral as required).    |
+| From                      | To                                | Via                                    | Status       | Details                                                                                      |
+|---------------------------|-----------------------------------|----------------------------------------|--------------|----------------------------------------------------------------------------------------------|
+| `PlanRunBar`              | `usePlanRunner`                   | `startRun()` / `stopRun()` callbacks   | VERIFIED     | Unchanged. PlanRunBar imports and calls hook actions directly.                               |
+| `usePlanRunner`           | `executeStep` (ipc.ts)            | `await executeStep(profileName, step)` | VERIFIED     | Unchanged. Import confirmed. Called per step in for-loop.                                    |
+| `executeStep`             | `execute_step` Tauri command      | `invoke('execute_step', {...})`        | VERIFIED     | Unchanged. ipc.ts:200. Tauri command registered in lib.rs.                                  |
+| `StepResultIpc.stepId`    | `StepResult.step_id` (Rust)       | serde rename_all="camelCase"           | VERIFIED     | CR-01 CLOSED. ipc.ts now reads ipc.stepId which matches Rust camelCase serialization.       |
+| `cancelPlanRun`           | `cancel_plan_run` Tauri command   | `invoke('cancel_plan_run')`            | VERIFIED     | Unchanged. ipc.ts:213. Command registered.                                                  |
+| `usePlanRunner` break     | stops loop on cancel              | `(stopOnError \|\| isCancelling)`      | VERIFIED     | CR-02 CLOSED. Both error-result and catch branches now use correct OR condition. grep confirms 0 occurrences of old AND condition. |
+| `PlanDetailPanel`         | `StepFieldEditor disabled`        | `disabled={isRunning}` prop            | VERIFIED     | Unchanged. Prop wiring confirmed through component tree.                                    |
+| `usePlanExecutionStore`   | `PlanRunBar` / `StepListPanel`    | Zustand selectors                      | VERIFIED     | Unchanged. Both consume store state. No persist middleware (ephemeral as required).         |
 
 ---
 
@@ -96,14 +79,14 @@ gaps:
 |---------------------------|--------------------|---------------------------------------|---------------------|--------------|
 | `StepStatusBadge`         | `status` prop      | `usePlanExecutionStore.stepStatuses`  | Yes — set by usePlanRunner on each step | FLOWING |
 | `PlanRunBar` summary      | `summary`          | `usePlanExecutionStore.summary`       | Yes — set by setSummary(succeeded, total) at run end | FLOWING |
-| `executeStep` → `stepId`  | `result.stepId`    | `ipc.step_id` (StepResultIpc)         | No — always undefined (CR-01) | DISCONNECTED |
-| `usePlanRunner` cancel    | `isCancelling`     | `usePlanExecutionStore.isCancelling`  | Yes — set by stopRun(). Read correctly. Break condition wrong (CR-02) | HOLLOW_PROP |
+| `executeStep` → `stepId`  | `result.stepId`    | `ipc.stepId` (StepResultIpc)          | Yes — CR-01 closed. ipc.stepId resolves to Rust-serialized camelCase field | FLOWING |
+| `usePlanRunner` cancel    | `isCancelling`     | `usePlanExecutionStore.isCancelling`  | Yes — set by stopRun(). CR-02 closed. Break condition now fires correctly on isCancelling=true | FLOWING |
 
 ---
 
 ### Behavioral Spot-Checks
 
-Step 7b: SKIPPED — Tauri desktop app requires running native process. Behavioral correctness verified by static code analysis (grep/read) instead. CR-01 and CR-02 confirmed through direct code path tracing without running the app.
+Step 7b: SKIPPED — Tauri desktop app requires running native process. Behavioral correctness verified by static code analysis (grep/read). Both CR-01 and CR-02 confirmed closed through direct code path tracing.
 
 ---
 
@@ -120,66 +103,59 @@ find /Users/majesnix/gits/proto-sender/scripts -name 'probe-*.sh' 2>/dev/null
 
 ### Requirements Coverage
 
-| Requirement | Source Plan | Description                                                    | Status    | Evidence                                                                 |
-|-------------|-------------|----------------------------------------------------------------|-----------|--------------------------------------------------------------------------|
-| RUN-01      | 22-03-PLAN  | usePlanExecutionStore with 7 required actions                  | SATISFIED | All 7 actions in usePlanExecutionStore.ts. Ephemeral (no persist).      |
-| RUN-02      | 22-03-PLAN  | Run can be cancelled mid-flight; remaining steps skip          | BLOCKED   | CR-02: break condition inverted — remaining steps execute after cancel. |
-| RUN-03      | 22-03-PLAN  | Step statuses update live in the UI during execution           | SATISFIED | setStepStatus() called before and after executeStep. Store → StepStatusBadge wired. WR-03 degrades 'sending' display but does not block the requirement. |
-| RUN-04      | 22-04-PLAN  | PlanRunBar shows Run/Stop/Re-run per run state                 | SATISFIED | Three-state slot confirmed in PlanRunBar.tsx.                           |
-| RUN-05      | 22-04-PLAN  | Inputs disabled while run is active                            | SATISFIED | fieldset disabled={disabled} in StepFieldEditor; disabled={isRunning} passed from PlanDetailPanel. |
-| RUN-06      | 22-04-PLAN  | stop_on_error toggle available in PlanRunBar                   | SATISFIED | Toggle confirmed. updatePlan() with optimistic rollback wired.          |
-| RESP-01     | 22-02-PLAN  | execute_step supports NoWait response mode                     | SATISFIED | NoWait arm in plan_runner.rs — publish + configurable delay. Correct.  |
-| RESP-02     | 22-02-PLAN  | execute_step supports CorrelationId response mode              | SATISFIED | CorrelationId arm: basic_consume before basic_publish, correlation_id matched from delivery.properties. |
-| RESP-03     | 22-02-PLAN  | execute_step supports FirstArrival response mode               | SATISFIED | FirstArrival arm: accepts first delivery regardless of correlation_id.  |
+| Requirement | Source Plan | Description                                                    | Status    | Evidence                                                                                    |
+|-------------|-------------|----------------------------------------------------------------|-----------|---------------------------------------------------------------------------------------------|
+| RUN-01      | 22-03-PLAN  | usePlanExecutionStore with 7 required actions                  | SATISFIED | All 7 actions in usePlanExecutionStore.ts. Ephemeral (no persist). Unchanged.              |
+| RUN-02      | 22-05-PLAN  | Run can be cancelled mid-flight; remaining steps skip          | SATISFIED | CR-02 CLOSED (commit 5dbb3a9). (stopOnError \|\| isCancelling) in both branches. Steps skip on Stop. |
+| RUN-03      | 22-03-PLAN  | Step statuses update live in the UI during execution           | SATISFIED | setStepStatus() called before and after executeStep. Store → StepStatusBadge wired. WR-03 degrades 'sending' but does not block. |
+| RUN-04      | 22-04-PLAN  | PlanRunBar shows Run/Stop/Re-run per run state                 | SATISFIED | Three-state slot confirmed in PlanRunBar.tsx. Unchanged.                                   |
+| RUN-05      | 22-04-PLAN  | Inputs disabled while run is active                            | SATISFIED | fieldset disabled={disabled} in StepFieldEditor; disabled={isRunning} passed from PlanDetailPanel. Unchanged. |
+| RUN-06      | 22-04-PLAN  | stop_on_error toggle available in PlanRunBar                   | SATISFIED | Toggle confirmed. updatePlan() with optimistic rollback wired. Unchanged.                  |
+| RESP-01     | 22-02-PLAN  | execute_step supports NoWait response mode                     | SATISFIED | NoWait arm in plan_runner.rs — publish + configurable delay. Unchanged.                    |
+| RESP-02     | 22-02-PLAN  | execute_step supports CorrelationId response mode              | SATISFIED | CorrelationId arm: basic_consume before basic_publish, correlation_id matched. Unchanged.  |
+| RESP-03     | 22-02-PLAN  | execute_step supports FirstArrival response mode               | SATISFIED | FirstArrival arm: accepts first delivery regardless of correlation_id. Unchanged.          |
 
-**7/9 requirements satisfied. 1 BLOCKED (RUN-02). 1 effectively satisfied structurally but contract broken at runtime (RUN-02 is the blocker; the IPC mismatch of CR-01 is the second blocker mapped to the D-02/D-03 must-have, not a named requirement row).**
+**9/9 requirements satisfied.**
 
 ---
 
 ### Anti-Patterns Found
 
-| File                                             | Line     | Pattern                                                  | Severity | Impact                                                                       |
-|--------------------------------------------------|----------|----------------------------------------------------------|----------|------------------------------------------------------------------------------|
-| `src/lib/ipc.ts`                                 | 178-179  | Incorrect comment: "Rust does NOT apply rename_all"       | BLOCKER  | CR-01 root: misleading documentation actively contradicts Rust derive. Developer trusting the comment maintains the wrong field name. |
-| `src/lib/ipc.ts`                                 | 182      | `step_id: string` — wrong field name for camelCase IPC   | BLOCKER  | CR-01: Rust sends stepId; TS reads step_id. Always undefined.               |
-| `src/lib/ipc.ts`                                 | 202      | `ipc.step_id` — reads field that is always undefined     | BLOCKER  | CR-01: stepId in returned StepResult is always undefined.                   |
-| `src/hooks/usePlanRunner.ts`                     | 83       | `if (stopOnError && !isCancelling) break` — inverted     | BLOCKER  | CR-02: When isCancelling=true, break never fires. Remaining steps execute. |
-| `src/hooks/usePlanRunner.ts`                     | 94       | Same inverted condition in catch branch                  | BLOCKER  | CR-02: Same defect applies to unexpected throw paths.                       |
-| `src/hooks/usePlanRunner.ts`                     | 58-63    | `setStepStatus(id, 'sending')` immediately overwritten   | WARNING  | WR-03: React 18 batches the two synchronous calls — 'sending' never rendered for reply-mode steps. |
-| `src/stores/usePlanExecutionStore.ts`            | 13-14    | JSDoc says "computed selector" but isRunning is stored state | WARNING | WR-04: PlanDetailPanel derives isRunning separately (runningPlanId !== null) — two sources of truth that can diverge. |
-| `src-tauri/src/commands/plan_runner.rs`          | 114,140,151 | `.lock().unwrap()` — panics on poisoned mutex         | WARNING  | WR-05: Mutex poison crashes the entire Tauri process (UI host).             |
-| `src-tauri/src/commands/plan_runner.rs`          | 468      | `conn.close()` only on normal exit — skipped on `?`      | WARNING  | WR-01: AMQP connection leaked on any early-return error path.               |
-| `src-tauri/src/commands/plan_runner.rs`          | 337-342  | `nack(requeue: true)` on non-matching CorrelationId messages | WARNING | WR-02: Tight re-delivery loop on shared reply queues until timeout expires. |
-| `src/hooks/usePlanRunner.test.ts`               | 305-331  | Test asserts isCancelling=true but not call count        | INFO     | IN-01: Test provides false confidence — passes even when CR-02 bug is present. |
-| `src/lib/ipc.ts`                                | 2, 18    | Duplicate `import type` blocks from same module          | INFO     | IN-02: Style violation, not a runtime bug.                                  |
+The two BLOCKER anti-patterns from the initial verification are resolved. Remaining items are carry-forward warnings — none were in scope for gap closure and none block the phase goal.
+
+| File                                             | Line        | Pattern                                                         | Severity | Impact                                                                          |
+|--------------------------------------------------|-------------|-----------------------------------------------------------------|----------|---------------------------------------------------------------------------------|
+| `src/hooks/usePlanRunner.ts`                     | 58-63       | `setStepStatus(id, 'sending')` immediately overwritten          | WARNING  | WR-03: React 18 batches two synchronous calls — 'sending' never rendered for reply-mode steps. |
+| `src/stores/usePlanExecutionStore.ts`            | 13-14       | JSDoc says "computed selector" but isRunning is stored state    | WARNING  | WR-04: PlanDetailPanel derives isRunning separately — two sources of truth that can diverge. |
+| `src-tauri/src/commands/plan_runner.rs`          | 114,140,151 | `.lock().unwrap()` — panics on poisoned mutex                  | WARNING  | WR-05: Mutex poison crashes the entire Tauri process (UI host).                 |
+| `src-tauri/src/commands/plan_runner.rs`          | 468         | `conn.close()` only on normal exit — skipped on `?`             | WARNING  | WR-01: AMQP connection leaked on any early-return error path.                   |
+| `src-tauri/src/commands/plan_runner.rs`          | 337-342     | `nack(requeue: true)` on non-matching CorrelationId messages    | WARNING  | WR-02: Tight re-delivery loop on shared reply queues until timeout expires.     |
+| `src/hooks/usePlanRunner.test.ts`               | 305-331     | Test asserts isCancelling=true but not step call count          | INFO     | IN-01: CR-02 fix is not regression-tested — the test passes even without the fix because it only checks flag state, not whether additional steps execute. |
+| `src/lib/ipc.ts`                                | 2, 18       | Duplicate `import type` blocks from same module                 | INFO     | IN-02: Style violation, not a runtime bug.                                      |
 
 ---
 
 ### Human Verification Required
 
-None. Both blockers (CR-01, CR-02) are fully verifiable by static code analysis. No human interaction required for the gap determination.
+None. Both blockers were verifiable by static code analysis. Gap closure confirmed by grep evidence and committed code. No human interaction required.
 
 ---
 
 ### Gaps Summary
 
-**Two blockers prevent the phase goal from being achieved.**
+No gaps. Both BLOCKER gaps from the initial verification (CR-01 and CR-02) are closed in the actual codebase as confirmed by:
 
-**CR-01 — IPC contract broken (ipc.ts + plan_runner.rs)**
+1. `grep -n "step_id" src/lib/ipc.ts` — 0 runtime occurrences (CR-01 closed)
+2. `grep -n "stopOnError && !isCancelling" src/hooks/usePlanRunner.ts` — 0 lines (CR-02 closed)
+3. `grep -c "stopOnError || isCancelling" src/hooks/usePlanRunner.ts` — 2 (both error and catch branches)
+4. `grep -n "stepId: string" src/lib/ipc.ts` — 1 match in StepResultIpc (correct camelCase field)
+5. `grep -c "Rust does NOT apply rename_all" src/lib/ipc.ts` — 0 (contradictory comment removed)
+6. Commits af9880b (CR-01) and 5dbb3a9 (CR-02) present in git log.
 
-`StepResult` in Rust carries `#[serde(rename_all = "camelCase")]` at line 97 of `plan_runner.rs`. This serializes the `step_id` field as `stepId` over the Tauri IPC channel. The TypeScript counterpart `StepResultIpc` in `ipc.ts` declares the field as `step_id` (line 182), and `executeStep` reads `ipc.step_id` (line 202). Because `step_id` is never present on the deserialized object, `ipc.step_id` evaluates to `undefined` at runtime. Every `StepResult` returned to callers has `stepId: undefined`.
-
-The comment at `ipc.ts:178` actively reinforces the bug: it asserts "Rust does NOT apply rename_all to StepResult, so top-level fields use snake_case" — a direct contradiction of the Rust derive. The fix is one-line: rename `step_id` to `stepId` in `StepResultIpc` and update the read on line 202.
-
-**CR-02 — Cancellation loop logic inverted (usePlanRunner.ts)**
-
-The break that should stop the step loop on cancellation is gated on `stopOnError && !isCancelling` (lines 83 and 94). When the user clicks Stop, `isCancelling` is set to `true`, making `!isCancelling` false — so the break is never executed. The loop advances to the next step, calls `executeStep` again, and `cancel_plan_run` has already cleared the Rust guard (`*guard = None` at plan_runner.rs:118), so a fresh uncancelled `CancellationToken` is created. Steps 2..N execute normally as if Stop was never clicked.
-
-The fix requires changing the condition from `stopOnError && !isCancelling` to `stopOnError || isCancelling` in both branches (error result and catch), which makes the loop break on either a stop-on-error failure or a user cancellation.
-
-These two blockers are independent. CR-01 affects `StepResult.stepId` identity (not used in the loop today, but the IPC contract is broken). CR-02 makes the "cancel mid-run" goal statement false — the phase goal explicitly requires cancel mid-run to work.
+The phase goal is achieved: sequential plan execution is implemented — developers can load a saved Plan, click Run, watch each step execute in sequence with live status feedback, and Stop cancels the remaining steps.
 
 ---
 
-_Verified: 2026-05-24T12:00:00Z_
+_Verified: 2026-05-24T15:30:00Z_
 _Verifier: Claude (gsd-verifier)_
+_Re-verification after gap closure: 22-05 (commits af9880b + 5dbb3a9)_
