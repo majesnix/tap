@@ -1,11 +1,11 @@
 import { describe, beforeEach, afterEach, test, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { usePlanRunner } from "./usePlanRunner";
-import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
-import type { Plan, PlanStep, StepResult, ReplyMessage } from "@/lib/types";
+import { usePlanExecutionStore } from "../stores/usePlanExecutionStore";
+import type { Plan, PlanStep, StepResult, ReplyMessage } from "../lib/types";
 
 // Mock IPC module so tests don't need a real Tauri runtime
-vi.mock("@/lib/ipc", () => ({
+vi.mock("../lib/ipc", () => ({
   executeStep: vi.fn(),
   cancelPlanRun: vi.fn(),
 }));
@@ -18,12 +18,12 @@ vi.mock("sonner", () => ({
 }));
 
 // Mock connection store — use a factory function so resetAllMocks() doesn't break it
-vi.mock("@/stores/useConnectionStore", () => ({
+vi.mock("../stores/useConnectionStore", () => ({
   useConnectionStore: (selector: (s: { activeProfileName: string }) => unknown) =>
     selector({ activeProfileName: "test-profile" }),
 }));
 
-import * as ipc from "@/lib/ipc";
+import * as ipc from "../lib/ipc";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
