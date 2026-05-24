@@ -211,7 +211,12 @@ Plans:
   4. First-arrival steps open a consumer on the specified reply queue and accept the first message that arrives; step gets Error status on timeout (default 10 s)
   5. User can stop a running plan at any time; the run halts cleanly and the backend plan-run session is torn down
   6. A run summary is shown on completion: how many steps succeeded and how many failed; per-plan stop-on-error vs continue-on-error setting is respected
-**Plans**: TBD
+**Plans**: 4 plans
+Plans:
+- [ ] 22-01-PLAN.md — TypeScript foundation: Plan type + IPC wrappers + updatePlan store action
+- [ ] 22-02-PLAN.md — Rust backend: execute_step (3 response modes) + cancel_plan_run + PlanRunState
+- [ ] 22-03-PLAN.md — Execution store + usePlanRunner hook + StepStatusBadge component
+- [ ] 22-04-PLAN.md — UI integration: PlanRunBar + PlanDetailPanel + StepListPanel step badges
 **Research**: Strongly recommend `/gsd-discuss-phase 22` before `/gsd-plan-phase 22` — riskiest phase in the milestone. Only phase with new Rust code (`run_plan` / `stop_plan` commands, `PlanRunState` managed state, one persistent AMQP connection per plan run — intentional deviation from the "ephemeral connection per operation" Key Decision in PROJECT.md). Critical pitfalls: consumer-must-start-before-publish ordering (#59), selective NACK for non-matching correlationId replies (#60), read `correlation_id` from AMQP properties not headers (#58), separate `PlanRunState` slot from `SubscribeState` (#68), three-branch `tokio::select!` for timeout/delivery/cancellation (#70).
 **UI hint**: yes
 
