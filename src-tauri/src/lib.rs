@@ -34,7 +34,7 @@ pub fn run() {
         .manage(Mutex::new(Option::<prost_reflect::DescriptorPool>::None))
         .manage(Mutex::new(Option::<commands::subscribe::SubscribeState>::None))
         .manage(Mutex::new(Option::<commands::plan_runner::PlanRunState>::None))
-        .setup(|app| {
+        .setup(|#[allow(unused_variables)] app| {
             #[cfg(target_os = "macos")]
             {
                 use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
