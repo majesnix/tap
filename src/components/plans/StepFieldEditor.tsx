@@ -147,23 +147,6 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
     step.target.kind === "exchange" ? step.target.routing_key : ""
   );
 
-  // Reset local state when step changes
-  const prevStepIdRef = useRef(step.id);
-  useEffect(() => {
-    if (prevStepIdRef.current !== step.id) {
-      prevStepIdRef.current = step.id;
-      setTargetKind(step.target.kind);
-      setQueueName(step.target.kind === "queue" ? step.target.queue : "");
-      setExchangeName(
-        step.target.kind === "exchange" ? step.target.exchange : ""
-      );
-      setRoutingKey(
-        step.target.kind === "exchange" ? step.target.routing_key : ""
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step.id]);
-
   function handleKindChange(kind: "queue" | "exchange") {
     setTargetKind(kind);
     const newTarget: PublishTarget =
@@ -313,31 +296,6 @@ function ResponseModeSection({
       ? String(step.response_mode.timeout_ms)
       : "10000"
   );
-
-  // Reset local state when step changes
-  const prevStepIdRef = useRef(step.id);
-  useEffect(() => {
-    if (prevStepIdRef.current !== step.id) {
-      prevStepIdRef.current = step.id;
-      setMode(step.response_mode.mode);
-      setDelayMs(
-        step.response_mode.mode === "no-wait"
-          ? String(step.response_mode.delay_ms)
-          : "200"
-      );
-      setReplyQueue(
-        step.response_mode.mode !== "no-wait"
-          ? step.response_mode.reply_queue
-          : ""
-      );
-      setTimeoutMs(
-        step.response_mode.mode !== "no-wait"
-          ? String(step.response_mode.timeout_ms)
-          : "10000"
-      );
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step.id]);
 
   function buildResponseMode(currentMode: string): ResponseMode {
     if (currentMode === "no-wait") {
@@ -496,6 +454,7 @@ export function StepFieldEditor({ step, planId, disabled = false }: StepFieldEdi
 
   return (
     <StepFieldEditorInner
+      key={step.id}
       step={step}
       planId={planId}
       updateStep={updateStep}
