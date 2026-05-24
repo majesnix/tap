@@ -109,6 +109,23 @@ async fn run(
                         let body = msg.data.clone();
                         let len  = body.len();
 
+                        // Read reply_to and correlation_id from incoming properties so
+                        // this service works correctly with the correlation-id response
+                        // mode in proto-sender (which sets both on every publish).
+                        let reply_to = msg
+                            .properties
+                            .reply_to()
+                            .as_ref()
+                            .map(|s| s.as_str().to_owned());
+                        let correlation_id = msg
+                            .properties
+                            .correlation_id()
+                            .as_ref()
+                            .map(|s| s.as_str().to_owned());
+
+                        // Prefer reply_to from the message; fall back to REPLY_QUEUE env var.
+                        let target_queue = reply_to.as_deref().unwrap_or(reply);
+
                         // Ack before republish — mirrors the D-10 convention in proto-sender.
                         channel.basic_ack(tag, BasicAckOptions::default()).await?;
 
@@ -118,20 +135,28 @@ async fn run(
                             AMQPValue::LongString("Reply".into()),
                         );
 
+                        let mut props = BasicProperties::default()
+                            .with_content_type("application/octet-stream".into())
+                            .with_headers(headers);
+
+                        // Copy correlation_id back so proto-sender's matcher can pair
+                        // the reply with the original request.
+                        if let Some(corr) = correlation_id {
+                            props = props.with_correlation_id(corr.as_str().into());
+                        }
+
                         channel
                             .basic_publish(
                                 "".into(),     // default exchange — routes by queue name
-                                reply.into(),
+                                target_queue.into(),
                                 BasicPublishOptions::default(),
                                 &body,
-                                BasicProperties::default()
-                                    .with_content_type("application/octet-stream".into())
-                                    .with_headers(headers),
+                                props,
                             )
                             .await?;
 
                         count += 1;
-                        println!("[{count}] Reply  {len} bytes  →  {reply}");
+                        println!("[{count}] Reply  {len} bytes  →  {target_queue}");
                     }
                 }
             }
