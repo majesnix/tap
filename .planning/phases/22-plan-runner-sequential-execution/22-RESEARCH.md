@@ -469,22 +469,26 @@ export function usePlanRunner() {
 
 ### Pattern 5: StepResult and ReplyMessage Rust Structs
 
-Following `ConsumeResult` / `DrainResult` naming conventions (CONTEXT.md Claude's Discretion):
+Following `ConsumeResult` / `DrainResult` naming conventions (CONTEXT.md Claude's Discretion).
+Q4 RESOLVED (2026-05-24): Use `step.message_type` for reply type lookup — same proto type as the request. Consistent with D-03 (Rust decodes inline via pool_state). `decoded_as` is set to `Some(step.message_type)` on success, `None` on decode failure. `decoded: None` on failure does NOT make the step error — the step returns `done` with hex available for display.
 
 ```rust
-// Source: CONTEXT.md D-02 + consume.rs naming conventions
+// Source: CONTEXT.md D-02 + consume.rs naming conventions + Q4 resolution
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ReplyMessage {
-    pub decoded: Option<serde_json::Value>,
+    pub routing_key: String,
+    pub content_type: Option<String>,
+    pub decoded: Option<serde_json::Value>,  // None on decode failure (not a step error)
+    pub decoded_as: Option<String>,           // Some(step.message_type) on success, None on failure
     pub hex_string: String,
-    pub error: Option<String>,
-    pub decoded_as: Option<String>,  // winning type name, matches DrainResult.decoded_as
+    // raw_bytes is NOT serialized — used internally only for hex_string generation
 }
 
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct StepResult {
+    pub step_id: String,
     pub status: String,              // "done" | "error"
     pub error: Option<String>,
     pub reply: Option<ReplyMessage>,
@@ -759,31 +763,19 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Reply queue lifecycle — passive declare vs. assume-exists**
-   - What we know: User provides `reply_queue: string` in the step's `ResponseMode`. `execute_step` opens a consumer on that queue.
-   - What's unclear: Should `execute_step` call `queue_declare` with `passive: true` to verify existence first? Or call `queue_declare` with `auto-delete: true` to create-if-absent? Or assume it exists and surface AMQP NOT_FOUND as a step error?
-   - Recommendation: For v1, assume-exists and surface NOT_FOUND as step Error with a clear message like "Reply queue 'X' not found — create it in RabbitMQ first". This matches the "no auto-provisioning" approach used for the main publish target. Planner should pick this up as a task in Wave 0 (document the error message).
+   - **RESOLVED:** Assume-exists. Surface AMQP NOT_FOUND as step Error with message "Reply queue 'X' not found — create it in RabbitMQ first". Matches no-auto-provisioning policy. Chosen path: assume-exists (confirmed by A6 above).
 
 2. **First-arrival semantics with pre-existing messages**
-   - What we know: RESP-03 says "accept the first message that arrives". A named non-exclusive queue may have leftover messages from prior runs.
-   - What's unclear: Should the consumer drain pre-existing messages and wait for a fresh one? Or accept the first `consumer.next()` unconditionally?
-   - Recommendation: Accept the literal first `consumer.next()` — this is simpler and matches the spec text. Users who want "fresh only" should use a dedicated transient/exclusive reply queue. Document this behavior in the step editor tooltip for the reply queue field (Phase 23 or quick fix).
+   - **RESOLVED:** Accept the literal first `consumer.next()` unconditionally. Users who want "fresh only" should use a dedicated transient/exclusive reply queue. Simpler, matches spec text.
 
 3. **execute_step PlanRunState slot — concurrent call guard**
-   - What we know: `execute_step` is directly awaited by the JS runner (D-01 D-05). The PlanRunState slot stores the CancellationToken.
-   - What's unclear: Should `execute_step` check for an already-running plan and return an error? Or is it the JS runner's responsibility to not call it while another is running?
-   - Recommendation: JS runner owns the guard (only one active run via `runningPlanId` in the store). `execute_step` on the Rust side atomically stores the token into `PlanRunState` and clears it on return (similar to subscribe.rs CR-01 pattern). If a second call arrives, it replaces the previous token (effectively cancelling the in-flight one), but since JS is sequential this race only occurs during a Stop + immediate Re-run. Safe enough for v1; planner should add a note.
+   - **RESOLVED:** JS runner owns the guard via `runningPlanId` in `usePlanExecutionStore`. Rust atomically stores the token into `PlanRunState` on each call and clears it on return. A second concurrent call replaces the previous token (acceptable for v1 — sequential JS runner prevents this in practice).
 
 4. **Reply decoding strategy for execute_step — which type(s) to try against DescriptorPool**
-   - What we know: D-03 locks that `execute_step` decodes the reply payload in Rust using the loaded `DescriptorPool`. D-02 defines `ReplyMessage { decoded, hex_string, error, decoded_as }` — the `decoded_as` field mirrors `DrainResult` and implies a multi-type-try strategy (try several candidate types, report which one succeeded). However, `PlanStep` in `src/lib/types.ts` currently has a `message_type` field for the request type but NO `reply_type` field. The decode candidate list is therefore undefined.
-   - What's unclear: Four possible resolutions exist:
-     - **(a) Use same `message_type` as the request** — ping-pong assumption: reply payload has the same proto type as the request. Simple, zero schema changes, but wrong if services use different request/response types (e.g., `FooRequest` / `FooResponse`).
-     - **(b) Try all types in the loaded DescriptorPool** — identical to `drain_messages` multi-type strategy; `decoded_as` reports the winning type. Works but is O(N) over all loaded types and may produce ambiguous matches if multiple types parse the same bytes.
-     - **(c) Add `reply_type` field to `ResponseMode`** — cleanest for correctness, but requires a schema change to `PlanStep` / `ResponseMode` (affects Phase 21 step editor UI). This is a scope expansion.
-     - **(d) Return raw bytes only (hex_string)** — skip Rust-side decode entirely; Phase 23 owns reply display. `decoded` and `decoded_as` would be `None`. Aligns with deferred RESP-04/RESP-05 scope but means Phase 22 delivers no decoded output even when pool is loaded.
-   - Recommendation: **This is a planning blocker.** The planner cannot finalize `ReplyMessage` struct shape or `execute_step` decode logic without knowing which strategy is intended. **Escalate to user via discuss-phase before committing to struct shapes.** If the user is unreachable, use **(a) same `message_type` as request** as the v1 fallback — it is the simplest, requires no schema change, and covers the common RPC case. Document the assumption explicitly so Phase 23 can override it.
+   - **RESOLVED (confirmed by user 2026-05-24):** Use `step.message_type` for reply type lookup — same proto type as the request. Consistent with D-03 (Rust decodes inline via pool_state Mutex<Option<DescriptorPool>>). Implementation: clone pool from pool_state before first .await; look up MessageDescriptor by step.message_type; decode delivery.data via DynamicMessage::decode; set decoded_as = Some(step.message_type) on success, None on decode failure. Decode failure does NOT make the step error — return status "done" with decoded: null, decoded_as: null, hex_string: <hex>. This is strategy (a) from the original list.
 
 ---
 
@@ -822,6 +814,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 - `src-tauri/src/commands/subscribe.rs` — CancellationToken + tokio::select! pattern, three-branch structure template, futures_util::StreamExt import
 - `src-tauri/src/commands/publish.rs` — AMQP connection setup, BasicProperties building, publish + confirm pattern
 - `src-tauri/src/commands/consume.rs` — pool_state clone pattern, ConsumeResult/DrainResult struct shapes
+- `src-tauri/src/commands/encode.rs` — encode_message is `pub async fn`; callable as `crate::commands::encode::encode_message(...)` from plan_runner.rs
 - `src-tauri/src/lib.rs` — managed-state registration pattern
 - `src/stores/usePlanStore.ts` — optimistic-write + rollback pattern for updatePlan
 - `src/stores/useConnectionStore.ts` — activeProfileName field name for Run button guard
