@@ -255,7 +255,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 22-03-PLAN.md — Execution store + usePlanRunner hook + StepStatusBadge component
+- [x] 22-03-PLAN.md — Execution store + usePlanRunner hook + StepStatusBadge component
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
@@ -305,7 +305,7 @@ Plans:
 | 19. Plan Data Model and Persistence | v1.6 | 1/1 | Complete | 2026-05-23 |
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
 | 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete    | 2026-05-23 |
-| 22. Plan Runner — Sequential Execution | v1.6 | 2/4 | In Progress|  |
+| 22. Plan Runner — Sequential Execution | v1.6 | 3/4 | In Progress|  |
 | 23. Response View — Inline and Shared Feed | v1.6 | 0/? | Not started | - |
 
 ---
