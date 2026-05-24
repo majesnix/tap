@@ -97,6 +97,8 @@ pub fn run() {
             commands::consume::drain_messages,
             commands::subscribe::start_subscribe,
             commands::subscribe::stop_subscribe,
+            commands::plan_runner::execute_step,
+            commands::plan_runner::cancel_plan_run,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
