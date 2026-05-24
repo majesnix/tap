@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/tap-icon.svg" width="96" height="96" alt="Tap icon" />
+</p>
+
 # Tap
 
 **Send a real protobuf message to RabbitMQ in under 30 seconds — no code, no curl, no manual encoding.**
