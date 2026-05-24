@@ -33,6 +33,7 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(Option::<prost_reflect::DescriptorPool>::None))
         .manage(Mutex::new(Option::<commands::subscribe::SubscribeState>::None))
+        .manage(Mutex::new(Option::<commands::plan_runner::PlanRunState>::None))
         .setup(|app| {
             #[cfg(target_os = "macos")]
             {
