@@ -279,7 +279,7 @@ Plans:
 Plans:
 **Wave 1**
 
-- [ ] 23-01-PLAN.md — usePlanExecutionStore extension (stepReplies, planReplyFeed, paneMode) + usePlanRunner reply dispatch
+- [x] 23-01-PLAN.md — usePlanExecutionStore extension (stepReplies, planReplyFeed, paneMode) + usePlanRunner reply dispatch
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -319,7 +319,7 @@ Plans:
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
 | 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete    | 2026-05-23 |
 | 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete    | 2026-05-24 |
-| 23. Response View — Inline and Shared Feed | v1.6 | 0/? | Not started | - |
+| 23. Response View — Inline and Shared Feed | v1.6 | 1/3 | In Progress|  |
 
 ---
 
