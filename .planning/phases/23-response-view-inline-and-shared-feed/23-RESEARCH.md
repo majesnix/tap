@@ -538,17 +538,19 @@ const stepReplies = usePlanExecutionStore((s) => s.stepReplies)
 **If this table is empty:** All claims in this research were verified or cited — no user confirmation needed.
 *(Table is not empty — A1 needs ctx7 verification, which was unavailable. Planner should add a verification step in Wave 0.)*
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **Does `tabs.tsx` (shadcn nova) forward `forceMount` to `TabsPrimitive.Content`?**
    - What we know: The shadcn component at `src/components/ui/tabs.tsx` wraps `@radix-ui/react-tabs`. Radix UI's `Content` primitive accepts `forceMount`. ctx7 was unavailable for direct API verification.
    - What's unclear: Whether the shadcn nova variant explicitly forwards `forceMount` in its `TabsContent` wrapper, or if it needs to be added.
    - Recommendation: Wave 0 task — read `src/components/ui/tabs.tsx` and confirm `TabsContent` spreads `...props` (which would forward `forceMount`). If not, add `forceMount?: boolean` to the prop spread.
+   - RESOLVED: `tabs.tsx` line 78 spreads `...props` on `TabsPrimitive.Content` — `forceMount` passes through natively. No modification to `tabs.tsx` needed (confirmed by direct read in PATTERNS.md).
 
 2. **Filter `exchange: ""` in MessageFeedRow vs. in buildFeedMessage?**
    - What we know: `MessageFeedRow` joins segments with ` • `. Empty `exchange` produces double-dot artifact. CONTEXT says this is "acceptable for a dev tool" but suggests filtering.
    - What's unclear: Whether modifying `MessageFeedRow` to filter empty/null segments would affect the drain/subscribe feed (which presumably always has a non-empty `exchange`).
    - Recommendation: Filter in `buildFeedMessage` helper to avoid touching `MessageFeedRow` (safe isolation). Add a Wave 0 task to inspect `MessageFeedRow`'s join logic and confirm no regression for drain/subscribe feed.
+   - RESOLVED: Accept the double-dot artifact per CONTEXT.md — `exchange: ""` is acceptable for a dev tool. No filtering in `MessageFeedRow` or `buildFeedMessage` (confirmed per PATTERNS.md decision).
 
 ## Environment Availability
 
