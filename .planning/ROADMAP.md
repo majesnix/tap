@@ -305,7 +305,7 @@ Plans:
 | 19. Plan Data Model and Persistence | v1.6 | 1/1 | Complete | 2026-05-23 |
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
 | 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete    | 2026-05-23 |
-| 22. Plan Runner — Sequential Execution | v1.6 | 4/4 | Complete   | 2026-05-24 |
+| 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete   | 2026-05-24 |
 | 23. Response View — Inline and Shared Feed | v1.6 | 0/? | Not started | - |
 
 ---
