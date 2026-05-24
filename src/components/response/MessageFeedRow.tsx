@@ -30,13 +30,15 @@ export function MessageFeedRow({ message }: MessageFeedRowProps) {
     return `${base}.${ms}`;
   })();
 
-  const triggerText = [
+  const parts = [
     message.routingKey,
-    message.exchange,
+    message.exchange || null,
     message.contentType ?? "—",
+    message.correlationId ? `corr:${message.correlationId.slice(0, 8)}` : null,
     formattedTimestamp,
     message.decodedAs ?? "[unknown]",
-  ].join(" • ");
+  ].filter(Boolean);
+  const triggerText = parts.join(" • ");
 
   return (
     <AccordionItem value={message.id} className="border-b border-border">

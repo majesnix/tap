@@ -60,7 +60,9 @@ function makeError(stepId: string): StepResult {
 function makeReply(): ReplyMessage {
   return {
     routingKey: "reply.key",
+    exchange: "",
     contentType: "application/protobuf",
+    correlationId: null,
     decoded: { field: "value" },
     decodedAs: "test.Msg",
     hexString: "deadbeef",

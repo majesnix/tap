@@ -266,7 +266,9 @@ describe("initial state — new Phase 23 fields", () => {
 
 const makeReply = (routingKey = "reply.key"): ReplyMessage => ({
   routingKey,
+  exchange: "",
   contentType: "application/protobuf",
+  correlationId: null,
   decoded: { field: "value" },
   decodedAs: "test.Msg",
   hexString: "deadbeef",
@@ -311,6 +313,7 @@ const makeFeedEntry = (id = "entry-1"): FeedMessage => ({
   routingKey: "reply.key",
   exchange: "",
   contentType: "application/protobuf",
+  correlationId: null,
   timestamp: 1234567890,
   decoded: { field: "value" },
   hexString: "deadbeef",

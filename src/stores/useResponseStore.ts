@@ -66,6 +66,7 @@ export const useResponseStore = create<ResponseStore>((set, get) => ({
         routingKey: result.routingKey,
         exchange: result.exchange,
         contentType: result.contentType,
+        correlationId: null,
         timestamp: result.timestamp,
         decoded: result.decoded,
         hexString: result.hexString,

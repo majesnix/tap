@@ -82,7 +82,9 @@ pub struct PlanStep {
 #[serde(rename_all = "camelCase")]
 pub struct ReplyMessage {
     pub routing_key: String,
+    pub exchange: String,
     pub content_type: Option<String>,
+    pub correlation_id: Option<String>,
     /// Decoded protobuf payload as JSON value — None on decode failure.
     pub decoded: Option<serde_json::Value>,
     /// Set to Some(message_type) on successful decode, None on decode failure.
@@ -482,9 +484,15 @@ fn build_reply_message(
     message_type: &str,
 ) -> ReplyMessage {
     let routing_key = delivery.routing_key.to_string();
+    let exchange = delivery.exchange.to_string();
     let content_type = delivery
         .properties
         .content_type()
+        .as_ref()
+        .map(|s| s.to_string());
+    let correlation_id = delivery
+        .properties
+        .correlation_id()
         .as_ref()
         .map(|s| s.to_string());
     let hex_string = delivery
@@ -507,7 +515,9 @@ fn build_reply_message(
 
     ReplyMessage {
         routing_key,
+        exchange,
         content_type,
+        correlation_id,
         decoded,
         decoded_as,
         hex_string,

@@ -80,8 +80,9 @@ export function usePlanRunner() {
             appendReplyFeedEntry({
               id: crypto.randomUUID(),
               routingKey: result.reply.routingKey,
-              exchange: '',
+              exchange: result.reply.exchange,
               contentType: result.reply.contentType,
+              correlationId: result.reply.correlationId,
               timestamp: Date.now(),
               decoded: result.reply.decoded,
               hexString: result.reply.hexString,

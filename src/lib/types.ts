@@ -130,6 +130,7 @@ export interface FeedMessage {
   routingKey: string;
   exchange: string;
   contentType: string | null;
+  correlationId: string | null;
   timestamp: number | null;        // milliseconds since epoch (client receipt time); null = not set
   decoded: Record<string, unknown> | null;
   hexString: string;
@@ -243,7 +244,9 @@ export const PLAN_SCHEMA_VERSION = 1 as const;
  */
 export interface ReplyMessage {
   routingKey: string;
+  exchange: string;
   contentType: string | null;
+  correlationId: string | null;
   /** Decoded protobuf payload; null when decode failed (not a step error). */
   decoded: Record<string, unknown> | null;
   /** step.message_type on decode success; null on failure. */
