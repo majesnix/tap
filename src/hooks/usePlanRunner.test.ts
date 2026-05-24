@@ -1,11 +1,11 @@
 import { describe, beforeEach, afterEach, test, expect, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { usePlanRunner } from "./usePlanRunner";
-import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
-import type { Plan, PlanStep, StepResult } from "@/lib/types";
+import { usePlanExecutionStore } from "../stores/usePlanExecutionStore";
+import type { Plan, PlanStep, StepResult, ReplyMessage } from "../lib/types";
 
 // Mock IPC module so tests don't need a real Tauri runtime
-vi.mock("@/lib/ipc", () => ({
+vi.mock("../lib/ipc", () => ({
   executeStep: vi.fn(),
   cancelPlanRun: vi.fn(),
 }));
@@ -18,12 +18,12 @@ vi.mock("sonner", () => ({
 }));
 
 // Mock connection store — use a factory function so resetAllMocks() doesn't break it
-vi.mock("@/stores/useConnectionStore", () => ({
+vi.mock("../stores/useConnectionStore", () => ({
   useConnectionStore: (selector: (s: { activeProfileName: string }) => unknown) =>
     selector({ activeProfileName: "test-profile" }),
 }));
 
-import * as ipc from "@/lib/ipc";
+import * as ipc from "../lib/ipc";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -55,6 +55,20 @@ function makeSuccess(stepId: string): StepResult {
 
 function makeError(stepId: string): StepResult {
   return { stepId, status: "error", reply: null, error: "Step failed" };
+}
+
+function makeReply(): ReplyMessage {
+  return {
+    routingKey: "reply.key",
+    contentType: "application/protobuf",
+    decoded: { field: "value" },
+    decodedAs: "test.Msg",
+    hexString: "deadbeef",
+  };
+}
+
+function makeSuccessWithReply(stepId: string): StepResult {
+  return { stepId, status: "done", reply: makeReply(), error: null };
 }
 
 // ── Setup / Teardown ──────────────────────────────────────────────────────────
@@ -353,5 +367,200 @@ describe("stopRun", () => {
     });
 
     expect(usePlanExecutionStore.getState().isCancelling).toBe(true);
+  });
+});
+
+// ── Phase 23: reply dispatch — setPaneMode before executeStep (D-04) ──────────
+
+describe("Phase 23 — setPaneMode('editor') before each executeStep", () => {
+  test("paneMode is 'editor' when executeStep is called (step that has no reply)", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    const paneModeAtCall: string[] = [];
+    vi.mocked(ipc.executeStep).mockImplementation(async (_profile, _step) => {
+      paneModeAtCall.push(usePlanExecutionStore.getState().paneMode);
+      return makeSuccess("s1");
+    });
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    expect(paneModeAtCall[0]).toBe("editor");
+  });
+
+  test("paneMode resets to 'editor' before the second step even if first step set it to 'reply'", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const step2 = makeStep("s2", "Step 2");
+    const plan = makePlan([step1, step2]);
+
+    const paneModeAtCall: string[] = [];
+    vi.mocked(ipc.executeStep)
+      .mockImplementationOnce(async (_profile, _step) => {
+        paneModeAtCall.push(usePlanExecutionStore.getState().paneMode);
+        return makeSuccessWithReply("s1");
+      })
+      .mockImplementationOnce(async (_profile, _step) => {
+        paneModeAtCall.push(usePlanExecutionStore.getState().paneMode);
+        return makeSuccess("s2");
+      });
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    // step1 call: paneMode is 'editor' (before executeStep)
+    expect(paneModeAtCall[0]).toBe("editor");
+    // step2 call: paneMode is 'editor' again (reset before step2 executeStep)
+    expect(paneModeAtCall[1]).toBe("editor");
+  });
+});
+
+// ── Phase 23: reply dispatch — step with non-null reply ───────────────────────
+
+describe("Phase 23 — reply dispatch when result.reply !== null", () => {
+  test("setStepReply is called with step.id and reply when reply is non-null", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccessWithReply("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    const s = usePlanExecutionStore.getState();
+    expect(s.stepReplies["s1"]).toEqual(makeReply());
+  });
+
+  test("paneMode is 'reply' after a step with non-null reply", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccessWithReply("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    expect(usePlanExecutionStore.getState().paneMode).toBe("reply");
+  });
+
+  test("planReplyFeed has one entry after a step with non-null reply", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccessWithReply("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    const feed = usePlanExecutionStore.getState().planReplyFeed;
+    expect(feed).toHaveLength(1);
+    expect(feed[0].routingKey).toBe("reply.key");
+    expect(feed[0].exchange).toBe("");
+    expect(feed[0].error).toBeNull();
+  });
+
+  test("succeeded count is incremented after reply dispatch (reply block does not short-circuit)", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccessWithReply("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    const summary = usePlanExecutionStore.getState().summary;
+    expect(summary).toEqual({ succeeded: 1, total: 1 });
+  });
+});
+
+// ── Phase 23: reply dispatch — step with null reply (no-wait safety) ──────────
+
+describe("Phase 23 — no reply dispatch when result.reply === null", () => {
+  test("setStepReply is NOT called for a no-wait step (reply is null)", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccess("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    // stepReplies should be empty — no entry for s1
+    expect(usePlanExecutionStore.getState().stepReplies).toEqual({});
+  });
+
+  test("planReplyFeed stays empty for a no-wait step (reply is null)", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccess("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    expect(usePlanExecutionStore.getState().planReplyFeed).toEqual([]);
+  });
+
+  test("paneMode stays 'editor' after a no-wait step completes", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccess("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    // paneMode should remain 'editor' since no reply
+    expect(usePlanExecutionStore.getState().paneMode).toBe("editor");
+  });
+});
+
+// ── Phase 23: reply dispatch — error step ─────────────────────────────────────
+
+describe("Phase 23 — no reply dispatch when result.status === 'error'", () => {
+  test("setStepReply is NOT called for a step that errors", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeError("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    expect(usePlanExecutionStore.getState().stepReplies).toEqual({});
+  });
+
+  test("planReplyFeed stays empty for a step that errors", async () => {
+    const step1 = makeStep("s1", "Step 1");
+    const plan = makePlan([step1]);
+
+    vi.mocked(ipc.executeStep).mockResolvedValue(makeError("s1"));
+
+    const { result } = renderHook(() => usePlanRunner());
+    await act(async () => {
+      await result.current.startRun(plan);
+    });
+
+    expect(usePlanExecutionStore.getState().planReplyFeed).toEqual([]);
   });
 });
