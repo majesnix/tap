@@ -191,4 +191,6 @@ v1.5 shipped 2026-05-23. All 12 distribution requirements delivered across 3 pha
 
 Phase 19 complete 2026-05-23. Plan data contract established: `Plan`, `PlanStep`, `StepStatus`, `PublishTarget`, `ResponseMode` types exported from `src/lib/types.ts`; `usePlanStore` with CRUD + `plans.json` persistence (mirrors useBlockStore pattern exactly); 21 Vitest tests covering all D-14 conditions. Phases 20–23 can import from this foundation immediately.
 
-*Last updated: 2026-05-23 after Phase 20 (v1.6 Plan View Shell and Navigation)*
+Phase 22 complete 2026-05-24. Sequential plan runner delivered: `execute_step` Rust command (protobuf encode → AMQP publish → optional reply wait with correlation-ID or first-arrival matching), `usePlanRunner` hook with stop-on-error and cancellation support, `usePlanExecutionStore` Zustand store (Pending → Sending → WaitingResponse → Done/Error per step), `PlanRunBar` (Run/Stop controls + summary line), and `StepListPanel` / `StepStatusBadge` UI. Two BLOCKER gaps closed in plan 22-05: IPC field name (step_id → stepId) and inverted cancel break condition. All 9 RUN/RESP requirements satisfied.
+
+*Last updated: 2026-05-24 after Phase 22 (Plan Runner — Sequential Execution)*
