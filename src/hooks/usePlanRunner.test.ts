@@ -17,11 +17,10 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// Mock connection store — provide active profile name
+// Mock connection store — use a factory function so resetAllMocks() doesn't break it
 vi.mock("@/stores/useConnectionStore", () => ({
-  useConnectionStore: vi.fn((selector: (s: { activeProfileName: string }) => unknown) =>
-    selector({ activeProfileName: "test-profile" })
-  ),
+  useConnectionStore: (selector: (s: { activeProfileName: string }) => unknown) =>
+    selector({ activeProfileName: "test-profile" }),
 }));
 
 import * as ipc from "@/lib/ipc";
@@ -61,7 +60,9 @@ function makeError(stepId: string): StepResult {
 // ── Setup / Teardown ──────────────────────────────────────────────────────────
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  // resetAllMocks clears both call history AND implementation queues
+  // (clearAllMocks only clears history, leaving mockResolvedValueOnce queues)
+  vi.resetAllMocks();
   usePlanExecutionStore.getState().clearRun();
 });
 
@@ -88,30 +89,27 @@ describe("usePlanRunner hook", () => {
 // ── setRunning on startRun ────────────────────────────────────────────────────
 
 describe("startRun — step initialization", () => {
-  test("startRun calls setRunning with plan.id and step ids — all steps become pending immediately", async () => {
+  test("startRun initializes all steps to 'pending' via setRunning before loop starts", async () => {
     const step1 = makeStep("s1", "Step 1");
     const step2 = makeStep("s2", "Step 2");
     const plan = makePlan([step1, step2]);
 
-    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccess("s1"));
-    vi.mocked(ipc.executeStep).mockResolvedValueOnce(makeSuccess("s1"));
-
-    const { result } = renderHook(() => usePlanRunner());
-
-    // Act — just check that stepStatuses are initialized before any async step
-    let storeStatuses: Record<string, string> = {};
+    // Capture stepStatuses during step1 execution — step2 must still be 'pending'
+    const statusAtStep1: Record<string, string>[] = [];
     vi.mocked(ipc.executeStep).mockImplementation(async (_profile, step) => {
-      storeStatuses = { ...usePlanExecutionStore.getState().stepStatuses };
+      statusAtStep1.push({ ...usePlanExecutionStore.getState().stepStatuses });
       return makeSuccess(step.id);
     });
 
+    const { result } = renderHook(() => usePlanRunner());
     await act(async () => {
       await result.current.startRun(plan);
     });
 
-    // All steps were initialized to 'pending' before any step ran
-    expect(storeStatuses["s1"]).toBeTruthy(); // was set (could be sending by time step1 runs)
-    expect(storeStatuses["s2"]).toBe("pending"); // step2 still pending when step1 executes
+    // During step1 execution, step2 must still be 'pending' (initialized by setRunning)
+    expect(statusAtStep1[0]["s2"]).toBe("pending");
+    // step1 should be 'sending' (loop sets it before executeStep call)
+    expect(statusAtStep1[0]["s1"]).toBe("sending");
   });
 });
 
