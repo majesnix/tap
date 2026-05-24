@@ -48,18 +48,18 @@ Exceptions: none — all spacing from 8-point scale.
 
 ## Typography
 
-Source: existing codebase patterns (`text-sm`, `text-xs`, `font-semibold`, `font-medium` throughout `StepListPanel.tsx`, `PublishBar.tsx`).
+Source: existing codebase patterns (`text-sm`, `text-xs`, `font-semibold` throughout `StepListPanel.tsx`, `PublishBar.tsx`).
 
 | Role | Size | Weight | Line Height |
 |------|------|--------|-------------|
 | Body | 14px (text-sm) | 400 (font-normal) | 1.5 |
 | Label | 14px (text-sm) | 600 (font-semibold) | 1.5 |
-| Caption | 12px (text-xs) | 500 (font-medium) | 1.5 |
+| Caption | 12px (text-xs) | 400 (font-normal) | 1.5 |
 | Heading | 14px (text-sm) | 600 (font-semibold) | 1.2 |
 
 Notes:
 - All text uses Geist Variable, loaded via `--font-sans` CSS variable.
-- Four roles is intentional — the PlanRunBar uses all of these at different hierarchy levels.
+- Two weights only: 400 (normal) and 600 (semibold). Caption at 12px is visually distinct from 14px body without needing a separate weight.
 - No display-size text in this phase — plan runner is a utility panel, not a marketing surface.
 
 ---
@@ -76,7 +76,7 @@ This app uses a **neutral-monochrome base with semantic-only chromatic status fe
 | Secondary (30%) | `var(--card)` / `var(--muted)` — oklch(0.97 0 0) light / oklch(0.269 0 0) dark | Step row hover state, disabled input backgrounds |
 | Accent — in-progress/warning | amber-500 tint — `bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20` | Sending badge, WaitingResponse badge |
 | Accent — success | emerald-500 tint — `bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20` | Done badge, run summary "✓ N/M succeeded" text |
-| Destructive | `var(--destructive)` — oklch(0.577 0.245 27.325) light / oklch(0.704 0.191 22.216) dark | Stop button, Error badge, run summary "✗ N/M succeeded" text |
+| Destructive | `var(--destructive)` — oklch(0.577 0.245 27.325) light / oklch(0.704 0.191 22.216) dark | Stop Run button, Error badge, run summary "✗ N/M succeeded" text |
 
 Accent reserved for: **status feedback only** — emerald (Done step, success summary), amber (Sending/WaitingResponse step). No decorative accent surfaces anywhere in this phase.
 
@@ -86,15 +86,19 @@ Active step row highlight: `bg-accent text-accent-foreground` — same token as 
 
 ## Interaction States
 
+### PlanRunBar focal point
+
+The Run/Stop toggle button is the **primary visual anchor** of PlanRunBar. It sits at the far right of the bar, uses `Button variant="default"` (idle) or `Button variant="destructive"` (running), and is visually heavier than the surrounding controls. All other bar elements (plan name, stop-on-error toggle) are secondary to this button.
+
 ### PlanRunBar button states
 
 | State | Component | Visual |
 |-------|-----------|--------|
-| Idle, runnable | `Button variant="default"` | Play icon (Lucide `Play`, 14px) + "Run" label |
-| Running | `Button variant="destructive"` | Square icon (Lucide `Square`, 14px) + "Stop" label |
-| Disabled — no steps | `Button variant="default" disabled` | "Run" label, grayed. Wrapped in `Tooltip`: "Add steps to run" |
-| Disabled — no profile | `Button variant="default" disabled` | "Run" label, grayed. Wrapped in `Tooltip`: "Select a connection profile first" |
-| After completion | Replaced by run summary + "Re-run" button | See Run Summary section |
+| Idle, runnable | `Button variant="default"` | Play icon (Lucide `Play`, 14px) + "Run Plan" label |
+| Running | `Button variant="destructive"` | Square icon (Lucide `Square`, 14px) + "Stop Run" label |
+| Disabled — no steps | `Button variant="default" disabled` | "Run Plan" label, grayed. Wrapped in `Tooltip`: "Add steps to run" |
+| Disabled — no profile | `Button variant="default" disabled` | "Run Plan" label, grayed. Wrapped in `Tooltip`: "Select a connection profile first" |
+| After completion | Replaced by run summary + "Re-run Plan" button | See Run Summary section |
 
 Disabled button pattern: wrap button in `<span>` inside `<Tooltip>` — matches `PublishBar.tsx` TooltipProvider pattern.
 
@@ -106,10 +110,10 @@ Layout: left of Run/Stop button in PlanRunBar. When toggled, persists immediatel
 
 ### Run summary (post-completion)
 
-Replaces the Run button area inline in PlanRunBar. Layout: `[summary text] [Re-run button]`.
+Replaces the Run button area inline in PlanRunBar. Layout: `[summary text] [Re-run Plan button]`.
 - Success: `"✓ {N}/{M} succeeded"` — text-emerald-700 dark:text-emerald-400, font-semibold, text-sm
 - Partial or full failure: `"✗ {N}/{M} succeeded"` — text-destructive, font-semibold, text-sm
-- Re-run: `Button variant="outline" size="sm"` — label "Re-run". Clicking resets all step statuses to Pending and starts a new run. Summary clears as soon as a new run starts.
+- Re-run: `Button variant="outline" size="sm"` — label "Re-run Plan". Clicking resets all step statuses to Pending and starts a new run. Summary clears as soon as a new run starts.
 
 ### Step status badges
 
@@ -148,7 +152,7 @@ The sticky header bar spans the full width at the top of `PlanDetailPanel`, abov
 
 Layout (left to right, single row, `flex items-center gap-4`):
 ```
-[Plan name — truncated, font-semibold text-sm flex-1] | [Stop on error switch + label] | [Run/Stop button OR Run summary + Re-run]
+[Plan name — truncated, font-semibold text-sm flex-1] | [Stop on error switch + label] | [Run Plan/Stop Run button OR Run summary + Re-run Plan]
 ```
 
 Container: `flex items-center gap-4 bg-card border-b border-border px-4 py-2 shrink-0`
@@ -186,12 +190,12 @@ All shadcn primitives used are already present in `src/components/ui/`:
 
 | Element | Copy |
 |---------|------|
-| Primary CTA (idle) | "Run" |
-| Primary CTA (running) | "Stop" |
+| Primary CTA (idle) | "Run Plan" |
+| Primary CTA (running) | "Stop Run" |
 | Disabled — no steps tooltip | "Add steps to run" |
 | Disabled — no connection tooltip | "Select a connection profile first" |
 | Stop-on-error toggle label | "Stop on error" |
-| Re-run button | "Re-run" |
+| Re-run button | "Re-run Plan" |
 | Run summary — success | "✓ {N}/{M} succeeded" |
 | Run summary — partial/full failure | "✗ {N}/{M} succeeded" |
 | Per-step error toast | "Step '{name}' failed: {error}" |
