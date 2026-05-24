@@ -91,5 +91,5 @@
 | RESP-01 | Phase 22 | Complete |
 | RESP-02 | Phase 22 | Complete |
 | RESP-03 | Phase 22 | Complete |
-| RESP-04 | Phase 23 | Pending |
-| RESP-05 | Phase 23 | Pending |
+| RESP-04 | Phase 23 | Complete |
+| RESP-05 | Phase 23 | Complete |

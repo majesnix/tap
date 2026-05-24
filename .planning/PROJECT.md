@@ -57,6 +57,13 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ In-app auto-update: `tauri-plugin-updater` startup check, Sonner toast with Install & Relaunch, "Check for Updates..." in macOS native menu bar, sidebar button for Windows/Linux — v1.5 (Phase 18)
 - ✓ Linux AppImage built on ubuntu-22.04, passes on Ubuntu 22.04 + 24.04; `docs/linux-keychain.md` for libsecret prerequisite — v1.5 (Phase 18)
 
+- ✓ Plan data model — `Plan` / `PlanStep` types, `usePlanStore` CRUD with `plans.json` persistence via tauri-plugin-store, schema_version for forward compat — v1.6 (Phase 19)
+- ✓ Plan library view — full-screen plan list panel, plan CRUD UI (create / rename / delete), navigation from sidebar — v1.6 (Phase 20)
+- ✓ Step editor — step authoring with all proto + target + response-mode fields, drag-and-drop reorder (dnd-kit), import from send history and block library — v1.6 (Phase 21)
+- ✓ Plan runner — sequential JS runner loop, all three response modes (no-wait / correlation-id / first-arrival), run controls (Run / Stop), live step status badges, new Rust commands (execute_plan_step, stop_plan) — v1.6 (Phase 22)
+- ✓ Response view — decoded protobuf reply shown inline per step (StepReplyView), shared scrollable Reply Feed tab (PlanReplyFeedTab, FIFO-500), reply dot indicator on step rows, ms-precision timestamps — v1.6 (Phase 23)
+- ✓ Proto auto-load — plans remember their proto paths; selecting a plan silently re-opens any .proto files not already loaded, using saved include paths — v1.6 (Phase 23 bonus)
+
 ## Backlog (future milestones)
 
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)

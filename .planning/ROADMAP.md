@@ -13,7 +13,7 @@
 - ✅ **v1.3 Publishing UX + Message Blocks** — Phases 9–12 (shipped 2026-05-20)
 - ✅ **v1.4 Response Stream** — Phases 13–15 (shipped 2026-05-21)
 - ✅ **v1.5 Distribution** — Phases 16–18 (shipped 2026-05-23)
-- 🔄 **v1.6 Plan Runner** — Phases 19–23 (in progress)
+- ✅ **v1.6 Plan Runner** — Phases 19–23 (shipped 2026-05-24)
 
 ---
 
@@ -87,11 +87,11 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 
 **v1.6 Plan Runner (Phases 19–23):**
 
-- [ ] **Phase 19: Plan Data Model and Persistence** — Type contract, `usePlanStore` CRUD, `plans.json` persistence — no UI
-- [ ] **Phase 20: Plan View Shell and Navigation** — Full-screen plan library view, plan list panel, CRUD UI, nav button
+- [x] **Phase 19: Plan Data Model and Persistence** — Type contract, `usePlanStore` CRUD, `plans.json` persistence — no UI (completed 2026-05-23)
+- [x] **Phase 20: Plan View Shell and Navigation** — Full-screen plan library view, plan list panel, CRUD UI, nav button (completed 2026-05-23)
 - [x] **Phase 21: Step Editor (Authoring)** — Step authoring, drag-and-drop reorder, import from history + block library (completed 2026-05-23)
 - [x] **Phase 22: Plan Runner — Sequential Execution** — JS runner loop, all three response modes, run controls, new Rust commands (completed 2026-05-24)
-- [ ] **Phase 23: Response View — Inline and Shared Feed** — Decoded response per step, shared scrollable plan execution feed
+- [x] **Phase 23: Response View — Inline and Shared Feed** — Decoded response per step, shared scrollable plan execution feed (completed 2026-05-24)
 
 ---
 
@@ -283,11 +283,11 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 23-02-PLAN.md — New components: StepReplyView + PlanReplyFeedTab
+- [x] 23-02-PLAN.md — New components: StepReplyView + PlanReplyFeedTab
 
 **Wave 3** *(blocked on Waves 1 and 2)*
 
-- [ ] 23-03-PLAN.md — UI integration: PlanDetailPanel tab strip + StepListPanel reply dot and toggle
+- [x] 23-03-PLAN.md — UI integration: PlanDetailPanel tab strip + StepListPanel reply dot and toggle
 
 **UI hint**: yes
 
@@ -319,7 +319,7 @@ Plans:
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
 | 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete    | 2026-05-23 |
 | 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete    | 2026-05-24 |
-| 23. Response View — Inline and Shared Feed | v1.6 | 1/3 | In Progress|  |
+| 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete   | 2026-05-24 |
 
 ---
 

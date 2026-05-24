@@ -1,5 +1,23 @@
 # Milestones: Tap
 
+## v1.6 Plan Runner (Shipped: 2026-05-24)
+
+**Phases completed:** 5 phases (19–23), 15 plans | **Requirements:** 10/10 (PLAN-01–04, RUN-01–06, RESP-04–05)
+
+**Key accomplishments:**
+
+1. Plan data model — `Plan` / `PlanStep` / `StepStatus` type contract, `usePlanStore` CRUD with `plans.json` tauri-plugin-store persistence, schema_version for forward compat (Phase 19)
+2. Plan library view — full-screen plan panel with list sidebar, CRUD UI (create / rename / delete with AlertDialog), navigation button in sidebar; no global router needed (Phase 20)
+3. Step editor — complete step authoring covering proto file + message type + all target modes + all three response modes; drag-and-drop reorder via dnd-kit PointerSensor; import from send history and block library (Phase 21)
+4. Plan runner — JS runner loop with live step status badges (idle/running/done/error), all three response modes (no-wait / correlation-id / first-arrival), Run/Stop controls, `execute_plan_step` and `stop_plan` Rust commands with `CancellationToken` (Phase 22)
+5. Response view — `StepReplyView` shows decoded protobuf reply inline per step; `PlanReplyFeedTab` renders a shared FIFO-500 accordion feed with ms-precision timestamps; reply dot indicator on step rows with toggle click (Phase 23)
+6. Proto auto-load — selecting a plan silently re-opens any `.proto` files referenced by its steps using saved include paths; no manual re-open needed between sessions (Phase 23 bonus)
+7. Scroll fix — `TabsContent` wrappers added in Phase 23 were missing `flex flex-col`, breaking `ScrollArea`'s `flex-1 min-h-0` height chain; fixed during live UAT (debug session)
+
+**Archive:** .planning/phases/23-response-view-inline-and-shared-feed/
+
+---
+
 ## v1.5 Distribution (Shipped: 2026-05-23)
 
 **Phases completed:** 3 phases (16–18), 8 plans | **Requirements:** 12/12 (CICD-01–03, SIGN-01–03, PKG-01, UPD-01–04, DOC-01)
