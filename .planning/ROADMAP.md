@@ -250,8 +250,8 @@ Plans:
 **Plans**: 4 plansPlans:
 **Wave 1**
 
-- [ ] 22-01-PLAN.md — TypeScript foundation: Plan type + IPC wrappers + updatePlan store action
-- [ ] 22-02-PLAN.md — Rust backend: execute_step (3 response modes) + cancel_plan_run + PlanRunState
+- [x] 22-01-PLAN.md — TypeScript foundation: Plan type + IPC wrappers + updatePlan store action
+- [x] 22-02-PLAN.md — Rust backend: execute_step (3 response modes) + cancel_plan_run + PlanRunState
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -305,7 +305,7 @@ Plans:
 | 19. Plan Data Model and Persistence | v1.6 | 1/1 | Complete | 2026-05-23 |
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
 | 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete    | 2026-05-23 |
-| 22. Plan Runner — Sequential Execution | v1.6 | 0/? | Not started | - |
+| 22. Plan Runner — Sequential Execution | v1.6 | 2/4 | In Progress|  |
 | 23. Response View — Inline and Shared Feed | v1.6 | 0/? | Not started | - |
 
 ---
