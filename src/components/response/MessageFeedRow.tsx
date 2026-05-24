@@ -19,10 +19,11 @@ interface MessageFeedRowProps {
 export function MessageFeedRow({ message }: MessageFeedRowProps) {
   const formattedTimestamp =
     message.timestamp !== null
-      ? new Date(message.timestamp * 1000).toLocaleTimeString([], {
+      ? new Date(message.timestamp).toLocaleTimeString([], {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
+          fractionalSecondDigits: 3,
           hour12: false,
         })
       : "—";

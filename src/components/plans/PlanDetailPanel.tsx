@@ -139,13 +139,13 @@ export function PlanDetailPanel({ selectedPlan }: PlanDetailPanelProps) {
             <TabsContent
               value="editor"
               forceMount
-              className={cn("flex-1 overflow-hidden m-0 p-0", activeTab !== 'editor' && 'hidden')}
+              className={cn("flex flex-col flex-1 overflow-hidden m-0 p-0", activeTab !== 'editor' && 'hidden')}
             >
               {paneMode === 'reply' && selectedStepReply !== null
                 ? <StepReplyView reply={selectedStepReply} stepName={selectedStepName} />
                 : <StepFieldEditor step={selectedStep} planId={planId} disabled={isRunning} />}
             </TabsContent>
-            <TabsContent value="reply-feed" className="flex-1 overflow-hidden m-0 p-0">
+            <TabsContent value="reply-feed" className="flex flex-col flex-1 overflow-hidden m-0 p-0">
               <PlanReplyFeedTab />
             </TabsContent>
           </Tabs>

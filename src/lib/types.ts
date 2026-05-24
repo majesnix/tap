@@ -130,7 +130,7 @@ export interface FeedMessage {
   routingKey: string;
   exchange: string;
   contentType: string | null;
-  timestamp: number | null;        // seconds since epoch; null = not set by publisher
+  timestamp: number | null;        // milliseconds since epoch (client receipt time); null = not set
   decoded: Record<string, unknown> | null;
   hexString: string;
   error: string | null;

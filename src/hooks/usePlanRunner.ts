@@ -81,7 +81,7 @@ export function usePlanRunner() {
               routingKey: result.reply.routingKey,
               exchange: '',
               contentType: result.reply.contentType,
-              timestamp: Date.now() / 1000,
+              timestamp: Date.now(),
               decoded: result.reply.decoded,
               hexString: result.reply.hexString,
               error: null,
