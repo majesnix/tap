@@ -23,10 +23,18 @@ export type ConflictItem = {
   kind: ApplyItemKind;
 };
 
-/** The output of buildApplyPlan — two lists: items to apply and items in conflict. */
+/**
+ * The output of buildApplyPlan — items to apply, items in conflict, and keys
+ * with no matching field in the schema at all.
+ *
+ * `unknownKeys` holds block keys that do not correspond to any field in the
+ * schema (regardless of kind). Keys that exist in the schema but are ineligible
+ * (e.g. 'message' kind) are silently skipped and do NOT appear in unknownKeys.
+ */
 export type ApplyPlan = {
   toApply: ApplyItem[];
   conflicts: ConflictItem[];
+  unknownKeys: string[];
 };
 
 /**
@@ -69,7 +77,9 @@ const ELIGIBLE_KINDS: ReadonlySet<FieldSchema["kind"]["type"]> = new Set([
  * - Map fields are only applied when the current form value is an empty array
  *   (`[]` or `undefined`/`null`). Non-empty maps are silently skipped in Phase 25;
  *   Phase 26 will surface them as ConflictItems.
- * - Unknown block keys (no matching field name) are silently ignored.
+ * - Block keys with no matching field in the schema are collected in `unknownKeys`.
+ * - Block keys that exist in the schema but are ineligible (e.g. 'message' kind)
+ *   are silently skipped and do NOT appear in `unknownKeys`.
  * - `conflicts` is always `[]` in Phase 25.
  *
  * Pure — no form mutations, no side effects, no React imports.
@@ -80,6 +90,9 @@ export function buildApplyPlan(
   dirtyFields: Partial<Record<string, unknown>>,
   blockValues: Record<string, unknown>
 ): ApplyPlan {
+  // Map over ALL fields (all kinds) — used to detect truly unknown keys
+  const allFields = new Map(fields.map((f) => [f.name, f]));
+
   const eligibleFields = new Map(
     fields
       .filter((f) => ELIGIBLE_KINDS.has(f.kind.type))
@@ -87,11 +100,17 @@ export function buildApplyPlan(
   );
 
   const toApply: ApplyItem[] = [];
+  const unknownKeys: string[] = [];
 
   for (const [key, value] of Object.entries(blockValues)) {
+    if (!allFields.has(key)) {
+      // Key has no matching field in schema at all — surface to caller
+      unknownKeys.push(key);
+      continue;
+    }
     const field = eligibleFields.get(key);
     if (!field) {
-      // Unknown key or ineligible kind (e.g. 'message') — skip silently
+      // Field exists in schema but is ineligible kind (e.g. 'message') — silent skip
       continue;
     }
     if (dirtyFields[key]) {
@@ -108,5 +127,5 @@ export function buildApplyPlan(
     toApply.push({ fieldName: key, value, kind: field.kind.type as ApplyItemKind });
   }
 
-  return { toApply, conflicts: [] };
+  return { toApply, conflicts: [], unknownKeys };
 }

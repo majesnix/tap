@@ -75,15 +75,10 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
       const plan = applyBlockRef.current.buildPlan(blockValues);
       // plan.conflicts is always [] in Phase 25 — Phase 26 adds the conflict dialog
       applyBlockRef.current.commitApply(plan);
-      // Derive skipped keys: block keys not in toApply and not in conflicts (OQ-1 option b).
-      // Covers unknown field names and 'message' kind fields (silently ineligible per D-02).
-      const skipped = Object.keys(blockValues).filter(
-        (k) => !plan.toApply.some((i) => i.fieldName === k) && !plan.conflicts.some((i) => i.fieldName === k)
-      );
-      if (skipped.length > 0) {
-        const n = skipped.length;
+      if (plan.unknownKeys.length > 0) {
+        const n = plan.unknownKeys.length;
         const label = n === 1 ? 'field' : 'fields';
-        toast.warning(`${n} ${label} from block not in form: ${skipped.join(', ')}`);
+        toast.warning(`${n} ${label} from block not in form: ${plan.unknownKeys.join(', ')}`);
       }
     },
   });
