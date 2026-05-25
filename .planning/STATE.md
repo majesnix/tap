@@ -1,16 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.6
-milestone_name: Plan Runner
-status: archived
-last_updated: "2026-05-25T00:00:00Z"
-last_activity: 2026-05-25 -- v1.6 milestone archived
+milestone: v1.7
+milestone_name: Block Apply Completeness + History Search
+status: planning
+last_updated: "2026-05-25T08:17:16.245Z"
+last_activity: 2026-05-25
 progress:
-  total_phases: 5
-  completed_phases: 5
-  total_plans: 15
-  completed_plans: 15
-  percent: 100
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Tap
@@ -24,7 +24,7 @@ See: .planning/PROJECT.md (updated 2026-05-25)
 
 ## Current Position
 
-Phase: 23 (response-view-inline-and-shared-feed) — COMPLETE
-Status: v1.6 Plan Runner milestone archived
-Last activity: 2026-05-25 -- v1.6 milestone archived, ready for /gsd-new-milestone
-Next action: `/gsd-new-milestone` — plan v1.7
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-25 — Milestone v1.7 started

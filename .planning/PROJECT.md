@@ -64,10 +64,17 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Response view — decoded protobuf reply shown inline per step (StepReplyView), shared scrollable Reply Feed tab (PlanReplyFeedTab, FIFO-500), reply dot indicator on step rows, ms-precision timestamps — v1.6 (Phase 23)
 - ✓ Proto auto-load — plans remember their proto paths; selecting a plan silently re-opens any .proto files not already loaded, using saved include paths — v1.6 (Phase 23 bonus)
 
+## Current Milestone: v1.7 Block Apply Completeness + History Search
+
+**Goal:** Close the remaining gap in block apply for complex field types (oneof / WellKnownType / map), and add full-text search to the history panel.
+
+**Target features:**
+- Block apply for oneof / WellKnownType / map fields — currently silently skipped with a toast; apply values for these types, with per-field overwrite/skip prompt when form already has values
+- Full-text search in the history panel — search bar across decoded field values, field names/keys, message type name, and queue/exchange target; works alongside existing filters
+
 ## Backlog (future milestones)
 
 - [ ] Export history entries to JSON or CSV (HIST-V2-01)
-- [ ] Full-text search across historical message field values (HIST-V2-02)
 
 ### Out of Scope
 
@@ -162,10 +169,8 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
-v1.6 shipped 2026-05-24. All 23 requirements delivered across 5 phases (15 plans): plan data model with `usePlanStore` CRUD + `plans.json` persistence (PLAN-01–05), full-screen plan library view with inline CRUD (PLAN-06), step editor with StepFieldEditor isolated form + auto-save + DnD reorder + import from history and block library (STEP-01–06), sequential plan runner with all three response modes and Rust `execute_step` / `stop_plan` commands (RUN-01–06, RESP-01–03), inline StepReplyView and shared PlanReplyFeedTab FIFO-500 feed (RESP-04–05). Proto auto-load bonus: selecting a plan silently re-opens referenced `.proto` files.
-
-Next: `/gsd-new-milestone` to define v1.7 scope.
+v1.7 started 2026-05-25. Two-feature milestone: block apply completeness for complex field types (oneof / WKT / map) with per-field smart merge prompt, and full-text search across history panel (field values, field names, type name, target).
 
 ---
 
-*Last updated: 2026-05-25 after v1.6 milestone (Plan Runner)*
+*Last updated: 2026-05-25 — milestone v1.7 started (Block Apply Completeness + History Search)*
