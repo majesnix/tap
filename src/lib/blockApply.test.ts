@@ -53,6 +53,18 @@ function makeMessageField(name: string): FieldSchema {
   };
 }
 
+function makeOneofField(name: string, branchNames: string[]): FieldSchema {
+  return {
+    name,
+    label: name,
+    kind: {
+      type: "oneof",
+      branches: branchNames.map((b) => [makeScalarField(b)]),
+    },
+    repeated: false,
+  };
+}
+
 // ── describe("buildApplyPlan") ────────────────────────────────────────────────
 
 describe("buildApplyPlan", () => {
@@ -148,19 +160,22 @@ describe("buildApplyPlan", () => {
     expect(plan.unknownKeys).toEqual([]);
   });
 
-  it("skips map field when non-empty (Phase 26 conflict path)", () => {
+  it("emits map_key_collision when all block rows collide", () => {
     // Arrange
     const fields: FieldSchema[] = [makeMapField("labels")];
     const formValues = { labels: [{ key: "existing", value: "v" }] };
     const dirtyFields = {};
-    const blockValues = { labels: [{ key: "env", value: "prod" }] };
+    const blockValues = { labels: [{ key: "existing", value: "new" }] };
 
     // Act
     const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
 
     // Assert
     expect(plan.toApply).toHaveLength(0);
-    expect(plan.conflicts).toEqual([]);
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.conflicts[0].kind).toBe("map_key_collision");
+    expect((plan.conflicts[0] as any).collisionKey).toBe("existing");
+    expect((plan.conflicts[0] as any).nonCollidingBlockRows).toEqual([]);
     expect(plan.unknownKeys).toEqual([]);
   });
 
@@ -216,22 +231,21 @@ describe("buildApplyPlan", () => {
     expect(plan.conflicts).toEqual([]);
   });
 
-  it("conflicts is always empty array in Phase 25", () => {
-    // Arrange — any valid input
+  it("conflicts collects items when map or oneof fields have existing values (BLK-EXT-03/04)", () => {
+    // Arrange — map field with a colliding key
     const fields: FieldSchema[] = [
       makeScalarField("name"),
-      makeEnumField("status"),
-      makeWktField("ts"),
+      makeMapField("labels"),
     ];
-    const formValues = { ts: null };
+    const formValues = { labels: [{ key: "env", value: "prod" }] };
     const dirtyFields = {};
-    const blockValues = { name: "test", status: 0, ts: "2026-06-01T00:00:00Z" };
+    const blockValues = { name: "test", labels: [{ key: "env", value: "staging" }] };
 
     // Act
     const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
 
     // Assert
-    expect(plan.conflicts).toEqual([]);
+    expect(plan.conflicts.length).toBeGreaterThan(0);
     expect(Array.isArray(plan.conflicts)).toBe(true);
     expect(plan.unknownKeys).toEqual([]);
   });
@@ -249,6 +263,119 @@ describe("buildApplyPlan", () => {
     // Assert
     expect(plan.toApply).toHaveLength(0);
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
+  });
+
+  // ── Oneof tests (BLK-EXT-04, BLK-EXT-05, D-02, D-03) ────────────────────────
+
+  it("fills oneof field when same branch and sub-fields not dirty (BLK-EXT-04)", () => {
+    // Arrange
+    const fields: FieldSchema[] = [makeOneofField("payment", ["card_number", "bank_transfer"])];
+    const formValues = { payment: { _selected: "card_number", card_number: "" } };
+    const dirtyFields = {};
+    const blockValues = { payment: { _selected: "card_number", card_number: "4111" } };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert
+    expect(plan.toApply).toHaveLength(1);
+    expect(plan.toApply[0].fieldName).toBe("payment.card_number");
+    expect(plan.toApply[0].kind).toBe("oneof");
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
+  });
+
+  it("emits oneof_dirty_subfield conflict when same branch sub-field is dirty (BLK-EXT-04)", () => {
+    // Arrange
+    const fields: FieldSchema[] = [makeOneofField("payment", ["card_number", "bank_transfer"])];
+    const formValues = { payment: { _selected: "card_number", card_number: "existing" } };
+    const dirtyFields = { payment: { card_number: true } };
+    const blockValues = { payment: { _selected: "card_number", card_number: "4111" } };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert
+    expect(plan.toApply).toEqual([]);
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.conflicts[0].kind).toBe("oneof_dirty_subfield");
+    expect(plan.conflicts[0].fieldName).toBe("payment");
+    expect((plan.conflicts[0] as any).subFieldName).toBe("card_number");
+    expect(plan.unknownKeys).toEqual([]);
+  });
+
+  it("emits oneof_branch_switch conflict when block targets different branch (BLK-EXT-05)", () => {
+    // Arrange
+    const fields: FieldSchema[] = [makeOneofField("payment", ["card_number", "bank_transfer"])];
+    const formValues = { payment: { _selected: "card_number", card_number: "old" } };
+    const dirtyFields = {};
+    const blockValues = { payment: { _selected: "bank_transfer", bank_transfer: "IBAN123" } };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert
+    expect(plan.toApply).toEqual([]);
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.conflicts[0].kind).toBe("oneof_branch_switch");
+    expect((plan.conflicts[0] as any).currentBranch).toBe("card_number");
+    expect((plan.conflicts[0] as any).blockBranch).toBe("bank_transfer");
+    expect(plan.unknownKeys).toEqual([]);
+  });
+
+  it("silently skips oneof block value when _selected is absent (D-02)", () => {
+    // Arrange
+    const fields: FieldSchema[] = [makeOneofField("payment", ["card_number"])];
+    const formValues = {};
+    const dirtyFields = {};
+    const blockValues = { payment: { card_number: "4111" } }; // no _selected
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert
+    expect(plan.toApply).toEqual([]);
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
+  });
+
+  it("silently skips oneof block value when branch name is unrecognized (D-02)", () => {
+    // Arrange
+    const fields: FieldSchema[] = [makeOneofField("payment", ["card_number"])];
+    const formValues = {};
+    const dirtyFields = {};
+    const blockValues = { payment: { _selected: "crypto_wallet", crypto_wallet: "0x..." } };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert
+    expect(plan.toApply).toEqual([]);
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
+  });
+
+  it("emits map_key_collision conflicts for colliding keys; no toApply item; nonCollidingBlockRows carried (BLK-EXT-03)", () => {
+    // Arrange
+    const fields: FieldSchema[] = [makeMapField("labels")];
+    const formValues = { labels: [{ key: "env", value: "prod" }, { key: "region", value: "us" }] };
+    const dirtyFields = {};
+    const blockValues = { labels: [{ key: "env", value: "staging" }, { key: "team", value: "infra" }] };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert
+    expect(plan.toApply).toEqual([]); // no toApply item for "labels" — collision path suppresses it entirely
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.conflicts[0].kind).toBe("map_key_collision");
+    expect((plan.conflicts[0] as any).collisionKey).toBe("env");
+    const nonColliding = (plan.conflicts[0] as any).nonCollidingBlockRows as Array<{ key: string; value: string }>;
+    expect(nonColliding).toHaveLength(1);
+    expect(nonColliding[0].key).toBe("team");
+    // "team" is NOT in conflicts (only colliding keys produce ConflictItems)
+    expect(plan.conflicts.filter((c) => (c as any).collisionKey === "team")).toHaveLength(0);
     expect(plan.unknownKeys).toEqual([]);
   });
 });
