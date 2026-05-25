@@ -25,6 +25,7 @@ interface MapFieldProps {
   path: string;
   depth: number;
   renderValue: RenderFieldFn;
+  onRegisterReplace?: (path: string, fn: ((rows: unknown[]) => void) | null) => void;
 }
 
 // ---- Helpers ---------------------------------------------------------------
@@ -103,14 +104,14 @@ function defaultValueForKind(kind: FieldKind): unknown {
  * - register(guardName, { validate }) + trigger(guardName) keeps formState.isValid false while duplicates exist
  * - renderValue prop renders the value column — depth+1 prevents MAX_DEPTH bypass
  */
-export function MapField({ field, path, depth, renderValue }: MapFieldProps): React.ReactNode {
+export function MapField({ field, path, depth, renderValue, onRegisterReplace }: MapFieldProps): React.ReactNode {
   // All hook calls are unconditional — Rules of Hooks compliance.
   // ProtoFormRenderer already guarantees field.kind.type === "map" at the call site;
   // the cast below is safe by construction.
   const { control, register, unregister, trigger, setValue } = useFormContext();
   const { key_type, value_kind } = field.kind as Extract<FieldKind, { type: "map" }>;
 
-  const { fields, append, remove } = useFieldArray({ control, name: path });
+  const { fields, append, remove, replace } = useFieldArray({ control, name: path });
 
   // Watch all rows to detect duplicate keys — fires on every onChange
   const rows = useWatch({ control, name: path }) as Array<{ key: unknown }> | undefined;
@@ -149,6 +150,20 @@ export function MapField({ field, path, depth, renderValue }: MapFieldProps): Re
     setValue(guardName, hasDuplicates);
     void trigger(guardName);
   }, [hasDuplicates, guardName, setValue, trigger]);
+
+  // Register replace fn into parent's mapReplaceRegistry (D-05).
+  // On mount: register replace so commitApply can call it for empty-map block fills.
+  // On unmount: unregister (pass null) so the registry does not hold a stale closure.
+  // replace is a stable reference from useFieldArray — safe in the dependency array.
+  // IMPORTANT: calling replace() marks dirtyFields[path] truthy (RHF 7.x limitation —
+  // UseFieldArrayReplace has no shouldDirty option). A second block drag will see the
+  // map field as dirty and skip it — this is accepted behavior for Phase 25.
+  useEffect(() => {
+    onRegisterReplace?.(path, replace as unknown as (rows: unknown[]) => void);
+    return () => {
+      onRegisterReplace?.(path, null);
+    };
+  }, [path, replace, onRegisterReplace]);
 
   // Build badge label — e.g. "map<string, int32>"
   const valueSummary =
