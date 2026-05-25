@@ -290,12 +290,22 @@ export function buildApplyPlan(
       }
 
       // Same branch (or no current branch yet): process sub-fields (BLK-EXT-04)
-      const dirtyForField = (dirtyFields[key] as Record<string, unknown> | undefined) ?? {};
+      // WR-01: use a runtime type guard instead of unsafe cast.
+      // RHF can set dirtyFields[key] = true (boolean) when the whole field is reset.
+      // Casting a boolean to Record<string, unknown> silently yields a value whose
+      // indexed properties are always undefined, defeating dirty-protection.
+      const rawDirtyEntry = dirtyFields[key];
+      const dirtyForField: Record<string, unknown> =
+        typeof rawDirtyEntry === "object" && rawDirtyEntry !== null
+          ? (rawDirtyEntry as Record<string, unknown>)
+          : {};
+      // Whole-field dirty (boolean true) means every sub-field is dirty.
+      const wholeFieldDirty = rawDirtyEntry === true;
 
       for (const [subFieldName, subValue] of Object.entries(blockObj)) {
         if (subFieldName === "_selected") continue; // skip discriminator key
 
-        const isSubFieldDirty = dirtyForField[subFieldName] === true;
+        const isSubFieldDirty = wholeFieldDirty || dirtyForField[subFieldName] === true;
 
         if (isSubFieldDirty) {
           // Dirty sub-field → conflict
