@@ -64,6 +64,7 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Response view — decoded protobuf reply shown inline per step (StepReplyView), shared scrollable Reply Feed tab (PlanReplyFeedTab, FIFO-500), reply dot indicator on step rows, ms-precision timestamps — v1.6 (Phase 23)
 - ✓ Proto auto-load — plans remember their proto paths; selecting a plan silently re-opens any .proto files not already loaded, using saved include paths — v1.6 (Phase 23 bonus)
 - ✓ History full-text search — search input above type/target filters, case-insensitive substring match on message type name, queue/exchange target, and `fieldValues` key names (`_selected` excluded); AND logic with existing filters; "X of Y / 100" count label — v1.7 (Phase 24)
+- ✓ Block apply for WellKnownType (Timestamp etc.) and empty map fields — dirty-field guard only for WKT; mapReplaceRegistry useRef + two-phase `{ buildPlan, commitApply }` ref; block-filled fields stay non-dirty and are re-writable by subsequent block drags — v1.7 (Phase 25)
 
 ## Current Milestone: v1.7 Block Apply Completeness + History Search
 
@@ -155,6 +156,9 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | Repository made public for auto-update | tauri-plugin-updater makes unauthenticated HTTP requests; private repo causes silent 404 | ✓ Good — release artifacts contain no secrets; acceptable for a team dev tool |
 | runUpdateCheck({ manual }) extracted from UpdateChecker | Startup check should be silent on failure; manual trigger should surface errors | ✓ Good — clean separation; user gets feedback from manual check, not disruptive error on startup |
 | macOS menu built in setup() with #[cfg(target_os = "macos")] | Native menu item placement is the macOS convention for Check for Updates | ✓ Good — Tauri MenuBuilder + on_menu_event emits Tauri event; frontend listener calls runUpdateCheck |
+| `{ buildPlan, commitApply }` two-phase applyBlockRef (Phase 25) | Single-function ref couldn't return plan data needed to compute `skipped` in FormPanel | ✓ Good — FormPanel derives skipped inline from `plan.toApply + plan.conflicts`; clean separation |
+| mapReplaceRegistry useRef pattern for empty-map fill (Phase 25) | ProtoFormRenderer switch is frozen; `useFieldArray.replace()` must be reached without touching the switch | ✓ Good — MapField registers its `replace` fn via `onRegisterReplace` stable callback; no switch changes |
+| block-filled map fields treated as dirty after first fill (Phase 25) | RHF 7.76.1 `replace()` has no `shouldDirty: false` option — marks field dirty by design | Accepted — block-filled map is "user-owned" after first fill; Phase 26 conflict prompt handles re-drag |
 
 ## Evolution
 
@@ -170,8 +174,8 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
-v1.7 in progress. Phase 24 complete (2026-05-25): history full-text search delivered — `collectFieldNames` recursive traversal, `filterHistoryEntries` searchQuery extension, HistoryFilterBar search input row, and MessageHistoryPanel state wiring. Next: Phase 25 block-apply WKT + map empty case.
+v1.7 in progress. Phase 25 complete (2026-05-25): block apply for WKT + empty map delivered — `buildApplyPlan` pure function, two-phase `{ buildPlan, commitApply }` ref, mapReplaceRegistry pattern, dirty-field guard for WKT. All 6 UAT tests passed. Next: Phase 26 block-apply conflict prompt + oneof.
 
 ---
 
-*Last updated: 2026-05-25 — Phase 24 complete (history-full-text-search)*
+*Last updated: 2026-05-25 — Phase 25 complete (block-apply-wkt-map-empty-case)*
