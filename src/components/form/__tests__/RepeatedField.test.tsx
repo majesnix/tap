@@ -7,6 +7,7 @@ import type { FieldSchema } from "@/lib/types";
 const stringFieldSchema: FieldSchema = {
   name: "tags",
   label: "tags",
+  field_number: 1,
   kind: { type: "scalar", scalar: "string" },
   repeated: true,
   default_value: "",

@@ -8,6 +8,7 @@ import type { FieldSchema, MessageSchema } from "@/lib/types";
 const stringField: FieldSchema = {
   name: "title",
   label: "title",
+  field_number: 1,
   kind: { type: "scalar", scalar: "string" },
   repeated: false,
   default_value: "",
@@ -20,11 +21,13 @@ const innerMessage: MessageSchema = {
 const testSchema = {
   messages: [innerMessage],
   message_map: { "com.Inner": innerMessage },
+  enums: [],
 };
 
 const innerField: FieldSchema = {
   name: "inner",
   label: "Inner",
+  field_number: 2,
   kind: { type: "message", full_name: "com.Inner" },
   repeated: false,
 };

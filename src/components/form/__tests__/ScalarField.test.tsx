@@ -29,6 +29,7 @@ test("bool field renders checkbox", () => {
   renderField({
     name: "active",
     label: "active",
+    field_number: 1,
     kind: { type: "scalar", scalar: "bool" },
     repeated: false,
     default_value: false,
@@ -42,6 +43,7 @@ test("string field renders text input", () => {
   renderField({
     name: "name",
     label: "name",
+    field_number: 1,
     kind: { type: "scalar", scalar: "string" },
     repeated: false,
     default_value: "",
@@ -55,6 +57,7 @@ test("int32 field renders number input", () => {
   renderField({
     name: "count",
     label: "count",
+    field_number: 1,
     kind: { type: "scalar", scalar: "int32" },
     repeated: false,
     default_value: 0,
@@ -66,6 +69,7 @@ test("sint32 field renders number input", () => {
   renderField({
     name: "sint",
     label: "sint",
+    field_number: 1,
     kind: { type: "scalar", scalar: "sint32" },
     repeated: false,
     default_value: 0,
@@ -77,6 +81,7 @@ test("sfixed32 field renders number input", () => {
   renderField({
     name: "sf32",
     label: "sf32",
+    field_number: 1,
     kind: { type: "scalar", scalar: "sfixed32" },
     repeated: false,
     default_value: 0,
@@ -90,6 +95,7 @@ test("uint32 field renders number input", () => {
   renderField({
     name: "uid",
     label: "uid",
+    field_number: 1,
     kind: { type: "scalar", scalar: "uint32" },
     repeated: false,
     default_value: 0,
@@ -101,6 +107,7 @@ test("fixed32 renders same as int32 (number input)", () => {
   renderField({
     name: "f",
     label: "f",
+    field_number: 1,
     kind: { type: "scalar", scalar: "fixed32" },
     repeated: false,
     default_value: 0,
@@ -114,6 +121,7 @@ test("int64 field renders text input (not number — precision)", () => {
   renderField({
     name: "big",
     label: "big",
+    field_number: 1,
     kind: { type: "scalar", scalar: "int64" },
     repeated: false,
     default_value: "0",
@@ -125,6 +133,7 @@ test("sint64 field renders text input", () => {
   renderField({
     name: "si64",
     label: "si64",
+    field_number: 1,
     kind: { type: "scalar", scalar: "sint64" },
     repeated: false,
     default_value: "0",
@@ -136,6 +145,7 @@ test("sfixed64 renders as text input (int64 precision)", () => {
   renderField({
     name: "sf",
     label: "sf",
+    field_number: 1,
     kind: { type: "scalar", scalar: "sfixed64" },
     repeated: false,
     default_value: "0",
@@ -149,6 +159,7 @@ test("uint64 field renders text input", () => {
   renderField({
     name: "ts",
     label: "ts",
+    field_number: 1,
     kind: { type: "scalar", scalar: "uint64" },
     repeated: false,
     default_value: "0",
@@ -160,6 +171,7 @@ test("fixed64 field renders text input", () => {
   renderField({
     name: "f64",
     label: "f64",
+    field_number: 1,
     kind: { type: "scalar", scalar: "fixed64" },
     repeated: false,
     default_value: "0",
@@ -173,6 +185,7 @@ test("float field renders number input", () => {
   renderField({
     name: "ratio",
     label: "ratio",
+    field_number: 1,
     kind: { type: "scalar", scalar: "float" },
     repeated: false,
     default_value: 0,
@@ -184,6 +197,7 @@ test("double field renders number input", () => {
   renderField({
     name: "pi",
     label: "pi",
+    field_number: 1,
     kind: { type: "scalar", scalar: "double" },
     repeated: false,
     default_value: 0,
@@ -198,6 +212,7 @@ test("int32 shows validation error on out-of-range value", async () => {
   renderField({
     name: "count",
     label: "count",
+    field_number: 1,
     kind: { type: "scalar", scalar: "int32" },
     repeated: false,
     default_value: 0,
@@ -215,6 +230,7 @@ test("uint32 shows validation error on negative value", async () => {
   renderField({
     name: "uid",
     label: "uid",
+    field_number: 1,
     kind: { type: "scalar", scalar: "uint32" },
     repeated: false,
     default_value: 0,
@@ -231,6 +247,7 @@ test("int64 shows validation error on non-integer string", async () => {
   renderField({
     name: "big",
     label: "big",
+    field_number: 1,
     kind: { type: "scalar", scalar: "int64" },
     repeated: false,
     default_value: "0",
@@ -248,6 +265,7 @@ test("field pre-populates with default_value from schema", () => {
   renderField({
     name: "score",
     label: "score",
+    field_number: 1,
     kind: { type: "scalar", scalar: "int32" },
     repeated: false,
     default_value: 42,
@@ -255,10 +273,25 @@ test("field pre-populates with default_value from schema", () => {
   expect(screen.getByRole("spinbutton")).toHaveValue(42);
 });
 
+// ─── CopyButton integration ─────────────────────────────────────────────────
+
+test("string field renders a CopyButton with aria-label 'Copy value'", () => {
+  renderField({
+    name: "name",
+    label: "name",
+    field_number: 1,
+    kind: { type: "scalar", scalar: "string" },
+    repeated: false,
+    default_value: "hello",
+  });
+  expect(screen.getByRole("button", { name: "Copy value" })).toBeInTheDocument();
+});
+
 test("bool field pre-populates as checked when default_value is true", () => {
   renderField({
     name: "enabled",
     label: "enabled",
+    field_number: 1,
     kind: { type: "scalar", scalar: "bool" },
     repeated: false,
     default_value: true,

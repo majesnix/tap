@@ -125,6 +125,23 @@ describe("JsonEditor", () => {
     expect(handleDiscard).toHaveBeenCalledTimes(1);
   });
 
+  // ─── onSubmit prop ────────────────────────────────────────────────
+  test("renders without error when onSubmit is provided", () => {
+    const handleSubmit = vi.fn();
+    render(
+      <JsonEditor
+        value="{}"
+        onChange={noop}
+        resolvedTheme="light"
+        parseError={null}
+        onFixJson={noop}
+        onDiscard={noop}
+        onSubmit={handleSubmit}
+      />
+    );
+    expect(screen.getByTestId("codemirror-stub")).toBeInTheDocument();
+  });
+
   // ─── dark mode theme prop ─────────────────────────────────────────
   test("renders without error when resolvedTheme is dark", () => {
     render(

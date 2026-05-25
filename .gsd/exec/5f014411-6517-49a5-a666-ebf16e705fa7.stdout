@@ -1,0 +1,20 @@
+ [32m✓[39m src/stores/useResponseStore.test.ts[2m > [22msetSubscribeStatus[2m > [22msetSubscribeStatus('Error', 'connection failed') sets status and error message[32m 1[2mms[22m[39m
+ [32m✓[39m src/stores/useResponseStore.test.ts[2m > [22msetSubscribeStatus[2m > [22msetSubscribeStatus('Stopping') without error arg sets subscribeError to null (not undefined)[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/useResponseStore.test.ts[2m > [22mreset[2m > [22mreset() restores subscribeStatus to 'Idle' and subscribeError to null[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22maddRecentFile[2m > [22madds a file path to the front of recentFiles[32m 1[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22maddRecentFile[2m > [22mdeduplicates by moving existing entry to front[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22maddRecentFile[2m > [22mcaps at 10 entries[32m 1[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22maddRecentFile[2m > [22mprepend order — newest first[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22mupdateFileSchema[2m > [22mpreserves selectedMessageType when the type still exists in new schema[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22mupdateFileSchema[2m > [22mfalls back to first message when selected type no longer exists[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22mupdateFileSchema[2m > [22mfalls back to null when new schema has no messages[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22mupdateFileSchema[2m > [22mdoes not change selectedMessageType when updating a non-active file[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22mupdateFileSchema[2m > [22mno-ops for unknown file path[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22mreloadRequested counter[2m > [22mrequestReload increments counter[32m 0[2mms[22m[39m
+ [32m✓[39m src/stores/__tests__/useProtoStore-reload.test.ts[2m > [22msetRecentFiles[2m > [22mreplaces the entire recent files list[32m 0[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m48 passed[39m[22m[90m (48)[39m
+[2m      Tests [22m [1m[32m616 passed[39m[22m[90m (616)[39m
+[2m   Start at [22m 22:55:38
+[2m   Duration [22m 6.36s[2m (transform 3.42s, setup 3.25s, import 15.56s, tests 11.95s, environment 30.11s)[22m
+

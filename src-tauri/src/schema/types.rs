@@ -5,6 +5,14 @@ use std::collections::HashMap;
 pub struct ProtoSchema {
     pub messages: Vec<MessageSchema>,
     pub message_map: HashMap<String, MessageSchema>,
+    pub enums: Vec<EnumSchema>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct EnumSchema {
+    pub name: String,
+    pub full_name: String,
+    pub values: Vec<EnumValue>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

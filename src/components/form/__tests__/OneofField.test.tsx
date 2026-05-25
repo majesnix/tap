@@ -8,6 +8,7 @@ import type { FieldSchema } from "@/lib/types";
 const cardField: FieldSchema = {
   name: "card_number",
   label: "card_number",
+  field_number: 1,
   kind: { type: "scalar", scalar: "string" },
   repeated: false,
   oneof_group: "payment",
@@ -15,6 +16,7 @@ const cardField: FieldSchema = {
 const cryptoField: FieldSchema = {
   name: "crypto_address",
   label: "crypto_address",
+  field_number: 2,
   kind: { type: "scalar", scalar: "string" },
   repeated: false,
   oneof_group: "payment",
@@ -23,6 +25,7 @@ const cryptoField: FieldSchema = {
 const oneofField: FieldSchema = {
   name: "payment",
   label: "payment",
+  field_number: 0,
   kind: { type: "oneof", branches: [[cardField], [cryptoField]] },
   repeated: false,
 };

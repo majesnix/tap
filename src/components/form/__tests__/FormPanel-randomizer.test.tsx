@@ -90,6 +90,7 @@ const SCHEMA_WITH_TWO_FIELDS: ProtoSchema = {
       ],
     },
   },
+  enums: [],
 };
 
 beforeEach(() => {

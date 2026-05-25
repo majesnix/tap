@@ -58,6 +58,11 @@ vi.mock("../RoutingKeyCombobox", () => ({
 import { invoke } from "@tauri-apps/api/core";
 const mockInvoke = vi.mocked(invoke);
 
+function getTargetCombobox() {
+  const all = screen.getAllByRole("combobox");
+  return all[all.length - 1];
+}
+
 afterEach(async () => {
   await act(async () => {});
 });
@@ -116,8 +121,8 @@ describe("PublishBar", () => {
 
     render(<PublishBar />);
     expect(screen.getByText("Live")).toBeInTheDocument();
-    // Dropdown should be rendered (not text input)
-    expect(screen.queryByRole("combobox")).toBeTruthy();
+    // Queue dropdown should be rendered (profile + queue = 2 comboboxes)
+    expect(screen.getAllByRole("combobox").length).toBeGreaterThanOrEqual(2);
   });
 
   it("shows Manual badge and text input when Management API unavailable", async () => {
@@ -239,7 +244,7 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
       expect(mockInvoke).toHaveBeenCalledWith("fetch_exchanges", { profileName: "test-profile" });
     });
     // Select the exchange
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "orders" } });
+    fireEvent.change(getTargetCombobox(), { target: { value: "orders" } });
 
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith("fetch_bindings", {
@@ -272,7 +277,7 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith("fetch_exchanges", { profileName: "test-profile" });
     });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "logs" } });
+    fireEvent.change(getTargetCombobox(), { target: { value: "logs" } });
 
     await new Promise((r) => setTimeout(r, 50));
     const bindingsCalls = mockInvoke.mock.calls.filter(
@@ -304,7 +309,7 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith("fetch_exchanges", { profileName: "test-profile" });
     });
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "my-headers" } });
+    fireEvent.change(getTargetCombobox(), { target: { value: "my-headers" } });
 
     await new Promise((r) => setTimeout(r, 50));
     const bindingsCalls = mockInvoke.mock.calls.filter(
@@ -333,8 +338,8 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
 
     render(<PublishBar />);
     fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "logs" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "logs" } });
 
     await waitFor(() => {
       expect(
@@ -363,8 +368,8 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
 
     render(<PublishBar />);
     fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "my-headers" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "my-headers" } });
 
     await waitFor(() => {
       expect(
@@ -394,8 +399,8 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
 
     render(<PublishBar />);
     fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "orders" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "orders" } });
 
     await waitFor(() => {
       // RoutingKeyCombobox mock renders aria-label="Routing key combobox"
@@ -425,8 +430,8 @@ describe("Phase 9 — Routing Key Autocomplete", () => {
 
     render(<PublishBar />);
     fireEvent.click(screen.getByRole("radio", { name: /exchange/i }));
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "orders" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "orders" } });
 
     await waitFor(() => {
       // Plain Input has placeholder="Routing key" — combobox should NOT be present
@@ -480,8 +485,8 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
     });
     render(<PublishBar />);
     // Select a queue and click Send
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
     // We call handleSend by clicking the Send button (it is connected+hasTarget)
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() => expect(screen.getByText("ACK")).toBeInTheDocument());
@@ -496,8 +501,8 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
       return Promise.resolve([]);
     });
     render(<PublishBar />);
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() => screen.getByText("ACK"));
     act(() => vi.advanceTimersByTime(3000));
@@ -511,8 +516,8 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
       return Promise.resolve([]);
     });
     render(<PublishBar />);
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() => expect(screen.getByText("Returned")).toBeInTheDocument());
     expect(screen.getByText("Returned").closest("[data-slot='badge']")).toHaveClass("bg-amber-500/10");
@@ -525,8 +530,8 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
       return Promise.resolve([]);
     });
     render(<PublishBar />);
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() => expect(screen.getByText("NACK")).toBeInTheDocument());
     expect(screen.getByText("NACK").closest("[data-slot='badge']")).toHaveClass("bg-destructive/10");
@@ -539,8 +544,8 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
       return Promise.resolve([]);
     });
     render(<PublishBar />);
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() => expect(screen.getByText("Timeout")).toBeInTheDocument());
     // Advance far past any dismiss window — badge must still be visible
@@ -557,8 +562,8 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
       return Promise.resolve([]);
     });
     render(<PublishBar />);
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
     await waitFor(() => screen.getByLabelText("Dismiss timeout badge"));
     fireEvent.click(screen.getByLabelText("Dismiss timeout badge"));
@@ -577,8 +582,8 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
       return Promise.resolve([]);
     });
     render(<PublishBar />);
-    await waitFor(() => screen.getByRole("combobox"));
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "test-queue" } });
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
 
     // First send → ACK badge
     fireEvent.click(screen.getByRole("button", { name: /send/i }));

@@ -6,14 +6,18 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 
-const makeSchema = (messageNames: string[]): ProtoSchema => ({
-  messages: messageNames.map((name) => ({
-    full_name: name,
-    fields: [],
-  })),
-  enums: [],
-  file_name: "test.proto",
-});
+const makeSchema = (messageNames: string[]): ProtoSchema => {
+  const messages = messageNames.map((n) => ({
+    name: n.split(".").pop() ?? n,
+    full_name: n,
+    fields: [] as never[],
+  }));
+  return {
+    messages,
+    message_map: Object.fromEntries(messages.map((m) => [m.full_name, m])),
+    enums: [],
+  };
+};
 
 beforeEach(() => {
   useProtoStore.getState().reset();

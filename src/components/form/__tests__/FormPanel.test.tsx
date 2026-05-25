@@ -65,6 +65,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
         {
           name: "value",
           label: "value",
+          field_number: 1,
           kind: { type: "scalar", scalar: "string" },
           repeated: false,
           default_value: null,
@@ -80,6 +81,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
         {
           name: "value",
           label: "value",
+          field_number: 1,
           kind: { type: "scalar", scalar: "string" },
           repeated: false,
           default_value: null,
@@ -87,6 +89,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
       ],
     },
   },
+  enums: [],
 };
 
 beforeEach(() => {
@@ -333,6 +336,36 @@ describe("JSON Override Toggle", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     // Still in JSON mode
     expect(screen.getByTestId("codemirror-stub")).toBeInTheDocument();
+  });
+});
+
+describe("Clear button", () => {
+  test("Clear button renders with aria-label 'Clear form'", () => {
+    render(<FormPanel />);
+    expect(
+      screen.getByRole("button", { name: "Clear form" })
+    ).toBeInTheDocument();
+  });
+
+  test("Clear button tooltip shows platform shortcut symbol", () => {
+    render(<FormPanel />);
+    const btn = screen.getByRole("button", { name: "Clear form" });
+    expect(btn.getAttribute("title")).toMatch(/\+Shift\+R/);
+  });
+
+  test("clicking Clear button calls setPendingReplayValues with defaults", () => {
+    const spy = vi.spyOn(useProtoStore.getState(), "setPendingReplayValues");
+    render(<FormPanel />);
+    // Type something to dirty the form
+    act(() => {
+      fireEvent.change(screen.getByRole("textbox"), { target: { value: "dirty" } });
+    });
+    // Click Clear
+    act(() => {
+      fireEvent.click(screen.getByRole("button", { name: "Clear form" }));
+    });
+    // Should have been called with defaults (value: "")
+    expect(spy).toHaveBeenCalledWith(expect.objectContaining({ value: "" }));
   });
 });
 

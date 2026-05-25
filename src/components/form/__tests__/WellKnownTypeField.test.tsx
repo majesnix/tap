@@ -5,7 +5,7 @@ import { WellKnownTypeField } from "../fields/WellKnownTypeField";
 import type { FieldSchema } from "@/lib/types";
 
 function makeWktField(wkt: string): FieldSchema {
-  return { name: "ts", label: "ts", kind: { type: "well_known", wkt }, repeated: false };
+  return { name: "ts", label: "ts", field_number: 1, kind: { type: "well_known", wkt }, repeated: false };
 }
 
 function renderWkt(field: FieldSchema) {

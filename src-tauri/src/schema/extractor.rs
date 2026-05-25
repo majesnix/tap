@@ -1,7 +1,7 @@
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
 use std::collections::HashMap;
 
-use super::types::{EnumValue, FieldKind, FieldSchema, MessageSchema, ProtoSchema, ScalarKind};
+use super::types::{EnumSchema, EnumValue, FieldKind, FieldSchema, MessageSchema, ProtoSchema, ScalarKind};
 
 const WELL_KNOWN_TYPES: &[&str] = &[
     "google.protobuf.Timestamp",
@@ -37,9 +37,26 @@ pub fn extract_schema(pool: &DescriptorPool) -> ProtoSchema {
         .map(|m| (m.full_name.clone(), m.clone()))
         .collect();
 
+    let enums: Vec<EnumSchema> = pool
+        .all_enums()
+        .filter(|e| !e.full_name().starts_with("google.protobuf."))
+        .map(|e| EnumSchema {
+            name: e.name().to_string(),
+            full_name: e.full_name().to_string(),
+            values: e
+                .values()
+                .map(|v| EnumValue {
+                    name: v.name().to_string(),
+                    number: v.number(),
+                })
+                .collect(),
+        })
+        .collect();
+
     ProtoSchema {
         messages,
         message_map,
+        enums,
     }
 }
 

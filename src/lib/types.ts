@@ -46,9 +46,16 @@ export interface MessageSchema {
   fields: FieldSchema[];
 }
 
+export interface EnumSchema {
+  name: string;
+  full_name: string;
+  values: EnumValue[];
+}
+
 export interface ProtoSchema {
   messages: MessageSchema[];
   message_map: Record<string, MessageSchema>;
+  enums: EnumSchema[];
 }
 
 /**

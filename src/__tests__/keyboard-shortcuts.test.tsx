@@ -93,6 +93,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
         {
           name: "greeting",
           label: "greeting",
+          field_number: 1,
           kind: { type: "scalar", scalar: "string" },
           repeated: false,
           default_value: null,
@@ -108,6 +109,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
         {
           name: "greeting",
           label: "greeting",
+          field_number: 1,
           kind: { type: "scalar", scalar: "string" },
           repeated: false,
           default_value: null,
@@ -115,6 +117,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
       ],
     },
   },
+  enums: [],
 };
 
 const writeTextMock = vi.fn().mockResolvedValue(undefined);

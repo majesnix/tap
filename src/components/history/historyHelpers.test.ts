@@ -38,6 +38,7 @@ function makeOpenFile(
     schema: {
       messages,
       message_map: Object.fromEntries(messages.map((m) => [m.full_name, m])),
+      enums: [],
     },
   };
 }

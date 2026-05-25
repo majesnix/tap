@@ -4,7 +4,7 @@ import { IncludePathManager } from "@/components/sidebar/IncludePathManager";
 import { useProtoStore } from "@/stores/useProtoStore";
 import type { ProtoSchema } from "@/lib/types";
 
-const { mockLoad, mockInvoke, mockOpen, mockGet, mockSet, mockSave } = vi.hoisted(() => {
+const { mockLoad, mockInvoke, mockOpen, mockGet } = vi.hoisted(() => {
   const mockGet = vi.fn().mockResolvedValue(null);
   const mockSet = vi.fn().mockResolvedValue(undefined);
   const mockSave = vi.fn().mockResolvedValue(undefined);
@@ -15,7 +15,7 @@ const { mockLoad, mockInvoke, mockOpen, mockGet, mockSet, mockSave } = vi.hoiste
   });
   const mockInvoke = vi.fn();
   const mockOpen = vi.fn();
-  return { mockLoad, mockInvoke, mockOpen, mockGet, mockSet, mockSave };
+  return { mockLoad, mockInvoke, mockOpen, mockGet };
 });
 
 vi.mock("@tauri-apps/api/core", () => ({ invoke: mockInvoke }));
@@ -25,14 +25,18 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), success: vi.fn(), info: vi.fn() },
 }));
 
-const makeSchema = (messageNames: string[]): ProtoSchema => ({
-  messages: messageNames.map((name) => ({
-    full_name: name,
-    fields: [],
-  })),
-  enums: [],
-  file_name: "test.proto",
-});
+const makeSchema = (messageNames: string[]): ProtoSchema => {
+  const messages = messageNames.map((n) => ({
+    name: n.split(".").pop() ?? n,
+    full_name: n,
+    fields: [] as never[],
+  }));
+  return {
+    messages,
+    message_map: Object.fromEntries(messages.map((m) => [m.full_name, m])),
+    enums: [],
+  };
+};
 
 afterEach(async () => {
   await act(async () => {});

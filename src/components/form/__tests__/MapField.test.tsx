@@ -87,6 +87,7 @@ vi.mock("@/components/ui/select", () => ({
 const stringIntSchema: FieldSchema = {
   name: "labels",
   label: "Labels",
+  field_number: 1,
   kind: { type: "map", key_type: "string", value_kind: { type: "scalar", scalar: "int32" } },
   repeated: false,
 };
@@ -94,6 +95,7 @@ const stringIntSchema: FieldSchema = {
 const boolStringSchema: FieldSchema = {
   name: "flags",
   label: "Flags",
+  field_number: 2,
   kind: { type: "map", key_type: "bool", value_kind: { type: "scalar", scalar: "string" } },
   repeated: false,
 };

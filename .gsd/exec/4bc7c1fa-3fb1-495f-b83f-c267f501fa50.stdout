@@ -1,0 +1,59 @@
+=== FormPanel.tsx - reload or refresh patterns ===
+src/components/sidebar/Sidebar.tsx
+src/stores/useResponseStore.ts
+src/components/response/MessageFeedTab.tsx
+src/components/connection/ProfileManagementModal.tsx
+src/components/response/ResponseQueuePicker.tsx
+
+=== Existing test files ===
+src/__tests__
+src/__tests__/keyboard-shortcuts.test.tsx
+src/App.test.tsx
+src/components/blocks/BlockLibraryPanel.test.tsx
+src/components/connection/__tests__
+src/components/connection/__tests__/ConnectionSection.test.tsx
+src/components/connection/__tests__/ProfileManagementModal.test.tsx
+src/components/form/__tests__
+src/components/form/__tests__/BytesField.test.tsx
+src/components/form/__tests__/CopyButton.test.tsx
+src/components/form/__tests__/EnumField.test.tsx
+src/components/form/__tests__/FormPanel.test.tsx
+src/components/form/__tests__/JsonEditor.test.tsx
+src/components/form/__tests__/MapField.test.tsx
+src/components/form/__tests__/NestedMessageField.test.tsx
+src/components/form/__tests__/OneofField.test.tsx
+src/components/form/__tests__/ProtoFormRenderer.test.tsx
+src/components/form/__tests__/RepeatedField.test.tsx
+src/components/form/__tests__/ScalarField.test.tsx
+src/components/form/__tests__/WellKnownTypeField.test.tsx
+src/components/history/historyHelpers.test.ts
+src/components/layout/__tests__
+src/components/layout/__tests__/RightPanel.test.tsx
+src/components/layout/RightPanel.test.tsx
+src/components/plans/StepStatusBadge.test.tsx
+src/components/publish/__tests__
+src/components/publish/__tests__/PublishBar.test.tsx
+src/components/publish/__tests__/RoutingKeyCombobox.test.tsx
+src/components/response/MessageFeedTab.test.tsx
+src/components/response/ResponseDecodedView.test.tsx
+
+=== tauri-plugin-fs usage ===
+src/App.test.tsx
+src/lib/blockApply.ts
+src/components/response/MessageFeedTab.tsx
+src/components/form/FormPanel.tsx
+src/components/response/MessageFeedTab.test.tsx
+src/lib/blockApply.ts
+src/App.test.tsx
+src/components/response/MessageFeedTab.tsx
+src/components/response/MessageFeedTab.test.tsx
+src/components/form/FormPanel.tsx
+
+=== FormPanel header area ===
+10:import { Braces, Library, RotateCcw } from "lucide-react";
+147:  const handleClear = useCallback(() => {
+157:    handleClear();
+407:            aria-label="Clear form"
+408:            title={`Clear form (${modSymbol}+Shift+R)`}
+409:            onClick={handleClear}
+411:            <RotateCcw size={16} />

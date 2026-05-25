@@ -44,7 +44,7 @@ const MINIMAL_SCHEMA: ProtoSchema = {
       name: "Msg",
       full_name: "Msg",
       fields: [
-        { name: "value", label: "value", kind: { type: "scalar", scalar: "string" }, repeated: false, default_value: null },
+        { name: "value", label: "value", field_number: 1, kind: { type: "scalar", scalar: "string" }, repeated: false, default_value: null },
       ],
     },
   ],
@@ -53,10 +53,11 @@ const MINIMAL_SCHEMA: ProtoSchema = {
       name: "Msg",
       full_name: "Msg",
       fields: [
-        { name: "value", label: "value", kind: { type: "scalar", scalar: "string" }, repeated: false, default_value: null },
+        { name: "value", label: "value", field_number: 1, kind: { type: "scalar", scalar: "string" }, repeated: false, default_value: null },
       ],
     },
   },
+  enums: [],
 };
 
 beforeEach(() => {

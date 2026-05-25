@@ -26,6 +26,7 @@ function renderField(schema: FieldSchema) {
 const bytesSchema: FieldSchema = {
   name: "image_data",
   label: "image_data",
+  field_number: 1,
   kind: { type: "scalar", scalar: "bytes" },
   repeated: false,
   default_value: "",

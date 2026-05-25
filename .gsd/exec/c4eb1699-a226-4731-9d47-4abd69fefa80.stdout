@@ -1,0 +1,72 @@
+=== Tauri capabilities ===
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default capabilities for Tap",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "dialog:allow-save",
+    "fs:allow-write-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" }
+      ]
+    },
+    "store:default",
+    "store:allow-load",
+    "store:allow-set",
+    "store:allow-save",
+    "store:allow-get",
+    "updater:default",
+    "process:allow-restart"
+  ]
+}
+
+=== lib.rs invoke_handler ===
+        .invoke_handler(tauri::generate_handler![
+            commands::proto::parse_proto,
+            commands::encode::encode_message,
+            commands::connection::save_profile,
+            commands::connection::list_profiles,
+            commands::connection::delete_profile,
+            commands::connection::test_connection,
+            commands::connection::activate_profile,
+            commands::connection::fetch_queues,
+            commands::connection::fetch_queue_depth,
+            commands::connection::fetch_exchanges,
+            commands::connection::fetch_bindings,
+            commands::publish::publish_message,
+            commands::consume::consume_message,
+            commands::consume::drain_messages,
+            commands::subscribe::start_subscribe,
+            commands::subscribe::stop_subscribe,
+            commands::plan_runner::execute_step,
+            commands::plan_runner::cancel_plan_run,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+=== IncludePathDialog ===
+src/components/include-paths/IncludePathDialog.tsx
+
+=== tauri-plugin-store usage in frontend ===
+src/hooks/usePlanProtoAutoLoad.ts
+src/App.tsx
+src/components/include-paths/IncludePathDialog.tsx
+src/components/connection/__tests__/ProfileManagementModal.test.tsx
+src/stores/useBlockStore.test.ts
+src/components/connection/__tests__/ConnectionSection.test.tsx
+src/stores/useBlockStore.ts
+src/components/sidebar/FileSection.tsx
+src/stores/useHistoryStore.test.ts
+src/App.test.tsx
+src/stores/useHistoryStore.ts
+src/stores/usePlanStore.test.ts
+src/stores/usePlanStore.ts
