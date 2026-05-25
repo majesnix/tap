@@ -517,22 +517,25 @@ describe("buildApplyPlan", () => {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **OQ-1: Does `ApplyPlan` need a `skipped` field?**
+1. **OQ-1: Does `ApplyPlan` need a `skipped` field?** **[RESOLVED — option b]**
    - What we know: Current `FormPanel.onDragEnd` (lines 76-81) calls `applyBlockRef.current(blockValues)` and receives a `string[]` of skipped keys, then shows a toast. D-02 defines `ApplyPlan = { toApply, conflicts }` with no `skipped` field. The code example in Pattern 3 implements the locked D-02 shape (no `skipped`).
    - What's unclear: After the refactor, where does the skipped-keys list come from? Options: (a) add `skipped: string[]` to `ApplyPlan` (extends D-02 — needs user confirmation); (b) compute skipped in `FormPanel` as `Object.keys(blockValues).filter(k => !plan.toApply.some(i => i.fieldName === k) && !plan.conflicts.some(i => i.fieldName === k))`; (c) remove the toast entirely.
    - Recommendation: Option (a) — add `skipped: string[]` to `ApplyPlan` for clarity, but this requires amending D-02. The planner should surface this to the user before locking the type.
+   - **RESOLVED:** Plan 25-02 Task 3 uses option (b) — `FormPanel` derives the skipped list inline as `Object.keys(blockValues).filter(k => !plan.toApply.some(...) && !plan.conflicts.some(...))`. D-02 is unchanged; no `skipped` field is added to `ApplyPlan`.
 
-2. **OQ-2: Registry cleanup — null or no-op?**
+2. **OQ-2: Registry cleanup — null or no-op?** **[RESOLVED — null]**
    - What we know: D-05 says "passes a no-op to clear" OR "null". Both are mentioned.
    - What's unclear: Mixing both creates inconsistency. `commitApply` uses `?.()` optional call on the registry value — both `null` and a no-op will work.
    - Recommendation: Use `null`. The `?.()` pattern in `commitApply` is the correct guard. A no-op is unnecessary indirection.
+   - **RESOLVED:** D-05 locks `onRegisterReplace(path, null)` on unmount. Plans use `null` consistently; the `?.()` optional-call pattern in `commitApply` is the guard. No-op variant is not used.
 
-3. **OQ-3: `replace()` dirty state — explicit plan note needed?**
+3. **OQ-3: `replace()` dirty state — explicit plan note needed?** **[RESOLVED — accepted]**
    - What we know: After `commitApply` calls `replace()` for a map field, `dirtyFields[mapField]` becomes truthy. A second block drag will skip that field.
    - What's unclear: Is this acceptable per the product requirements, or does it need a note in the toast?
    - Recommendation: Accept for Phase 25 (per Pitfall 1 reasoning). The behavior is consistent with how RHF tracks user interaction — once filled, the map is "owned" by the user. Include a code comment in `commitApply` noting this.
+   - **RESOLVED:** Accepted as intended Phase 25 behavior. Pitfall 1 in this document documents it explicitly. Plan 25-01 Task 2 notes in the action text that `replace()` marks the field dirty and that a second drag will skip it — a code comment in `commitApply` is required per the plan.
 
 4. **OQ-4: Does dropping `'message'` from eligible kinds cause a regression?**
    - What we know: The existing `applyBlockRef` in `ProtoFormRenderer.tsx` lines 153-161 currently includes `'message'` in its eligible set:
@@ -547,6 +550,7 @@ describe("buildApplyPlan", () => {
    - What's unclear: Is this intentional? The deferred ideas in CONTEXT.md mention "recursive nested-message merge (BLK-EXT-FUTURE-02)" — which suggests the current shallow `setValue(messageField, object)` behavior is being intentionally retired rather than silently dropped. But the CONTEXT.md does not explicitly say "remove message support in Phase 25."
    - Risk: If the existing shallow message-apply behavior was relied on by users, Phase 25 silently removes it without replacement. Any proto block containing a message field will now have that field silently skipped.
    - Recommendation: **Planner must confirm with user** before the implementation tasks lock `ELIGIBLE_KINDS`. If intentional: add a note to the deprecation log and update D-02 to explicitly state "message kind removed". If unintentional: add `'message'` back to `ApplyItemKind` and `ELIGIBLE_KINDS` with a `setValue` path in `commitApply`.
+   - **RESOLVED — intentional regression, documented.** Dropping `'message'` from `ELIGIBLE_KINDS` is confirmed intentional: BLK-EXT-FUTURE-02 tracks proper nested-message merge; shallow `setValue(messageField, object)` behavior is deprecated in Phase 25. Message-kind block fields are silently skipped. Deprecation note added to CONTEXT.md Deferred Ideas.
 
 ---
 

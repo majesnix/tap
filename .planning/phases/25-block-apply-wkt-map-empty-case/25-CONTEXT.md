@@ -128,6 +128,7 @@ No specific references — standard approach confirmed via discussion.
 - Phase 26: conflict dialog for non-empty map fields (BLK-EXT-03), oneof branch handling (BLK-EXT-04/05), batched conflict dialog (BLK-EXT-06) — all scoped to Phase 26
 - Future: recursive nested-message merge from a block (BLK-EXT-FUTURE-02)
 - Future: block apply in JSON mode (BLK-EXT-FUTURE-01)
+- **Deprecated in Phase 25:** Shallow message-field apply (the pre-Phase-25 behavior where `applyBlockRef` accepted `'message'` kind fields and called `setValue(field, object)` shallowly) is removed in Phase 25 — message-kind keys in a block are silently skipped by `buildApplyPlan`; BLK-EXT-FUTURE-02 tracks the proper nested-message merge implementation.
 
 </deferred>
 
