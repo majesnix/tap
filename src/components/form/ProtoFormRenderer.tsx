@@ -27,16 +27,9 @@ interface ProtoFormRendererProps {
   resetRef?: React.MutableRefObject<
     ((values: Record<string, unknown>) => void) | null
   >;
-  /**
-   * Optional ref populated with a two-phase { buildPlan, commitApply } object (D-01).
-   * FormPanel calls `buildPlan(blockValues)` to get an ApplyPlan, then
-   * `commitApply(plan)` to write eligible field values to the form.
-   *
-   * Eligibility: top-level scalar, enum, well_known, and map fields (BLK-EXT-01/02).
-   * Protection: fields where formState.dirtyFields[key] is truthy are not overwritten (BLK-07).
-   * Map fields: applied only when the current form value is empty ([] or null); non-empty
-   * maps are silently skipped in Phase 25 — Phase 26 adds conflict resolution.
-   */
+  getDirtyFieldsRef?: React.MutableRefObject<
+    (() => Record<string, boolean>) | null
+  >;
   applyBlockRef?: React.MutableRefObject<ApplyBlockRef | null>;
 }
 
@@ -109,6 +102,7 @@ export function ProtoFormRenderer({
   message,
   onValuesChange,
   resetRef,
+  getDirtyFieldsRef,
   applyBlockRef,
 }: ProtoFormRendererProps) {
   const messageMap = useProtoStore((s) => s.schema?.message_map ?? null);
@@ -156,6 +150,16 @@ export function ProtoFormRenderer({
       }
     };
   }, [resetRef, methods]);
+
+  useEffect(() => {
+    if (getDirtyFieldsRef) {
+      getDirtyFieldsRef.current = () =>
+        methods.formState.dirtyFields as Record<string, boolean>;
+    }
+    return () => {
+      if (getDirtyFieldsRef) getDirtyFieldsRef.current = null;
+    };
+  }, [getDirtyFieldsRef, methods]);
 
   // Wire up applyBlockRef with the two-phase { buildPlan, commitApply } object (D-01, BLK-EXT-07).
   // Dependency array [applyBlockRef, methods, message] — message.fields drives the eligible set.

@@ -3,12 +3,13 @@ import { useDroppable, useDndMonitor } from "@dnd-kit/core";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useDraftStore } from "@/stores/useDraftStore";
 import { encodeMessage } from "@/lib/ipc";
+import { generateRandomValues } from "@/lib/randomizer";
 import { useDebounce } from "@/hooks/useDebounce";
 import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
 import { JsonEditor } from "./JsonEditor";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Braces, Library, RotateCcw } from "lucide-react";
+import { Braces, Dices, Library, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useBlockStore } from "@/stores/useBlockStore";
@@ -69,6 +70,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   );
 
   const applyBlockRef = useRef<ApplyBlockRef | null>(null);
+  const getDirtyFieldsRef = useRef<(() => Record<string, boolean>) | null>(null);
 
   // Conflict dialog state (Phase 26 — BLK-EXT-06)
   const [conflictPlan, setConflictPlan] = useState<ApplyPlan | null>(null);
@@ -171,6 +173,16 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
       void clearDraft(activeFilePath, selectedMessageType);
     }
   }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues, activeFilePath, clearDraft]);
+
+  const handleRandomize = useCallback(() => {
+    if (!schema || !selectedMessageType) return;
+    const msg = schema.message_map[selectedMessageType];
+    if (!msg) return;
+    if (isJsonMode) setIsJsonMode(false);
+    const dirtyFields = getDirtyFieldsRef.current?.() ?? {};
+    const randomValues = generateRandomValues(msg, schema.message_map, dirtyFields);
+    setPendingReplayValues(randomValues);
+  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues]);
 
   useHotkeys("mod+shift+r", (e) => {
     e.preventDefault();
@@ -441,6 +453,15 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Randomize"
+            title="Fill empty fields with random values"
+            onClick={handleRandomize}
+          >
+            <Dices size={16} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             aria-label={isJsonMode ? "Return to form" : "Edit as JSON"}
             aria-pressed={isJsonMode}
             title={isJsonMode ? "Return to form" : "Edit as JSON"}
@@ -475,6 +496,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
               message={message}
               onValuesChange={handleValuesChange}
               resetRef={resetRef}
+              getDirtyFieldsRef={getDirtyFieldsRef}
               applyBlockRef={applyBlockRef}
             />
           </ScrollArea>

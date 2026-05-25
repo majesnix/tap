@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { FieldSchema } from "@/lib/types";
 import { CopyButton } from "./CopyButton";
+import { FieldTooltip } from "./FieldTooltip";
 
 export interface EnumFieldProps {
   field: FieldSchema;
@@ -34,9 +35,11 @@ export function EnumField({ field, path }: EnumFieldProps) {
   return (
     <div className="flex flex-col gap-1 mb-3 group">
       <div className="flex items-center gap-2">
-        <Label className="text-xs font-semibold" htmlFor={path}>
-          {field.label}
-        </Label>
+        <FieldTooltip field={field}>
+          <Label className="text-xs font-semibold" htmlFor={path}>
+            {field.label}
+          </Label>
+        </FieldTooltip>
         <Badge variant="outline" className="text-xs px-1.5 py-0">
           enum
         </Badge>

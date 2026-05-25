@@ -3,6 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { FieldSchema, RenderFieldFn } from "@/lib/types";
+import { FieldTooltip } from "./FieldTooltip";
 
 interface RepeatedFieldProps {
   field: FieldSchema;
@@ -26,7 +27,9 @@ export function RepeatedField({ field, path, depth, renderItem }: RepeatedFieldP
     <div className="flex flex-col gap-2 mb-3">
       <div className="flex items-center gap-2">
         <Badge variant="secondary" className="text-xs">repeated</Badge>
-        <span className="text-sm font-semibold">{field.label}</span>
+        <FieldTooltip field={field}>
+          <span className="text-sm font-semibold">{field.label}</span>
+        </FieldTooltip>
       </div>
 
       {fields.map((rhfField, index) => (

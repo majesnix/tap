@@ -4,6 +4,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { FieldSchema, RenderFieldFn } from "@/lib/types";
+import { FieldTooltip } from "./FieldTooltip";
 
 export interface OneofFieldProps {
   field: FieldSchema;
@@ -58,7 +59,9 @@ export function OneofField({ field, path, depth, renderBranchField }: OneofField
   return (
     <div className="flex flex-col gap-2 mb-3">
       <div className="flex items-center gap-2">
-        <Label className="text-xs font-semibold">{field.label}</Label>
+        <FieldTooltip field={field}>
+          <Label className="text-xs font-semibold">{field.label}</Label>
+        </FieldTooltip>
         <Badge variant="outline" className="text-xs px-1.5 py-0">
           oneof
         </Badge>

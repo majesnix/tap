@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/popover";
 import type { FieldSchema } from "@/lib/types";
 import { CopyButton } from "./CopyButton";
+import { FieldTooltip } from "./FieldTooltip";
 
 interface BytesFieldProps {
   field: FieldSchema;
@@ -92,9 +93,11 @@ export function BytesField({ field, path }: BytesFieldProps) {
     <div className="flex flex-col gap-1 mb-3 group">
       {/* Label row */}
       <div className="flex items-center gap-2">
-        <Label className="text-xs font-semibold text-foreground" htmlFor={path}>
-          {field.label}
-        </Label>
+        <FieldTooltip field={field}>
+          <Label className="text-xs font-semibold text-foreground" htmlFor={path}>
+            {field.label}
+          </Label>
+        </FieldTooltip>
         <Badge variant="outline" className="text-xs px-1.5 py-0 w-fit">
           bytes
         </Badge>

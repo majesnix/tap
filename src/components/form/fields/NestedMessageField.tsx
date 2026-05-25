@@ -4,6 +4,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DepthCapPlaceholder } from "./DepthCapPlaceholder";
 import { useMessageMap } from "@/components/form/ProtoSchemaContext";
 import type { FieldSchema, RenderFieldFn } from "@/lib/types";
+import { FieldTooltip } from "./FieldTooltip";
 
 interface NestedMessageFieldProps {
   field: FieldSchema;
@@ -50,7 +51,9 @@ export function NestedMessageField({
         ) : (
           <ChevronRight className="w-4 h-4" />
         )}
-        {field.label}
+        <FieldTooltip field={field}>
+          <span>{field.label}</span>
+        </FieldTooltip>
       </CollapsibleTrigger>
       <CollapsibleContent>
         {/* Render child fields via renderChildField prop — never import ProtoFormRenderer here */}
