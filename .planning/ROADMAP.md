@@ -1,7 +1,7 @@
 # Roadmap: Tap
 
-**Last Milestone:** v1.5 Distribution — SHIPPED 2026-05-23
-**Current:** v1.6 Plan Runner — Roadmap created 2026-05-23
+**Last Milestone:** v1.6 Plan Runner — SHIPPED 2026-05-24
+**Current:** v1.7 Block Apply Completeness + History Search — Roadmap created 2026-05-25
 
 ---
 
@@ -14,6 +14,7 @@
 - ✅ **v1.4 Response Stream** — Phases 13–15 (shipped 2026-05-21)
 - ✅ **v1.5 Distribution** — Phases 16–18 (shipped 2026-05-23)
 - ✅ **v1.6 Plan Runner** — Phases 19–23 (shipped 2026-05-24)
+- 🚧 **v1.7 Block Apply Completeness + History Search** — Phases 24–26 (in progress)
 
 ---
 
@@ -97,6 +98,12 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase details, decisions, and retrospective.
 
 </details>
+
+### v1.7 Block Apply Completeness + History Search (Phases 24–26) — IN PROGRESS
+
+- [ ] **Phase 24: History Full-Text Search** - Search bar across type name, target, and field names; AND logic with existing filters
+- [ ] **Phase 25: Block Apply — WKT + Map Empty Case** - Two-phase applyBlockRef architecture; WKT fill and empty-map replace
+- [ ] **Phase 26: Block Apply — Conflict Prompt + Oneof** - Batched conflict dialog; map collision; oneof branch-switch
 
 ---
 
@@ -252,7 +259,8 @@ Plans:
   5. User can stop a running plan at any time; the run halts cleanly and the backend plan-run session is torn down
   6. A run summary is shown on completion: how many steps succeeded and how many failed; per-plan stop-on-error vs continue-on-error setting is respected
 
-**Plans**: 4 plansPlans:
+**Plans**: 4 plans
+Plans:
 **Wave 1**
 
 - [x] 22-01-PLAN.md — TypeScript foundation: Plan type + IPC wrappers + updatePlan store action
@@ -296,6 +304,51 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 24: History Full-Text Search
+
+**Goal**: Users can search across history entries by typing a query that matches message type name, queue/exchange target, or field names — in addition to the existing type and target filter controls
+**Depends on**: Nothing (independent of block apply phases; first phase of v1.7 milestone)
+**Requirements**: HIST-FT-01, HIST-FT-02, HIST-FT-03, HIST-FT-04, HIST-FT-05, HIST-FT-06, HIST-FT-07
+**Success Criteria** (what must be TRUE):
+
+  1. A search input appears in the history panel alongside the existing message type and target filter controls — typing in it immediately narrows the visible entry list
+  2. Typing a query matches history entries whose message type name contains the query (case-insensitive substring)
+  3. Typing a query matches history entries whose queue/exchange target contains the query (case-insensitive substring)
+  4. Typing a query matches history entries whose field names (keys in `fieldValues`) contain the query; `_selected` discriminator keys and RHF internal fields are excluded from matching
+  5. The search filter works together with the existing type and target filters using AND logic — narrowing all three simultaneously further reduces results
+  6. An empty search query returns the full unfiltered list; the "X of Y messages" count label updates to reflect the current combined filter result
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 25: Block Apply — WKT + Map Empty Case
+
+**Goal**: Users can apply a block to WellKnownType fields and to empty map fields — the two-phase plan/commit architecture is in place and the dirty-field guard works correctly for these field types
+**Depends on**: Phase 24 (independent, but Phase 24 ships first per milestone ordering)
+**Requirements**: BLK-EXT-01, BLK-EXT-02, BLK-EXT-07
+**Success Criteria** (what must be TRUE):
+
+  1. Dragging a block onto the form fills WellKnownType fields (Timestamp, Duration) that were empty; fields that already have user-entered values are left unchanged
+  2. Dragging a block onto the form replaces an entirely empty map field with the block's map rows; the replacement is visible immediately as rendered key-value rows
+  3. A second block drag after form values exist does not silently overwrite already-filled WKT or scalar fields — the dirty-field guard still applies for any subsequent drops
+  4. The block apply logic is separated into a pure plan step (returns what would change and what conflicts exist) and a commit step (writes to form) — enabling the conflict dialog in Phase 26 without duplicating logic
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 26: Block Apply — Conflict Prompt + Oneof
+
+**Goal**: Users see a single batched dialog listing all conflicts when a block targets fields that already have values or requires a oneof branch switch; they can choose to overwrite or skip each conflict before values are applied
+**Depends on**: Phase 25
+**Requirements**: BLK-EXT-03, BLK-EXT-04, BLK-EXT-05, BLK-EXT-06
+**Success Criteria** (what must be TRUE):
+
+  1. When a block targets a map field that already has rows, user sees a single dialog listing each key collision with an overwrite / skip choice per row before any values are written
+  2. When a block targets the same oneof branch that is currently active, non-dirty branch sub-fields are filled and dirty sub-fields are listed as conflicts in the batched dialog
+  3. When a block targets a different oneof branch than the active one, user sees a confirmation prompt; confirming switches the branch and applies block values after the new branch mounts
+  4. All conflicts from a single block drag — regardless of field type — appear in one dialog, not a chain of per-field modals; the dialog has Apply and Cancel actions
+  5. Conflict rows default to skip (not overwrite), preventing accidental data loss if the user clicks Apply without reviewing each row
+**Plans**: TBD
+**UI hint**: yes
+
 ---
 
 ## Progress Table
@@ -325,6 +378,9 @@ Plans:
 | 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete | 2026-05-23 |
 | 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete | 2026-05-24 |
 | 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete | 2026-05-24 |
+| 24. History Full-Text Search | v1.7 | 0/TBD | Not started | - |
+| 25. Block Apply — WKT + Map Empty Case | v1.7 | 0/TBD | Not started | - |
+| 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 0/TBD | Not started | - |
 
 ---
 
@@ -439,3 +495,26 @@ See [milestones/v1.6-REQUIREMENTS.md](milestones/v1.6-REQUIREMENTS.md) for full 
 - Total v1.6: 23
 - Mapped: 23/23 ✓
 - Delivered: 23/23 ✓
+
+**v1.7 Block Apply Completeness + History Search — 0/14 requirements delivered**
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| HIST-FT-01 | Phase 24 | Pending |
+| HIST-FT-02 | Phase 24 | Pending |
+| HIST-FT-03 | Phase 24 | Pending |
+| HIST-FT-04 | Phase 24 | Pending |
+| HIST-FT-05 | Phase 24 | Pending |
+| HIST-FT-06 | Phase 24 | Pending |
+| HIST-FT-07 | Phase 24 | Pending |
+| BLK-EXT-01 | Phase 25 | Pending |
+| BLK-EXT-02 | Phase 25 | Pending |
+| BLK-EXT-07 | Phase 25 | Pending |
+| BLK-EXT-03 | Phase 26 | Pending |
+| BLK-EXT-04 | Phase 26 | Pending |
+| BLK-EXT-05 | Phase 26 | Pending |
+| BLK-EXT-06 | Phase 26 | Pending |
+
+- Total v1.7: 14
+- Mapped: 14/14 ✓
+- Delivered: 0/14

@@ -56,17 +56,17 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BLK-EXT-01 | — | Pending |
-| BLK-EXT-02 | — | Pending |
-| BLK-EXT-03 | — | Pending |
-| BLK-EXT-04 | — | Pending |
-| BLK-EXT-05 | — | Pending |
-| BLK-EXT-06 | — | Pending |
-| BLK-EXT-07 | — | Pending |
-| HIST-FT-01 | — | Pending |
-| HIST-FT-02 | — | Pending |
-| HIST-FT-03 | — | Pending |
-| HIST-FT-04 | — | Pending |
-| HIST-FT-05 | — | Pending |
-| HIST-FT-06 | — | Pending |
-| HIST-FT-07 | — | Pending |
+| BLK-EXT-01 | Phase 25 | Pending |
+| BLK-EXT-02 | Phase 25 | Pending |
+| BLK-EXT-03 | Phase 26 | Pending |
+| BLK-EXT-04 | Phase 26 | Pending |
+| BLK-EXT-05 | Phase 26 | Pending |
+| BLK-EXT-06 | Phase 26 | Pending |
+| BLK-EXT-07 | Phase 25 | Pending |
+| HIST-FT-01 | Phase 24 | Pending |
+| HIST-FT-02 | Phase 24 | Pending |
+| HIST-FT-03 | Phase 24 | Pending |
+| HIST-FT-04 | Phase 24 | Pending |
+| HIST-FT-05 | Phase 24 | Pending |
+| HIST-FT-06 | Phase 24 | Pending |
+| HIST-FT-07 | Phase 24 | Pending |
