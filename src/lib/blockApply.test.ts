@@ -1,15 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { buildApplyPlan } from "@/lib/blockApply";
-import type { FieldSchema } from "@/lib/types";
+import type { FieldSchema, ScalarKind } from "@/lib/types";
 
 // ── Test helpers ─────────────────────────────────────────────────────────────
 
-function makeScalarField(
-  name: string,
-  scalar: FieldSchema["kind"] extends { type: "scalar"; scalar: infer S }
-    ? S
-    : never = "string"
-): FieldSchema {
+function makeScalarField(name: string, scalar: ScalarKind = "string"): FieldSchema {
   return {
     name,
     label: name,
