@@ -69,6 +69,16 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
 
   const { isOver, setNodeRef: setDropZoneRef } = useDroppable({ id: 'form-drop-zone' });
 
+  // JSON Override Toggle state (D-01: local useState, not Zustand)
+  // IMPORTANT: these must be declared BEFORE useDndMonitor — the onDragEnd closure
+  // captures isJsonMode by reference. Declaring it below the hook call is a
+  // code-order violation that breaks if useDndMonitor is ever extracted to a
+  // custom hook or if a lint rule enforces hook call order (WR-02).
+  const [isJsonMode, setIsJsonMode] = useState(false);
+  const [entrySnapshot, setEntrySnapshot] = useState<Record<string, unknown> | null>(null);
+  const [jsonDraft, setJsonDraft] = useState<string>("");
+  const [parseError, setParseError] = useState<string | null>(null);
+
   useDndMonitor({
     onDragEnd(event) {
       if (event.over?.id !== 'form-drop-zone' || isJsonMode) return;
@@ -104,12 +114,6 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
       }
     },
   });
-
-  // JSON Override Toggle state (D-01: local useState, not Zustand)
-  const [isJsonMode, setIsJsonMode] = useState(false);
-  const [entrySnapshot, setEntrySnapshot] = useState<Record<string, unknown> | null>(null);
-  const [jsonDraft, setJsonDraft] = useState<string>("");
-  const [parseError, setParseError] = useState<string | null>(null);
 
   // Mirror current form values into store for PublishBar / other consumers (D-07)
   const handleValuesChange = useCallback((values: unknown) => {
