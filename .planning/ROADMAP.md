@@ -322,7 +322,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 24-01-PLAN.md — collectFieldNames helper + filterHistoryEntries searchQuery extension (TDD)
+- [x] 24-01-PLAN.md — collectFieldNames helper + filterHistoryEntries searchQuery extension (TDD)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -388,7 +388,7 @@ Plans:
 | 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete | 2026-05-23 |
 | 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete | 2026-05-24 |
 | 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete | 2026-05-24 |
-| 24. History Full-Text Search | v1.7 | 0/TBD | Not started | - |
+| 24. History Full-Text Search | v1.7 | 1/2 | In Progress|  |
 | 25. Block Apply — WKT + Map Empty Case | v1.7 | 0/TBD | Not started | - |
 | 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 0/TBD | Not started | - |
 
