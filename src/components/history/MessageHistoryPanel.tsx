@@ -15,6 +15,7 @@ export function MessageHistoryPanel() {
   const { entries, historyLoaded, loadHistory, clearHistory } = useHistoryStore();
   const [typeFilter, setTypeFilter] = useState("");
   const [targetFilter, setTargetFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!historyLoaded) {
@@ -23,8 +24,8 @@ export function MessageHistoryPanel() {
   }, [historyLoaded, loadHistory]);
 
   const filteredEntries = useMemo(
-    () => filterHistoryEntries(entries, typeFilter, targetFilter),
-    [entries, typeFilter, targetFilter]
+    () => filterHistoryEntries(entries, typeFilter, targetFilter, searchQuery),
+    [entries, typeFilter, targetFilter, searchQuery]
   );
 
   const handleReplay = (entry: HistoryEntry) => {
@@ -100,11 +101,15 @@ export function MessageHistoryPanel() {
     }
   };
 
+  const isFiltered = !!(typeFilter || targetFilter || searchQuery);
+
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 py-2 border-b border-border flex items-center justify-between">
         <span className="text-xs font-semibold text-muted-foreground">
-          {entries.length} / 100
+          {isFiltered
+            ? `${filteredEntries.length} of ${entries.length} / 100`
+            : `${entries.length} / 100`}
         </span>
         <Button
           variant="ghost"
@@ -118,13 +123,15 @@ export function MessageHistoryPanel() {
       <HistoryFilterBar
         typeFilter={typeFilter}
         targetFilter={targetFilter}
+        searchQuery={searchQuery}
         onTypeChange={setTypeFilter}
         onTargetChange={setTargetFilter}
+        onSearchChange={setSearchQuery}
       />
       <ScrollArea className="flex-1">
         <HistoryTable
           entries={filteredEntries}
-          isFiltered={!!(typeFilter || targetFilter)}
+          isFiltered={isFiltered}
           onReplay={handleReplay}
           onResend={(e) => void handleResend(e)}
         />
