@@ -16,6 +16,7 @@ export function MessageHistoryPanel() {
   const [typeFilter, setTypeFilter] = useState("");
   const [targetFilter, setTargetFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
     if (!historyLoaded) {
@@ -23,9 +24,14 @@ export function MessageHistoryPanel() {
     }
   }, [historyLoaded, loadHistory]);
 
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedSearch(searchQuery), 200);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
+
   const filteredEntries = useMemo(
-    () => filterHistoryEntries(entries, typeFilter, targetFilter, searchQuery),
-    [entries, typeFilter, targetFilter, searchQuery]
+    () => filterHistoryEntries(entries, typeFilter, targetFilter, debouncedSearch),
+    [entries, typeFilter, targetFilter, debouncedSearch]
   );
 
   const handleReplay = (entry: HistoryEntry) => {
@@ -102,7 +108,7 @@ export function MessageHistoryPanel() {
     }
   };
 
-  const isFiltered = !!(typeFilter || targetFilter || searchQuery);
+  const isFiltered = !!(typeFilter || targetFilter || debouncedSearch);
 
   return (
     <div className="flex flex-col h-full">
