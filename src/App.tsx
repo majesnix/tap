@@ -3,6 +3,7 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { load } from "@tauri-apps/plugin-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { usePlanStore } from "@/stores/usePlanStore";
+import { useDraftStore } from "@/stores/useDraftStore";
 import { PlanView } from "@/components/plans/PlanView";
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateChecker } from "./UpdateChecker";
@@ -59,6 +60,7 @@ export default function App() {
   // on first navigation to the plan view. Pattern mirrors existing store loads.
   useEffect(() => {
     void usePlanStore.getState().loadPlans();
+    void useDraftStore.getState().loadDrafts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
