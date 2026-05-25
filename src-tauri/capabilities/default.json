@@ -9,7 +9,14 @@
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-write-text-file",
-    { "identifier": "fs:scope", "allow": [{ "path": "$HOME/**" }] },
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$DOWNLOAD/**" },
+        { "path": "$DESKTOP/**" },
+        { "path": "$DOCUMENT/**" }
+      ]
+    },
     "store:default",
     "store:allow-load",
     "store:allow-set",

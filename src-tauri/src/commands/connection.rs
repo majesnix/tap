@@ -173,23 +173,41 @@ pub async fn test_connection(app: AppHandle, profile_name: String) -> Result<(),
     // Load password from OS keychain (NOT from store JSON)
     let password = get_password(&profile_name)?;
 
-    // Build AMQP URI — use immediately, drop after connection attempt
-    let uri = build_amqp_uri(&profile.host, profile.port, &profile.vhost, &profile.username, &password);
-
-    // Connect with 10s timeout to prevent indefinite hang
-    // SECURITY: uri contains cleartext password — never log it
-    let conn = tokio::time::timeout(
-        Duration::from_secs(10),
-        Connection::connect(&uri, ConnectionProperties::default()),
-    )
-    .await
-    .map_err(|_| AppError::AmqpError("Connection timed out (10s)".to_string()))?
-    .map_err(|e| AppError::AmqpError(e.to_string()))?;
+    // Build URI in a tight scope and sanitize connect errors.
+    // SECURITY: URI contains cleartext password; do not propagate raw connect errors.
+    let conn = {
+        let uri = build_amqp_uri(
+            &profile.host,
+            profile.port,
+            &profile.vhost,
+            &profile.username,
+            &password,
+        );
+        // password is no longer needed; drop before connect attempt
+        drop(password);
+        let result = tokio::time::timeout(
+            Duration::from_secs(10),
+            Connection::connect(&uri, ConnectionProperties::default()),
+        )
+        .await;
+        result
+            .map_err(|_| AppError::AmqpError("Connection timed out (10s)".to_string()))?
+            .map_err(|_| {
+                AppError::AmqpError(
+                    "AMQP connection failed — check host, port, vhost, and credentials"
+                        .to_string(),
+                )
+            })?
+    };
 
     // Open a channel to verify credentials and vhost access
     conn.create_channel()
         .await
-        .map_err(|e| AppError::AmqpError(e.to_string()))?;
+        .map_err(|_| {
+            AppError::AmqpError(
+                "Failed to open AMQP channel — check broker permissions".to_string(),
+            )
+        })?;
 
     // Close the connection — ephemeral pattern, no persistent state
     let _ = conn.close(0, "".into()).await;
