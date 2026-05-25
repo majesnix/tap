@@ -1,35 +1,37 @@
 ---
 phase: 21-step-editor-authoring
 verified: 2026-05-24T00:30:00Z
-status: human_needed
+human_verified: 2026-05-25
+status: complete
 score: 5/5
 overrides_applied: 0
 human_verification:
   - test: "Drag-and-drop step reorder"
-    expected: "Dragging a step row by its GripVertical handle reorders the step in the list and the store (reorderSteps fires); row not draggable by clicking elsewhere on it"
-    why_human: "Real-time pointer event behavior; cannot be verified by grep or static analysis"
+    result: pass
+    notes: "GripVertical handle reorders steps; clicking elsewhere on row does not initiate drag."
   - test: "Auto-save debounce timing"
-    expected: "Editing a field value in StepFieldEditor fires updateStep after 300ms idle; no save fires if step is switched before 300ms elapses"
-    why_human: "Timer-dependent behavior and stale-step guard require live browser interaction to confirm"
+    result: pass
+    notes: "updateStep fires after 300ms idle; stale-step guard prevents write when step switched before 300ms."
   - test: "From history import — proto resolution and pre-fill"
-    expected: "Opening history picker, selecting an entry, and confirming creates a new step pre-filled with field values, target, and resolved proto_path; toast.error shown when proto file is not open"
-    why_human: "Sheet interaction + toast visibility require manual UI exercise"
+    result: pass
+    notes: "Step created with pre-filled field values, target, proto_path; toast.error shown when proto not open."
   - test: "From block library import — blank proto after import"
-    expected: "Opening block picker, selecting a block, creates a new step with field_values from block.content but proto_path and message_type left blank"
-    why_human: "Sheet interaction requires manual UI exercise to confirm correct pre-fill behavior"
+    result: pass
+    notes: "Step created with block.content as field_values; proto_path and message_type are blank."
   - test: "Inline rename commit and cancel"
-    expected: "Pressing Enter commits rename; pressing Escape cancels and restores original name; empty string on blur cancels rather than saving"
-    why_human: "Keyboard event flows and focus behavior require live interaction"
+    result: pass
+    notes: "Enter commits; Escape restores original name; empty string on blur cancels."
   - test: "Delete step AlertDialog placement"
-    expected: "Clicking Delete on a step row opens AlertDialog; dialog renders correctly outside ScrollArea (no Radix Portal nesting issues visible)"
-    why_human: "Visual/DOM positioning of AlertDialog cannot be verified by static code inspection alone"
+    result: pass
+    notes: "AlertDialog renders outside ScrollArea without z-index or portal nesting issues."
 ---
 
 # Phase 21: Step Editor (Authoring) — Verification Report
 
 **Phase Goal:** Users can fully author plan steps — composing field values, picking targets, configuring response modes, reordering, and importing from history or blocks
 **Verified:** 2026-05-24T00:30:00Z
-**Status:** human_needed
+**Status:** complete
+**Human verified:** 2026-05-25 — all 6 interactive tests passed
 **Re-verification:** No — initial verification
 
 ## Goal Achievement

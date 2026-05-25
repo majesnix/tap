@@ -1,41 +1,43 @@
 ---
 phase: 20-plan-view-shell-and-navigation
 verified: 2026-05-23T21:30:00Z
-status: human_needed
+human_verified: 2026-05-25
+status: complete
 score: 14/14 must-haves verified
 overrides_applied: 0
 human_verification:
   - test: "Full interactive flow: Plans nav button switches the app to the plan library view"
-    expected: "Clicking 'Plans' in the sidebar replaces the main form with the full-screen two-pane layout (PlanListPanel + PlanDetailPanel). The Plans button shows bg-accent active state."
-    why_human: "Visual rendering and navigation state cannot be verified by grep or build output alone."
+    result: pass
+    notes: "Two-pane plan view appears on click; Plans button shows bg-accent highlight; main form replaced."
   - test: "Plan CRUD: create via inline row"
-    expected: "Clicking '+ New Plan' appends an InlineEditRow at list bottom with 'Untitled Plan' pre-filled and all text selected. Enter creates the plan; Escape discards without persisting."
-    why_human: "inputRef.current?.select() and autoFocus DOM behavior must be validated in a running browser."
+    result: pass
+    notes: "InlineEditRow appears with 'Untitled Plan' pre-filled and selected; Enter creates; Escape discards."
   - test: "Plan CRUD: rename via kebab menu"
-    expected: "Clicking Rename from the kebab replaces the name span with an inline input pre-filled with the current name, all text selected. Enter commits; Escape discards."
-    why_human: "In-row DOM replacement and text selection behavior require live interaction testing."
+    result: pass
+    notes: "Inline input with current name pre-filled and selected; Enter commits; Escape discards."
   - test: "Plan CRUD: delete with AlertDialog confirmation"
-    expected: "Clicking Delete in the kebab opens an AlertDialog with title 'Delete \"[name]\"?', description 'This action cannot be undone.', buttons 'Keep plan' / 'Delete plan' (destructive). Confirming removes the plan; if deleted plan was selected, right pane returns to 'Select a plan to get started'."
-    why_human: "AlertDialog focus trap, Radix overlay, and D-13 selection reset must be verified visually."
+    result: pass
+    notes: "AlertDialog renders correctly with correct copy; confirming removes plan; right pane resets."
   - test: "Escape→blur double-commit guard (cancellingRef)"
-    expected: "Pressing Escape during inline edit cancels without firing a second commit via the onBlur handler."
-    why_human: "cancellingRef guard fires at the DOM event level; only testable by actually pressing Escape in the running app."
+    result: pass
+    notes: "Escape cancels without firing a second commit via onBlur."
   - test: "Kebab button stopPropagation — does not change selection"
-    expected: "Clicking the ⋮ button on an unselected plan row opens the dropdown without selecting that plan row."
-    why_human: "Pointer event propagation isolation requires live interaction verification."
+    result: pass
+    notes: "Opening ⋮ on unselected row does not change selection."
   - test: "Toggle navigation: Plans button as back mechanism"
-    expected: "Clicking 'Plans' while already in the plan view returns to the main form. Returning to the plan view after visiting main form preserves the plan list (Zustand singleton) while selectedPlanId is reset (PlanView unmounts)."
-    why_human: "Round-trip navigation state preservation (ROADMAP SC #3) requires running the app."
+    result: pass
+    notes: "Plans button toggles back to main form; plan list preserved on return via Zustand singleton."
   - test: "PlanDetailPanel right pane switches state on selection"
-    expected: "Before selecting a plan: ClipboardList icon + 'Select a plan to get started'. After clicking a plan row: ListChecks icon + 'No steps yet'."
-    why_human: "Visual rendering of the two empty states requires live browser verification."
+    result: pass
+    notes: "ClipboardList empty state before selection; ListChecks + 'No steps yet' after selection."
 ---
 
 # Phase 20: Plan View Shell and Navigation — Verification Report
 
 **Phase Goal:** Users can access a dedicated full-screen plan library view, see their plans listed, and perform all plan CRUD actions from the UI
 **Verified:** 2026-05-23T21:30:00Z
-**Status:** human_needed
+**Status:** complete
+**Human verified:** 2026-05-25 — all 8 interactive tests passed
 **Re-verification:** No — initial verification
 
 ---
