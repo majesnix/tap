@@ -79,11 +79,29 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| KB-01 through KB-05 | Phase 27 | — |
-| FRM-01, FRM-02 | Phase 27 | — |
-| FRM-03, FRM-04 | Phase 30 | — |
-| REL-01, RFC-01 through RFC-03, IMP-01 through IMP-03 | Phase 28 | — |
-| CQS-01, CQS-02, DFT-01 through DFT-05 | Phase 29 | — |
-| SCH-01, SCH-02, SCH-03 | Phase 31 | — |
-
-*Traceability filled after roadmap creation.*
+| KB-01 | Phase 27 | Pending |
+| KB-02 | Phase 27 | Pending |
+| KB-03 | Phase 27 | Pending |
+| KB-04 | Phase 27 | Pending |
+| KB-05 | Phase 27 | Pending |
+| FRM-01 | Phase 27 | Pending |
+| FRM-02 | Phase 27 | Pending |
+| REL-01 | Phase 28 | Pending |
+| RFC-01 | Phase 28 | Pending |
+| RFC-02 | Phase 28 | Pending |
+| RFC-03 | Phase 28 | Pending |
+| IMP-01 | Phase 28 | Pending |
+| IMP-02 | Phase 28 | Pending |
+| IMP-03 | Phase 28 | Pending |
+| CQS-01 | Phase 29 | Pending |
+| CQS-02 | Phase 29 | Pending |
+| DFT-01 | Phase 29 | Pending |
+| DFT-02 | Phase 29 | Pending |
+| DFT-03 | Phase 29 | Pending |
+| DFT-04 | Phase 29 | Pending |
+| DFT-05 | Phase 29 | Pending |
+| FRM-03 | Phase 30 | Pending |
+| FRM-04 | Phase 30 | Pending |
+| SCH-01 | Phase 30 | Pending |
+| SCH-02 | Phase 31 | Pending |
+| SCH-03 | Phase 31 | Pending |

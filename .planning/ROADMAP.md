@@ -1,7 +1,7 @@
 # Roadmap: Tap
 
 **Last Milestone:** v1.7 Block Apply Completeness + History Search — SHIPPED 2026-05-25
-**Current:** Planning next milestone
+**Current:** v1.8 UX Polish + Proto Ergonomics (Phases 27–31)
 
 ---
 
@@ -15,6 +15,7 @@
 - ✅ **v1.5 Distribution** — Phases 16–18 (shipped 2026-05-23)
 - ✅ **v1.6 Plan Runner** — Phases 19–23 (shipped 2026-05-24)
 - ✅ **v1.7 Block Apply Completeness + History Search** — Phases 24–26 (shipped 2026-05-25)
+- 🚧 **v1.8 UX Polish + Proto Ergonomics** — Phases 27–31 (in progress)
 
 ---
 
@@ -109,6 +110,17 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase details, decisions, and retrospective.
 
 </details>
+
+### 🚧 v1.8 UX Polish + Proto Ergonomics (In Progress)
+
+**Milestone Goal:** Make Tap faster to use day-to-day — keyboard-first workflow, persistent draft state, quick proto navigation, and a schema explorer for power users.
+
+- [ ] **Phase 27: Keyboard Shortcuts + Field Copy** — Cmd+Enter/O/Shift+R/1-2-3 shortcuts, Clear button, hover-reveal field copy
+- [ ] **Phase 28: Proto File Management** — Reload button, recent files list, import/include path manager
+- [ ] **Phase 29: Connection Quick-Switch + Draft Persistence** — Profile dropdown in publish bar, auto-save/restore form state per message type
+- [ ] **Phase 30: Randomizer + Field Type Tooltips** — Fill non-dirty fields with type-appropriate random values, inline field-type tooltips
+- [ ] **Phase 31: Schema Explorer Tree** — Collapsible panel with all messages, fields, and enums from the loaded schema
+
 
 ---
 
@@ -384,6 +396,80 @@ Plans:
 
 **UI hint**: yes
 
+### Phase 27: Keyboard Shortcuts + Field Copy
+
+**Goal**: Users can control the entire send workflow without touching the mouse — send, open, clear, and navigate tabs via keyboard shortcuts; copy any scalar field value to clipboard with a single click
+**Depends on**: Phase 26 (previous milestone)
+**Requirements**: KB-01, KB-02, KB-03, KB-04, KB-05, FRM-01, FRM-02
+**Success Criteria** (what must be TRUE):
+  1. User can press Cmd+Enter (Ctrl+Enter on Windows/Linux) from anywhere in the app — including while focus is inside the CodeMirror JSON editor — and the current form is sent
+  2. User can press Cmd+O to open the native proto file picker without clicking the button
+  3. User can press Cmd+Shift+R to reset all form fields to defaults, equivalent to clicking the Clear button
+  4. User can press Cmd+1, Cmd+2, or Cmd+3 to switch between the three main tabs without using the mouse
+  5. Every button that has a keyboard shortcut shows the shortcut key in its tooltip so users can discover it without documentation
+  6. A Clear button in the form panel header resets all fields to defaults in a single click
+  7. Hovering over any scalar, enum, or bytes field reveals a copy icon; clicking it copies that field's current value to clipboard
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 28: Proto File Management
+
+**Goal**: Users can reload a changed proto file without reopening the file picker, quickly reopen recently used files from a list, and view and edit the include paths that control import resolution
+**Depends on**: Phase 27
+**Requirements**: REL-01, RFC-01, RFC-02, RFC-03, IMP-01, IMP-02, IMP-03
+**Success Criteria** (what must be TRUE):
+  1. A Reload button appears in the file tab bar; clicking it re-parses the current .proto file and updates the form schema without opening a file picker
+  2. The last 10 opened .proto file paths are persisted across app restarts and accessible from a quick-access list in the file tab bar area
+  3. User can click any entry in the recent files list to re-open that file immediately without using the native file picker
+  4. Recent file entries for files that no longer exist on disk are shown as disabled with a visual indicator; clicking them does not open a file picker
+  5. User can view the current include paths for the loaded .proto file in an import manager panel
+  6. User can add or remove include paths for the current file without re-opening the file picker
+  7. Saving a change to include paths automatically re-parses the current .proto file using the updated paths, with no manual reload step needed
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 29: Connection Quick-Switch + Draft Persistence
+
+**Goal**: Users can switch connection profiles from a compact dropdown in the publish bar without opening the sidebar; the form state for each message type is automatically saved and restored across sessions
+**Depends on**: Phase 28
+**Requirements**: CQS-01, CQS-02, DFT-01, DFT-02, DFT-03, DFT-04, DFT-05
+**Success Criteria** (what must be TRUE):
+  1. A compact connection profile dropdown appears in the publish bar; user can switch to any saved profile from it without opening the connections sidebar
+  2. Attempting to switch profiles while a plan is actively running shows a warning and blocks the switch until the plan finishes
+  3. Form field values (including map rows, repeated fields, and oneof selections) are automatically saved per (filePath, messageTypeName) as the user types, debounced at 200 ms
+  4. When the user selects the same message type in the same proto file again (including after app restart), the previously entered form values are automatically restored to every field
+  5. Drafts persist across app restarts via tauri-plugin-store and are restored before the form becomes interactive
+  6. User can explicitly clear the draft for the current message type (resetting both the form and the stored draft) with a single action
+  7. Draft storage retains at most 50 message types; the least-recently-used entry is evicted when the cap is exceeded
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 30: Randomizer + Field Type Tooltips
+
+**Goal**: Users can fill all unfilled form fields with type-appropriate random values in one click for fast test sends; every field shows its proto type, field number, and cardinality on hover
+**Depends on**: Phase 29
+**Requirements**: FRM-03, FRM-04, SCH-01
+**Success Criteria** (what must be TRUE):
+  1. A Randomize button in the form panel header fills all non-dirty fields with random values appropriate for their proto type without affecting fields the user has already edited
+  2. Randomized enum fields contain only valid enum values for that field (not arbitrary numbers); randomized bytes fields use standard-alphabet base64; int64/uint64 fields produce numeric strings; WellKnownType fields produce correctly shaped objects (e.g., {seconds, nanos} for Timestamp)
+  3. Randomized oneof fields have exactly one branch set (the _selected discriminator is correctly populated) and nested message randomization stops at depth 5 without throwing an error
+  4. Hovering over any form field label or input reveals a tooltip showing the proto type (e.g., string, int32, MyMessage), field number, and cardinality (optional / repeated / required)
+**Plans**: TBD
+**UI hint**: yes
+
+### Phase 31: Schema Explorer Tree
+
+**Goal**: Users can open a dedicated schema panel that shows the complete structure of the loaded .proto file — all messages, fields, and enums — as a navigable collapsible tree
+**Depends on**: Phase 30
+**Requirements**: SCH-02, SCH-03
+**Success Criteria** (what must be TRUE):
+  1. A Schema Explorer trigger in the sidebar opens a panel (or sheet) showing all messages, fields, and enums from the currently loaded .proto file as a collapsible tree
+  2. Each field node in the tree displays its name, proto type, field number, and cardinality inline
+  3. User can load a proto schema that contains recursive message types (a message that directly or transitively references itself) and the schema explorer renders without freezing, crashing, or producing an infinite tree
+**Plans**: TBD
+**UI hint**: yes
+
+
 ---
 
 ## Progress Table
@@ -416,6 +502,11 @@ Plans:
 | 24. History Full-Text Search | v1.7 | 2/2 | Complete    | 2026-05-25 |
 | 25. Block Apply — WKT + Map Empty Case | v1.7 | 2/2 | Complete    | 2026-05-25 |
 | 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 2/2 | Complete    | 2026-05-25 |
+| 27. Keyboard Shortcuts + Field Copy | v1.8 | 0/TBD | Not started | - |
+| 28. Proto File Management | v1.8 | 0/TBD | Not started | - |
+| 29. Connection Quick-Switch + Draft Persistence | v1.8 | 0/TBD | Not started | - |
+| 30. Randomizer + Field Type Tooltips | v1.8 | 0/TBD | Not started | - |
+| 31. Schema Explorer Tree | v1.8 | 0/TBD | Not started | - |
 
 ---
 
@@ -538,3 +629,38 @@ See [milestones/v1.7-REQUIREMENTS.md](milestones/v1.7-REQUIREMENTS.md) for full 
 - Total v1.7: 14
 - Mapped: 14/14 ✓
 - Delivered: 14/14 ✓
+
+**v1.8 UX Polish + Proto Ergonomics — 26 requirements planned**
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| KB-01 | Phase 27 | Pending |
+| KB-02 | Phase 27 | Pending |
+| KB-03 | Phase 27 | Pending |
+| KB-04 | Phase 27 | Pending |
+| KB-05 | Phase 27 | Pending |
+| FRM-01 | Phase 27 | Pending |
+| FRM-02 | Phase 27 | Pending |
+| REL-01 | Phase 28 | Pending |
+| RFC-01 | Phase 28 | Pending |
+| RFC-02 | Phase 28 | Pending |
+| RFC-03 | Phase 28 | Pending |
+| IMP-01 | Phase 28 | Pending |
+| IMP-02 | Phase 28 | Pending |
+| IMP-03 | Phase 28 | Pending |
+| CQS-01 | Phase 29 | Pending |
+| CQS-02 | Phase 29 | Pending |
+| DFT-01 | Phase 29 | Pending |
+| DFT-02 | Phase 29 | Pending |
+| DFT-03 | Phase 29 | Pending |
+| DFT-04 | Phase 29 | Pending |
+| DFT-05 | Phase 29 | Pending |
+| FRM-03 | Phase 30 | Pending |
+| FRM-04 | Phase 30 | Pending |
+| SCH-01 | Phase 30 | Pending |
+| SCH-02 | Phase 31 | Pending |
+| SCH-03 | Phase 31 | Pending |
+
+- Total v1.8: 26
+- Mapped: 26/26
+- Delivered: 0/26
