@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Block Apply Completeness + History Search
-status: ready_to_plan
-last_updated: 2026-05-25T09:56:04.082Z
-last_activity: 2026-05-25 -- Phase 24 execution started
+status: planning
+last_updated: "2026-05-25T10:32:08.978Z"
+last_activity: 2026-05-25
 progress:
   total_phases: 11
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 11
-  percent: 33
-stopped_at: Phase 24 complete (2/2) — ready to discuss Phase 25
+  total_plans: 2
+  completed_plans: 2
+  percent: 9
 ---
 
 # Project State: Tap
@@ -66,9 +65,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-25
-Stopped at: Phase 24 complete (4/4 UAT passed), Phase 25 ready to plan
-Resume file: None
+Last session: 2026-05-25T10:32:08.973Z
+Stopped at: Phase 25 context gathered
+Resume file: .planning/phases/25-block-apply-wkt-map-empty-case/25-CONTEXT.md
 
 - v1.7 roadmap created 2026-05-25
 - 3 phases defined: 24 (history search ✓), 25 (WKT + empty map), 26 (conflict dialog + oneof)
