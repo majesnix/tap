@@ -70,6 +70,7 @@ describe("buildApplyPlan", () => {
     expect(plan.toApply).toHaveLength(1);
     expect(plan.toApply[0]).toEqual({ fieldName: "qty", value: 5, kind: "scalar" });
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
   });
 
   it("fills enum field when not dirty", () => {
@@ -86,6 +87,7 @@ describe("buildApplyPlan", () => {
     expect(plan.toApply).toHaveLength(1);
     expect(plan.toApply[0]).toEqual({ fieldName: "status", value: 1, kind: "enum" });
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
   });
 
   it("fills well_known field when not dirty (D-06)", () => {
@@ -106,6 +108,7 @@ describe("buildApplyPlan", () => {
       kind: "well_known",
     });
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
   });
 
   it("skips well_known field when dirty (D-06)", () => {
@@ -121,6 +124,7 @@ describe("buildApplyPlan", () => {
     // Assert
     expect(plan.toApply).toHaveLength(0);
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
   });
 
   it("fills map field when empty (BLK-EXT-02)", () => {
@@ -141,6 +145,7 @@ describe("buildApplyPlan", () => {
       kind: "map",
     });
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
   });
 
   it("skips map field when non-empty (Phase 26 conflict path)", () => {
@@ -156,6 +161,7 @@ describe("buildApplyPlan", () => {
     // Assert
     expect(plan.toApply).toHaveLength(0);
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
   });
 
   it("skips unknown block key silently", () => {
@@ -171,6 +177,7 @@ describe("buildApplyPlan", () => {
     // Assert
     expect(plan.toApply).toHaveLength(0);
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual(["unknownField"]);
   });
 
   it("skips message kind field (D-02 + BLK-EXT-FUTURE-02)", () => {
@@ -185,6 +192,27 @@ describe("buildApplyPlan", () => {
 
     // Assert
     expect(plan.toApply).toHaveLength(0);
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
+  });
+
+  it("separates unknown keys from message-kind keys in mixed block", () => {
+    // Arrange — scalar field, message field, plus one key not in schema at all
+    const fields: FieldSchema[] = [
+      makeScalarField("qty", "int32"),
+      makeMessageField("nested"),
+    ];
+    const formValues = {};
+    const dirtyFields = {};
+    const blockValues = { qty: 5, nested: { foo: "bar" }, extra: "unknown" };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert
+    expect(plan.toApply).toHaveLength(1);
+    expect(plan.toApply[0]).toEqual({ fieldName: "qty", value: 5, kind: "scalar" });
+    expect(plan.unknownKeys).toEqual(["extra"]);
     expect(plan.conflicts).toEqual([]);
   });
 
@@ -205,6 +233,7 @@ describe("buildApplyPlan", () => {
     // Assert
     expect(plan.conflicts).toEqual([]);
     expect(Array.isArray(plan.conflicts)).toBe(true);
+    expect(plan.unknownKeys).toEqual([]);
   });
 
   it("returns empty toApply and conflicts when blockValues is empty", () => {
@@ -220,5 +249,6 @@ describe("buildApplyPlan", () => {
     // Assert
     expect(plan.toApply).toHaveLength(0);
     expect(plan.conflicts).toEqual([]);
+    expect(plan.unknownKeys).toEqual([]);
   });
 });
