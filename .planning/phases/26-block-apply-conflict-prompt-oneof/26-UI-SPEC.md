@@ -65,14 +65,14 @@ Source: Established pattern across form field components (ScalarField, OneofFiel
 |------|-------|-------|
 | Dominant (60%) | `--background` oklch(1 0 0) / dark oklch(0.145 0 0) | Dialog surface, page background |
 | Secondary (30%) | `--card` / `--muted` oklch(0.97 0 0) | Row backgrounds, alternating row tint, dialog content area |
-| Accent (10%) | `--primary` oklch(0.205 0 0) | Apply button (primary action only) |
+| Accent (10%) | `--primary` oklch(0.205 0 0) | Apply block button (primary action only) |
 | Destructive | `--destructive` oklch(0.577 0.245 27.325) | No destructive action in this phase |
 
-Accent reserved for: the Apply button in `BlockApplyConflictDialog` only. No other element in this phase uses the primary/accent token for emphasis.
+Accent reserved for: the Apply block button in `BlockApplyConflictDialog` only. No other element in this phase uses the primary/accent token for emphasis.
 
 Note: This codebase uses a monochromatic neutral palette (chroma=0 throughout). There is no secondary hue. The 60/30/10 split maps to background/card-muted/primary tokens rather than distinct hues.
 
-Destructive note: No destructive action appears in this phase. The conflict dialog is a "choose and apply" UX, not a delete confirmation. The destructive color is NOT used on Apply.
+Destructive note: No destructive action appears in this phase. The conflict dialog is a "choose and apply" UX, not a delete confirmation. The destructive color is NOT used on Apply block.
 
 ---
 
@@ -84,6 +84,10 @@ Destructive note: No destructive action appears in this phase. The conflict dial
 
 **Size override required:** The default `AlertDialogContent` is `max-w-xs / sm:max-w-sm`. For a multi-row conflict list this is too narrow. Apply `className="sm:max-w-lg"` on `AlertDialogContent` to override the default width constraint.
 
+**Focal point declaration:**
+- **Primary focal point:** The conflict row list is the primary visual anchor. Users must scan and resolve each row — this is the core task of the dialog. The scroll container fills the majority of the dialog body and draws the eye.
+- **Secondary focal point:** The "Apply block" button is the secondary focal point for decision completion. It is the only element using the `--primary` accent token, making it visually distinct as the confirming action after the user has reviewed all rows.
+
 **Layout:**
 ```
 AlertDialogContent (sm:max-w-lg)
@@ -93,8 +97,8 @@ AlertDialogContent (sm:max-w-lg)
   ScrollArea (max-h-[50vh] overflow-y-auto)
     [ConflictRow × N]       — one row per ConflictItem
   AlertDialogFooter
-    AlertDialogCancel       — "Cancel" (default focus, keyboard Escape)
-    AlertDialogAction       — "Apply" (primary variant, disabled until user has seen rows)
+    AlertDialogCancel       — "Discard block" (default focus, keyboard Escape)
+    AlertDialogAction       — "Apply block" (primary variant, always enabled)
 ```
 
 **Scroll container:** Wrap the conflict row list in a `div` with `className="max-h-[50vh] overflow-y-auto"` (or `ScrollArea` component). This prevents unbounded dialog height for map fields with many key collisions.
@@ -121,7 +125,7 @@ div (flex items-start gap-sm border-b border-border py-sm last:border-0)
 
 **Choice control:** `RadioGroup` from `@/components/ui/radio-group` (already in inventory). Two options: `skip` and `overwrite`. Default: `"skip"` for every row. The `skip` radio is pre-selected on mount; the user must actively change to `overwrite`.
 
-**Apply button enablement:** Apply is always enabled (not gated on user interaction) — the default skip state is a valid resolved state. The description copy informs the user of the default.
+**Apply button enablement:** Apply block is always enabled (not gated on user interaction) — the default skip state is a valid resolved state. The description copy informs the user of the default.
 
 ---
 
@@ -163,13 +167,13 @@ Source: D-04 in CONTEXT.md locks the branch-switch label format. Map and dirty-s
 |-------|---------|---------------|
 | Closed | No conflicts in plan | Dialog not rendered (conditional render, not hidden) |
 | Open — pending | plan.conflicts.length > 0 | Dialog mounts; all rows default to skip |
-| Open — user choosing | User clicks a row's overwrite radio | Row radio changes; Apply button remains enabled |
-| Closed — applied | User clicks Apply | Dialog closes; commitApply runs with resolved choices |
-| Closed — cancelled | User clicks Cancel or presses Escape | Dialog closes; no values written to form |
+| Open — user choosing | User clicks a row's overwrite radio | Row radio changes; Apply block button remains enabled |
+| Closed — applied | User clicks Apply block | Dialog closes; commitApply runs with resolved choices |
+| Closed — cancelled | User clicks Discard block or presses Escape | Dialog closes; no values written to form |
 
 ### Apply action
 
-Apply calls `commitApply` (or `commitApply(plan, choices)` — planner resolves signature) with the per-row `{ fieldKey: 'skip' | 'overwrite' }` choices map. Fields with `skip` choice are excluded from `plan.toApply` before commit executes. Fields with `overwrite` proceed normally.
+Apply block calls `commitApply` (or `commitApply(plan, choices)` — planner resolves signature) with the per-row `{ fieldKey: 'skip' | 'overwrite' }` choices map. Fields with `skip` choice are excluded from `plan.toApply` before commit executes. Fields with `overwrite` proceed normally.
 
 ### Atomic oneof write (Pitfall A enforcement)
 
@@ -185,18 +189,20 @@ All `setValue` calls inside `commitApply` for block-applied values use `{ should
 
 | Element | Copy |
 |---------|------|
-| Primary CTA | "Apply" |
-| Cancel action | "Cancel" |
+| Primary CTA | "Apply block" |
+| Cancel action | "Discard block" |
 | Dialog title | "Review conflicts" |
 | Dialog description | "{N} field(s) already have values. Choose what to do for each." |
 | Row default label (skip) | Radio label: "Skip" |
 | Row overwrite label | Radio label: "Overwrite" |
-| Skip visual state description | "Skip is selected by default — clicking Apply without changes will leave existing values intact." (aria-describedby on dialog, not visible text) |
+| Skip visual state description | "Skip is selected by default — clicking Apply block without changes will leave existing values intact." (aria-describedby on dialog, not visible text) |
 | Empty state | Not applicable — dialog only renders when `plan.conflicts.length > 0` |
 | Error state | Not applicable — this phase introduces no async I/O; conflict resolution is synchronous local form state |
 | Destructive confirmation | Not applicable — no destructive actions in this phase |
 
 Note on N: The count in the description is the total `plan.conflicts.length`, formatted as a number: "1 field already has a value. Choose what to do." (singular) / "3 fields already have values. Choose what to do for each." (plural). Singular/plural must be handled by the executor.
+
+Note on "Discard block": `AlertDialogCancel` is the structural escape control for this dialog. The label "Discard block" is chosen over the generic "Cancel" to communicate exactly what dismissing does — the block values are not applied, and no form state changes. This is a deliberate content decision, not a reflexive label.
 
 ---
 
