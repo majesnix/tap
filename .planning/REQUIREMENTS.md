@@ -1,7 +1,7 @@
 # Requirements: Tap v1.6 Plan Runner
 
 **Milestone:** v1.6 Plan Runner
-**Status:** Active
+**Status:** Complete — all 23/23 requirements delivered
 **Created:** 2026-05-23
 
 ---
@@ -10,12 +10,12 @@
 
 ### Plan Library
 
-- [ ] **PLAN-01**: User can create a named plan in the dedicated plan library view
-- [ ] **PLAN-02**: User can rename a plan
-- [ ] **PLAN-03**: User can delete a plan (with confirmation dialog)
-- [ ] **PLAN-04**: User can duplicate a plan with all its steps
-- [ ] **PLAN-05**: Plans and their steps persist across app restarts
-- [ ] **PLAN-06**: User accesses the plan library via a dedicated full-screen view (separate from the main form + tabs layout)
+- [x] **PLAN-01**: User can create a named plan in the dedicated plan library view
+- [x] **PLAN-02**: User can rename a plan
+- [x] **PLAN-03**: User can delete a plan (with confirmation dialog)
+- [x] **PLAN-04**: User can duplicate a plan with all its steps
+- [x] **PLAN-05**: Plans and their steps persist across app restarts
+- [x] **PLAN-06**: User accesses the plan library via a dedicated full-screen view (separate from the main form + tabs layout)
 
 ### Step Authoring
 
@@ -40,8 +40,8 @@
 - [x] **RESP-01**: No-wait steps fire the publish and advance after the configured delay — no reply consumer opened
 - [x] **RESP-02**: CorrelationId steps publish with a generated UUID `correlation_id` + `reply_to` AMQP property, wait for a matching reply on the configured reply queue (configurable timeout per step, default 10 s); step gets Error status on timeout
 - [x] **RESP-03**: First-arrival steps open a consumer on a specified reply queue and accept the first message that arrives (configurable timeout per step, default 10 s); step gets Error status on timeout
-- [ ] **RESP-04**: Steps that receive a reply show the decoded protobuf response inline below the step (same collapsible key-value tree as the existing Response tab)
-- [ ] **RESP-05**: A shared scrollable feed shows all messages arriving on watched reply queues during the plan run, in chronological order
+- [x] **RESP-04**: Steps that receive a reply show the decoded protobuf response inline below the step (same collapsible key-value tree as the existing Response tab)
+- [x] **RESP-05**: A shared scrollable feed shows all messages arriving on watched reply queues during the plan run, in chronological order
 
 ---
 
@@ -70,12 +70,12 @@
 
 | REQ-ID | Phase | Status |
 |--------|-------|--------|
-| PLAN-01 | Phase 19 | Pending |
-| PLAN-02 | Phase 19 | Pending |
-| PLAN-03 | Phase 19 | Pending |
-| PLAN-04 | Phase 19 | Pending |
-| PLAN-05 | Phase 19 | Pending |
-| PLAN-06 | Phase 20 | Pending |
+| PLAN-01 | Phase 19 | Complete |
+| PLAN-02 | Phase 19 | Complete |
+| PLAN-03 | Phase 19 | Complete |
+| PLAN-04 | Phase 19 | Complete |
+| PLAN-05 | Phase 19 | Complete |
+| PLAN-06 | Phase 20 | Complete |
 | STEP-01 | Phase 21 | Complete |
 | STEP-02 | Phase 21 | Complete |
 | STEP-03 | Phase 21 | Complete |
