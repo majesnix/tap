@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,6 +12,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { FieldSchema } from "@/lib/types";
+import { CopyButton } from "./CopyButton";
 
 interface BytesFieldProps {
   field: FieldSchema;
@@ -75,6 +76,7 @@ const base64Schema = z
  */
 export function BytesField({ field, path }: BytesFieldProps) {
   const { control } = useFormContext();
+  const watchedValue = useWatch({ control, name: path });
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [utf8Input, setUtf8Input] = useState("");
 
@@ -87,7 +89,7 @@ export function BytesField({ field, path }: BytesFieldProps) {
   };
 
   return (
-    <div className="flex flex-col gap-1 mb-3">
+    <div className="flex flex-col gap-1 mb-3 group">
       {/* Label row */}
       <div className="flex items-center gap-2">
         <Label className="text-xs font-semibold text-foreground" htmlFor={path}>
@@ -96,6 +98,7 @@ export function BytesField({ field, path }: BytesFieldProps) {
         <Badge variant="outline" className="text-xs px-1.5 py-0 w-fit">
           bytes
         </Badge>
+        <CopyButton value={String(watchedValue ?? "")} />
       </div>
 
       {/* Single Controller — wraps input, byte count, error, and popover trigger */}

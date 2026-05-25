@@ -7,7 +7,7 @@ import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
 import { JsonEditor } from "./JsonEditor";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Braces, Library } from "lucide-react";
+import { Braces, Library, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useBlockStore } from "@/stores/useBlockStore";
@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
+import { useHotkeys } from "react-hotkeys-hook";
+import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 
 /**
  * Converts a byte array to a formatted hex string.
@@ -139,6 +141,27 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
       }
     })();
   }, [debouncedValues, selectedMessageType, setHexPreview, setEncoding, setEncodeError]);
+
+  const { modSymbol } = usePlatformLabel();
+
+  const handleClear = useCallback(() => {
+    if (!schema || !selectedMessageType) return;
+    const msg = schema.message_map[selectedMessageType];
+    if (!msg) return;
+    if (isJsonMode) setIsJsonMode(false);
+    setPendingReplayValues(buildDefaultValues(msg));
+  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues]);
+
+  useHotkeys("mod+shift+r", (e) => {
+    e.preventDefault();
+    handleClear();
+  }, { enableOnFormTags: true, preventDefault: true });
+
+  useHotkeys("mod+enter", (e) => {
+    if (document.activeElement?.closest(".cm-editor")) return;
+    e.preventDefault();
+    useProtoStore.getState().requestSend();
+  }, { enableOnFormTags: true, preventDefault: true });
 
   // WR-01: reset JSON mode state when the active message type changes
   useEffect(() => {
@@ -381,6 +404,15 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Clear form"
+            title={`Clear form (${modSymbol}+Shift+R)`}
+            onClick={handleClear}
+          >
+            <RotateCcw size={16} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             aria-label={isJsonMode ? "Return to form" : "Edit as JSON"}
             aria-pressed={isJsonMode}
             title={isJsonMode ? "Return to form" : "Edit as JSON"}
@@ -401,6 +433,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
             parseError={parseError}
             onFixJson={handleFixJson}
             onDiscard={handleDiscard}
+            onSubmit={() => useProtoStore.getState().requestSend()}
           />
         </div>
       ) : (

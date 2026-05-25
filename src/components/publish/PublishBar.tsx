@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import { fetchExchanges, fetchQueues, publishMessage, fetchBindings } from "@/li
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
 import type { PublishOutcome } from "@/lib/types";
+import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 
 type Mode = "queue" | "exchange";
 
@@ -97,6 +98,8 @@ export function PublishBar() {
     !isHintExchange && managementStatus === "live" && Boolean(selectedExchange);
 
   const { hexPreview, encodeError } = useProtoStore();
+  const sendRequested = useProtoStore((s) => s.sendRequested);
+  const { modSymbol } = usePlatformLabel();
 
   // Fetch queues or exchanges on mount and whenever profile or mode changes.
   // Implements 401 discrimination: auth failure → destructive badge, NOT silent Manual fallback.
@@ -192,7 +195,14 @@ export function PublishBar() {
   const hasTarget = mode === "queue" ? Boolean(selectedQueue) : Boolean(selectedExchange);
   const canSend = isConnected && hasTarget && !encodeError;
 
-  const handleSend = async () => {
+  const handleSendRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    if (sendRequested === 0) return;
+    handleSendRef.current();
+  }, [sendRequested]);
+
+  const handleSend = useCallback(async () => {
     if (!activeProfileName || !canSend) return;
 
     const targetName = mode === "queue" ? selectedQueue : selectedExchange;
@@ -294,7 +304,9 @@ export function PublishBar() {
     } finally {
       setIsSending(false);
     }
-  };
+  }, [activeProfileName, canSend, hexPreview, mode, selectedQueue, selectedExchange, routingKey]);
+
+  handleSendRef.current = handleSend;
 
   return (
     <div className="flex items-center gap-4 flex-wrap bg-card border-b border-border px-4 py-2">
@@ -487,18 +499,25 @@ export function PublishBar() {
 
       {/* Send button — disabled with tooltip when no active connection */}
       {isConnected ? (
-        <Button
-          variant="default"
-          disabled={!canSend || isSending}
-          onClick={handleSend}
-        >
-          {isSending ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4 mr-2" />
-          )}
-          Send
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                disabled={!canSend || isSending}
+                onClick={handleSend}
+              >
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Send
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{modSymbol}+Enter</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ) : (
         <TooltipProvider>
           <Tooltip>

@@ -1,4 +1,4 @@
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import {
   Select,
   SelectContent,
@@ -9,6 +9,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { FieldSchema } from "@/lib/types";
+import { CopyButton } from "./CopyButton";
 
 export interface EnumFieldProps {
   field: FieldSchema;
@@ -22,14 +23,16 @@ export interface EnumFieldProps {
  */
 export function EnumField({ field, path }: EnumFieldProps) {
   const { control } = useFormContext();
+  const watchedValue = useWatch({ control, name: path });
 
   if (field.kind.type !== "enum") return null;
 
   const values = field.kind.values;
   const defaultNumber = (field.default_value as number) ?? values[0]?.number ?? 0;
+  const resolvedEnumName = values.find((v) => v.number === watchedValue)?.name ?? "";
 
   return (
-    <div className="flex flex-col gap-1 mb-3">
+    <div className="flex flex-col gap-1 mb-3 group">
       <div className="flex items-center gap-2">
         <Label className="text-xs font-semibold" htmlFor={path}>
           {field.label}
@@ -37,6 +40,7 @@ export function EnumField({ field, path }: EnumFieldProps) {
         <Badge variant="outline" className="text-xs px-1.5 py-0">
           enum
         </Badge>
+        <CopyButton value={resolvedEnumName} />
       </div>
       <Controller
         name={path}

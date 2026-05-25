@@ -1,5 +1,7 @@
+import { useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
+import { keymap } from "@codemirror/view";
 import { TriangleAlertIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +18,8 @@ export interface JsonEditorProps {
   onFixJson: () => void;
   /** Called when user clicks "Discard changes" — FormPanel restores entrySnapshot */
   onDiscard: () => void;
+  /** Called on Cmd+Enter inside the CodeMirror editor */
+  onSubmit?: () => void;
 }
 
 export function JsonEditor({
@@ -25,14 +29,23 @@ export function JsonEditor({
   parseError,
   onFixJson,
   onDiscard,
+  onSubmit,
 }: JsonEditorProps) {
+  const submitKeymap = useMemo(() => {
+    if (!onSubmit) return null;
+    return keymap.of([{
+      key: "Mod-Enter",
+      run: () => { onSubmit(); return true; },
+    }]);
+  }, [onSubmit]);
+
   return (
     <>
       <CodeMirror
         value={value}
         height="100%"
         theme={resolvedTheme === "dark" ? "dark" : "light"}
-        extensions={[json()]}
+        extensions={submitKeymap ? [json(), submitKeymap] : [json()]}
         onChange={onChange}
         className="flex-1 min-h-0"
         basicSetup={{ lineNumbers: true, bracketMatching: true }}
