@@ -1,6 +1,7 @@
 import { useCallback, useRef, useEffect, useState } from "react";
 import { useDroppable, useDndMonitor } from "@dnd-kit/core";
 import { useProtoStore } from "@/stores/useProtoStore";
+import { useDraftStore } from "@/stores/useDraftStore";
 import { encodeMessage } from "@/lib/ipc";
 import { useDebounce } from "@/hooks/useDebounce";
 import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
@@ -51,11 +52,16 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     setPendingReplayValues,
   } = useProtoStore();
 
+  const activeFilePath = useProtoStore((s) => s.activeFilePath);
+  const { draftsLoaded, saveDraft, getDraft, clearDraft } = useDraftStore();
+
   const { resolvedTheme } = useTheme();
 
   // latestValues is now in Zustand store (D-07 / advisor Option A)
   const latestValues = useProtoStore((s) => s.latestValues);
   const debouncedValues = useDebounce(latestValues, 200);
+
+  const isRestoringRef = useRef(false);
 
   // resetRef is passed to ProtoFormRenderer so FormPanel can trigger form.reset() for replay (HIST-02)
   const resetRef = useRef<((values: Record<string, unknown>) => void) | null>(
@@ -142,6 +148,17 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     })();
   }, [debouncedValues, selectedMessageType, setHexPreview, setEncoding, setEncodeError]);
 
+  // Draft auto-save: persist form values on debounced change, skip during restore
+  useEffect(() => {
+    if (!draftsLoaded || !activeFilePath || !selectedMessageType || !debouncedValues) return;
+    if (isRestoringRef.current) return;
+    const msg = schema?.message_map[selectedMessageType];
+    if (!msg) return;
+    const defaults = buildDefaultValues(msg);
+    if (JSON.stringify(debouncedValues) === JSON.stringify(defaults)) return;
+    void saveDraft(activeFilePath, selectedMessageType, debouncedValues);
+  }, [debouncedValues, selectedMessageType, activeFilePath, draftsLoaded, schema, saveDraft]);
+
   const { modSymbol } = usePlatformLabel();
 
   const handleClear = useCallback(() => {
@@ -150,7 +167,10 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     if (!msg) return;
     if (isJsonMode) setIsJsonMode(false);
     setPendingReplayValues(buildDefaultValues(msg));
-  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues]);
+    if (activeFilePath) {
+      void clearDraft(activeFilePath, selectedMessageType);
+    }
+  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues, activeFilePath, clearDraft]);
 
   useHotkeys("mod+shift+r", (e) => {
     e.preventDefault();
@@ -163,13 +183,21 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     useProtoStore.getState().requestSend();
   }, { enableOnFormTags: true, preventDefault: true });
 
-  // WR-01: reset JSON mode state when the active message type changes
+  // WR-01: reset JSON mode state when the active message type changes + restore draft
   useEffect(() => {
     setIsJsonMode(false);
     setJsonDraft("");
     setEntrySnapshot(null);
     setParseError(null);
-  }, [selectedMessageType]);
+
+    if (!draftsLoaded || !activeFilePath || !selectedMessageType) return;
+    const draft = getDraft(activeFilePath, selectedMessageType);
+    if (draft) {
+      isRestoringRef.current = true;
+      setPendingReplayValues(draft.values);
+      setTimeout(() => { isRestoringRef.current = false; }, 300);
+    }
+  }, [selectedMessageType, activeFilePath, draftsLoaded, getDraft, setPendingReplayValues]);
 
   // Consume pendingReplayValues: when set by HIST-02, call form.reset() and clear the signal
   // WR-02: also handle replay arriving while in JSON mode — exit JSON mode first so renderer
