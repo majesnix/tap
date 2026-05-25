@@ -102,7 +102,7 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 ### v1.7 Block Apply Completeness + History Search (Phases 24–26) — IN PROGRESS
 
 - [x] **Phase 24: History Full-Text Search** - Search bar across type name, target, and field names; AND logic with existing filters (completed 2026-05-25)
-- [ ] **Phase 25: Block Apply — WKT + Map Empty Case** - Two-phase applyBlockRef architecture; WKT fill and empty-map replace
+- [x] **Phase 25: Block Apply — WKT + Map Empty Case** - Two-phase applyBlockRef architecture; WKT fill and empty-map replace (completed 2026-05-25)
 - [ ] **Phase 26: Block Apply — Conflict Prompt + Oneof** - Batched conflict dialog; map collision; oneof branch-switch
 
 ---
@@ -350,7 +350,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 25-02-PLAN.md — MapField onRegisterReplace prop + ProtoFormRenderer mapReplaceRegistry + FormPanel two-phase onDragEnd
+- [x] 25-02-PLAN.md — MapField onRegisterReplace prop + ProtoFormRenderer mapReplaceRegistry + FormPanel two-phase onDragEnd
 
 **UI hint**: yes
 
@@ -399,7 +399,7 @@ Plans:
 | 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete | 2026-05-24 |
 | 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete | 2026-05-24 |
 | 24. History Full-Text Search | v1.7 | 2/2 | Complete    | 2026-05-25 |
-| 25. Block Apply — WKT + Map Empty Case | v1.7 | 1/2 | In Progress|  |
+| 25. Block Apply — WKT + Map Empty Case | v1.7 | 2/2 | Complete   | 2026-05-25 |
 | 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 0/TBD | Not started | - |
 
 ---
