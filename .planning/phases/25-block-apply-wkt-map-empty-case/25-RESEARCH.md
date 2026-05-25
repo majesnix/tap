@@ -139,7 +139,7 @@ FormPanel.onDragEnd
   │       │
   │       └─ buildApplyPlan(fields, formValues, dirtyFields, blockValues)
   │               ├─ for each blockValues key:
-  │               │   ├─ not in eligible fields → add to skipped (Open Question OQ-1)
+  │               │   ├─ not in eligible fields → skip silently
   │               │   ├─ dirtyFields[key] truthy → skip (protect dirty)
   │               │   └─ else → toApply item (kind: scalar|enum|well_known|map)
   │               └─ returns ApplyPlan { toApply, conflicts: [] }
@@ -266,8 +266,12 @@ useEffect(() => {
 
 **What:** Extract eligibility logic from `applyBlockRef.current` into a standalone pure function.
 
+> **NOTE — OQ-1:** The code below implements the locked D-02 shape (`ApplyPlan = { toApply, conflicts }`
+> with no `skipped` field). If OQ-1 resolves to option (a) — adding `skipped: string[]` to
+> `ApplyPlan` — the type and return value must be extended. See Open Question OQ-1 below.
+
 ```typescript
-// Source: CONTEXT.md D-03 (locked decision); existing logic at ProtoFormRenderer lines 151-174
+// Source: CONTEXT.md D-02, D-03 (locked decisions); existing logic at ProtoFormRenderer lines 151-174
 
 // src/lib/blockApply.ts
 import type { FieldSchema } from './types';
@@ -287,12 +291,14 @@ export type ConflictItem = {
   kind: ApplyItemKind;
 };
 
+// D-02 locked shape — no skipped field; see OQ-1 if skipped tracking is needed
 export type ApplyPlan = {
   toApply: ApplyItem[];
   conflicts: ConflictItem[];
-  skipped: string[];  // See Open Question OQ-1
 };
 
+// NOTE — OQ-4: Existing applyBlockRef eligible set includes 'message' (ProtoFormRenderer lines 153-161).
+// D-02 ApplyItemKind drops 'message'. Confirm whether this is intentional before implementing.
 const ELIGIBLE_KINDS: ReadonlySet<FieldSchema['kind']['type']> = new Set([
   'scalar', 'enum', 'well_known', 'map',
 ]);
@@ -311,16 +317,15 @@ export function buildApplyPlan(
 
   const toApply: ApplyItem[] = [];
   const conflicts: ConflictItem[] = [];
-  const skipped: string[] = [];
 
   for (const [key, value] of Object.entries(blockValues)) {
     const field = eligibleFields.get(key);
     if (!field) {
-      skipped.push(key);
+      // Unknown key or ineligible kind — skip silently
       continue;
     }
     if (dirtyFields[key]) {
-      // Dirty protection — not added to skipped (intentional, not a missing-field warning)
+      // Dirty protection — field already touched by user; do not overwrite
       continue;
     }
     // Phase 25: map fields only enter toApply when empty
@@ -334,7 +339,7 @@ export function buildApplyPlan(
     toApply.push({ fieldName: key, value, kind: field.kind.type as ApplyItemKind });
   }
 
-  return { toApply, conflicts, skipped };
+  return { toApply, conflicts };
 }
 ```
 
@@ -515,9 +520,9 @@ describe("buildApplyPlan", () => {
 ## Open Questions
 
 1. **OQ-1: Does `ApplyPlan` need a `skipped` field?**
-   - What we know: Current `FormPanel.onDragEnd` (lines 76-81) calls `applyBlockRef.current(blockValues)` and receives a `string[]` of skipped keys, then shows a toast. D-02 defines `ApplyPlan = { toApply, conflicts }` with no `skipped` field.
-   - What's unclear: After the refactor, where does the skipped-keys list come from? Options: (a) add `skipped: string[]` to `ApplyPlan`; (b) compute skipped in `FormPanel` as `Object.keys(blockValues).filter(k => !plan.toApply.some(i => i.fieldName === k) && !plan.conflicts.some(i => i.fieldName === k))`; (c) remove the toast entirely.
-   - Recommendation: Option (a) — add `skipped: string[]` to `ApplyPlan` for clarity. `buildApplyPlan` already has a `skipped` accumulator. The planner should include this in the type definition and the D-04 test cases.
+   - What we know: Current `FormPanel.onDragEnd` (lines 76-81) calls `applyBlockRef.current(blockValues)` and receives a `string[]` of skipped keys, then shows a toast. D-02 defines `ApplyPlan = { toApply, conflicts }` with no `skipped` field. The code example in Pattern 3 implements the locked D-02 shape (no `skipped`).
+   - What's unclear: After the refactor, where does the skipped-keys list come from? Options: (a) add `skipped: string[]` to `ApplyPlan` (extends D-02 — needs user confirmation); (b) compute skipped in `FormPanel` as `Object.keys(blockValues).filter(k => !plan.toApply.some(i => i.fieldName === k) && !plan.conflicts.some(i => i.fieldName === k))`; (c) remove the toast entirely.
+   - Recommendation: Option (a) — add `skipped: string[]` to `ApplyPlan` for clarity, but this requires amending D-02. The planner should surface this to the user before locking the type.
 
 2. **OQ-2: Registry cleanup — null or no-op?**
    - What we know: D-05 says "passes a no-op to clear" OR "null". Both are mentioned.
@@ -528,6 +533,20 @@ describe("buildApplyPlan", () => {
    - What we know: After `commitApply` calls `replace()` for a map field, `dirtyFields[mapField]` becomes truthy. A second block drag will skip that field.
    - What's unclear: Is this acceptable per the product requirements, or does it need a note in the toast?
    - Recommendation: Accept for Phase 25 (per Pitfall 1 reasoning). The behavior is consistent with how RHF tracks user interaction — once filled, the map is "owned" by the user. Include a code comment in `commitApply` noting this.
+
+4. **OQ-4: Does dropping `'message'` from eligible kinds cause a regression?**
+   - What we know: The existing `applyBlockRef` in `ProtoFormRenderer.tsx` lines 153-161 currently includes `'message'` in its eligible set:
+     ```typescript
+     .filter(f =>
+       f.kind.type === 'scalar' ||
+       f.kind.type === 'enum' ||
+       f.kind.type === 'message'   // currently eligible
+     )
+     ```
+     D-02's `ApplyItemKind = 'scalar' | 'enum' | 'well_known' | 'map'` drops `'message'`. The Pattern 3 `ELIGIBLE_KINDS` set also excludes `'message'`.
+   - What's unclear: Is this intentional? The deferred ideas in CONTEXT.md mention "recursive nested-message merge (BLK-EXT-FUTURE-02)" — which suggests the current shallow `setValue(messageField, object)` behavior is being intentionally retired rather than silently dropped. But the CONTEXT.md does not explicitly say "remove message support in Phase 25."
+   - Risk: If the existing shallow message-apply behavior was relied on by users, Phase 25 silently removes it without replacement. Any proto block containing a message field will now have that field silently skipped.
+   - Recommendation: **Planner must confirm with user** before the implementation tasks lock `ELIGIBLE_KINDS`. If intentional: add a note to the deprecation log and update D-02 to explicitly state "message kind removed". If unintentional: add `'message'` back to `ApplyItemKind` and `ELIGIBLE_KINDS` with a `setValue` path in `commitApply`.
 
 ---
 
