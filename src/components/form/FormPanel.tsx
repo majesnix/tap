@@ -11,6 +11,7 @@ import { Braces, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useBlockStore } from "@/stores/useBlockStore";
+import type { ApplyBlockRef } from "@/lib/blockApply";
 
 /**
  * Converts a byte array to a formatted hex string.
@@ -47,9 +48,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     null
   );
 
-  const applyBlockRef = useRef<((blockValues: Record<string, unknown>) => string[]) | null>(
-    null
-  );
+  const applyBlockRef = useRef<ApplyBlockRef | null>(null);
 
   const { isOver, setNodeRef: setDropZoneRef } = useDroppable({ id: 'form-drop-zone' });
 
@@ -73,7 +72,14 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
         return;
       }
 
-      const skipped = applyBlockRef.current(blockValues);
+      const plan = applyBlockRef.current.buildPlan(blockValues);
+      // plan.conflicts is always [] in Phase 25 — Phase 26 adds the conflict dialog
+      applyBlockRef.current.commitApply(plan);
+      // Derive skipped keys: block keys not in toApply and not in conflicts (OQ-1 option b).
+      // Covers unknown field names and 'message' kind fields (silently ineligible per D-02).
+      const skipped = Object.keys(blockValues).filter(
+        (k) => !plan.toApply.some((i) => i.fieldName === k) && !plan.conflicts.some((i) => i.fieldName === k)
+      );
       if (skipped.length > 0) {
         const n = skipped.length;
         const label = n === 1 ? 'field' : 'fields';
