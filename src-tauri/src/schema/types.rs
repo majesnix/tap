@@ -18,6 +18,7 @@ pub struct MessageSchema {
 pub struct FieldSchema {
     pub name: String,
     pub label: String,
+    pub field_number: u32,
     pub kind: FieldKind,
     pub repeated: bool,
     pub oneof_group: Option<String>,

@@ -76,6 +76,7 @@ fn extract_message(msg: &MessageDescriptor) -> MessageSchema {
                 fields.push(FieldSchema {
                     name: group_name.clone(),
                     label: to_label(group_name),
+                    field_number: 0,
                     kind: FieldKind::Oneof { branches },
                     repeated: false,
                     oneof_group: None,
@@ -119,6 +120,7 @@ fn extract_field_schema(field: &FieldDescriptor, oneof_group: Option<String>) ->
         return FieldSchema {
             name: field.name().to_string(),
             label: to_label(field.name()),
+            field_number: field.number(),
             kind: FieldKind::Map { key_type, value_kind: Box::new(value_kind) },
             repeated: false, // is_list() returns false for map fields; set explicitly per D-02
             oneof_group,
@@ -132,6 +134,7 @@ fn extract_field_schema(field: &FieldDescriptor, oneof_group: Option<String>) ->
     FieldSchema {
         name: field.name().to_string(),
         label: to_label(field.name()),
+        field_number: field.number(),
         kind,
         repeated,
         oneof_group,

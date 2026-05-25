@@ -33,6 +33,7 @@ export interface EnumValue {
 export interface FieldSchema {
   name: string;
   label: string;
+  field_number: number;
   kind: FieldKind;
   repeated: boolean;
   oneof_group?: string;

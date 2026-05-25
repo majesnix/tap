@@ -205,6 +205,7 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
         const valueFieldSchema: FieldSchema = {
           name: `${field.name}[${index}].value`,
           label: "Value",
+          field_number: 0,
           kind: value_kind,
           repeated: false,
         };
