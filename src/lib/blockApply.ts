@@ -212,11 +212,26 @@ export function buildApplyPlan(
           }
           continue; // no toApply item for this field
         }
-        // No collisions — fall through to push toApply as before
+
+        // Zero collisions in a non-empty map: append non-colliding block rows to
+        // existing rows rather than replacing. This prevents silent data loss when
+        // a block's keys are entirely new (CR-01 fix).
+        if (nonCollidingRows.length === 0) {
+          continue; // nothing to add
+        }
+        if (dirtyFields[key]) {
+          continue;
+        }
+        const mergedValue = [
+          ...(current as Array<Record<string, unknown>>),
+          ...nonCollidingRows,
+        ];
+        toApply.push({ fieldName: key, value: mergedValue, kind: "map" });
+        continue;
       }
 
       if (dirtyFields[key]) {
-        // Dirty protection for non-collision map path
+        // Dirty protection for empty/non-array map path
         continue;
       }
       toApply.push({ fieldName: key, value, kind: "map" });
