@@ -169,8 +169,8 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
-v1.7 started 2026-05-25. Two-feature milestone: block apply completeness for complex field types (oneof / WKT / map) with per-field smart merge prompt, and full-text search across history panel (field values, field names, type name, target).
+v1.7 in progress. Phase 24 complete (2026-05-25): history full-text search delivered — `collectFieldNames` recursive traversal, `filterHistoryEntries` searchQuery extension, HistoryFilterBar search input row, and MessageHistoryPanel state wiring. Next: Phase 25 block-apply WKT + map empty case.
 
 ---
 
-*Last updated: 2026-05-25 — milestone v1.7 started (Block Apply Completeness + History Search)*
+*Last updated: 2026-05-25 — Phase 24 complete (history-full-text-search)*
