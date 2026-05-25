@@ -410,7 +410,7 @@ Plans:
 | 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete | 2026-05-24 |
 | 24. History Full-Text Search | v1.7 | 2/2 | Complete    | 2026-05-25 |
 | 25. Block Apply — WKT + Map Empty Case | v1.7 | 2/2 | Complete    | 2026-05-25 |
-| 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 2/2 | Complete   | 2026-05-25 |
+| 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 2/2 | Complete    | 2026-05-25 |
 
 ---
 

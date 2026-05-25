@@ -9,13 +9,13 @@
 
 ### Block Apply — Complex Field Types
 
-- [ ] **BLK-EXT-01**: User can apply a block to a WellKnownType field (Timestamp, Duration) when that field is empty; existing dirty-field guard is respected (dirty WKT fields are skipped, not overwritten)
-- [ ] **BLK-EXT-02**: User can apply a block to a map field when the form map is currently empty — block rows replace the empty map via `useFieldArray.replace()` (not `setValue`)
-- [ ] **BLK-EXT-03**: When a block targets a map field that already has rows, user sees a batched conflict dialog listing key collisions; user can overwrite or skip each conflicting key
-- [ ] **BLK-EXT-04**: User can apply a block to a oneof field when the block targets the same branch that is currently active; non-dirty branch sub-fields are filled; dirty sub-fields are skipped
-- [ ] **BLK-EXT-05**: When a block targets a oneof field on a different branch than the active one, user sees a confirmation prompt; if confirmed, the branch is switched and block values are applied after mount
-- [ ] **BLK-EXT-06**: All conflicts from a single block apply are batched into one dialog (not per-field modal chain); dialog lists each conflict with overwrite / skip choice; Apply and Cancel actions
-- [ ] **BLK-EXT-07**: `applyBlockRef` is refactored to a two-phase plan/commit model: `buildApplyPlan()` (pure, returns what would be applied and what conflicts exist) + `commitApply()` (writes to form after user decision); `BlockApplyConflictDialog` lives in `FormPanel`, not `ProtoFormRenderer`
+- [x] **BLK-EXT-01**: User can apply a block to a WellKnownType field (Timestamp, Duration) when that field is empty; existing dirty-field guard is respected (dirty WKT fields are skipped, not overwritten)
+- [x] **BLK-EXT-02**: User can apply a block to a map field when the form map is currently empty — block rows replace the empty map via `useFieldArray.replace()` (not `setValue`)
+- [x] **BLK-EXT-03**: When a block targets a map field that already has rows, user sees a batched conflict dialog listing key collisions; user can overwrite or skip each conflicting key
+- [x] **BLK-EXT-04**: User can apply a block to a oneof field when the block targets the same branch that is currently active; non-dirty branch sub-fields are filled; dirty sub-fields are skipped
+- [x] **BLK-EXT-05**: When a block targets a oneof field on a different branch than the active one, user sees a confirmation prompt; if confirmed, the branch is switched and block values are applied after mount
+- [x] **BLK-EXT-06**: All conflicts from a single block apply are batched into one dialog (not per-field modal chain); dialog lists each conflict with overwrite / skip choice; Apply and Cancel actions
+- [x] **BLK-EXT-07**: `applyBlockRef` is refactored to a two-phase plan/commit model: `buildApplyPlan()` (pure, returns what would be applied and what conflicts exist) + `commitApply()` (writes to form after user decision); `BlockApplyConflictDialog` lives in `FormPanel`, not `ProtoFormRenderer`
 
 ### History — Full-Text Search
 
@@ -56,13 +56,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BLK-EXT-01 | Phase 25 | Pending |
-| BLK-EXT-02 | Phase 25 | Pending |
-| BLK-EXT-03 | Phase 26 | Pending |
-| BLK-EXT-04 | Phase 26 | Pending |
-| BLK-EXT-05 | Phase 26 | Pending |
-| BLK-EXT-06 | Phase 26 | Pending |
-| BLK-EXT-07 | Phase 25 | Pending |
+| BLK-EXT-01 | Phase 25 | Complete |
+| BLK-EXT-02 | Phase 25 | Complete |
+| BLK-EXT-03 | Phase 26 | Complete |
+| BLK-EXT-04 | Phase 26 | Complete |
+| BLK-EXT-05 | Phase 26 | Complete |
+| BLK-EXT-06 | Phase 26 | Complete |
+| BLK-EXT-07 | Phase 25 | Complete |
 | HIST-FT-01 | Phase 24 | Complete |
 | HIST-FT-02 | Phase 24 | Complete |
 | HIST-FT-03 | Phase 24 | Complete |

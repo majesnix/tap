@@ -2,15 +2,16 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Block Apply Completeness + History Search
-status: executing
-last_updated: "2026-05-25T14:00:01.809Z"
+status: milestone_complete
+last_updated: 2026-05-25T15:43:15.850Z
 last_activity: 2026-05-25 -- Phase 26 execution started
 progress:
   total_phases: 11
   completed_phases: 2
   total_plans: 6
-  completed_plans: 4
+  completed_plans: 13
   percent: 18
+stopped_at: Milestone complete (Phase 26 was final phase)
 ---
 
 # Project State: Tap
@@ -20,14 +21,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 26 — block-apply-conflict-prompt-oneof
+**Current focus:** Milestone complete
 
 ## Current Position
 
-Phase: 26 (block-apply-conflict-prompt-oneof) — EXECUTING
-Plan: 1 of 2
-Status: Executing Phase 26
-Last activity: 2026-05-25 -- Phase 26 execution started
+Phase: 26
+Plan: Not started
+Status: Milestone complete
+Last activity: 2026-05-25
 
 ## Progress
 
