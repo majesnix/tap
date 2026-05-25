@@ -317,7 +317,17 @@ Plans:
   4. Typing a query matches history entries whose field names (keys in `fieldValues`) contain the query; `_selected` discriminator keys and RHF internal fields are excluded from matching
   5. The search filter works together with the existing type and target filters using AND logic — narrowing all three simultaneously further reduces results
   6. An empty search query returns the full unfiltered list; the "X of Y messages" count label updates to reflect the current combined filter result
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+
+**Wave 1**
+
+- [ ] 24-01-PLAN.md — collectFieldNames helper + filterHistoryEntries searchQuery extension (TDD)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 24-02-PLAN.md — HistoryFilterBar search row + MessageHistoryPanel state wiring
+
 **UI hint**: yes
 
 ### Phase 25: Block Apply — WKT + Map Empty Case
