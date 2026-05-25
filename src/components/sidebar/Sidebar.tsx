@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { RELEASE_NAME } from "@/lib/release";
 import { runUpdateCheck } from "@/UpdateChecker";
 import { usePlatformLabel } from "@/hooks/usePlatformLabel";
+import { SchemaExplorer } from "@/components/sidebar/SchemaExplorer";
 
 interface SidebarProps {
   viewMode?: "main" | "plans";
@@ -82,6 +83,8 @@ export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
           </div>
         </>
       )}
+
+      {schema && schema.messages.length > 0 && <SchemaExplorer />}
 
       {/* Connection panel: profile dropdown + status dot + manage button */}
       <Separator />
