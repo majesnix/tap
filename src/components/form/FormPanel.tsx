@@ -11,7 +11,19 @@ import { Braces, Library } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useBlockStore } from "@/stores/useBlockStore";
-import type { ApplyBlockRef } from "@/lib/blockApply";
+import type { ApplyBlockRef, ApplyPlan, ConflictChoices } from "@/lib/blockApply";
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from "@/components/ui/alert-dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Badge } from "@/components/ui/badge";
 
 /**
  * Converts a byte array to a formatted hex string.
@@ -50,6 +62,11 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
 
   const applyBlockRef = useRef<ApplyBlockRef | null>(null);
 
+  // Conflict dialog state (Phase 26 — BLK-EXT-06)
+  const [conflictPlan, setConflictPlan] = useState<ApplyPlan | null>(null);
+  // Pitfall E: rows default to skip via ?? 'skip'; initialized to {} (empty)
+  const [conflictChoices, setConflictChoices] = useState<ConflictChoices>({});
+
   const { isOver, setNodeRef: setDropZoneRef } = useDroppable({ id: 'form-drop-zone' });
 
   useDndMonitor({
@@ -73,8 +90,13 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
       }
 
       const plan = applyBlockRef.current.buildPlan(blockValues);
-      // plan.conflicts is always [] in Phase 25 — Phase 26 adds the conflict dialog
-      applyBlockRef.current.commitApply(plan);
+      // Phase 26: if conflicts exist, open dialog; otherwise apply immediately (Phase 25 path)
+      if (plan.conflicts.length > 0) {
+        setConflictPlan(plan);
+        setConflictChoices({}); // Pitfall E: all rows default to skip via ?? 'skip'
+      } else {
+        applyBlockRef.current.commitApply(plan);
+      }
       if (plan.unknownKeys.length > 0) {
         const n = plan.unknownKeys.length;
         const label = n === 1 ? 'field' : 'fields';
@@ -228,6 +250,112 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   }
 
   return (
+    <>
+    {/* BlockApplyConflictDialog — inline JSX to avoid nested component re-mount on state change */}
+    <AlertDialog open={conflictPlan !== null}>
+      <AlertDialogContent className="sm:max-w-lg">
+        <AlertDialogHeader>
+          <AlertDialogTitle>Review conflicts</AlertDialogTitle>
+          <AlertDialogDescription>
+            {conflictPlan && conflictPlan.conflicts.length === 1
+              ? "1 field already has a value. Choose what to do."
+              : `${conflictPlan?.conflicts.length ?? 0} fields already have values. Choose what to do for each.`}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="max-h-[50vh] overflow-y-auto px-6">
+          {(conflictPlan?.conflicts ?? []).map((item) => {
+            // Compute compound choice key per kind
+            const choiceKey =
+              item.kind === "map_key_collision"
+                ? `${item.fieldName}:${item.collisionKey}`
+                : item.kind === "oneof_dirty_subfield"
+                ? `${item.fieldName}:${item.subFieldName}`
+                : item.fieldName; // oneof_branch_switch: bare field name
+
+            // Row label per UI-SPEC
+            const rowLabel =
+              item.kind === "map_key_collision"
+                ? `"${item.fieldLabel ?? item.fieldName}" — key "${item.collisionKey}" already exists`
+                : item.kind === "oneof_dirty_subfield"
+                ? `"${item.fieldLabel ?? item.fieldName}.${item.subFieldLabel ?? item.subFieldName}" already has a value`
+                : `Switch "${item.fieldLabel ?? item.fieldName}" from "${item.currentBranch}" to "${item.blockBranch}"`;
+
+            // Badge text per kind
+            const badgeText =
+              item.kind === "map_key_collision"
+                ? "map key"
+                : item.kind === "oneof_dirty_subfield"
+                ? "dirty field"
+                : "branch switch";
+
+            // Current value preview (truncated to 60 chars)
+            const rawPreview =
+              item.currentValue !== null && item.currentValue !== undefined
+                ? JSON.stringify(item.currentValue)
+                : "—";
+            const currentValuePreview =
+              rawPreview.length > 60 ? rawPreview.slice(0, 60) + "..." : rawPreview;
+
+            // Current choice for this row; Pitfall E: default to 'skip'
+            const currentChoice = conflictChoices[choiceKey] ?? "skip";
+
+            return (
+              <div
+                key={choiceKey}
+                className="flex items-start gap-2 border-b border-border py-2 last:border-0"
+              >
+                <RadioGroup
+                  value={currentChoice}
+                  onValueChange={(v) =>
+                    setConflictChoices((prev) => ({
+                      ...prev,
+                      [choiceKey]: v as "skip" | "overwrite",
+                    }))
+                  }
+                  className="flex flex-col gap-1"
+                >
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="skip" id={`skip-${choiceKey}`} />
+                    <label htmlFor={`skip-${choiceKey}`} className="text-xs cursor-pointer">
+                      Skip
+                    </label>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <RadioGroupItem value="overwrite" id={`overwrite-${choiceKey}`} />
+                    <label htmlFor={`overwrite-${choiceKey}`} className="text-xs cursor-pointer">
+                      Overwrite
+                    </label>
+                  </div>
+                </RadioGroup>
+                <div className="flex-1 flex flex-col gap-1">
+                  <span className="text-xs font-semibold">{rowLabel}</span>
+                  <Badge variant="outline" className="text-xs w-fit">{badgeText}</Badge>
+                  <span className="text-xs text-muted-foreground">{currentValuePreview}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <AlertDialogFooter>
+          <AlertDialogCancel
+            autoFocus
+            onClick={() => setConflictPlan(null)}
+          >
+            Discard block
+          </AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => {
+              if (conflictPlan && applyBlockRef.current) {
+                applyBlockRef.current.commitApply(conflictPlan, conflictChoices);
+              }
+              setConflictPlan(null);
+            }}
+          >
+            Apply block
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
     <div className="flex-1 flex flex-col min-h-0">
       <div className="px-4 py-3 border-b border-border shrink-0 flex items-start justify-between">
         <div>
@@ -288,5 +416,6 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
         </div>
       )}
     </div>
+    </>
   );
 }
