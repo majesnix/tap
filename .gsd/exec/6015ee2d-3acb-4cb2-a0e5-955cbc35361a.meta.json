@@ -1,0 +1,18 @@
+{
+  "id": "6015ee2d-3acb-4cb2-a0e5-955cbc35361a",
+  "runtime": "bash",
+  "purpose": "find package.json scripts for tests",
+  "script_chars": 121,
+  "started_at": "2026-05-25T21:29:41.072Z",
+  "finished_at": "2026-05-25T21:29:41.090Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 18,
+  "stdout_bytes": 669,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/6015ee2d-3acb-4cb2-a0e5-955cbc35361a.stdout",
+  "stderr_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/6015ee2d-3acb-4cb2-a0e5-955cbc35361a.stderr"
+}
