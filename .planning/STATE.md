@@ -1,17 +1,16 @@
 ---
 gsd_state_version: 1.0
-milestone: v1.7
-milestone_name: Block Apply Completeness + History Search
-status: archived
-last_updated: 2026-05-25T18:00:00.000Z
-last_activity: 2026-05-25 -- v1.7 milestone archived
+milestone: v1.8
+milestone_name: UX Polish + Proto Ergonomics
+status: planning
+last_updated: "2026-05-25T17:37:26.923Z"
+last_activity: 2026-05-25
 progress:
-  total_phases: 3
-  completed_phases: 3
-  total_plans: 6
-  completed_plans: 6
-  percent: 100
-stopped_at: Milestone archived
+  total_phases: 0
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
+  percent: 0
 ---
 
 # Project State: Tap
@@ -25,10 +24,10 @@ See: .planning/PROJECT.md (updated 2026-05-25 after v1.7 milestone)
 
 ## Current Position
 
-Phase: 26 (final, archived)
-Plan: Archived
-Status: v1.7 milestone archived 2026-05-25
-Last activity: 2026-05-25
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-05-25 — Milestone v1.8 started
 
 ## Progress
 

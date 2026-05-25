@@ -67,13 +67,27 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Block apply for WellKnownType (Timestamp etc.) and empty map fields — dirty-field guard only for WKT; mapReplaceRegistry useRef + two-phase `{ buildPlan, commitApply }` ref; block-filled fields stay non-dirty and are re-writable by subsequent block drags — v1.7 (Phase 25)
 - ✓ Block apply conflict resolution — map-key collision dialog (per-row skip/overwrite), oneof branch-switch dialog, oneof dirty-subfield dialog; commitApply Phase B atomic merge; Pitfall D fix (shouldDirty:false on all block fills) — v1.7 (Phase 26)
 
+## Current Milestone: v1.8 UX Polish + Proto Ergonomics
+
+**Goal:** Make Tap faster to use day-to-day — keyboard-first workflow, persistent draft state, quick proto navigation, and a schema explorer for power users.
+
+**Target features:**
+- Keyboard shortcuts — Send (Cmd+Enter), Open proto (Cmd+O), Clear form (Cmd+Shift+R), Tab navigation (Cmd+1/2/3)
+- Form reset / clear + field-level copy to clipboard
+- Randomizer — fill all fields with type-appropriate random values for quick test sends
+- Proto file reload + recent files nav (quick-access list of recently used `.proto` files)
+- Proto import manager — view/edit include paths and import dependencies for the loaded file
+- Schema explorer — collapsible tree (messages, fields, enums) + inline field type tooltips on hover
+- Connection quick-switch — switch profiles without opening the sidebar
+- Message draft persistence — auto-save/restore last form state per message type, survives restart
+
 ## Current State
 
 **Shipped:** v1.7 Block Apply Completeness + History Search (2026-05-25)
 
 Block apply is now complete for all field types: WellKnownType (Timestamp, Duration), empty map fields, map-key collisions (batched conflict dialog, per-row skip/overwrite), oneof same-branch fills, and oneof cross-branch switches. History search adds full-text search across message type name, queue/exchange target, and field name keys, with AND logic alongside existing filters.
 
-**Next milestone:** TBD — run `/gsd-new-milestone` to define goals and requirements.
+**Now planning:** v1.8 UX Polish + Proto Ergonomics
 
 ## Backlog (future milestones)
 
@@ -186,4 +200,4 @@ v1.7 shipped 2026-05-25. Block apply is now complete for all field types; histor
 
 ---
 
-*Last updated: 2026-05-25 after v1.7 milestone*
+*Last updated: 2026-05-25 — v1.8 milestone started*
