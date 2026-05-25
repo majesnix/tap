@@ -4,7 +4,7 @@ milestone: v1.7
 milestone_name: Block Apply Completeness + History Search
 status: executing
 last_updated: "2026-05-25T11:30:23.525Z"
-last_activity: 2026-05-25 -- Phase 25 execution started
+last_activity: 2026-05-25 -- Completed quick task 260525-jw3: Fix message-kind fields appearing in not-in-form toast
 progress:
   total_phases: 11
   completed_phases: 1
@@ -58,6 +58,12 @@ None yet for v1.7.
 - [x] Phase 24: History Full-Text Search — complete (4/4 UAT passed 2026-05-25)
 - [ ] Plan Phase 25: Block Apply — WKT + Map Empty Case
 - [ ] Plan Phase 26: Block Apply — Conflict Prompt + Oneof
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260525-jw3 | Fix message-kind fields appearing in not-in-form toast | 2026-05-25 | 8a9fcb8 | [260525-jw3-fix-message-kind-fields-appearing-in-not](.planning/quick/260525-jw3-fix-message-kind-fields-appearing-in-not/) |
 
 ### Blockers
 
