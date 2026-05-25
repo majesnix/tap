@@ -19,13 +19,13 @@
 
 ### History — Full-Text Search
 
-- [ ] **HIST-FT-01**: User sees a search input in the history panel as a third filter control, alongside the existing message type and target filter inputs
-- [ ] **HIST-FT-02**: Typing in the search input filters history entries whose message type name contains the query string (case-insensitive substring)
-- [ ] **HIST-FT-03**: Typing in the search input filters history entries whose queue/exchange target contains the query string (case-insensitive substring)
-- [ ] **HIST-FT-04**: Typing in the search input filters history entries whose `fieldValues` contain a field name (key) matching the query string (schema-guided traversal; `_selected` discriminator and RHF internals excluded)
-- [ ] **HIST-FT-05**: Search filter applies with AND logic alongside the existing type and target filters; all three are independent controls
-- [ ] **HIST-FT-06**: An empty search query shows the full (unfiltered) entry list; a "X of Y messages" count label reflects the current filtered count
-- [ ] **HIST-FT-07**: `filterHistoryEntries` is extended with an optional `searchQuery` parameter (empty string default); all existing callers and tests continue to pass unchanged
+- [x] **HIST-FT-01**: User sees a search input in the history panel as a third filter control, alongside the existing message type and target filter inputs
+- [x] **HIST-FT-02**: Typing in the search input filters history entries whose message type name contains the query string (case-insensitive substring)
+- [x] **HIST-FT-03**: Typing in the search input filters history entries whose queue/exchange target contains the query string (case-insensitive substring)
+- [x] **HIST-FT-04**: Typing in the search input filters history entries whose `fieldValues` contain a field name (key) matching the query string (schema-guided traversal; `_selected` discriminator and RHF internals excluded)
+- [x] **HIST-FT-05**: Search filter applies with AND logic alongside the existing type and target filters; all three are independent controls
+- [x] **HIST-FT-06**: An empty search query shows the full (unfiltered) entry list; a "X of Y messages" count label reflects the current filtered count
+- [x] **HIST-FT-07**: `filterHistoryEntries` is extended with an optional `searchQuery` parameter (empty string default); all existing callers and tests continue to pass unchanged
 
 ---
 
@@ -63,10 +63,10 @@
 | BLK-EXT-05 | Phase 26 | Pending |
 | BLK-EXT-06 | Phase 26 | Pending |
 | BLK-EXT-07 | Phase 25 | Pending |
-| HIST-FT-01 | Phase 24 | Pending |
-| HIST-FT-02 | Phase 24 | Pending |
-| HIST-FT-03 | Phase 24 | Pending |
-| HIST-FT-04 | Phase 24 | Pending |
-| HIST-FT-05 | Phase 24 | Pending |
-| HIST-FT-06 | Phase 24 | Pending |
-| HIST-FT-07 | Phase 24 | Pending |
+| HIST-FT-01 | Phase 24 | Complete |
+| HIST-FT-02 | Phase 24 | Complete |
+| HIST-FT-03 | Phase 24 | Complete |
+| HIST-FT-04 | Phase 24 | Complete |
+| HIST-FT-05 | Phase 24 | Complete |
+| HIST-FT-06 | Phase 24 | Complete |
+| HIST-FT-07 | Phase 24 | Complete |
