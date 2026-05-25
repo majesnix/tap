@@ -2,16 +2,15 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Block Apply Completeness + History Search
-status: ready_to_plan
-last_updated: 2026-05-25T12:49:34.914Z
-last_activity: 2026-05-25 -- Completed quick task 260525-jw3: Fix message-kind fields appearing in not-in-form toast
+status: planning
+last_updated: "2026-05-25T13:02:07.279Z"
+last_activity: 2026-05-25
 progress:
   total_phases: 11
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 4
-  completed_plans: 11
-  percent: 9
-stopped_at: Phase 25 complete (2/2) — ready to discuss Phase 26
+  completed_plans: 4
+  percent: 18
 ---
 
 # Project State: Tap
@@ -74,9 +73,9 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-25
-Stopped at: Phase 25 complete — UAT passed, ready to plan Phase 26
-Resume file: None
+Last session: 2026-05-25T13:02:07.274Z
+Stopped at: Phase 26 context gathered
+Resume file: .planning/phases/26-block-apply-conflict-prompt-oneof/26-CONTEXT.md
 
 - v1.7: 2/3 phases complete (24 history search ✓, 25 WKT+map-empty ✓)
 - Phase 26 remaining: conflict prompt + oneof block apply
