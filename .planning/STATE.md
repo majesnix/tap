@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.8
 milestone_name: UX Polish + Proto Ergonomics
-status: ready_to_plan
-last_updated: "2026-05-25"
-last_activity: 2026-05-25
+status: planning
+last_updated: "2026-05-25T18:18:48.039Z"
+last_activity: 2026-05-25 — v1.8 roadmap created; 5 phases defined (27–31)
 progress:
-  total_phases: 5
+  total_phases: 16
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -82,6 +82,6 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-25
-Stopped at: v1.8 roadmap written; phases 27–31 defined and filed
-Resume file: None
+Last session: 2026-05-25T18:18:48.035Z
+Stopped at: Phase 27 context gathered
+Resume file: .planning/phases/27-keyboard-shortcuts-field-copy/27-CONTEXT.md
