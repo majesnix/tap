@@ -1,450 +1,371 @@
-# Architecture Patterns — Plan Runner Integration
+# Architecture: v1.7 Block Apply Completeness + History Search
 
-**Project:** Tap v1.6 Plan Runner
-**Researched:** 2026-05-23
-**Confidence:** HIGH (derived directly from reading v1.5 source)
-
----
-
-## Existing Architecture Baseline (v1.5)
-
-### Rust Backend Shape
-
-| Command | File | Pattern |
-|---------|------|---------|
-| `parse_proto` | `commands/proto.rs` | Sets `DescriptorPool` in managed `Mutex<Option<DescriptorPool>>` AppState |
-| `encode_message` | `commands/encode.rs` | Reads pool; sync encode; returns hex string |
-| `publish_message` | `commands/publish.rs` | Ephemeral lapin connection per call; publisher confirms; returns `PublishOutcome` |
-| `consume_message` | `commands/consume.rs` | Ephemeral lapin connection; basic_get; ack-before-decode |
-| `drain_messages` | `commands/consume.rs` | Ephemeral lapin connection; loop up to 500 basic_get; multi-type decode |
-| `start_subscribe` | `commands/subscribe.rs` | Persistent lapin connection; background task via `tauri::async_runtime::spawn`; streaming via `tauri::ipc::Channel<DrainResult>` |
-| `stop_subscribe` | `commands/subscribe.rs` | Cancels `CancellationToken` stored in `Mutex<Option<SubscribeState>>` |
-| `save_profile` / `list_profiles` etc. | `commands/connection.rs` | `tauri-plugin-store` + OS keychain via `keyring-core` |
-| `fetch_queues` / `fetch_exchanges` | `commands/connection.rs` | `reqwest` to Management API |
-
-**AppState (managed):**
-- `Mutex<Option<prost_reflect::DescriptorPool>>` — single pool, replaced on each proto load
-- `Mutex<Option<SubscribeState>>` — one active subscribe session at a time; `SubscribeState { token: CancellationToken, handle: Option<JoinHandle<()>> }`
-
-### React Frontend Shape
-
-**Stores (Zustand 5):**
-- `useProtoStore` — open files, active file, schema, selected message type, hex preview, last send signal (`lastSendAt`), pending replay values
-- `useConnectionStore` — profiles, active profile, connection/management status, queues, exchanges
-- `useHistoryStore` — FIFO-100 send history; `tauri-plugin-store` persistence to `history.json`
-- `useBlockStore` — message blocks; `tauri-plugin-store` persistence to `blocks.json`
-- `useResponseStore` — feed messages (FIFO-500), subscribe status, queue selection, decode types
-
-**Component tree (v1.5):**
-```
-App.tsx
-  ThemeProvider (next-themes)
-    ThemeBootstrap
-    UpdateChecker
-    AppLayout                   ← top-level layout; owns DndContext
-      aside (Sidebar)
-      main
-        PublishBar
-        DndContext
-          BlockLibraryPanel
-          FormPanel             ← react-hook-form + ProtoFormRenderer (FROZEN)
-        DragOverlay
-      aside (RightPanel)        ← tabs: Hex / History / Response
-        HexPreviewPanel
-        MessageHistoryPanel
-        MessageFeedTab          ← drain + live subscribe feed
-    Toaster
-```
-
-**FROZEN contracts:**
-- `ProtoFormRenderer` switch body — extend via pre-dispatch branches only
-- `applyBlockRef` contract — ref wiring at form-level drop zone, no switch changes
-- `AppLayout`'s `DndContext` + `DragOverlay` — mounted at layout level for z-index correctness
-
-**Persistence stores (tauri-plugin-store):**
-- `tap.json` — theme mode
-- `history.json` — send history entries (FIFO-100)
-- `blocks.json` — message blocks
+**Project:** Tap (proto-sender)
+**Researched:** 2026-05-25
+**Milestone:** v1.7
 
 ---
 
-## Decision 1: Rust Command Design — Single Command vs. JS Orchestration
+## Section 1 — Block Apply for Complex Field Types
 
-**Recommendation: JS-orchestrated step execution using existing commands.**
+### 1.1 Current State
 
-A `execute_plan_step` Rust command that wraps publish + conditional consume inside Rust is superficially attractive but creates problems:
+`applyBlockRef.current` in `ProtoFormRenderer.tsx` (lines 151–175) is a synchronous function with this contract:
 
-1. **Polling logic belongs in JS.** The response-waiting strategy (correlationId match, first-arrival, no-wait with delay) requires polling `basic_get` or subscribing to a reply queue — both are already available as JS-callable commands. Adding a new Rust wrapper duplicates logic that already exists and works.
-
-2. **Each step already maps cleanly to existing commands.** A plan step is: `encode_message` → `publish_message` → (optionally) `start_subscribe` + `stop_subscribe` or `drain_messages`. The JS orchestrator sequences these with `await`, handles per-step state transitions, and surfaces errors inline.
-
-3. **Pause / Stop controls require JS control of the loop.** A single Rust command cannot be paused mid-execution without a second cancellation mechanism. The JS loop already runs in a React context where a "stop" action simply sets an ephemeral flag that the `while (steps[i] && !stopped)` loop checks.
-
-4. **The only new Rust command needed is `check_queue_depth` for multi-queue monitoring.** This is a simple wrapper around `fetch_queue_depth` that accepts multiple queue names and returns a map — or the existing `fetch_queue_depth` (singular) called in parallel from JS is sufficient.
-
-**Concrete step execution sequence (JS):**
-
-```
-for each step:
-  1. encode_message(step.proto_file, step.message_type, step.field_values)
-     → produces payload bytes
-  2. publish_message(profile, step.target, payload, step.amqp_props)
-     → PublishOutcome { status }
-     → update step status: Sending → (WaitingResponse | Done | Error)
-  3. if step.response_config.mode === "correlationId":
-       poll drain_messages(reply_queue) until matching correlationId found
-       or timeout
-  4. if step.response_config.mode === "firstArrival":
-       drain_messages(reply_queue, count=1) with timeout poll
-  5. if step.response_config.mode === "noWait":
-       await delay(step.response_config.delayMs)
-  6. advance to next step
+```ts
+(blockValues: Record<string, unknown>) => string[]
+// returns: array of unmatched block key names (toast-warned as BLK-08)
 ```
 
-**No new Rust command for step execution.** The JS runner orchestrates existing commands.
+**Current eligible set** (line 153–158): `scalar`, `enum`, `message`. oneof/WKT/map are excluded from `eligibleFields` and land in `skipped`, producing the BLK-08 toast. `dirtyFields[key]` silently prevents overwrite with no user prompt.
 
----
+**v1.7 changes two things:**
 
-## Decision 2: Multi-Queue Monitoring During a Plan Run
+1. **Extend eligibility** — oneof, WKT, and map fields become applicable.
+2. **Replace silent dirty-skip with a per-field conflict prompt** — this is cross-cutting; it applies to ALL field types (scalar, enum, message, oneof, WKT, map), not only the newly eligible ones. The current silent protection becomes a user-facing decision.
 
-**Recommendation: Reuse `start_subscribe` / `stop_subscribe` with a plan-scoped channel.**
+### 1.2 Block JSON Shape Contract
 
-The existing `start_subscribe` command is a single-queue persistent consumer. During a plan run, the shared response feed collects all messages arriving on watched queues (which may change per step).
+The block's `content` JSON string already stores the form's `latestValues` snapshot. For complex types the shape follows existing RHF internal conventions (already encoded this way when blocks are saved from form state):
 
-**Pattern:** One `start_subscribe` call per watched queue. Plan runner starts a subscribe session on the reply queue before step 1 executes, and stops it after the plan completes (or on Stop). All incoming `DrainResult` events are appended to the plan's `executionFeed` (not the global `useResponseStore.messages`).
+| Field type | JSON shape in block content |
+|------------|----------------------------|
+| oneof | `{ payment: { _selected: "card_number", card_number: "1234" } }` — flat object, `_selected` key plus one branch key. Matches `OneofField` path convention. |
+| map | `{ headers: [{ key: "x-version", value: "1" }] }` — array of `{key, value}` pairs. NOT `Record<K,V>`. Matches `useFieldArray` storage and the existing duplicate-key decision. |
+| WKT | `{ created_at: "2024-01-15T10:00" }` — string at top level. For Any/Struct/Value/ListValue it is a JSON-encoded string per `WellKnownTypeField` fallback path. |
+| repeated | `{ tags: ["a","b","c"] }` — plain array. |
+| scalar/enum/message | unchanged from v1.3 |
 
-**Critical boundary:** The plan's subscribe channel is **separate from the global subscribe session** in `useResponseStore`. Two independent subscribe sessions can run simultaneously on different queues because each opens its own lapin connection + channel (ephemeral per session). The `Mutex<Option<SubscribeState>>` in AppState is **the bottleneck** — it allows only one active global subscribe at a time.
+**No migration needed** for existing saved blocks. Blocks saved before v1.7 used the same form snapshot format. Complex fields were simply never stored in saved blocks (users who have blocks today have only scalar/enum/message content since those were the only eligible fields at apply time).
 
-**Resolution:** Add a second managed state slot for plan subscribe:
+### 1.3 applyBlockRef Contract Change
 
-```rust
-// In lib.rs AppState registrations:
-.manage(Mutex::new(Option::<commands::subscribe::SubscribeState>::None))  // existing: global subscribe
-.manage(commands::plan::PlanSubscribeState::new())                         // new: plan subscribe
-```
+The synchronous write contract must become two-phase to support the user conflict prompt without ProtoFormRenderer owning UI:
 
-Or, simpler: make `start_subscribe` accept an optional `session_id: String` parameter and use a `HashMap<String, SubscribeState>` in managed state. This avoids adding a second managed type.
+**Phase A — Plan (pure, no side effects):**
 
-**Simplest approach (recommended):** Use a `HashMap`-based subscribe manager:
-
-```rust
-// commands/subscribe.rs — extend existing
-pub struct SubscribeManager {
-    pub sessions: HashMap<String, SubscribeState>,
+```ts
+interface FieldConflict {
+  key: string;
+  incomingValue: unknown;
+  currentValue: unknown;
+  fieldType: 'scalar' | 'enum' | 'message' | 'oneof' | 'well_known' | 'map';
 }
-// Managed as: Mutex<SubscribeManager>
-// start_subscribe(session_id: "global") for the existing flow
-// start_subscribe(session_id: "plan") for plan runs
-// stop_subscribe(session_id: "global"|"plan")
-```
 
-**Frontend impact:** The existing `SubscribePanel` / `MessageFeedTab` passes `session_id: "global"` implicitly. Plan runner passes `session_id: "plan"`. The Tauri `Channel` instances are separate — plan events go to the plan store, not `useResponseStore`.
-
-This approach requires modifying `start_subscribe` and `stop_subscribe` signatures and updating `lib.rs` managed state. The existing frontend behavior is unchanged because it always passes `session_id: "global"`.
-
----
-
-## Decision 3: Plan Full-Screen View in the React Component Tree
-
-**Recommendation: View-level switcher at `App.tsx`, not a new route, not inside `AppLayout`.**
-
-Three options:
-
-**Option A — React Router route (`/plan`, `/`):** Adds a dependency (React Router or TanStack Router). Unnecessary for a desktop app with two views. Routing libraries add complexity and bundle size for no benefit here. Rejected.
-
-**Option B — Inside AppLayout (panel replacement):** Plan view replaces the center panel content. Forces Plan view into the same sidebar + right-panel chrome. The Plan runner UI is full-screen; fitting it into the existing layout constraints (sidebar is 288px, right panel is 320px) would require hiding both sidebars. Awkward and fragile — the layout would need mode-dependent conditional rendering throughout. Rejected.
-
-**Option C — Top-level view switcher in `App.tsx`:** A `currentView: "main" | "plans"` local state in `App.tsx` (or a thin store). When `"plans"`, render `<PlanView />` full-screen in place of `<AppLayout />`. When `"main"`, render `<AppLayout />` as today. No layout constraints, no routing library, no changes to `AppLayout`. Clean separation.
-
-**Chosen: Option C.**
-
-```tsx
-// App.tsx (extended)
-export default function App() {
-  const [view, setView] = useState<"main" | "plans">("main");
-  return (
-    <ThemeProvider ...>
-      <ThemeBootstrap />
-      <UpdateChecker />
-      {view === "main"
-        ? <AppLayout onNavigatePlans={() => setView("plans")} />
-        : <PlanView onNavigateMain={() => setView("main")} />}
-      <Toaster />
-    </ThemeProvider>
-  );
+interface ApplyPlan {
+  cleanApplies: Record<string, unknown>;  // dirty=false -> apply immediately, no prompt
+  conflicts: FieldConflict[];             // dirty=true -> needs user decision
+  unmatched: string[];                    // not in message schema -> BLK-08 toast
 }
 ```
 
-`AppLayout` receives an `onNavigatePlans` callback that a sidebar button invokes. `PlanView` receives an `onNavigateMain` callback for a "Back" button.
+**Phase B — Commit (writes to form):**
 
-**DndContext:** Plan view has its own drag-and-drop context (step reordering). This is separate from the `AppLayout`-level `DndContext` (block apply). No conflict: the two contexts are never mounted simultaneously.
-
----
-
-## Decision 4: Zustand Store Design — Plan State
-
-### Persistent (tauri-plugin-store → `plans.json`)
-
-**`usePlanStore`** holds plan definitions that survive app restarts.
-
-```typescript
-interface PlanStep {
-  id: string;                          // crypto.randomUUID()
-  protoFilePath: string;               // path to .proto file
-  messageTypeName: string;             // full_name from schema
-  fieldValues: Record<string, unknown>;// field values (same shape as HistoryEntry.fieldValues)
-  target: {
-    mode: "queue" | "exchange";
-    queue?: string;
-    exchange?: string;
-    routingKey?: string;
-  };
-  amqpProps?: {
-    correlationId?: string;
-    replyTo?: string;
-    contentType?: string;
-    deliveryMode?: 1 | 2;
-    ttl?: number;
-    headers?: [string, string][];
-  };
-  responseConfig: {
-    mode: "correlationId" | "firstArrival" | "noWait";
-    replyQueue?: string;            // for correlationId + firstArrival modes
-    timeoutMs?: number;             // default 10000
-    delayMs?: number;               // for noWait mode
-  };
+```ts
+interface ApplyDecision {
+  key: string;
+  action: 'overwrite' | 'skip';
 }
 
-interface Plan {
-  id: string;
-  name: string;
-  steps: PlanStep[];
-  createdAt: string;                   // ISO timestamp
-  updatedAt: string;
-}
+// Commit: void, applies setValue calls for decided conflicts + all cleanApplies
+```
 
-interface PlanStore {
-  plans: Plan[];
-  plansLoaded: boolean;
-  loadPlans: () => Promise<void>;
-  createPlan: (name: string) => Promise<Plan>;
-  updatePlan: (id: string, updates: Partial<Pick<Plan, "name" | "steps">>) => Promise<void>;
-  deletePlan: (id: string) => Promise<void>;
-  duplicatePlan: (id: string) => Promise<Plan>;
+**Ref shape on ProtoFormRenderer:**
+
+```ts
+interface ApplyBlockRefs {
+  planApplyBlockRef: React.MutableRefObject<
+    ((blockValues: Record<string, unknown>) => ApplyPlan) | null
+  >;
+  commitApplyBlockRef: React.MutableRefObject<
+    ((cleanApplies: Record<string, unknown>, decisions: ApplyDecision[]) => void) | null
+  >;
 }
 ```
 
-Pattern follows `useBlockStore` exactly: optimistic update → persist → rollback on failure. Store path: `plans.json`. Hydration gate: `plansLoaded` flag.
+The existing single `applyBlockRef` prop becomes two props (`planApplyBlockRef`, `commitApplyBlockRef`). `FormPanel` holds both refs, `ProtoFormRenderer` populates both via `useEffect`, `FormPanel` orchestrates the dialog.
 
-### Ephemeral (React state — never persisted)
+### 1.4 setValue Mechanics for Complex Types
 
-Execution state is local to `PlanView` or a dedicated ephemeral store. It resets on every run and does not survive navigation away.
+**oneof** — apply order matters. Set the full object atomically via `setValue(key, { _selected: branchName, [branchName]: branchValue })`. Do NOT set `_selected` first then the branch separately: RHF's `unregister` effect in `OneofField` fires on `_selected` change and would unregister the branch path before the second `setValue` lands. Atomic set avoids the race. Use `shouldDirty: false` (consistent with existing scalar apply per Pitfall 3 in prior research — keeps field non-dirty so a subsequent block drop can still overwrite it).
 
-```typescript
-// usePlanExecutionStore — ephemeral, NOT persisted
-type StepStatus = "Pending" | "Sending" | "WaitingResponse" | "Done" | "Error";
+**map** — `setValue(key, arrayOfPairs, { shouldDirty: false })` where `arrayOfPairs` is `Array<{key, value}>`. `useFieldArray` in `MapField` watches the path, so setting the top-level array refreshes all rows. The duplicate-key guard (`useWatch` + `useMemo` in MapField) fires automatically on the next render cycle.
 
-interface StepExecutionState {
-  stepId: string;
-  status: StepStatus;
-  publishOutcome?: "ack" | "nack" | "returned" | "timeout";
-  response?: FeedMessage;              // decoded response for inline display
-  error?: string;
-}
+**WKT** — `setValue(key, stringValue, { shouldDirty: false })`. Same as scalar; the `Controller` in `WellKnownTypeField` picks it up directly.
 
-interface PlanExecutionStore {
-  activePlanId: string | null;
-  stepStates: StepExecutionState[];   // ordered, index matches plan.steps
-  runStatus: "Idle" | "Running" | "Paused" | "Done" | "Error";
-  executionFeed: FeedMessage[];        // shared feed of all messages arriving during run
-  startRun: (plan: Plan) => void;
-  pauseRun: () => void;
-  resumeRun: () => void;
-  stopRun: () => void;
-  updateStepStatus: (stepId: string, update: Partial<StepExecutionState>) => void;
-  appendFeedMessage: (msg: FeedMessage) => void;
-  reset: () => void;
-}
+**message (nested)** — already eligible today. `setValue(key, objectValue, { shouldDirty: false })`. No change.
+
+### 1.5 Conflict Detection Granularity
+
+Top-level fields only. Do not recurse into nested message shapes for dirty detection. Rationale: `formState.dirtyFields[key]` tracks top-level keys in RHF; a user editing `payment.card_number` has dirtied the `payment` top-level entry in dirtyFields, which the top-level check catches. Recursive sub-field dirty inspection adds complexity without clear user value in v1.7.
+
+### 1.6 Modified Components
+
+**`ProtoFormRenderer.tsx` — MODIFIED**
+
+- Remove `applyBlockRef` prop (single ref).
+- Add `planApplyBlockRef` and `commitApplyBlockRef` props.
+- Populate `planApplyBlockRef.current` with a pure function that classifies each block key as `cleanApply | conflict | unmatched` using `message.fields` + `formState.dirtyFields`. Extends eligible set to include `oneof`, `well_known`, `map`.
+- Populate `commitApplyBlockRef.current` with a function that calls `setValue` per decision.
+- Do NOT touch the `renderField` switch or any pre-dispatch branch.
+
+**`FormPanel.tsx` — MODIFIED**
+
+- Replace `applyBlockRef` ref with `planApplyBlockRef` + `commitApplyBlockRef` refs.
+- In `useDndMonitor.onDragEnd`: call `planApplyBlockRef.current(blockValues)` to get `ApplyPlan`.
+  - `conflicts.length === 0`: call `commitApplyBlockRef.current(cleanApplies, [])` immediately (no dialog).
+  - `conflicts.length > 0`: open the conflict dialog, passing `conflicts` and `cleanApplies`.
+- Add local state for the dialog: `pendingApplyPlan: ApplyPlan | null`, `isConflictDialogOpen: boolean`.
+- On dialog confirm: call `commitApplyBlockRef.current(plan.cleanApplies, decisions)`.
+- Still show BLK-08 toast for `unmatched` keys.
+
+### 1.7 New Components
+
+**`BlockApplyConflictDialog.tsx` — NEW**
+
+Location: `src/components/blocks/BlockApplyConflictDialog.tsx`
+
+Responsibility: render per-field overwrite/skip UI for each `FieldConflict`. Stateless — receives `conflicts`, `cleanApplies`, `onConfirm(decisions)`, `onCancel`. Internal state: `decisions: Record<string, 'overwrite' | 'skip'>`, initialized to `'skip'` (conservative default — do not overwrite without explicit user intent).
+
+UI shape:
+- AlertDialog with scrollable list of conflict rows.
+- Each row: field name + field type badge, current value display (truncated stringify), incoming value display (truncated stringify), overwrite/skip toggle (Switch or RadioGroup).
+- "Apply" button confirms all decisions.
+- "Cancel" discards the drop entirely.
+
+Value display: `JSON.stringify(val).slice(0, 80) + (len > 80 ? '...' : '')`. For oneof/map, show the type badge rather than raw JSON to keep rows readable.
+
+**`src/lib/blockApply.ts` — NEW**
+
+Pure helper module, extractable from `ProtoFormRenderer` logic and independently unit-testable:
+
+```ts
+export function classifyBlockKey(
+  key: string,
+  incomingValue: unknown,
+  eligibleFields: Set<string>,
+  dirtyFields: Record<string, unknown>
+): 'clean' | 'conflict' | 'unmatched'
+
+export function buildApplyPlan(
+  blockValues: Record<string, unknown>,
+  message: MessageSchema,
+  currentFormValues: Record<string, unknown>,
+  dirtyFields: Record<string, unknown>
+): ApplyPlan
 ```
 
-**Why a separate ephemeral store (not component state):** The plan runner's execution state needs to be readable by multiple components simultaneously — the step list (for status badges), the execution feed (for incoming messages), and the Run/Pause/Stop control bar. Component state would require prop-drilling through three levels. A Zustand store is the right tool; making it ephemeral (no persistence calls) keeps it simple.
+`ApplyPlan`, `FieldConflict`, `ApplyDecision` types are also exported from this module and imported by `ProtoFormRenderer` and `FormPanel`.
 
-**What is not stored:**
-- The live Tauri `Channel` handler — this is a closure reference, not serializable
-- Whether a subscribe session is active during the run — derived from `runStatus`
+### 1.8 Data Flow
+
+```
+BlockLibraryPanel (drag start)
+  -> DndContext.DragOverlay (AppLayout)
+  -> FormPanel.useDndMonitor.onDragEnd
+      -> parse block.content JSON
+      -> planApplyBlockRef.current(blockValues) -> ApplyPlan
+          [ProtoFormRenderer closure: buildApplyPlan(blockValues, message, getValues(), dirtyFields)]
+      -> if conflicts.length === 0:
+            commitApplyBlockRef.current(cleanApplies, [])
+      -> if conflicts.length > 0:
+            setPendingApplyPlan(plan), setConflictDialogOpen(true)
+      -> toast BLK-08 for unmatched keys
+
+BlockApplyConflictDialog (user makes decisions)
+  -> onConfirm(decisions)
+      -> commitApplyBlockRef.current(plan.cleanApplies, decisions)
+          [ProtoFormRenderer closure]
+          -> for cleanApply keys: setValue(key, value, {shouldDirty:false})
+          -> for decisions with action='overwrite': setValue(key, value, {shouldDirty:false})
+          -> for decisions with action='skip': no-op
+  -> onCancel: setPendingApplyPlan(null), setConflictDialogOpen(false)
+```
+
+### 1.9 Repeated Fields
+
+Repeated fields (any inner kind) remain excluded from block apply. Merge semantics are ambiguous (append vs replace) and out of scope for v1.7. They land in `unmatched` and trigger the BLK-08 toast. The `buildApplyPlan` function JSDoc should document this exclusion so a future milestone can add append/replace mode.
+
+### 1.10 Build Order for Block Apply
+
+1. Extract types (`ApplyPlan`, `FieldConflict`, `ApplyDecision`) and pure helpers (`buildApplyPlan`, `classifyBlockKey`) to `src/lib/blockApply.ts` + unit tests.
+2. Add `BlockApplyConflictDialog` component + tests (no wiring yet).
+3. Modify `ProtoFormRenderer`: replace single ref with two-phase refs, extend eligible set to oneof/WKT/map, wire plan/commit logic using `buildApplyPlan`.
+4. Update `FormPanel`: replace `applyBlockRef` ref, add `pendingApplyPlan` local state, wire `BlockApplyConflictDialog` in `useDndMonitor.onDragEnd`.
+5. Integration tests: drop onto form with clean fields (instant apply, no dialog), dirty scalar (conflict dialog), dirty oneof (conflict dialog), dirty map (conflict dialog), cancel path, confirm overwrite path.
 
 ---
 
-## Decision 5: Build Order for Phases
+## Section 2 — Full-Text Search in History Panel
 
-The dependencies are:
+### 2.1 Current State
 
-```
-Phase A: Plan data model + persistence
-  → usePlanStore (plans.json)
-  → Plan / PlanStep TypeScript types
-  → Basic plan CRUD (create, rename, delete)
-  UNBLOCKED — no new Rust, no UI chrome yet
+`MessageHistoryPanel` has two filters (`typeFilter`, `targetFilter`) that call `filterHistoryEntries` in `historyHelpers.ts`. Filtering is pure, search-time, in `useMemo`. The `HistoryFilterBar` component renders two `Input` elements.
 
-Phase B: Plan view shell + navigation
-  → App.tsx view switcher
-  → PlanView component (full-screen)
-  → Plan list panel (left column: list of plans)
-  → PlanView navigation trigger in Sidebar
-  DEPENDS ON: Phase A (needs plan list to render)
-  NO new Rust
+`HistoryEntry.fieldValues` is `Record<string, unknown>` — the form's `latestValues` at send time. For complex fields, the shapes are:
+- oneof: `{ _selected: "card_number", card_number: "4111..." }` (nested object with `_selected`)
+- map: `[{ key: "x-version", value: "1" }]` (array of pairs)
+- WKT: string value
+- repeated: array of primitives or objects
+- nested message: nested object
 
-Phase C: Step editor — authoring
-  → Step list within a selected plan
-  → Step create: from-scratch mini form (proto picker + message type selector)
-  → Step import from history (history picker modal → copies fieldValues)
-  → Step import from block (block picker modal → copies JSON content)
-  → Step reordering via dnd-kit (plan-scoped DndContext, separate from AppLayout)
-  DEPENDS ON: Phase A, Phase B
-  NO new Rust
-  RISK: Step authoring "from scratch" needs a proto file picker and a mini form
-        that reproduces FormPanel behavior. Use existing `parse_proto` command.
-        Do NOT use ProtoFormRenderer directly (it's coupled to useProtoStore).
-        Create a lightweight StepFieldEditor that calls encode_message directly.
+### 2.2 Index Location
 
-Phase D: Plan runner — sequential execution
-  → usePlanExecutionStore (ephemeral)
-  → JS orchestration loop (encode → publish → response wait)
-  → Per-step status badges (Pending / Sending / WaitingResponse / Done / Error)
-  → Run / Pause / Stop controls
-  → subscribe_manager Rust changes (session_id parameter on start/stop_subscribe)
-  DEPENDS ON: Phase A, Phase B, Phase C
-  NEW RUST: modify start_subscribe + stop_subscribe to accept session_id
-  RISK: correlationId matching requires polling basic_get in a JS loop;
-        test timeout handling carefully
+Search-time only. No index-time extraction is needed. 100 entries x ~50 fields = ~5,000 leaf values. Recursive walk on each filter keystroke is negligible for this volume. Do not add index structures to `HistoryEntry` or `useHistoryStore`.
 
-Phase E: Response view — inline + shared feed
-  → Inline decoded response under each step that received one
-  → Shared scrollable execution feed (all messages from plan-scoped subscribe)
-  → Feed filtering (reuse existing FilterBar component patterns)
-  DEPENDS ON: Phase D (needs execution state + feed messages)
-  NO new Rust
+### 2.3 fieldValues is Sufficient
+
+`HistoryEntry.fieldValues` is already the complete form state at send time — field names as keys, user-entered values as values, with complex shapes as above. The milestone phrase "decoded field values" refers to this stored form state (i.e., what the user typed/selected), not to decoded AMQP binary reception. No additional extraction is needed at persist time. `HistoryEntry` shape is unchanged.
+
+### 2.4 Recursive Value Walker
+
+A pure helper function walks `fieldValues` recursively to collect all searchable text tokens:
+
+```ts
+// src/components/history/historyHelpers.ts — ADD (does not modify existing exports)
+
+/**
+ * Recursively extracts all searchable tokens from a fieldValues object.
+ * Returns an array of lowercase strings for fast substring matching.
+ *
+ * Handles:
+ *   - Primitives: stringified and lowercased
+ *   - Arrays: recurse into each element (covers repeated and map-as-pairs [{key,value}])
+ *   - Objects: recurse into values AND include keys as tokens
+ *     (covers nested messages, oneof — keys like "card_number" and "_selected" are searchable)
+ *   - null/undefined: skipped
+ * Depth-limited to 10 to guard against pathological schemas.
+ */
+export function extractSearchTokens(value: unknown, depth?: number): string[]
 ```
 
-**Strict ordering:** A → B → C → D → E. Phase C cannot start before A+B because the step editor needs plan CRUD to persist steps and the PlanView shell to render in. Phase D cannot start before C because it needs steps to execute. Phase E is purely additive on top of D.
+The caller joins with the entry's `messageTypeName`, `exchange`, and `routingKey` to form the complete token set for that entry. The search check is: any token in the full set includes `normalizedQuery` (lowercase substring).
 
-**Phase D is the riskiest phase.** It introduces the only new Rust changes (subscribe_manager session_id), the JS orchestration loop with real AMQP I/O, and the correlationId polling logic. Allocate extra time and plan for deeper phase-specific research before implementation.
+### 2.5 Filter Integration
+
+Search is an AND filter with the existing type+target filters, consistent with the current `filterHistoryEntries` logic. `searchQuery` is an additional parameter added to `filterHistoryEntries`:
+
+**Updated signature:**
+
+```ts
+export function filterHistoryEntries(
+  entries: HistoryEntry[],
+  typeFilter: string,
+  targetFilter: string,
+  searchQuery: string   // NEW — empty string = no filter
+): HistoryEntry[]
+```
+
+The function is additive: existing callers pass `""` for `searchQuery` and get identical behavior. The search check adds a third `.filter()` clause using `extractSearchTokens(entry.fieldValues)` combined with `messageTypeName`, `exchange`, `routingKey` tokens.
+
+`MessageHistoryPanel` debounces `searchQuery` at 150ms before passing to `filterHistoryEntries` in `useMemo`. Use the `useDebounce` hook pattern already established in `FormPanel` (`src/hooks/useDebounce.ts`).
+
+### 2.6 Modified Components
+
+**`historyHelpers.ts` — MODIFIED**
+
+- Add `extractSearchTokens(value: unknown, depth?: number): string[]` export.
+- Update `filterHistoryEntries` signature to accept `searchQuery: string`.
+- Add search filter branch to filter chain (third `.filter()` after existing type and target filters).
+
+**`MessageHistoryPanel.tsx` — MODIFIED**
+
+- Add `searchQuery: string` state via `useState("")`.
+- Add `debouncedSearchQuery` via `useDebounce(searchQuery, 150)`.
+- Pass `debouncedSearchQuery` to `filterHistoryEntries` in `useMemo` deps and call.
+- Pass `searchQuery` and `onSearchChange` down to `HistoryFilterBar`.
+
+**`HistoryFilterBar.tsx` — MODIFIED**
+
+- Add `searchQuery: string` and `onSearchChange: (q: string) => void` to `HistoryFilterBarProps`.
+- Add a third `Input` for the search bar, placed above the existing type+target filter inputs (search-first UX — the primary action; filters narrow a searched result set).
+- Layout: change outer `div` from `flex items-center gap-2` to `flex flex-col gap-2` or a two-row layout. Decide at implementation.
+- Placeholder: `"Search fields, values…"`.
+
+### 2.7 New Components
+
+None. All search logic integrates into existing files via additive changes.
+
+### 2.8 Data Flow
+
+```
+User types in search Input (HistoryFilterBar)
+  -> onSearchChange(value) -> MessageHistoryPanel.setSearchQuery(value)
+  -> debouncedSearchQuery updates after 150ms idle
+  -> useMemo re-runs: filterHistoryEntries(entries, typeFilter, targetFilter, debouncedSearchQuery)
+      -> for each entry: extractSearchTokens(entry.fieldValues) -> string[]
+      -> combine with [entry.messageTypeName, entry.exchange, entry.routingKey].map(toLower)
+      -> entry passes if combined tokens.some(t => t.includes(normalizedQuery))
+  -> HistoryTable re-renders with filtered entries
+```
+
+### 2.9 Build Order for History Search
+
+1. Add `extractSearchTokens` to `historyHelpers.ts` + unit tests covering: oneof shape (object with `_selected`), map-as-pairs (array of `{key,value}`), nested message, repeated scalars, null values, depth cap at 10.
+2. Update `filterHistoryEntries` with `searchQuery` param + tests for search branch (hit on field name, hit on field value, miss, empty query passthrough).
+3. Update `HistoryFilterBar` props + add search Input.
+4. Update `MessageHistoryPanel`: add searchQuery state, debounce, pass to filterHistoryEntries.
 
 ---
 
-## Component Boundaries — New vs. Modified
+## Section 3 — Combined Build Order
 
-### New Components
+History search and block apply are independent (no shared state, no shared components). Build history search first: lower risk, no architectural ripples, independently testable.
 
-| Component | Location | Responsibility |
-|-----------|----------|---------------|
-| `PlanView` | `src/components/plan/PlanView.tsx` | Full-screen container; owns plan-scoped DndContext |
-| `PlanListPanel` | `src/components/plan/PlanListPanel.tsx` | Left column: plan list, create/delete/rename |
-| `PlanDetailPanel` | `src/components/plan/PlanDetailPanel.tsx` | Right area: step list + editor + runner |
-| `StepList` | `src/components/plan/StepList.tsx` | Ordered step cards with drag handles |
-| `StepEditor` | `src/components/plan/StepEditor.tsx` | Per-step config: proto, target, response mode |
-| `StepFieldEditor` | `src/components/plan/StepFieldEditor.tsx` | Lightweight field form (calls encode_message directly, NOT ProtoFormRenderer) |
-| `PlanRunnerControls` | `src/components/plan/PlanRunnerControls.tsx` | Run / Pause / Stop bar |
-| `PlanExecutionFeed` | `src/components/plan/PlanExecutionFeed.tsx` | Scrollable feed of all plan-run messages |
-| `HistoryPickerModal` | `src/components/plan/HistoryPickerModal.tsx` | Pick history entry → populate step field values |
-| `BlockPickerModal` | `src/components/plan/BlockPickerModal.tsx` | Pick block → populate step field values |
-| `usePlanStore` | `src/stores/usePlanStore.ts` | Persistent plan CRUD |
-| `usePlanExecutionStore` | `src/stores/usePlanExecutionStore.ts` | Ephemeral execution state |
-
-### Modified Files
-
-| File | Change | Why |
-|------|--------|-----|
-| `src/App.tsx` | Add `view` state + conditional render | Plan view switcher |
-| `src/components/layout/AppLayout.tsx` | Add `onNavigatePlans` callback prop | Navigation trigger |
-| `src/components/sidebar/Sidebar.tsx` | Add "Plans" navigation button | Entry point to plan view |
-| `src-tauri/src/commands/subscribe.rs` | Add `session_id: String` param; change managed state to `HashMap` | Multi-session support |
-| `src-tauri/src/lib.rs` | Update managed state registration for subscribe manager | New subscribe state shape |
-| `src/lib/types.ts` | Add `Plan`, `PlanStep`, `StepStatus` types | New data model |
-
-### Unchanged / Frozen
-
-| File | Status | Reason |
-|------|--------|--------|
-| `ProtoFormRenderer.tsx` | FROZEN | Switch body frozen; plan uses a separate StepFieldEditor |
-| `AppLayout` DndContext | UNCHANGED | Plan view has its own DndContext; AppLayout's is for block-apply only |
-| `useResponseStore` | UNCHANGED | Plan runner has its own ephemeral feed; global subscribe is unaffected |
-| `useHistoryStore` | UNCHANGED | Read-only access from HistoryPickerModal |
-| `useBlockStore` | UNCHANGED | Read-only access from BlockPickerModal |
-| All publish/consume commands | UNCHANGED | Existing commands reused directly from JS runner |
+| Step | Feature | Scope | Risk |
+|------|---------|-------|------|
+| 1 | History Search | `historyHelpers.ts` — add `extractSearchTokens` + tests | Very low |
+| 2 | History Search | `filterHistoryEntries` update + tests | Very low |
+| 3 | History Search | `HistoryFilterBar` + `MessageHistoryPanel` wiring | Low |
+| 4 | Block Apply | `src/lib/blockApply.ts` types + pure helpers + tests | Low |
+| 5 | Block Apply | `BlockApplyConflictDialog` component + tests | Low |
+| 6 | Block Apply | `ProtoFormRenderer` — two-phase refs + extended eligibility | Medium |
+| 7 | Block Apply | `FormPanel` — two-phase ref wiring + dialog integration | Medium |
+| 8 | Block Apply | Integration tests: all field type paths | Medium |
 
 ---
 
-## Data Flow — Plan Step Execution
+## Section 4 — Explicit New vs Modified
 
-```
-User clicks Run
-  ↓
-usePlanExecutionStore.startRun(plan)
-  → stepStates = plan.steps.map(s => ({ stepId: s.id, status: "Pending" }))
-  → runStatus = "Running"
-  ↓
-[JS runner loop — for each step while runStatus === "Running"]
-  ↓
-  1. setStepStatus(stepId, "Sending")
-  2. invoke("encode_message", { proto_file, message_type, field_values })
-     → payload bytes
-  3. invoke("publish_message", { profile, exchange, routing_key, payload, ... })
-     → PublishOutcome { status: "ack" | "nack" | ... }
-  4a. if responseConfig.mode === "noWait":
-        await delay(delayMs)
-        setStepStatus(stepId, "Done")
-  4b. if responseConfig.mode === "correlationId" | "firstArrival":
-        setStepStatus(stepId, "WaitingResponse")
-        [poll drain_messages(replyQueue, count=1) in timeout loop]
-          on message: appendFeedMessage(msg); updateStepStatus(response=msg, "Done")
-          on timeout:  setStepStatus(stepId, "Error", "Timed out waiting for response")
-  ↓
-  next step (if not paused/stopped)
-  ↓
-runStatus = "Done" | "Error"
-```
+### New files
 
-**Parallel queue monitoring (shared feed):**
-```
-Before step 1:
-  invoke("start_subscribe", { session_id: "plan", queue: replyQueue, channel })
-  channel.onMessage → usePlanExecutionStore.appendFeedMessage(msg)
+| File | Purpose |
+|------|---------|
+| `src/lib/blockApply.ts` | Exported types (`ApplyPlan`, `FieldConflict`, `ApplyDecision`) + pure helpers (`buildApplyPlan`, `classifyBlockKey`) |
+| `src/components/blocks/BlockApplyConflictDialog.tsx` | Per-field overwrite/skip dialog; stateless prop receiver |
 
-After all steps done / Stop pressed:
-  invoke("stop_subscribe", { session_id: "plan" })
-```
+### Modified files
 
-The correlationId polling loop (`drain_messages`) and the background subscribe channel run in parallel. The subscribe channel populates the shared feed; the drain loop is used for step-level response detection (drain is synchronous from JS's perspective; subscribe is async push). The two do not conflict because drain is basic_get (pull) and subscribe is basic_consume (push) — they can target the same queue simultaneously but the first to consume a message wins the delivery. For simplicity, use **either** drain polling **or** subscribe, not both simultaneously on the same queue for response waiting. Recommended: subscribe-based approach (plan subscribe channel per reply queue; correlationId/firstArrival logic runs inside the channel handler).
+| File | Change summary |
+|------|---------------|
+| `src/components/form/ProtoFormRenderer.tsx` | Replace `applyBlockRef` with `planApplyBlockRef` + `commitApplyBlockRef`; extend eligible set to oneof/WKT/map; populate both refs in `useEffect` |
+| `src/components/form/FormPanel.tsx` | Replace single ref; add `pendingApplyPlan` local state; wire `BlockApplyConflictDialog`; orchestrate two-phase flow in `useDndMonitor.onDragEnd` |
+| `src/components/history/historyHelpers.ts` | Add `extractSearchTokens`; update `filterHistoryEntries` signature with `searchQuery` |
+| `src/components/history/HistoryFilterBar.tsx` | Add search Input + `searchQuery` / `onSearchChange` props |
+| `src/components/history/MessageHistoryPanel.tsx` | Add `searchQuery` state + debounce; pass to `filterHistoryEntries` |
+
+### Unchanged files
+
+| File | Why untouched |
+|------|--------------|
+| `ProtoFormRenderer` switch body | Frozen per D-01 — no new cases added |
+| `OneofField`, `WellKnownTypeField`, `MapField` | No block-apply logic inside field components; apply happens via `setValue` from outside |
+| `useHistoryStore` | No index-time change; `HistoryEntry` shape unchanged |
+| `AppLayout` | DndContext mount point unchanged |
+| `BlockLibraryPanel` | DnD drag source unchanged |
 
 ---
 
-## Scalability and Edge Cases
+## Section 5 — Open Questions / Decision Points
 
-| Concern | Impact | Mitigation |
-|---------|--------|------------|
-| Plan steps fail mid-run | Steps 1..N-1 acked by broker | Stop run, mark remaining steps Error, surface last error |
-| Plan view navigated away during run | Background subscribe leaks | PlanView unmount must call `stop_subscribe("plan")` and `usePlanExecutionStore.reset()` |
-| Two plan runs attempted simultaneously | Second start would see runStatus="Running" | Disable Run button while running; idempotent guard in startRun |
-| Global subscribe running when plan subscribe starts | Both use "global" session_id | After session_id change, plan uses "plan" — no collision |
-| Very large plan (100 steps) | JS loop takes time | No change needed; loop is async-sequential; Pause works at step boundary |
-| Reply queue empty / no response arrives | drain_messages returns empty | Timeout-based polling loop exits with Error status |
-| Stop pressed mid-step | Must not leave AMQP channel in bad state | ephemeral connections close on each command; publish_message always closes before returning |
+**BA-D1 (Block Apply): Dialog default state for conflict rows.**
+Recommendation: default to `'skip'` (conservative — no silent overwrite). Alternative: `'overwrite'` (matches current non-dirty behavior). One-line change in `BlockApplyConflictDialog` initial state; decide at build planning.
 
----
+**BA-D2 (Block Apply): Repeated field exclusion.**
+All repeated fields (regardless of inner type) are excluded from block apply in v1.7 due to ambiguous append/replace semantics. Document in `buildApplyPlan` JSDoc so a future milestone can add explicit mode selection.
 
-## Sources
+**BA-D3 (Block Apply): Dirty detection granularity for oneof.**
+Top-level `dirtyFields[key]` check: if a user has touched `payment.card_number`, the entire `payment` oneof key is treated as dirty. This is safe (conservative). Sub-field granularity is a future enhancement.
 
-All findings derived from direct source code reading of the v1.5 codebase:
-- `/mnt/shimikaze/gits/tap/src-tauri/src/lib.rs` (managed state, command registration)
-- `/mnt/shimikaze/gits/tap/src-tauri/src/commands/publish.rs` (ephemeral connection pattern)
-- `/mnt/shimikaze/gits/tap/src-tauri/src/commands/subscribe.rs` (CancellationToken, SubscribeState, Channel streaming)
-- `/mnt/shimikaze/gits/tap/src-tauri/src/commands/consume.rs` (DrainResult, basic_get pattern)
-- `/mnt/shimikaze/gits/tap/src/components/layout/AppLayout.tsx` (DndContext placement, layout constraints)
-- `/mnt/shimikaze/gits/tap/src/App.tsx` (ThemeProvider, component tree root)
-- `/mnt/shimikaze/gits/tap/src/components/layout/RightPanel.tsx` (tab auto-switch pattern)
-- `/mnt/shimikaze/gits/tap/src/stores/useBlockStore.ts` (persistence pattern with rollback)
-- `/mnt/shimikaze/gits/tap/src/stores/useHistoryStore.ts` (hydration gate pattern)
-- `/mnt/shimikaze/gits/tap/src/stores/useResponseStore.ts` (FeedMessage, subscribe status)
-- `/mnt/shimikaze/gits/tap/src/lib/types.ts` (all TypeScript types)
-- `/mnt/shimikaze/gits/tap/.planning/PROJECT.md` (key decisions, constraints, frozen contracts)
+**HS-D1 (History Search): Search Input layout in HistoryFilterBar.**
+Placing search above the type+target filters requires a layout change from `flex-row` to `flex-col`. Confirm at implementation — the RightPanel column is 320px wide, which accommodates a stacked layout cleanly.

@@ -1,258 +1,121 @@
-# Technology Stack — v1.6 Plan Runner
+# Technology Stack — v1.7 Additions
 
-**Project:** Tap
-**Milestone:** v1.6 Plan Runner
-**Researched:** 2026-05-23
-**Scope:** Additions and changes needed beyond the existing v1.5 stack.
-
----
-
-## Verdict: Minimal additions. One new Rust crate. Zero new npm packages.
-
-The Plan Runner feature maps cleanly onto the existing stack. The analysis below documents what each new capability uses, which existing primitive covers it, and what (little) needs to be added.
+**Project:** Tap (proto-sender)
+**Milestone:** v1.7 — Block Apply Completeness + History Search
+**Researched:** 2026-05-25
+**Scope:** New stack items only. Existing v1.6 stack is validated and unchanged.
 
 ---
 
-## New Rust Crate: `uuid`
+## Feature A: Block Apply for oneof / WellKnownType / map Fields
 
-**Add to Cargo.toml:**
-```toml
-uuid = { version = "1", features = ["v4"] }
+### Verdict: No new libraries required
+
+All required primitives are already in the v1.6 stack:
+
+| Existing capability | Used by this feature |
+|---------------------|---------------------|
+| `react-hook-form` 7.76.0 — `methods.setValue`, `formState.dirtyFields` | Writing block values into complex fields, conflict detection |
+| `shadcn/ui` `AlertDialog` (radix-ui 1.4.3) | Per-field overwrite/skip conflict prompt — already installed at `src/components/ui/alert-dialog.tsx`, already used in BlockLibraryPanel delete flow |
+| `shadcn/ui` `Dialog` | Alternative for non-blocking prompt variant if needed — also already installed |
+| `zustand` 5.x | No store changes needed; conflict state is transient UI state, local React state suffices |
+| `dnd-kit` PointerSensor drop wiring | Already complete; `applyBlockRef` contract already exists in FormPanel/ProtoFormRenderer |
+
+### What changes (application code, not stack)
+
+The `applyBlockRef.current` function in `ProtoFormRenderer.tsx` (lines 149–180) currently gates eligibility on:
+
+```ts
+f.kind.type === 'scalar' || f.kind.type === 'enum' || f.kind.type === 'message'
 ```
 
-**Why:** The Plan Runner needs to generate correlation IDs to match responses to their originating steps. `uuid::Uuid::new_v4().to_string()` is the standard approach.
+The v1.7 work extends eligibility to `oneof`, `well_known`, and `map` and adds conflict detection logic before calling `methods.setValue`. The conflict prompt (per-field overwrite/skip) uses the existing `AlertDialog` component — triggered from `FormPanel`, which already owns the `applyBlockRef` ref and orchestrates the drop flow.
 
-**Status:** Already present in `Cargo.lock` as a transitive dependency at v1.23.1. Adding it as a direct dependency makes the intent explicit and locks the feature set. No version resolution impact — the same version is used.
+### What NOT to add
 
-**Why not a string timestamp or counter?** Correlation IDs must be globally unique even if two plans run concurrently or if the reply queue has leftover messages from a previous run. UUID v4 is collision-free without coordination.
-
----
-
-## No New npm Packages
-
-All Plan Runner frontend capabilities are covered by the existing stack:
-
-| Capability | Existing package |
-|---|---|
-| Step reordering drag-and-drop | `@dnd-kit/core` 6.x — already integrated at AppLayout level |
-| Step editor form state | `react-hook-form` 7.x + `zod` 4.x |
-| Runner state machine (Pending / Sending / WaitingResponse / Done / Error) | Zustand 5.x discriminated union slice |
-| Toast notifications (step errors, plan done) | `sonner` 2.x |
-| JSON field values, block apply | `@uiw/react-codemirror` 4.x — already present |
-| Plan persistence | `@tauri-apps/plugin-store` 2.x — already present |
-
-**Do NOT add:** XState, any workflow/state-machine library, JSON Schema validators, or a second form library. The per-step status is a discriminated union (`{ status: 'pending' | 'sending' | 'waiting_response' | 'done' | 'error' }`), not a state chart that needs a library.
+- No new dialog or overlay library. `AlertDialog` from `radix-ui` is already source-copied into the project via shadcn.
+- No new state management library. Conflict state (which fields are in conflict, user choice) is transient and belongs in local React state inside FormPanel.
+- No changes to `WellKnownTypeField`, `OneofField`, or `MapField` component internals — the merge writes via `methods.setValue` from outside the component tree, same as today's scalar/enum path.
 
 ---
 
-## Existing Crates — How Each Covers a Plan Runner Capability
+## Feature B: Full-Text Search in History Panel
 
-### 1. Plan + Step Data Serialization (`serde` + `tauri-plugin-store`)
+### Verdict: No search library needed — extend the existing substring pattern
 
-**Capability:** Persist complex nested plan/step structures across restarts.
+**Why:** `useHistoryStore` is capped at `MAX_ENTRIES = 100`. At N=100 in-memory entries, a `useMemo` + `includes()` scan over serialized field values runs in well under 1ms. The existing `filterHistoryEntries` helper already uses this pattern for type and target filters. The new search requirement adds coverage over more fields (`fieldValues`, field names/keys, `messageTypeName`, target) — it does not add a scale problem.
 
-**How it works:** `tauri-plugin-store` serializes arbitrary `serde_json::Value` trees. A `Plan` struct with nested `Vec<Step>` serializes via `#[derive(Serialize, Deserialize)]` identically to the flat structures already stored (message history, blocks). There is no documented depth or size cap on the store.
+The milestone goal wording — "search bar across decoded field values, field names/keys, message type name, and queue/exchange target" — describes substring matching over multiple fields, not ranked fuzzy matching. Fuse.js-style typo tolerance is not implied by the UX spec.
 
-**Required discipline — add a `schema_version` field to the plan root:**
-```rust
-#[derive(Serialize, Deserialize, Clone)]
-pub struct Plan {
-    pub schema_version: u32,  // = 1; increment on breaking changes
-    pub id: String,
-    pub name: String,
-    pub steps: Vec<Step>,
-    pub created_at: u64,
-    pub updated_at: u64,
-}
-```
-Mirror with a zod schema on the JS side for runtime validation at load time. This prevents silent data corruption if the store file is edited manually or migrated between app versions.
+### No new dependencies
 
-**Confidence:** HIGH — pattern is identical to existing block storage.
+| Candidate | Version | Why not needed |
+|-----------|---------|---------------|
+| `fuse.js` | 7.3.0 | Fuzzy ranking and typo tolerance — valuable at thousands of entries, over-engineered at 100 with no ranking requirement. Zero benefit for substring match across flat fields. |
+| `minisearch` | 7.2.0 | Inverted index + full-text tokenization — index maintenance overhead exists for a dataset that never exceeds 100 items. Indistinguishable from `includes()` at this scale. |
+| `flexsearch` | 0.8.212 | Same as minisearch. Additional concern: FlexSearch has ESM/CJS packaging issues that create Vite config friction. |
 
-### 2. Multi-Queue Concurrent Response Monitoring (Tauri Channel + lapin + tokio)
+### Implementation pattern (application code)
 
-**Capability:** Watch N reply queues simultaneously during a plan run, stream all arriving messages to the frontend's shared feed.
+Extend `filterHistoryEntries` in `historyHelpers.ts` to accept a `searchQuery` parameter. When non-empty, test each entry against:
 
-**Key fact verified:** `tauri::ipc::Channel<T>` implements `Clone`, `Send`, and `Sync` (confirmed via docs.rs). It can be safely cloned across tasks — each spawned task gets its own clone that writes to the same frontend listener.
+1. `entry.messageTypeName` — direct string
+2. `entry.exchange` + `entry.routingKey` — direct strings (already covered by existing target filter; unified search would replace or AND with it)
+3. `Object.keys(entry.fieldValues)` — field name match
+4. `JSON.stringify(entry.fieldValues)` — field value match (catches nested scalar values without recursive traversal)
 
-**Pattern — single Channel, N consumer tasks:**
-```rust
-// channel: tauri::ipc::Channel<PlanEvent> — passed in from the Tauri command
-// For each reply queue the plan needs to watch:
-let ch = channel.clone();
-let token = root_token.child_token();
-tauri::async_runtime::spawn(async move {
-    let mut consumer = amqp_channel
-        .basic_consume(queue_name, consumer_tag, opts, FieldTable::default())
-        .await?;
-    loop {
-        tokio::select! {
-            delivery_opt = consumer.next() => { /* decode, send via ch */ }
-            _ = token.cancelled() => break,
-        }
-    }
-});
-```
+All matches use `.toLowerCase().includes(query.toLowerCase())`. This is the same pattern as the existing filter, applied to more fields.
 
-All tasks write to the same `Channel<PlanEvent>`. The frontend receives a single ordered stream and dispatches by `queue` and `correlation_id` fields on the event.
+The search input goes into `HistoryFilterBar` as an additional `Input` control (or the existing two inputs are consolidated into a single search bar — planner decides UX layout). State stays in `MessageHistoryPanel` local `useState`, same as today's `typeFilter`/`targetFilter`.
 
-**Why not `futures::stream::select_all`?** The per-task + shared Channel approach gives independent cancellation per queue using child `CancellationToken`s. This is needed when a step's wait-window closes but other steps' response queues are still open. `select_all` would require polling all streams from a single task and loses per-stream cancellation without additional complexity.
+No debounce library needed: `<input onChange>` + `useMemo` at N=100 is imperceptibly fast. A 150ms `setTimeout` debounce in a `useCallback` is acceptable if desired — no library.
 
-**Existing primitives used:**
+### What NOT to add
 
-| Primitive | Source | Already in project |
-|---|---|---|
-| `tauri::ipc::Channel<T>` clone | tauri 2.x | Yes — used in `subscribe.rs` |
-| `lapin::Consumer` (impl `Stream`) | lapin 4.x | Yes — confirmed in lapin source |
-| `futures_util::StreamExt` | futures-util 0.3 | Yes — imported in `subscribe.rs` |
-| `tokio_util::sync::CancellationToken` child tokens | tokio-util 0.7 | Yes — used in `subscribe.rs` |
-| `tauri::async_runtime::spawn` | tauri 2.x | Yes — established pattern |
-
-**No new crate needed.**
-
-### 3. CorrelationId-Based Response Matching (`tokio::sync`)
-
-**Capability:** When a step sends a message with a correlation ID, match the reply on the reply queue by that same ID.
-
-**Pattern — oneshot registry:**
-```rust
-use std::collections::HashMap;
-use std::sync::Arc;
-use tokio::sync::{Mutex, oneshot};
-
-type CorrelationRegistry = Arc<Mutex<HashMap<String, oneshot::Sender<Delivery>>>>;
-```
-
-The runner holds a `CorrelationRegistry`. Before sending a step's message, it inserts `(correlation_id, tx)`. The reply-queue consumer checks each delivery's `correlation_id` property; on match, fires the `oneshot::Sender` and removes the entry. The runner step awaits `rx` with `tokio::time::timeout`.
-
-The three step execution modes map as follows:
-
-| Mode | Implementation |
-|---|---|
-| Wait for correlationId match | `tokio::time::timeout(step.timeout, rx).await` where rx is the oneshot receiver |
-| Wait for first arrival | Reply consumer sends all deliveries to a `tokio::sync::mpsc`; step awaits first recv with timeout |
-| No-wait with delay | `tokio::time::sleep(step.delay).await` after publish; no consumer needed |
-
-**Existing primitives used:**
-
-| Primitive | Tokio feature | Already enabled |
-|---|---|---|
-| `tokio::sync::oneshot` | "sync" | Yes |
-| `tokio::sync::Mutex` | "sync" | Yes |
-| `tokio::time::timeout` | "time" | Yes |
-| `tokio::time::sleep` | "time" | Yes |
-| `std::collections::HashMap` | stdlib | Yes |
-
-**No new crate needed.**
-
-### 4. Plan Run Cancellation (`tokio-util` + `tokio`)
-
-**Capability:** "Stop" button cancels an in-flight plan, tearing down all consumer tasks cleanly.
-
-**Pattern:** One root `CancellationToken` per plan run. Each consumer task holds a child token (`root_token.child_token()`). `root_token.cancel()` propagates to all children. Use `tokio::task::JoinSet` to collect and await all spawned tasks:
-
-```rust
-let mut set = tokio::task::JoinSet::new();
-set.spawn(consumer_task_a);
-set.spawn(consumer_task_b);
-// On stop:
-root_token.cancel();
-let _ = tokio::time::timeout(Duration::from_secs(5), set.join_all()).await;
-```
-
-`tokio::task::JoinSet` is in the `"rt"` feature which is already enabled.
-
-**Existing primitives used:**
-- `tokio_util::sync::CancellationToken` — already in Cargo.toml
-- `tokio::task::JoinSet` — in existing tokio "rt" feature
-- `tauri::async_runtime::spawn` — established pattern
-
-**No new crate needed.**
-
-### 5. Reply Queue Lifecycle (lapin — existing)
-
-Two reply queue strategies are viable with existing lapin — this is a design decision, not a stack gap:
-
-| Strategy | lapin call | Tradeoff |
-|---|---|---|
-| Per-run exclusive auto-delete queue | `queue_declare` with `exclusive: true, auto_delete: true` | Clean teardown; no name collision; queue disappears when connection closes |
-| User-specified persistent reply queue per step | Reuse existing queue config | User controls lifetime; leftover messages from prior runs possible |
-
-Both use the existing `lapin::Channel::queue_declare` API. The recommended approach is to allow an optional `reply_queue` override per step, with a fallback to a per-run auto-generated exclusive queue (declared once on plan start, shared across all steps). This keeps noise out of the broker and removes manual cleanup.
+- No search indexing library (`fuse.js`, `minisearch`, `flexsearch`). None provide meaningful benefit at 100 entries.
+- No new Zustand store for search state. Search query is transient UI state.
+- No new shadcn UI component. `Input` (already installed) is sufficient; a search icon from `lucide-react` (already installed) is the only visual addition needed.
 
 ---
 
-## Tokio Feature Additions: None Required
+## Existing Stack Reference (v1.6 validated — do not re-research)
 
-Current Cargo.toml:
-```toml
-tokio = { version = "1", features = ["rt", "time", "sync"] }
-```
-
-- `"rt"` covers `tokio::task::JoinSet` and `tauri::async_runtime::spawn`
-- `"time"` covers `tokio::time::timeout` and `tokio::time::sleep`
-- `"sync"` covers `tokio::sync::oneshot`, `tokio::sync::Mutex`, `tokio::sync::mpsc`
-
-No feature additions needed.
-
----
-
-## Summary of Changes
-
-### Cargo.toml — one addition
-
-```toml
-uuid = { version = "1", features = ["v4"] }
-```
-
-### package.json — no additions
-
-### Existing stack coverage for all new capabilities
-
-| Capability | Crate / package | API |
-|---|---|---|
-| Correlation ID generation | `uuid` (new direct dep) | `Uuid::new_v4().to_string()` |
-| Multi-queue streaming | `tauri::ipc::Channel<T>` clone | `channel.clone()` per spawned task |
-| Consumer stream iteration | `lapin::Consumer` + `futures_util::StreamExt` | `consumer.next()` in `tokio::select!` |
-| Per-task cancellation | `tokio_util::sync::CancellationToken` | `root_token.child_token()` per task |
-| Task collection + stop | `tokio::task::JoinSet` | `set.spawn()` / `set.join_all()` |
-| CorrelationId match | `tokio::sync::oneshot` | `tx.send(delivery)` from consumer |
-| No-wait delay | `tokio::time::sleep` | `sleep(step.delay).await` |
-| Plan/step persistence | `tauri-plugin-store` + `serde` | Nested struct with `schema_version: u32` |
-| Step form state | `react-hook-form` 7.x | Existing `useFieldArray` pattern |
-| Runner state | Zustand 5.x | Discriminated union slice |
-| Step reordering | `@dnd-kit/core` 6.x | Already at AppLayout level |
-| Reply queue declaration | `lapin::Channel::queue_declare` | `exclusive: true, auto_delete: true` for per-run queue |
+| Technology | Version | Status |
+|------------|---------|--------|
+| Tauri | 2.x | Validated |
+| React | 19.1.0 | Validated |
+| react-hook-form | 7.76.0 | Validated |
+| zod | 4.4.3 (note: PROJECT.md key-decisions cites 3.24.2 — version mismatch in docs, not blocking) | Validated |
+| zustand | 5.0.13 | Validated |
+| shadcn/ui (nova) + radix-ui | 1.4.3 | Validated |
+| Tailwind CSS | 4.x | Validated |
+| dnd-kit | 6.3.1 / sortable 10.0.0 | Validated |
+| tauri-plugin-store | 2.4.3 | Validated |
+| sonner | 2.0.7 | Validated |
+| lucide-react | 1.16.0 | Validated |
 
 ---
 
-## Confidence Assessment
+## Summary for Roadmap Planner
 
-| Area | Confidence | Basis |
-|---|---|---|
-| `uuid` as only new Rust dep | HIGH | Cargo.lock confirms it is the only missing direct dep; all other capabilities map to existing crates |
-| Channel clone across tasks | HIGH | `impl Clone for Channel<TSend>` + `impl Send + Sync` confirmed via docs.rs |
-| lapin Consumer as Stream | HIGH | `impl Stream for Consumer` confirmed in lapin 4.x source (Context7) |
-| tokio JoinSet in "rt" feature | HIGH | Standard tokio documentation |
-| oneshot/Mutex in "sync" feature | HIGH | Standard tokio documentation |
-| tauri-plugin-store nested JSON | HIGH | Backed by `serde_json::Value`; no documented cap; identical to existing block/history storage |
-| Zero new npm packages | HIGH | Feature-by-feature mapping against existing deps leaves no gap |
+Both v1.7 features require **zero new dependencies**. Stack additions: none.
 
----
+| Feature | New libraries | New shadcn components | Application code scope |
+|---------|--------------|----------------------|------------------------|
+| Block apply (oneof/WKT/map) | None | None (`AlertDialog` already installed) | `applyBlockRef` logic in ProtoFormRenderer + conflict prompt in FormPanel |
+| History full-text search | None | None (`Input` already installed) | Extend `filterHistoryEntries` + add search field to `HistoryFilterBar` |
 
-## Note for Architecture Phase
-
-**AMQP connection topology is a key design decision.** PROJECT.md records "Ephemeral lapin connections per operation" as a validated Key Decision. The Plan Runner is the first feature where one user action spans N publishes plus M concurrent reply-queue consumers within a coherent unit of work.
-
-Following the ephemeral-connection pattern strictly would mean opening N+M lapin connections per plan run — incorrect for this shape of work. The correct pattern is: **one `lapin::Connection` per plan run, with multiple `lapin::Channel`s on that connection** (one for publishes, one per concurrent reply-queue consumer). lapin fully supports this; it changes nothing about the stack, but it is an intentional deviation from the stated Key Decision that needs explicit documentation during architecture.
+The only install command for v1.7 is: **none.**
 
 ---
 
 ## Sources
 
-- `tauri::ipc::Channel` Clone + Send + Sync: https://docs.rs/tauri/latest/tauri/ipc/struct.Channel.html
-- `lapin::Consumer` Stream impl: https://docs.rs/lapin/latest/src/lapin/consumer.rs.html (Context7 verified)
-- `tokio_util::sync::CancellationToken` existing usage: `src-tauri/src/commands/subscribe.rs`
-- `uuid` v1.23.1 in Cargo.lock: `src-tauri/Cargo.lock`
-- `tauri::async_runtime::spawn` pattern: established in `subscribe.rs` (not `tokio::spawn`)
-- tokio feature flags: https://docs.rs/tokio/latest/tokio/#feature-flags
+- Fuse.js version: `npm view fuse.js version` → 7.3.0 (verified 2026-05-25); docs confirmed via Context7 `/krisk/fuse`
+- MiniSearch version: `npm view minisearch version` → 7.2.0 (verified 2026-05-25)
+- FlexSearch version: `npm view flexsearch version` → 0.8.212 (verified 2026-05-25)
+- Project `useHistoryStore` MAX_ENTRIES=100 cap: `src/stores/useHistoryStore.ts` line 6
+- `filterHistoryEntries` substring pattern: `src/components/history/historyHelpers.ts`
+- `applyBlockRef` contract and current eligibility gate: `src/components/form/ProtoFormRenderer.tsx` lines 149–180
+- `AlertDialog` already installed: `src/components/ui/alert-dialog.tsx`, used in `src/components/blocks/BlockLibraryPanel.tsx`
+- Full shadcn UI component inventory verified: `src/components/ui/` (2026-05-25)
