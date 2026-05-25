@@ -26,12 +26,12 @@ Upstream: consumes useProtoStore.schema (existing), field metadata pattern from 
   - Files: `src-tauri/src/schema/types.rs`, `src-tauri/src/schema/extractor.rs`, `src/lib/types.ts`, `src/components/form/__tests__/FormPanel-randomizer.test.tsx`, `src/__tests__/keyboard-shortcuts.test.tsx`, `src/components/form/__tests__/NestedMessageField.test.tsx`, `src/components/form/__tests__/FormPanel.test.tsx`, `src/components/form/__tests__/FormPanel-drafts.test.tsx`, `src/stores/useProtoStore.test.ts`, `src/components/response/ResponseQueuePicker.test.tsx`, `src/components/response/MessageFeedTab.test.tsx`
   - Verify: cargo build && pnpm tsc --noEmit && pnpm vitest run
 
-- [ ] **T02: Build SchemaExplorer component and wire into Sidebar** `est:1h30m`
+- [x] **T02: Built SchemaExplorer tree component with message/field/enum/oneof nodes, recursive guard, depth cap, and wired into Sidebar** `est:1h30m`
   **Why:** R025 requires a collapsible tree showing all messages, fields, and enums. R026 requires recursive type safety with depth cap and visited-set guard.
   - Files: `src/components/sidebar/SchemaExplorer.tsx`, `src/components/sidebar/Sidebar.tsx`
   - Verify: pnpm tsc --noEmit && pnpm vitest run
 
-- [ ] **T03: Add SchemaExplorer tests covering tree rendering, recursion guard, and click-to-select** `est:1h`
+- [x] **T03: Added 13 SchemaExplorer tests covering tree rendering, field badges, repeated/map indicators, enum expansion, recursive guard, MAX_DEPTH enforcement, click-to-select, and oneof branches** `est:1h`
   **Why:** R025 and R026 need test coverage proving the tree renders correctly and handles recursive types safely. Tests also verify the click-to-select integration with useProtoStore.
   - Files: `src/components/sidebar/__tests__/SchemaExplorer.test.tsx`
   - Verify: pnpm vitest run src/components/sidebar/__tests__/SchemaExplorer.test.tsx

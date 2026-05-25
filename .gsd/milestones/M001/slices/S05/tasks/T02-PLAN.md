@@ -4,7 +4,7 @@ estimated_files: 2
 skills_used: []
 ---
 
-# T02: Build SchemaExplorer component and wire into Sidebar
+# T02: Built SchemaExplorer tree component with message/field/enum/oneof nodes, recursive guard, depth cap, and wired into Sidebar
 
 **Why:** R025 requires a collapsible tree showing all messages, fields, and enums. R026 requires recursive type safety with depth cap and visited-set guard.
 

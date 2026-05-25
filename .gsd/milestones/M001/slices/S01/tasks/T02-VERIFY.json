@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "taskId": "T02",
+  "unitId": "M001/S01/T02",
+  "timestamp": 1779736885281,
+  "passed": true,
+  "discoverySource": "task-plan",
+  "checks": [
+    {
+      "command": "pnpm tsc --noEmit && pnpm vitest run src/components/form/__tests__/FormPanel.test.tsx src/components/form/__tests__/ScalarField.test.tsx src/components/form/__tests__/JsonEditor.test.tsx",
+      "exitCode": 0,
+      "durationMs": 4054,
+      "verdict": "pass"
+    }
+  ],
+  "postExecutionChecks": [
+    {
+      "category": "pattern",
+      "target": "src/components/publish/PublishBar.tsx",
+      "passed": true,
+      "message": "File src/components/publish/PublishBar.tsx mixes async/await with .then() promise chaining — consider using consistent async style",
+      "blocking": false
+    }
+  ]
+}

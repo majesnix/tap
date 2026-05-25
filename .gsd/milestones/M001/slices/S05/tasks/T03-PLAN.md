@@ -4,7 +4,7 @@ estimated_files: 1
 skills_used: []
 ---
 
-# T03: Add SchemaExplorer tests covering tree rendering, recursion guard, and click-to-select
+# T03: Added 13 SchemaExplorer tests covering tree rendering, field badges, repeated/map indicators, enum expansion, recursive guard, MAX_DEPTH enforcement, click-to-select, and oneof branches
 
 **Why:** R025 and R026 need test coverage proving the tree renders correctly and handles recursive types safely. Tests also verify the click-to-select integration with useProtoStore.
 
