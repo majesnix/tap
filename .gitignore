@@ -25,6 +25,7 @@ dist-ssr
 
 coverage
 .playwright-mcp
+tap-icons.zip
 
 # ── GSD baseline (auto-generated) ──
 .gsd
