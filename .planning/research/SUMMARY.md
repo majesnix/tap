@@ -1,19 +1,15 @@
-# Research Summary — Tap v1.7
+# Research Summary — Tap v1.8 UX Polish + Proto Ergonomics
 
 **Project:** Tap (proto-sender)
-**Milestone:** v1.7 — Block Apply Completeness + History Search
+**Milestone:** v1.8 UX Polish + Proto Ergonomics
 **Researched:** 2026-05-25
 **Confidence:** HIGH
 
----
-
 ## Executive Summary
 
-v1.7 delivers two isolated feature completions: extending block apply to handle oneof, WellKnownType, and map fields (previously skipped with a BLK-08 toast), and adding full-text search across decoded field values in the history panel. Both features require zero new dependencies — every primitive needed (AlertDialog, Input, useFieldArray, dirtyFields, filterHistoryEntries) is already installed and validated in the v1.6 stack.
+Tap v1.8 adds 10 UX ergonomic and proto ergonomic features to a stable, fully-shipped v1.7 app. The entire milestone requires exactly **one new npm dependency** (`react-hotkeys-hook@^5.3.2`). No new Rust crates, no new Tauri plugins, no capability JSON changes. One new Rust command (`reload_proto`) uses only stdlib. All 10 features compose over existing infrastructure: `tauri-plugin-store`, `useProtoStore`, `cmdk`, recursive `Collapsible`, and the `setPendingReplayValues` replay signal.
 
-The recommended approach is additive and layered. History search is a pure extension of the existing filterHistoryEntries helper with a recursive value walker — no indexing, no new libraries, no store changes. Block apply extension requires splitting the current single-ref applyBlockRef contract into a two-phase plan/commit model, extracting pure helpers to a new src/lib/blockApply.ts module, and adding one new dialog component (BlockApplyConflictDialog). The conflict prompt (batched, not per-field) replaces the current silent dirty-skip for all field types.
-
-The primary risk for v1.7 is the oneof branch-switch path: setting _selected before the branch value triggers OneofField s unregister effect mid-write. The mitigation is an atomic setValue with the full oneof object. A secondary risk is the setValue vs replace() question for map fields — ARCHITECTURE.md section 1.4 claims setValue on the top-level array path refreshes useFieldArray rows, but Pitfall #21 documents that setValue bypasses useFieldArray s internal fields ref. This must be verified during Phase B implementation before committing to the setValue path.
+Primary technical risk concentrates in two features: proto file reload (requires atomically rebuilding the `DescriptorPool`, which has no `remove_file` method) and draft persistence (requires restoring map/repeated fields via `replace()`, not `reset()`, flowing through `setPendingReplayValues`). Both risks are well-characterized with known mitigations.
 
 ---
 
@@ -21,193 +17,116 @@ The primary risk for v1.7 is the oneof branch-switch path: setting _selected bef
 
 ### Stack
 
-No new dependencies. The v1.6 stack covers everything:
+**Install command for v1.8:** `pnpm add react-hotkeys-hook`
 
-- **react-hook-form 7.76.0** — setValue, dirtyFields, getValues for block apply; useMemo for history filtering
-- **shadcn/ui AlertDialog** — already installed at src/components/ui/alert-dialog.tsx; used for batched conflict prompt
-- **shadcn/ui Input + lucide-react** — already installed; search input requires no new component
-- **zustand 5.x** — no store changes needed; conflict state and search query are transient useState
+| Dependency | Version | Purpose | Why |
+|------------|---------|---------|-----|
+| `react-hotkeys-hook` | ^5.3.2 | Declarative keyboard shortcuts | Handles macOS/Windows normalization, `enableOnFormTags`, `HotkeysProvider` scope; verified React 19.1 compatible and WKWebView safe |
 
-One doc-level inconsistency: CLAUDE.md cites zod 3.24.2 but the installed version is 4.4.3. Not blocking for v1.7.
+**Rejected libraries:**
+- `@tauri-apps/plugin-global-shortcut` — wrong scope (OS-level, fires when app unfocused); in-app shortcuts only
+- `@faker-js/faker` — 4.16 MB, no proto type awareness; hand-rolled `randomValueForField` (~70 lines) is correct
+- `react-arborist` — 364 KB virtualization overkill for 5–50 node trees; recursive `Collapsible` (installed) is sufficient
+- `@tauri-apps/plugin-clipboard-manager` — `navigator.clipboard.writeText()` already established since Phase 04
+
+**New Rust commands (no new crates):**
+- `reload_proto` — atomically rebuilds `DescriptorPool` from all open files; replaces Tauri State pool under `Mutex<Option<DescriptorPool>>`
+- `check_paths_exist(paths: Vec<String>) -> Vec<bool>` — validates arbitrary proto paths via `std::path::Path::exists()`, bypassing narrowed `fs:scope`
 
 ### Features
 
-**Block Apply — Table Stakes (all required for v1.7 completeness):**
+**Table stakes (users expect these — absence = friction):**
+- `Cmd+Enter` Send shortcut — universal across Postman, Insomnia, Bruno
+- Proto reload button — #1 BloomRPC user complaint; re-opening via file dialog on every edit is unacceptable
+- Recent files list (FIFO-10) — developers work with same 3–5 proto files daily
+- Connection quick-switch dropdown in toolbar — Postman/Insomnia/Bruno/TablePlus universal top-right pattern
+- Import path manager UI — GUI gap all CLI tools leave behind; Bruno's per-collection UI is the reference
+- Inline field-type tooltips — expected in any schema-surfacing tool
+- Form draft auto-save — Insomnia/Postman's dominant pattern; no manual "save draft" button needed
 
-| ID | Description |
-|----|-------------|
-| BLK-CT-01/02 | WKT fields (Timestamp, Duration) fill and respect dirty guard — same as scalar |
-| BLK-CT-03 | Map field replace-all when empty (no collision) |
-| BLK-CT-04 | Map field per-collision overwrite prompt via batched dialog |
-| BLK-CT-05 | Oneof same-branch fill of non-dirty branch fields |
-| BLK-CT-06 | Oneof branch-switch prompt before _selected change |
-| BLK-CT-07 | Batched conflict prompt (Apply All / Skip All) — UX container for CT-04 and CT-06 |
-
-**Block Apply — Defer to v1.8:**
-- BLK-DIF-01: Decide-each wizard mode in conflict prompt
-- BLK-DIF-03: Repeated field merge from block (ambiguous append vs replace semantics)
-
-**Anti-features confirmed:** Per-field modal chains, silent dirty-field overwrite, block apply in JSON mode (guarded by existing isJsonMode guard), recursive nested-message merge.
-
-**History Search — Table Stakes:**
-
-| ID | Description |
-|----|-------------|
-| HIST-FT-01 | Search input alongside existing type/target filters |
-| HIST-FT-02/03 | Match message type name and queue/exchange target |
-| HIST-FT-04 | Match field names (keys) in fieldValues |
-| HIST-FT-05 | Match field values: scalars, nested messages, repeated, map rows, oneof (including _selected) |
-| HIST-FT-06 | Case-insensitive substring match |
-| HIST-FT-07 | AND composition with existing type and target filters |
-| HIST-FT-08 | Empty query = passthrough |
-| HIST-FT-09 | Filtered count label updates |
-
-**History Search — Include in v1.7:**
-- HIST-DIF-02: N of M filtered count indicator (trivial, high value)
-- HIST-DIF-03: 150ms debounce via existing useDebounce hook
-
-**Anti-features confirmed:** Searching payloadBytes/hex, fuzzy/ranked search, replacing existing precision filters, persisting search query.
+**Differentiators:**
+- `Cmd+Shift+R` clear form, `Cmd+1/2/3` tab navigation, `Cmd+O` open proto
+- Field-level copy-to-clipboard (hover-reveal) — not present in any surveyed proto tool
+- Randomizer (single button, non-dirty fields only, enum-aware) — no direct prior art in any proto/gRPC/API tool
+- Schema tree panel (collapsible Sheet) — no API tool has this separate from the form
 
 ### Architecture
 
-**Two-phase applyBlockRef contract** is the central architectural decision for block apply. The current single applyBlockRef becomes:
-- planApplyBlockRef — pure function, no side effects; classifies each block key as cleanApply | conflict | unmatched; returns ApplyPlan
-- commitApplyBlockRef — writes setValue calls based on ApplyDecision[] from the dialog
+**6 new files:** `useKeyboardShortcuts.ts`, `randomize.ts`, `FieldCopyButton.tsx`, `ConnectionQuickSwitch.tsx`, `SchemaExplorer.tsx`, `useDraftPersistence.ts`
 
-ProtoFormRenderer populates both refs. FormPanel orchestrates the two-phase flow in useDndMonitor.onDragEnd. BlockApplyConflictDialog (new stateless component) renders per-field overwrite/skip UI.
+**Extension points (all non-invasive):**
 
-**Pure helper extraction:** Types (ApplyPlan, FieldConflict, ApplyDecision) and pure functions (buildApplyPlan, classifyBlockKey) go to src/lib/blockApply.ts — independently unit-testable, not inside the frozen ProtoFormRenderer switch.
+| Component | Change |
+|-----------|--------|
+| `AppLayout.tsx` | Mount `useKeyboardShortcuts` hook; wrap in `HotkeysProvider` |
+| `FormPanel.tsx` | Add Clear + Randomize buttons; mount `useDraftPersistence` |
+| `FileSection.tsx` | Add recent files dropdown, reload button per tab, import manager trigger |
+| `PublishBar.tsx` | Embed `ConnectionQuickSwitch` component |
+| `Sidebar.tsx` | Add schema explorer trigger button |
+| Field components | Add `FieldCopyButton` shared component |
+| `proto.rs` | Add `reload_proto` command; extend `lib.rs` registration |
+| `useProtoStore.ts` | Extend with `recentFiles[]`, `addRecentFile()`, `setRecentFiles()` |
 
-**History search integration** is additive: extractSearchTokens(value, depth?) is a new export on historyHelpers.ts. filterHistoryEntries gains a searchQuery parameter with empty string as passthrough. Callers are backward-compatible. MessageHistoryPanel adds searchQuery state + debounce; HistoryFilterBar adds a third Input.
-
-**Depth guard:** recursive extractSearchTokens caps at depth 10 (proto MAX_DEPTH 5 + oneof + map value layers). FEATURES.md recommends depth 8; ARCHITECTURE.md uses 10. Either is acceptable; decide at implementation time.
-
-**Files changed (complete inventory):**
-
-New files:
-- src/lib/blockApply.ts — types + pure helpers
-- src/components/blocks/BlockApplyConflictDialog.tsx — stateless conflict dialog
-
-Modified files:
-- src/components/form/ProtoFormRenderer.tsx — two-phase refs, extended eligibility
-- src/components/form/FormPanel.tsx — two-phase ref wiring, dialog integration
-- src/components/history/historyHelpers.ts — extractSearchTokens, filterHistoryEntries signature
-- src/components/history/HistoryFilterBar.tsx — search Input
-- src/components/history/MessageHistoryPanel.tsx — searchQuery state + debounce
-
-Unchanged (confirmed): OneofField, WellKnownTypeField, MapField, useHistoryStore, AppLayout, BlockLibraryPanel, ProtoFormRenderer switch body (frozen per D-01).
-
-### Critical Pitfalls
-
-**Pitfall A — Oneof branch registration race (CRITICAL for Phase C):**
-Setting _selected first then the branch field separately triggers OneofField s unregister effect mid-write, unregistering the branch path before the second setValue lands. Prevention: set the entire oneof atomically — setValue(key, { _selected: branchName, [branchName]: branchValue }, { shouldDirty: false }). The commit function in blockApply.ts must enforce this order.
-
-**Pitfall B — Map useFieldArray: setValue vs replace() (VERIFY in Phase B):**
-ARCHITECTURE.md section 1.4 states setValue(key, arrayOfPairs) refreshes useFieldArray rows because MapField watches the path. However, Pitfall #21 (PITFALLS.md) documents the opposite: setValue updates the form store but does NOT update useFieldArray s internal fields ref — rows render stale until the component remounts. These claims are in direct contradiction. Phase B must empirically verify which path works before finalizing the commit implementation. If setValue does not work visibly, use replace() from the useFieldArray instance, which requires MapField to expose replace upward (adds coupling) or a different approach.
-
-**Pitfall C — _selected discriminator in field values search:**
-When the history search walker recurses into an oneof { _selected: card_number, card_number: 4111... }, _selected must be treated as a searchable key (developers search by branch name). The extractSearchTokens recursive object branch must include object keys as tokens — not just values. FEATURES.md HIST-FT-05 and ARCHITECTURE.md section 2.4 both confirm this.
-
-**Pitfall D — shouldDirty: false on all block apply setValue calls:**
-All setValue calls in commitApplyBlockRef must use { shouldDirty: false }. This preserves the dirtyFields signal for subsequent block drops. Omitting it can register block-filled fields as user-touched, causing them to surface as conflicts on the next drag.
-
-**Pitfall E — Default conflict state in dialog (conservative):**
-BlockApplyConflictDialog must initialize each conflict row to skip. Defaulting to overwrite would silently destroy user-entered data on any drag where the user clicks Apply without reviewing the list. Document this as BA-D1 at component authoring.
+**`setPendingReplayValues` is the mandatory form-population path** for form reset, randomizer, and draft restore. Do not call `resetRef.current()` directly.
 
 ---
 
-## Implications for Roadmap
+## Critical Pitfalls
 
-Suggested phase order is unambiguous from dependency analysis across all three research files.
+**Pitfall 1 — DescriptorPool append-only blocks proto reload (CRITICAL)**
+`prost-reflect`'s `DescriptorPool` has no `remove_file()` method. The existing `parse_proto` skip-if-exists guard makes re-calling it a silent no-op for changed files. The new `reload_proto` command must reconstruct the entire pool from scratch from all currently-open file+include-path pairs and replace the Tauri State `Mutex<Option<DescriptorPool>>` atomically.
 
-### Phase A — History Full-Text Search
+**Pitfall 2 — Draft persistence breaks on complex field types**
+`form.reset(JSON.parse(draft))` silently corrupts map, repeated, and oneof fields. `useFieldArray`-backed fields require `replace()` after `reset()` (the `mapReplaceRegistry` ref pattern from Phase 25). All restore `setValue` calls must use `shouldDirty: false` to avoid false conflict dialogs in block apply. Route all restore through `setPendingReplayValues`.
 
-**Rationale:** Zero dependencies on block apply. Touches only three files. Lowest risk. Independently testable end-to-end. Delivers visible user value before the higher-complexity block apply work.
+**Pitfall 3 — CodeMirror captures Cmd+Enter before global listener**
+CodeMirror intercepts keyboard events before they bubble to `document`. A window-level handler will not fire when focus is inside `JsonEditor`. Solution: check `event.target.closest('.cm-editor')` in the global handler AND register `Cmd+Enter` as a CodeMirror keymap extension in `JsonEditor` separately.
 
-**Delivers:** Search input in HistoryFilterBar; recursive field value matching; AND composition with existing filters; filtered count label (HIST-DIF-02); 150ms debounce (HIST-DIF-03).
+**Pitfall 4 — ProtoFormRenderer switch is FROZEN**
+Randomizer, schema explorer, and import manager must not add cases to the switch. Randomizer generates values in `src/lib/randomize.ts` and injects via `setPendingReplayValues`. Schema explorer reads `ProtoSchema` directly from `useProtoStore`.
 
-**Implements:** extractSearchTokens in historyHelpers.ts + filterHistoryEntries update + HistoryFilterBar + MessageHistoryPanel wiring.
+**Pitfall 5 — Randomizer infinite loop on recursive messages**
+Enforce `MAX_DEPTH = 5` (matching `ProtoFormRenderer`) and emit `{}` at depth limit to prevent stack overflow on self-referential schemas.
 
-**Avoids:** Pitfall C (_selected must be a searchable key in the recursive walker).
+**Pitfall 6 — Profile switch corrupts mid-plan-run execution**
+Connection quick-switch must check `usePlanExecutionStore.isRunning` before allowing switch. Replicate the SubscribePanel auto-stop guard.
 
-**Build order:** extractSearchTokens + tests → filterHistoryEntries update + tests → HistoryFilterBar + MessageHistoryPanel wiring.
-
-**Research flag:** No deeper research needed. Pattern extends existing code with well-understood primitives.
-
----
-
-### Phase B — Block Apply: WKT + Map Empty Case
-
-**Rationale:** Lowest complexity in block apply. No conflict prompt required. Validates the buildApplyPlan helper and two-phase ref split in isolation before adding dialog complexity in Phase C.
-
-**Delivers:** WKT fields fillable from blocks; map fields replaceable when empty; src/lib/blockApply.ts with types and pure helpers; planApplyBlockRef + commitApplyBlockRef ref split wired in ProtoFormRenderer and FormPanel.
-
-**Implements:** BLK-CT-01, BLK-CT-02, BLK-CT-03.
-
-**Avoids:** Pitfall D (shouldDirty: false on all setValue calls).
-
-**Critical verification:** Empirically test whether setValue(mapKey, arrayOfPairs) visibly refreshes useFieldArray rows in MapField (Pitfall B). This is an implementation-time code experiment. Resolve before Phase C begins.
-
-**Research flag:** No pre-phase research needed. The map setValue vs replace() question is resolved by running the code, not by research.
+**Randomizer type constraints:** enum from `EnumValue[].number`, bytes as standard-alphabet base64, int64/uint64 as strings, WKTs as shaped `{seconds, nanos}` objects, oneof sets `_selected` before branch fill with `shouldDirty: false`.
 
 ---
 
-### Phase C — Block Apply: Conflict Prompt + Oneof
+## Roadmap Implications
 
-**Rationale:** Highest UX risk of the three phases. BlockApplyConflictDialog, oneof branch-switch, and batched prompt must ship together — the prompt is the UX container for both map collision and oneof branch-switch conflicts. Isolated in its own phase for clean risk management.
+**Suggested phases: 5**
 
-**Delivers:** BlockApplyConflictDialog; oneof same-branch fill (BLK-CT-05); oneof branch-switch prompt (BLK-CT-06); map collision prompt (BLK-CT-04); batched prompt (BLK-CT-07); applyBlockRef contract fully replaced in ProtoFormRenderer and FormPanel.
+| Phase | Name | Scope | Research-phase needed? |
+|-------|------|-------|------------------------|
+| A | Keyboard Shortcuts + Field Copy | Pure frontend, no backend, no store mutations | No |
+| B | Proto File Management | `reload_proto` Rust command, recent files, import manager | **Yes** — atomic Tauri State pool replacement |
+| C | Connection Quick-Switch + Draft Persistence | Stateful cross-feature group | **Yes** — RHF `useFieldArray.replace()` restore path, JSON-mode draft shape |
+| D | Randomizer + Field Type Tooltips | Pure read-path form features over `MessageDescriptor` | No |
+| E | Schema Explorer Tree | Highest-complexity committed feature, ships last | No |
 
-**Avoids:** Pitfall A (atomic oneof setValue — enforced in commitApplyBlockRef), Pitfall E (conflict default = skip).
+**Phase ordering rationale:**
+- Phase A ships first: purely additive, zero risk, validates `setPendingReplayValues` path before Phase C builds on it
+- `reload_proto` (Phase B) gates import manager
+- Connection-switch event flow (Phase C) must be proven before draft write condition is correct
+- Schema explorer (Phase E) ships last to isolate scope-creep risk
 
-**Research flag:** No pre-phase research needed. Architecture is fully specified. BA-D1 (dialog default state) is a one-line decision at component authoring.
-
----
-
-### Phase Ordering Rationale
-
-- Phase A is independent and lowest-risk; starting here validates the recursive walker pattern before block apply adds structural changes.
-- Phase B establishes the two-phase ref architecture and resolves the map setValue question before Phase C adds dialog complexity.
-- Phase C is highest-risk and benefits from the structural foundation laid in Phase B.
-- No phase has external dependency on new libraries or config changes.
-
----
-
-## Confidence Assessment
-
-| Area | Confidence | Notes |
-|------|------------|-------|
-| Stack | HIGH | Zero new dependencies confirmed by npm registry check and full src/components/ui inventory |
-| Features | HIGH | Table stakes derived from existing codebase behavior and prior phase decisions |
-| Architecture | HIGH (with caveat) | Two-phase applyBlockRef and history walker are fully specified. Map setValue vs replace() is the one unverified implementation detail |
-| Pitfalls | HIGH | Oneof race confirmed by RHF source behavior; _selected search confirmed by FEATURES.md + ARCHITECTURE.md; setValue/useFieldArray conflict is primary-source documented in Pitfall #21 |
-
-**Overall confidence:** HIGH
-
-### Gaps to Address
-
-- **Map setValue vs replace() (Phase B):** Empirical test required at Phase B implementation start. If setValue on the map top-level array path does not cause useFieldArray in MapField to re-render rows, use replace() — requires MapField to expose replace upward.
-- **Depth cap 8 vs 10:** FEATURES.md says 8; ARCHITECTURE.md says 10. Pick one at implementation. No semantic difference for real proto schemas.
-- **BA-D1 (conflict dialog default state):** Recommendation is skip (conservative). Confirm at component authoring.
+**Open gaps for planning:**
+- `draft:` store key: file-scoped `draft:{encodedFilePath}:{messageFullName}` required for multi-proto-tab sessions
+- `fs:allow-exists` capability: Phase B must verify if already granted in `capabilities/default.json`
+- JSON-mode draft shape: `{ mode: 'json', jsonString }` vs `{ mode: 'form', values }` — decide in Phase C planning
 
 ---
 
 ## Sources
 
-### Primary (HIGH confidence)
+- Direct codebase reads: `proto.rs`, `FormPanel.tsx`, `useProtoStore.ts`, `AppLayout.tsx`, `FileSection.tsx`, `lib.rs`, `types.ts`
+- Context7: `react-hotkeys-hook` v5.3.2, `tauri-plugin-global-shortcut`, `tauri-plugin-clipboard-manager`
+- prost-reflect docs.rs: `DescriptorPool` API (no `remove_file`)
+- Insomnia keyboard shortcuts, Postman shortcuts docs, Bruno proto import docs
+- Tauri GitHub issues #8676 (WKWebView keyboard conflicts)
+- BloomRPC archived repo issues (#1 complaint: import path UX)
 
-- src/components/form/ProtoFormRenderer.tsx lines 149-180 — applyBlockRef current contract and eligibility gate
-- src/components/blocks/BlockLibraryPanel.tsx — AlertDialog usage (confirms installed and wired)
-- src/components/history/historyHelpers.ts — filterHistoryEntries existing pattern
-- src/stores/useHistoryStore.ts line 6 — MAX_ENTRIES = 100
-- react-hook-form docs — useFieldArray + setValue limitation (Pitfall #21 source): https://react-hook-form.com/docs/usefieldarray
-- react-hook-form docs — setValue options (shouldDirty): https://react-hook-form.com/docs/useform/setvalue
-
-### Secondary (MEDIUM confidence)
-
-- ARCHITECTURE.md section 1.4 — setValue(key, arrayOfPairs) claim for map fields (contradicted by Pitfall #21; needs Phase B verification)
-
----
-
-*Research completed: 2026-05-25*
-*Ready for roadmap: yes*
+*Research completed: 2026-05-25 | Ready for roadmap: yes*

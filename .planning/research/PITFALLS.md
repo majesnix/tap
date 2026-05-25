@@ -1,1786 +1,383 @@
-# Pitfalls Research: Tap
+# Pitfalls Research
 
-**Domain:** Tauri 2.x desktop app — runtime proto parsing, dynamic forms, AMQP publishing
-**Researched:** 2026-05-17
-**Overall confidence:** HIGH (all critical pitfalls have primary-source evidence)
+**Domain:** Tauri 2.x + React + react-hook-form + prost-reflect — v1.8 UX Polish + Proto Ergonomics
+**Researched:** 2026-05-25
+**Confidence:** HIGH (all critical pitfalls grounded in primary-source codebase evidence)
 
 ---
 
-## Critical Pitfalls (will block the project)
+## Critical Pitfalls
 
-### 1. Using prost for runtime proto parsing
+### Pitfall 1: DescriptorPool Merge Prevents Proto File Reload
 
 **What goes wrong:**
-The default Rust protobuf workflow uses `prost` + `build.rs` codegen — types are generated at compile time. The official prost README explicitly states: _"Prost does not include support for runtime reflection or message descriptors."_ Building a dynamic form renderer on top of prost codegen is architecturally impossible without a separate reflection layer.
+The current `parse_proto` Rust command (src-tauri/src/commands/proto.rs) skips adding a file to the global `DescriptorPool` if it is already present by name: `if existing.get_file_by_name(&name).is_none()`. A proto reload after the user edits the file will appear to succeed — the frontend gets the updated `ProtoSchema` from the fresh compile — but the global pool used for `encode_message` still carries the **old** type definitions. Messages encoded after a "reload" silently use stale field descriptors until the app is restarted. This is documented in the existing code comment: "Re-loading a changed .proto won't update pool types; restart the app if you change a .proto during a session."
 
 **Why it happens:**
-`prost` is the most prominent Rust protobuf crate in documentation and tutorials. Developers reach for it first without checking whether it supports the runtime-dynamic mode this project requires.
+The pool was designed as append-only to support multiple open files sharing common imports (e.g., `google/protobuf/timestamp.proto`). An idempotency guard was added to avoid duplicate-file errors, which makes the pool immutable for existing files by design.
 
-**Consequences:**
-Complete rewrite of the proto layer if you start with `prost` alone. Every form field renderer and encoder has to be rebuilt around a different type model.
+**How to avoid:**
+When implementing proto reload, the command must rebuild the pool for all currently-open files — not just the changed file. Strategy: before re-parsing, remove the changed file's name from the pool or reconstruct a fresh `DescriptorPool` from the union of all currently-open file paths. Do not attempt to update a single file inside an existing pool; `prost-reflect` `DescriptorPool` has no `remove_file` operation. The correct approach is: compile all open files into a new pool, replace `pool_state` atomically.
 
-**Prevention:**
-Use `protox` (pure-Rust compiler, replaces the `protoc` binary) combined with `prost-reflect` (reflection + `DynamicMessage`). `prost-reflect` extends prost with a `DescriptorPool` API for runtime type introspection and a `DynamicMessage` type for encoding/decoding without compile-time type definitions.
+**Warning signs:**
+- Encoding a field that was renamed in the `.proto` file after reload produces the old field name in the binary output.
+- The frontend's `ProtoSchema` shows the new field but `encode_message` returns a protobuf binary that decodes to the old structure.
+- Hex preview changes shape correctly but an external consumer sees the wrong wire format.
 
-**Detection:**
-If your proto parsing code returns strongly-typed Rust structs rather than a descriptor pool you can query at runtime, you are on the wrong path.
-
-**Sources:** prost README ("Prost does not include support for runtime reflection or message descriptors"); prost-reflect docs.rs; protox GitHub.
+**Phase to address:** Phase covering Proto file reload (Feature #3 in v1.8).
 
 ---
 
-### 2. Import resolution: proto files that import other proto files
+### Pitfall 2: Randomizer Infinite Loop on Recursive Message Types
 
 **What goes wrong:**
-The proto compiler resolves imports relative to a configured set of root paths (equivalent to protoc's `-I` / `--proto_path` flags). When the user loads `order.proto` which imports `common/types.proto`, the compiler needs to know the root directory to search from. If your import resolver uses the directory of the loaded file rather than a user-configured include path, imports that cross directories silently fail or produce confusing "file not found" errors.
-
-A secondary issue documented in prost-reflect's changelog (v0.12.0): the library now validates that all referenced types are in the declared dependency files. Files using `import public` that were silently passing before will be rejected — a breaking behaviour change that surfaced as seemingly valid files being rejected.
+`ProtoFormRenderer` already guards against unbounded recursion with `MAX_DEPTH = 5`. A randomizer that generates type-appropriate values for all fields will need the same guard — or it will loop infinitely on any schema that has a self-referential message (e.g., `message Node { Node child = 1; }`). Without the guard, the randomizer recurses into nested `message` fields indefinitely. The stack overflow is a hard crash in the Rust backend if the recursion is server-side, or a React render freeze if client-side.
 
 **Why it happens:**
-Developers hardcode the directory of the dropped proto file as the only search root, not anticipating that real projects have a directory hierarchy with a single root.
+Protobuf schemas legally allow recursive message references. The render tree handles this with a depth counter, but a new randomizer function typically starts fresh without inheriting the depth awareness of the renderer.
 
-**Consequences:**
-Users cannot load any proto file that imports another proto file (which is almost all production protos). The feature becomes unusable for real codebases.
+**How to avoid:**
+Pass a `depth` parameter through the recursive value-generation function, mirroring `MAX_DEPTH = 5` from `ProtoFormRenderer.tsx`. At `depth >= MAX_DEPTH`, emit `null` / skip nested message fields rather than recursing. For `message` kind fields in the randomizer: generate a value only for depth 0 and 1; at depth 2+, emit `{}` (empty nested object) to avoid runaway recursion.
 
-**Prevention:**
-Present the user with a separate "include paths" configuration UI (analogous to protoc's `-I` flag). Allow adding multiple include directories. Resolve imports by searching these directories in order. Well-known types (`google/protobuf/*.proto`) must be bundled with the app and always available on the include path — `protox` bundles these automatically.
+**Warning signs:**
+- App hangs or tab freezes when the randomizer runs on a proto file that imports another file with the same message type as a field.
+- `Maximum call stack size exceeded` error in the dev console.
+- React DevTools shows an infinitely deep component tree.
 
-**Detection:**
-Test with any proto file containing an `import` statement at the top.
-
-**Phase:** Proto parsing phase (foundational — design the include-path model before building the file picker).
-
----
-
-### 3. Circular / recursive message types cause infinite recursion in form generation
-
-**What goes wrong:**
-Protobuf explicitly supports recursive message types (e.g., a tree node with optional child nodes of the same type). The wire format handles this fine because each sub-message is `optional` — a `null` terminates the recursion. But a naive form generator that walks the descriptor tree to build React components has no termination condition and will call itself infinitely.
-
-The bug pattern: the descriptor tree represents _types_, not values. There is no depth limit implied by the schema itself — only runtime data has a natural depth. A renderer that treats "this field's type is message X" as "render an expanded form for X inline" will recurse forever. This is a well-documented class of problem with protobuf code generators (protobuf-swift issue #38 tracks an identical initialization loop; the Kafka UI project filed the same error for schema-to-form conversion — "Error converting Protobuf schema with recursive references").
-
-**Consequences:**
-Browser tab crash or JavaScript stack overflow when loading any proto file with recursive message types.
-
-**Prevention:**
-Track rendered message type names in a stack during recursive rendering. When the same type name appears in its own ancestor chain, render a collapsed "add nested [TypeName]" placeholder button instead of expanding inline. Users can expand on demand. Cap render depth at 5 levels regardless of recursion.
-
-**Detection:**
-Test with any proto containing a field whose type is the same message, or a pair of messages referencing each other (e.g., `User` with a `repeated Group groups` and `Group` with a `User owner`).
-
-**Phase:** Dynamic form generation phase.
+**Phase to address:** Phase covering Randomizer (Feature #2 in v1.8).
 
 ---
 
-### 4. RabbitMQ Management API unavailability in production environments
+### Pitfall 3: Draft Persistence Round-Tripping Breaks RHF Internal State
 
 **What goes wrong:**
-The Management Plugin (port 15672) is not enabled by default on all RabbitMQ deployments. Many production, cloud-managed, or containerised RabbitMQ instances run without it. If queue/exchange listing is built exclusively on the HTTP management API, the feature silently breaks for a significant subset of real team environments.
+react-hook-form's internal form values for complex field types do not JSON-serialize correctly:
 
-The AMQP protocol itself does not provide a "list all queues" or "list all exchanges" method. The only queue-level AMQP introspection is `queue.declare-ok`, which returns `message_count` and `consumer_count` for a queue you already know the name of.
+- **oneof fields** store the selected branch in `_selected` (a RHF meta field, not a proto field). A naïve `JSON.stringify(getValues())` will capture `_selected` — but `form.reset(parsed)` does not restore it correctly because `_selected` is written directly into the `values` object, not as a separate control signal.
+- **map fields** are stored as `Array<{key, value}>` via `useFieldArray` (decision row in CLAUDE.md). Restoring from `JSON.parse` produces a plain JS array, but `useFieldArray` requires `replace()` — not a `reset()` value — to repopulate correctly.
+- **repeated fields** (`useFieldArray`) have the same `replace()` requirement as map fields.
+- **bytes fields** store base64 strings in RHF but the input label also shows a byte count. Restoring the base64 string is correct, but if saved as a buffer (a mistaken optimization) it corrupts silently.
+
+A draft persistence implementation that calls `JSON.stringify(getValues())` and `form.reset(JSON.parse(draft))` will appear to work for scalar-only messages and fail silently for messages with oneof, map, or repeated fields.
 
 **Why it happens:**
-The management API is convenient and familiar (it's what Postman-style tools use). Developers design around it without verifying it's available in the environments the tool will actually be used in.
+RHF's `getValues()` does return a plain JS object, but complex field types rely on `useFieldArray`'s internal array tracker (not just `values`) for correct rendering. Restoring via `reset()` repopulates `values` but does not trigger `useFieldArray`'s internal reconciliation.
 
-**Consequences:**
-The AMQP connection works fine but the queue/exchange dropdown is empty with no clear error. Users assume the tool is broken.
-
-**Prevention:**
-Make the Management API URL configurable and optional in the connection profile. If the management API is unavailable, degrade gracefully: show an empty dropdown with a text input for manual queue/exchange name entry, and display a clear status indicator ("Management API unavailable — enter queue name manually"). Detect management API absence by catching HTTP connection errors, not by treating an empty list as valid.
-
-**Phase:** Connection profile + queue/exchange listing phase.
-
----
-
-## Common Mistakes (waste time but recoverable)
-
-### 5. lapin auto-recovery is experimental and does not restore channels
-
-**What goes wrong:**
-lapin's `enable_auto_recover()` is documented as experimental. It handles TCP reconnection but does not automatically recreate channels or consumers after recovery. A `Channel` object becomes invalid after a connection drop. Code that holds onto a `Channel` across a reconnect event will continue to fail silently or panic.
-
-Additionally, `deadpool-lapin` manages connection pools but not channel pools — channels must be created per-publish. The `lapin::Connection.channels` field is private, preventing direct reuse. Creating and destroying a channel per message is the only safe pattern with a small per-publish overhead.
-
-**Prevention:**
-For a send-only tool (no long-lived consumers), the simplest model is: establish one connection, create a channel per publish call, close the channel after publish. Wrap the connection in `Arc<Mutex<Option<Connection>>>`. On any publish failure, check if the connection is alive via `connection.status().connected()`. If not, reconnect before retrying. Do not hold channels across command invocations.
+**How to avoid:**
+Reuse the existing `pendingReplayValues` signal path (already in `useProtoStore`) and the `buildDefaultValues` + `form.reset()` pattern from the history replay flow. For map and repeated fields, implement restore through `useFieldArray.replace()` — the same mechanism as block apply. Do not invent a second restore path. Consider treating map and repeated fields as JSON blobs in draft storage (serialize the `Array<{key,value}>` as-is) and restore via the `mapReplaceRegistry` ref pattern already in place from Phase 25.
 
 **Warning signs:**
-`lapin::Error::InvalidChannel` or silent message drops after a broker restart during a session.
+- After app restart, oneof fields show the default branch even though the user had selected a different branch before closing.
+- Map field rows are empty after draft restore even though the stored JSON contains the correct array.
+- Repeated field arrays are empty or show duplicate entries.
+- Zod validation errors appear on page load for fields that were valid before the app closed.
 
-**Phase:** AMQP layer.
-
----
-
-### 6. Tauri 2 IPC serialises everything as JSON by default
-
-**What goes wrong:**
-Tauri 2's default IPC serialises return values from Rust commands to JSON via serde. Developers who naively return a `Vec<u8>` (proto-encoded bytes) as a Tauri command return value will see it arrive in the frontend as a JSON array of integers (`[72, 101, 108, 108, ...]`), not a `Uint8Array`. This breaks any binary preview or size display feature.
-
-**Prevention:**
-Return binary data from Tauri commands using `tauri::ipc::Response` with a raw binary body, or use the `ArrayBuffer` return path available since Tauri 2.0. Do not return `Vec<u8>` as a JSON-serialised value when the frontend needs binary.
-
-**Warning signs:**
-Frontend receives `[72, 101, 108, 108, ...]` instead of a `Uint8Array`. Proto byte count looks correct but the value is not binary-usable.
-
-**Phase:** Proto encode + send preview feature.
+**Phase to address:** Phase covering Message draft persistence (Feature #5 in v1.8).
 
 ---
 
-### 7. Tauri 2 capability/permissions model — commands silently blocked
+### Pitfall 4: Global Keyboard Handler Fights CodeMirror's Keymap
 
 **What goes wrong:**
-In Tauri 2, every `#[command]` must be listed in a capability file under `src-tauri/capabilities/`. If a new command is added to Rust but the capability file is not updated, the `invoke()` call from the frontend appears to succeed (no JS error) but the Rust handler is never called — the response is `null` or an opaque "not allowed" error with no useful diagnostic.
+`JsonEditor` uses `@uiw/react-codemirror` which installs its own keymap as a CodeMirror extension. CodeMirror captures keydown events before they bubble to the window. If you install a global `window.addEventListener('keydown', handler)` for Cmd+Enter (Send), the handler will not fire when focus is inside the CodeMirror editor — CodeMirror consumes the event. However, if you add `event.preventDefault()` at the window level and CodeMirror has not captured it (focus is outside the editor), you suppress the default browser behavior for that key combination across the entire app. The failure modes are:
 
-The v1 allowlist in `tauri.conf.json` is gone. Developers using pre-2.0 tutorials or examples will try to enable features in `tauri.conf.json` and nothing will work.
-
-**Prevention:**
-After adding any new `#[command]`, immediately add it to the capability file. Use `tauri dev` in verbose mode — it logs permission denials. The permission format is `${plugin-name}:${permission-name}` for plugins and `${permission-name}` for app-defined commands. For the filesystem plugin (`tauri-plugin-fs`), each allowed path scope must also be declared.
-
-**Warning signs:**
-`invoke('my_command')` returns `null` or an error referencing "not allowed" without identifying which capability is missing.
-
-**Phase:** Tauri project setup + every subsequent command added.
-
----
-
-### 8. Manual proto wire encoding: packed repeated fields and field number discipline
-
-**What goes wrong:**
-Two common manual encoding bugs:
-
-1. **Packed vs unpacked repeated fields:** In proto3, repeated scalar fields are packed by default. A manual encoder that writes each element as a separate tagged value instead of a single length-delimited record produces parseable but incompatible output — production consumers using proto3 may reject or misparse it.
-
-2. **Field number reuse:** If a `.proto` file is edited to remove a field and a new field is added with the same field number, the wire format becomes ambiguous. Production consumers will misparse messages with no error — values are silently assigned to the wrong fields. The protobuf spec states: "Reusing a field number makes wire-format messages ambiguous."
-
-**Prevention:**
-For (1): use `prost-reflect`'s `DynamicMessage.encode()` rather than hand-rolling wire format. It handles packed encoding correctly.
-For (2): treat field numbers as immutable once a proto file has been used in production. Document the `reserved` keyword when showing field numbers in the UI.
-
-**Warning signs:**
-(1) Consumer logs show parse errors after the tool sends. (2) No error at encoding time, but field values arrive in wrong positions at the consumer.
-
-**Phase:** Proto encoding layer.
-
----
-
-### 9. Large repeated fields block the UI
-
-**What goes wrong:**
-A `repeated` field of a complex message type renders one form row per element. If a user pastes JSON with 500+ elements into a repeated field (bulk import scenario), the form generator eagerly renders 500 sub-trees of React components. This will freeze the browser for seconds or cause a tab crash on low-memory machines.
+1. Cmd+Enter does nothing when JSON mode is active and the user expects to Send.
+2. Adding `event.preventDefault()` breaks normal text editing if the handler is too broad.
+3. CodeMirror historically rebinds Cmd+R (refresh) — a global Cmd+Shift+R (Clear form) handler could conflict.
 
 **Why it happens:**
-Naive form generation treats "render all rows" as the correct behaviour for arrays, which works fine for small lists but not for unbounded repeated fields.
+CodeMirror operates in a web worker / shadow DOM context with its own event dispatch. Global `keydown` listeners at the `window` level are not aware of CodeMirror's event interception.
 
-**Prevention:**
-Virtualize repeated field lists past a threshold (e.g., 50 rows). Use a windowed list renderer (`react-window` or `react-virtual`) or implement lazy row expansion. Show a count badge ("150 items") with collapse/expand controls rather than auto-expanding everything. Allow adding/removing individual rows explicitly.
-
-**Warning signs:**
-UI freezes when loading a proto file with a `repeated SubMessage` field and more than ~100 items in the form state.
-
-**Phase:** Dynamic form generation phase.
-
----
-
-### 10. oneof UX: form state vs wire semantics mismatch
-
-**What goes wrong:**
-The protobuf spec is explicit: "Setting a value to any field in the OneOf automatically clears all other fields in that group. Only the last-written field is included in the serialized wire format." A naive form that renders all branches of a `oneof` as visible input fields lets the user type into multiple branches. At submit time, only one branch is encoded — the others are silently dropped. Users who filled in branch A, switched to branch B, then switched back expect branch A's draft to be restored. If the form purges it, the send feels unpredictable.
-
-A secondary edge case: nested `oneof` (a `oneof` containing a message that itself has a `oneof`) is easy to mishandle in the React state shape, producing stale "ghost" values in the unselected branch that differ from what will actually be encoded.
-
-**Prevention:**
-Use an explicit branch-selector UI: a radio group or tab strip for the `oneof`, with only the selected branch's fields visible. Preserve all branches' draft state in React state but only pass the selected branch's value to the encoder. Show a clear visual indicator that the unselected branches "will not be sent." Test encoding output to verify the inactive branch produces no bytes on the wire.
-
-**Sources:** proto3 language guide — "Setting any member of the oneof automatically clears all other members." Verified in official protobuf documentation.
+**How to avoid:**
+- Register keyboard shortcuts at the `document` level with `useEffect` and check `event.target` before acting: if `(event.target as Element).closest('.cm-editor')`, skip the handler.
+- For Cmd+Enter specifically, also add it as a CodeMirror keymap extension passed to the `JsonEditor`: `keymap.of([{ key: 'Mod-Enter', run: () => { triggerSend(); return true; } }])`. This ensures it fires regardless of editor focus state.
+- Use `event.metaKey` (macOS) + `event.ctrlKey` (Windows/Linux) rather than only `event.metaKey`.
 
 **Warning signs:**
-Encoding a message with a `oneof` field produces output that the consumer decodes with a different field populated than expected.
+- Pressing Cmd+Enter in the JSON editor triggers no send.
+- The Clear form shortcut fires when the user is typing in the CodeMirror editor.
+- The global shortcut stops working when any input field is focused.
 
-**Phase:** Dynamic form generation phase.
+**Phase to address:** Phase covering Keyboard shortcuts (Feature #1 in v1.8).
 
 ---
 
-### 11. macOS notarization and Windows SmartScreen block distribution
+### Pitfall 5: fs:scope Restriction Silently Blocks Recent Files Outside $HOME
 
 **What goes wrong:**
-macOS Gatekeeper blocks any app not notarised by Apple on first launch with a non-dismissible error. Notarisation requires:
-- A paid Apple Developer account ($99/year)
-- A Developer ID Application certificate
-- An `Entitlements.plist` with JIT entitlement (required for Tauri's WebView)
-- App Store Connect API credentials for the notarisation service
+Tauri's `fs:scope` was narrowed to `$HOME/**` during v1.4 security hardening. Any `.proto` file stored outside `$HOME` — for example `/opt/company/protos/`, `/tmp/test.proto`, or on Windows a network drive like `\\server\share\file.proto` — will be accessible via the native file picker dialog (which uses OS-level access, not `plugin-fs`) but will fail when `tauri-plugin-fs` tries to read the file path string during recent files restore. The error is silent by default: `plugin-fs` returns a permission denied error that the frontend may swallow.
 
-Windows SmartScreen shows a warning for newly-signed binaries until the certificate builds reputation. An EV certificate accelerates this but costs more.
+**Why it happens:**
+The file picker dialog bypasses `fs:scope` — users can navigate to any folder. But subsequent `plugin-fs` API calls (to read a recently used path from storage and verify it still exists) are subject to scope restrictions. The paths appear valid in `tauri-plugin-store` but fail at access time.
 
-If this is discovered at distribution time, the fix requires account setup, certificate procurement, and CI pipeline changes — days of work.
-
-**Prevention:**
-Address code signing in the first distribution milestone, not the last. Set up CI signing scripts early using Tauri's official signing docs. For internal team distribution on macOS, ad hoc signing avoids notarisation for developer machines but cannot be distributed to non-developers publicly.
+**How to avoid:**
+- For recent files, validate stored paths before displaying them: use `@tauri-apps/plugin-fs` `exists()` call with error handling (not just checking whether the path string is non-empty).
+- Accept that some users will see "file not accessible" warnings for paths outside `$HOME` — surface this as a graceful error (grayed-out entry with tooltip) rather than a hard failure.
+- Document in the phase spec that the recent files list cannot include files outside the user's home directory due to the existing security scope.
+- Path separators: replicate the `WR-04` pattern from `FileSection.tsx` (detect `\\` vs `/` separator) for all path operations in the recent files manager.
 
 **Warning signs:**
-"App is damaged and can't be opened" on macOS = unsigned/un-notarised. "Windows protected your PC" on Windows = unsigned or low-reputation certificate.
+- Recent files list shows an entry but clicking it produces no action or a console error.
+- On Linux/macOS, `/tmp/test.proto` appears in recent files but fails to load.
+- Windows network paths (`\\server\share`) are in the list but fail silently.
 
-**Phase:** Distribution / packaging phase. Set up signing infrastructure before the first team-wide binary distribution.
+**Phase to address:** Phase covering Recent files nav (Feature #4 in v1.8).
 
 ---
 
-### 12. Tauri 2 on Linux requires webkit2gtk 4.1 — not available on all distros
+### Pitfall 6: Frozen ProtoFormRenderer Switch Requires Pre-Dispatch Pattern for All New Field Features
 
 **What goes wrong:**
-Tauri 2 requires `webkit2gtk-4.1` (API version 4.1). Ubuntu 22.04 LTS ships `webkit2gtk-4.0` only. Ubuntu 24.04 dropped `webkit2gtk-4.0` entirely and only ships `4.1`. This creates a fork: apps built against the 4.0 API do not work on Ubuntu 24+; apps built against 4.1 do not have packages available on Ubuntu 22.
+The `ProtoFormRenderer` switch over `FieldKind` variants is FROZEN (decision in CLAUDE.md: "ProtoFormRenderer switch FROZEN; new field types as pre-dispatch branches"). Adding Randomizer values directly into the switch, or adding Schema explorer tree rendering inside the switch, violates this architectural constraint and creates high-risk modification surface. Previous features (BytesField, MapField) were added as pre-dispatch branches without touching the switch body.
 
-Additionally, the system WebKit on each Linux distribution may have different JavaScript capability levels. A React app built with Vite's defaults may use ES2020+ features not available in older system WebKits.
+**Why it happens:**
+Developers reaching for the most direct path to render new behavior will look at the switch and add a case. This works technically but creates fragility: the switch already has 10+ cases and each new one increases the risk of breaking existing field type rendering.
 
-**Prevention:**
-Target `webkit2gtk-4.1` (Tauri 2's stated requirement). Test on Ubuntu 24.04 LTS (current stable). Document the system dependency requirement clearly in distribution notes. Configure the Vite build target conservatively (`["es2019", "chrome87"]`) to avoid syntax not supported in older system WebKits encountered on enterprise Linux.
+**How to avoid:**
+- Randomizer: implement as a separate function `buildRandomValues(message: MessageSchema, depth: number): Record<string, unknown>` in a new utility file, using the same `FieldKind` type. Call it from `FormPanel` (not from inside `ProtoFormRenderer`) and inject values via the existing `pendingReplayValues` → `resetRef.current()` path.
+- Schema explorer: implement as a standalone tree component that takes `ProtoSchema` directly — it does not need to go through `ProtoFormRenderer` at all.
+- Import manager: same pattern — separate UI component operating on stored include paths from `tauri-plugin-store`, not on the form renderer.
+- For any feature that needs to interact with form values, use the `applyBlockRef` / `mapReplaceRegistry` ref pattern already established.
 
 **Warning signs:**
-Blank window on Linux with no console error. Missing `libwebkit2gtk-4.1-dev` build error during CI on older Ubuntu runners.
+- Any PR diff that touches the `switch (field.kind.type)` block in `ProtoFormRenderer.tsx`.
+- New code that calls `renderField()` or imports `ProtoFormRenderer` for a non-form-rendering purpose.
 
-**Sources:** Tauri 2 prerequisites page lists `libwebkit2gtk-4.1-dev` as the Linux requirement. Tauri GitHub issue #9662 documents `libwebkit2gtk-4.0` removal from Ubuntu 24.
-
-**Phase:** Cross-platform testing pass + CI setup.
+**Phase to address:** All v1.8 phases — this is a cross-cutting constraint.
 
 ---
 
-### 13. Tauri State Mutex deadlock with async commands
+### Pitfall 7: Connection Quick-Switch Mid-Plan-Run Corrupts Step Execution
 
 **What goes wrong:**
-Tauri 2's async commands run on a multi-threaded tokio runtime. All async futures must be `Send`. If AMQP connection state is stored behind a `std::sync::Mutex<T>` and the guard is held across an `.await` point (e.g., while waiting for a publish confirmation), the code either fails to compile ("future is not `Send`") or deadlocks at runtime — `std::sync::MutexGuard` is not `Send`.
+The plan runner uses `execute_step` Rust commands that reference the currently active AMQP connection credentials (resolved at command invocation time). If the user switches profiles while a plan is running, the next `execute_step` call uses the new profile's credentials but the plan runner's JS loop has no awareness of the switch. Mixed results: steps 1-3 ran against profile A; steps 4-N run against profile B. The live subscribe feature already guards against this by auto-stopping on profile change (`SubscribePanel`, v1.4). The plan runner has no equivalent guard.
 
-**Prevention:**
-Use `tokio::sync::Mutex` for state accessed across `.await` points. Alternatively, acquire the lock, extract/clone what is needed, release the lock, then run the async operation with no lock held. The second approach avoids holding a mutex across IO and is generally safer.
+**Why it happens:**
+Profile switching updates `useConnectionStore.activeProfileName` synchronously in the frontend. The Rust backend resolves credentials at each `execute_step` invocation rather than holding a connection open for the run. There is no "plan run in progress" guard in the connection store.
+
+**How to avoid:**
+- In `usePlanExecutionStore`, add a `runningProfileName` field that is set when the plan starts.
+- In `ConnectionSection` or wherever quick-switch is implemented, check if a plan is currently running (`usePlanExecutionStore.isRunning`) before allowing the switch — either block it with a toast warning or auto-stop the plan first.
+- Alternatively, show a confirmation dialog: "Switching profiles will stop the running plan. Continue?"
+- This is analogous to the existing `SubscribePanel` guard — look at how subscribe auto-stops on profile change for the pattern to replicate.
 
 **Warning signs:**
-Compile error: "future is not `Send`" pointing to a `MutexGuard`. Or: the send command hangs indefinitely when called.
+- Plan run completes without error but the messages arrived in the wrong RabbitMQ vhost.
+- Step results show mixed queue targets from two different profiles.
+- Live subscribe stops when profile changes (existing guard works) but plan runner continues uninterrupted.
 
-**Phase:** AMQP state management in Tauri commands.
-
----
-
-## v1.2 Form Improvements Pitfalls
-
-The following pitfalls are specific to the v1.2 milestone: BytesField (FORM-V2-01), MapField (FORM-V2-02), and JSON override toggle (FORM-V2-03). All findings are derived from reading the actual codebase (`encode.rs`, `consume.rs`, `schema/extractor.rs`, `ScalarField.tsx`, `RepeatedField.tsx`, `schema/types.rs`).
+**Phase to address:** Phase covering Connection quick-switch (Feature #8 in v1.8).
 
 ---
 
-### 14. BytesField: URL-safe base64 silently encodes as empty bytes
+### Pitfall 8: Randomizer for Non-Scalar Field Types Produces Invalid Proto Values
 
 **What goes wrong:**
-`encode.rs` line 325-328 calls `base64::engine::general_purpose::STANDARD.decode(s)` and returns `unwrap_or_default()` on failure — silent empty-bytes fallback with no error surfaced to the user. The standard alphabet uses `+` and `/` as the 62nd and 63rd characters. URL-safe base64 uses `-` and `_` instead. If a user pastes URL-safe base64 (common from web APIs, JWT payloads, or tools like `btoa` in some contexts), the decode returns `Ok([])` silently.
+A randomizer that generates field values must respect proto type constraints beyond just the scalar kind:
 
-The zod schema for bytes in `ScalarField.tsx` is `z.string()` with no base64 regex — there is no frontend validation that catches this before the IPC call is made.
+- **Enum fields**: The randomizer must pick from the enum's defined values (by number, not by random integer). An arbitrary integer that is not in `EnumValue[]` will either fail zod validation or produce a proto encoding error at the Rust layer.
+- **Bytes fields**: Must produce valid base64 (RFC 4648 standard alphabet, no URL-safe chars). The existing `BytesField` validation already rejects URL-safe base64 — the randomizer must use standard alphabet `A-Z a-z 0-9 + /` with padding.
+- **WellKnownType Timestamp**: Must produce `{ seconds: number, nanos: number }` shape. Generating a random int for a `well_known` field of type `Timestamp` will fail encoding.
+- **WellKnownType Duration**: Must produce `{ seconds: number, nanos: number }` shape with nanos in `[0, 999_999_999]`.
+- **oneof fields**: Must set exactly one branch — the `_selected` RHF internal. A randomizer that fills all branches of a oneof produces undefined behavior at encoding time.
+- **Map fields**: Keys must be unique (no duplicate keys in the generated set). The existing duplicate-key guard in `MapField` blocks sends when duplicates exist — the randomizer must generate unique keys.
+- **int64/uint64 fields**: Stored as strings in RHF (decision in `buildDefaultValues` in `ProtoFormRenderer.tsx`). The randomizer must produce a string like `"12345678901234"`, not a JS number (which loses precision for large int64).
 
-**Warning sign:**
-User sends a message with a bytes field, the consumer receives the field present but empty (`\x0a\x00` style zero-length). No error is shown.
+**Why it happens:**
+A randomizer written without reading the existing field type constraints will generate values by scalar type alone (random string, random int, random bool) and miss the proto-semantic constraints on top of the scalar wire type.
 
-**Prevention:**
-(1) Add a zod regex validator for bytes fields: `z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/, "Must be standard base64")`. This catches URL-safe input before it reaches Rust. (2) In `base64_decode_or_empty`, attempt URL-safe decode as a fallback if standard decode fails, OR surface the decode failure as a field error via the IPC response rather than silently returning empty. (3) Document in the field hint that standard base64 (RFC 4648, `+` and `/`) is expected.
+**How to avoid:**
+Build the randomizer as a type-safe visitor over `FieldKind` that mirrors `buildDefaultValues` in `ProtoFormRenderer.tsx` but generates random values instead of zero values. Test each `FieldKind` variant explicitly in unit tests before implementing the UI.
 
-**Phase to address:** FORM-V2-01 (BytesField implementation).
+**Warning signs:**
+- Send fails with a Rust encoding error after randomizer fill.
+- Zod validation errors on the form after randomizer runs.
+- oneof field shows multiple branches selected simultaneously.
+
+**Phase to address:** Phase covering Randomizer (Feature #2 in v1.8).
 
 ---
 
-### 15. BytesField: UTF-8 helper button is one-way only — reverse is lossy
+### Pitfall 9: Import Manager — Removing an Include Path Silently Breaks Open Tabs
 
 **What goes wrong:**
-The planned "UTF-8 text helper" button allows entering human-readable text that gets encoded to bytes. The natural completion is a "decode to text" button that converts the base64 back to readable text. However, proto `bytes` fields contain arbitrary binary data — decoding arbitrary bytes as UTF-8 is undefined behavior for most binary payloads and will produce replacement characters (`â`) or a `fromCharCode` error rather than readable text.
+The import manager lets users view and edit the include paths for the currently active proto file. If a user removes an include path that is a dependency of another currently-open tab (e.g., tab A's proto imports a type from a directory listed in tab B's include paths), removing it only affects the include paths stored for the current file in `tauri-plugin-store`. The other tab's open `ProtoSchema` in memory is unaffected — until the user closes and reopens it, at which point `parse_proto` will fail because the include path is gone.
 
-If the button attempts `TextDecoder.decode(bytes)` on a non-UTF-8 payload, the result is silently corrupted text. If the user then re-encodes this corrupted text, they produce a different byte sequence than the original.
+Worse: if the user reloads (via Feature #3) a tab whose include path was removed via the import manager, the reload fails with a cryptic import resolution error, not an explanation of why the path was removed.
 
-**Warning sign:**
-User loads a history entry with a bytes field, clicks "view as text", sees garbage characters, edits one character, and resends — consumer receives corrupted bytes with no error.
+**Why it happens:**
+Include paths are stored per-file (`include_paths:{absoluteFilePath}` key pattern in `tap.json`). The import manager UI naturally shows only the current file's paths. The dependency between files' include paths is invisible.
 
-**Prevention:**
-Make the UTF-8 helper one-directional: text input → base64 only. Label the button "Encode text as bytes" not "Edit as text." Do NOT provide a "decode to text" button unless a UTF-8 validity check passes first. If you add decode, guard it: `TextDecoder` with `fatal: true` throws on invalid UTF-8 — catch that and show an error ("Not valid UTF-8") rather than silently showing corrupted characters.
+**How to avoid:**
+- The import manager should be scoped to the active file only and clearly labeled as such.
+- When an include path is removed, run a validation step: attempt to re-parse the active file with the new path set and only commit if parse succeeds.
+- Do NOT automatically reload other open tabs when an include path changes — this is too aggressive and may cause unexpected state loss.
+- Show a warning if the removed path is a parent directory of any imported file in the current schema (detectable from the `file_descriptor_set` by inspecting import paths).
 
-**Phase to address:** FORM-V2-01 (BytesField implementation).
+**Warning signs:**
+- Removing an include path shows success, but a different tab's reload fails later with an import resolution error.
+- `IncludePathDialog` confirms a path change but the underlying proto schema becomes invalid for the next encode.
+
+**Phase to address:** Phase covering Proto import manager (Feature #7 in v1.8).
 
 ---
 
-### 16. BytesField: prost-reflect serializes bytes as standard base64 in JSON output — consume and form must use the same alphabet
+### Pitfall 10: Schema Explorer Circular Import Causes Infinite Recursion in Tree Rendering
 
 **What goes wrong:**
-`consume.rs` uses `prost_reflect::SerializeOptions` with `serialize_with_options` (lines 170-180). prost-reflect's proto3 JSON serialization follows the canonical proto3 JSON spec: bytes fields are emitted as **standard-alphabet base64 with padding** (RFC 4648 §4). This means the decoded-message JSON that arrives at the frontend has bytes as a standard-alphabet base64 string.
+Proto files legally import each other in a chain (A imports B, B imports C, C imports A is illegal in proto3 — the compiler rejects it). However, the schema explorer rendering a message tree can still hit cycles through recursive message references: `message Tree { Tree left = 1; Tree right = 2; }`. A tree renderer that follows `message` field references into sub-tree nodes without a depth or visited-set guard will loop indefinitely.
 
-The encode path in `encode.rs` also uses `base64::engine::general_purpose::STANDARD`. Both paths use the same standard alphabet — they are symmetric.
+Additionally, if the schema explorer shows imported types (from other `.proto` files in the include paths), it must distinguish between "types from this file" and "imported types" to avoid rendering the entire transitive closure of imports as an infinitely deep tree.
 
-The pitfall arises if the BytesField UI pre-populates from a decoded/consumed message (e.g., replay from history) and the replayed JSON byte value was serialized by prost-reflect. If the BytesField UI then re-validates with a regex that accidentally excludes `+`, `/`, or `=` (e.g., a URL-safe-only regex), the re-populated field will fail validation on a valid base64 string produced by prost-reflect.
+**Why it happens:**
+Schema explorer trees are typically written as recursive React components. Without a `visited: Set<string>` of already-rendered `full_name` values or a depth cap, recursive message references produce infinite renders.
 
-**Warning sign:**
-"Replay from history" fills in a bytes field, but the form shows a validation error on a field that was just decoded successfully.
+**How to avoid:**
+- Use a `depth` cap matching `MAX_DEPTH = 5` from `ProtoFormRenderer`.
+- Maintain a `visited = new Set<string>()` of `full_name` values already expanded in the current branch. If a message type appears in its own sub-tree, render it as a leaf node with a "(recursive)" label rather than expanding it.
+- Scope the tree root to the current file's messages only (the `ProtoSchema.messages` array, which already excludes `google.protobuf.*` types). Do not render the entire `message_map` transitive closure.
 
-**Prevention:**
-Validate bytes fields with the standard-alphabet regex only: `/^[A-Za-z0-9+/]*={0,2}$/`. Never use a URL-safe-only regex (`-_`). The standard alphabet is what both prost-reflect and the `base64 = "0.22"` STANDARD engine produce.
+**Warning signs:**
+- Schema explorer tab causes the app to freeze when a schema with nested or recursive messages is loaded.
+- React DevTools shows a component stack with thousands of levels.
+- Memory usage climbs linearly after opening the schema explorer.
 
-**Phase to address:** FORM-V2-01 (BytesField), cross-referenced with FORM-V2-03 (JSON toggle replay).
-
----
-
-### 17. MapField: `FieldKind` has no Map variant — map fields fall through to `FieldKind::Message`
-
-**What goes wrong:**
-`schema/types.rs` defines `FieldKind` with variants: `Scalar`, `Message`, `Enum`, `Oneof`, `WellKnown`. There is no `Map` variant. `schema/extractor.rs` `extract_field_kind()` does not call `field.is_map()` anywhere.
-
-In proto3, `map<K, V>` is syntactic sugar for a repeated message with two fields (`key` and `value`). The protobuf descriptor represents a map field as a repeated field whose `entry` flag is `true` and whose value type is a synthetic `MapEntry` message. `prost-reflect`'s `FieldDescriptor::is_map()` returns `true` for these fields.
-
-Without a `Map` variant in `FieldKind`, map fields will be extracted as `FieldKind::Message { full_name: "SomeMessage.SomeFieldEntry" }` (the synthetic entry message), which the form renderer will try to render as a nested message form. The user will see a nested sub-form with `key` and `value` inputs rather than a clean key-value row list. This does not crash, but it produces a confusing UX and the resulting form state shape will not match what `encode.rs` expects for map encoding.
-
-**Warning sign:**
-A `map<string, string>` field renders as a nested message labeled with a generated entry type name like `MyMessage.LabelsEntry` rather than a key-value row list.
-
-**Prevention:**
-(1) Add `Map { key_kind: ScalarKind, value_kind: FieldKind }` to `FieldKind` in `types.rs`. (2) In `extract_field_kind`, call `field.is_map()` before `field.is_list()`. When true, extract the entry message descriptor's `key` and `value` field descriptors and build the `Map` variant. (3) Add a `MapField` component in the frontend. (4) In `encode.rs`'s `set_field_value`, handle `field.is_map()` by building a `Value::Map(HashMap)` rather than a `Value::List`.
-
-**Phase to address:** FORM-V2-02 (MapField). Requires changes in Rust schema extractor, Rust types, Rust encoder, and React renderer — coordinate all four in one phase.
+**Phase to address:** Phase covering Schema explorer (Feature #6 in v1.8).
 
 ---
 
-### 18. MapField: storing rows as `Array<{k, v}>` vs `Record<K, V>` — silent dedup on duplicate keys
+## Technical Debt Patterns
 
-**What goes wrong:**
-If the MapField component stores its state in react-hook-form as a `Record<string, V>` (a plain object), JavaScript object semantics silently deduplicate keys: `{ "a": 1, "a": 2 }` collapses to `{ "a": 2 }`. The user can type the same key twice in two rows, both appear in the UI, but only the last value survives in the form state. The duplicate is invisible until the user submits and the consumer receives only one entry.
-
-**Warning sign:**
-User adds two rows with the same key, both rows are visible, but after submit the consumer only sees one entry for that key.
-
-**Prevention:**
-Store map rows in react-hook-form as `Array<{ k: string; v: unknown }>` using `useFieldArray` — the same pattern as `RepeatedField`. At submit time, serialize to `Record<K, V>` and detect duplicates explicitly. If duplicates exist, surface a visible field-level error ("Duplicate key: 'foo'") and block submit. Never silently deduplicate.
-
-**Phase to address:** FORM-V2-02 (MapField). Document the array-not-record storage decision explicitly in the component.
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| Draft saves on every `onValuesChange` call | Simplest implementation — reuse existing callback | tauri-plugin-store write on every keystroke; disk I/O spikes; may cause write contention with history writes | Never — use debounce at minimum 500ms (mirror useDebounce hook already in `src/hooks/useDebounce.ts`) |
+| Recent files stored as raw path strings without validation | Trivial to implement | Stale paths accumulate; cross-platform separator issues; paths outside fs:scope silently fail | Acceptable only if validation runs at display time (not just at storage time) |
+| Randomizer as a one-off button handler in FormPanel | Fast to ship | Duplicates FieldKind dispatch logic; diverges from buildDefaultValues pattern; no unit test surface | Never — extract as a tested utility function separate from the component |
+| Global `tauri-plugin-global-shortcut` for keyboard shortcuts | Single registration point | Intercepts from other apps even when Tap is in background; Tauri 2.x global shortcut requires explicit permission | Never — use window-level `keydown` handler scoped to document focus instead |
+| Skipping `shouldDirty: false` on draft restore setValue calls | Simplest reset call | All draft-restored fields appear as "dirty" to the block apply system; triggers false conflict dialogs on first block drag after draft restore | Never — Pitfall D from Phase 26 proved the invariant must be enforced |
+| Rebuilding DescriptorPool for reload by creating a second pool | Fast to implement | Encoding command still references the old global pool via Tauri State; two pools in memory; next encode uses stale pool | Never — must replace global pool atomically |
 
 ---
 
-### 19. MapField: proto3 map key types are restricted — not all scalars are valid
+## Integration Gotchas
 
-**What goes wrong:**
-Proto3 allows only specific types as map keys: `int32`, `int64`, `uint32`, `uint64`, `sint32`, `sint64`, `fixed32`, `fixed64`, `sfixed32`, `sfixed64`, `bool`, and `string`. Floating-point types (`float`, `double`), `bytes`, enum types, and message types are explicitly NOT allowed as map keys. The proto spec states: "Note that enum is not a valid key type."
-
-A MapField component that renders a free-text key input or uses the same `ScalarField` without restricting to valid key types would allow the user to construct a key input that the proto schema never permits. If this reaches `encode.rs` and the key field descriptor is checked via `field.kind()`, the Rust code will encounter an unexpected kind for a map key and either panic or silently drop the entry.
-
-**Warning sign:**
-Schema has `map<MyEnum, string>` or `map<float, string>` — these are proto schema errors that should be caught by the compiler, but if somehow passed, the form renders a broken key input with no guard.
-
-**Prevention:**
-When building the `Map` variant in the schema extractor, assert that the key kind is a valid map key type. In the MapField React component, render the key input based on `key_kind` from the schema — an integer key gets a numeric input with appropriate range validation, a string key gets a text input, a bool key gets a select/checkbox. Never render a generic "enter anything" key field without checking `key_kind`.
-
-**Phase to address:** FORM-V2-02 (MapField schema extraction and key validation).
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| CodeMirror + global keydown | Listening at window level and calling `preventDefault` broadly | Check `event.target.closest('.cm-editor')` before acting; also register the shortcut as a CodeMirror keymap extension for JSON mode |
+| tauri-plugin-store + draft persistence | Multiple concurrent `store.set()` calls without awaiting the prior `store.save()` | Queue writes or use debounce (500ms+); `store.save()` is async and must be awaited before the next write |
+| tauri-plugin-store key namespace | Accidentally overwriting an existing key (`include_paths:`, `theme-mode`, `history`, `plans`, `blocks`) | Use a distinct key prefix for new features: `draft:` for drafts, `recent_files` for the recent list |
+| prost-reflect DescriptorPool + proto reload | Calling `add_file_descriptor_proto` for an already-present file | Reconstruct the pool from all currently open file paths rather than appending to the existing pool |
+| react-hook-form + useFieldArray + draft restore | Calling `form.reset(values)` and expecting map/repeated arrays to repopulate | Call `replace()` on each `useFieldArray` controller after `form.reset()` — use the mapReplaceRegistry ref pattern from Phase 25 |
+| Tauri fs:scope + recent files | Assuming all paths returned by the file picker are readable by plugin-fs | Wrap all `plugin-fs` read attempts in try/catch; surface permission errors as grayed-out entries |
+| Connection quick-switch + plan runner | Assuming plan runner is idle when profile switch is allowed | Check `usePlanExecutionStore` running state before allowing switch; replicate SubscribePanel's auto-stop guard |
+| Randomizer + enum fields | Generating a random integer for enum fields | Pick from `EnumValue[].number` values only; validate against the field's `values` array |
 
 ---
 
-### 20. MapField: proto3 maps are unordered — UI row ordering must not be relied upon
+## Performance Traps
 
-**What goes wrong:**
-Proto3 specifies that map fields are unordered. The wire format does not guarantee any entry ordering. `prost-reflect` encodes map entries using `HashMap` iteration order, which is random (randomized hash seed per process in Rust's stdlib). If the MapField UI shows rows in insertion order and the user expects that order to be preserved in the encoded message or visible to the consumer in the same order, they will be surprised.
-
-This is a user-expectation pitfall, not a code bug. It surfaces when: (a) the user is building a map representing ordered configuration and expects the consumer to process entries in the displayed order, or (b) a regression test does byte-level comparison of encoded output and fails because map entry order changed between runs.
-
-**Warning sign:**
-Test that encodes a message with a map field and then byte-compares the output to a fixture fails non-deterministically. Or: user reports that "the order of map entries changed" between two sends of identical form data.
-
-**Prevention:**
-(1) Show a UI hint on the MapField: "Map fields are unordered — entry order is not preserved in the encoded message." (2) In tests for map encoding, decode the encoded bytes and compare the map entries as a set, not the raw byte sequence. Never byte-compare encoded map output.
-
-**Phase to address:** FORM-V2-02 (MapField), and any test authoring for map encoding.
+| Trap | Symptoms | Prevention | When It Breaks |
+|------|----------|------------|----------------|
+| Draft persistence on every onChange | tauri-plugin-store write per keystroke; noticeable input lag in large forms | Debounce at 500ms minimum; use existing `useDebounce` hook | Any form with more than 5 fields and fast typing |
+| Schema explorer renders full transitive import tree | Freezes on proto files with 10+ imported messages | Scope tree to current file's messages only; use depth cap + visited set | Any proto file that imports google protobuf types (always present) |
+| Recent files list with path validation on every render | Disk stat on every render cycle | Validate paths only when list is opened; cache result for the session | Any list with more than 10 entries |
+| Randomizer generating deeply nested message values | Browser tab freeze for recursive schemas | Enforce MAX_DEPTH = 5; emit empty object at depth limit | Any schema with message field referencing itself |
+| Rebuilding ProtoSchema on include path edit (no debounce) | Multiple rapid re-parses on fast typing in include path input | Debounce include path input changes; only re-parse on confirm/blur | Include path dialog with user who types quickly |
 
 ---
 
-### 21. JSON override toggle: `setValue` does not re-sync `useFieldArray` internal state
+## Security Mistakes
 
-**What goes wrong:**
-When syncing JSON→form (JSON mode exit), a naive implementation calls `setValue('fieldName', parsedJson.fieldName)` for each field. This works for scalar fields but silently fails for any field using `useFieldArray` (repeated fields and, once implemented, map fields as arrays of `{k,v}` rows).
-
-`useFieldArray` maintains its own internal `fields` ref (an array of `{ id, ...values }` objects where `id` is injected by react-hook-form). `setValue` updates the underlying form store but does NOT update the internal `fields` ref that `useFieldArray` uses to render rows. The result: the form store has the correct data, but the rendered rows show the old count and values until the component remounts. This is a documented react-hook-form behavior — `setValue` bypasses `useFieldArray`'s internal tracking.
-
-**Warning sign:**
-User switches to JSON mode, edits a repeated field to have 3 items instead of 2, switches back to form mode — form still shows 2 rows even though the underlying store has 3.
-
-**Prevention:**
-Use `reset(parsedJson)` to sync JSON→form. `reset()` reinitializes the entire form including `useFieldArray`'s internal `fields` refs. Alternatively, for targeted updates to specific array fields, call the `replace()` function returned by `useFieldArray` — but this requires each `useFieldArray` instance to expose `replace` to the JSON sync logic, which adds coupling. `reset()` is simpler and correct.
-
-The tradeoff: `reset()` clears all `fieldState` (touched/dirty/errors). That is acceptable for JSON override mode (the user explicitly replaced the form state). Document this decision.
-
-**Phase to address:** FORM-V2-03 (JSON override toggle).
+| Mistake | Risk | Prevention |
+|---------|------|------------|
+| Storing draft field values that contain connection credentials (e.g., user typed a password into a string field) | Plaintext credential in tap.json on disk | No change needed — draft values are proto field values, not connection credentials; the risk is user awareness, not code change |
+| Exposing the Tauri IPC draft save endpoint without input size limits | Malformed large draft causes disk fill or store corruption | Cap draft JSON size in the Rust command or validate at the JS boundary before invoking store.set |
+| Recent files list path traversal via crafted path in tap.json | Path outside fs:scope read via recent files restore | tauri-plugin-fs scope restriction already prevents this; do not relax the scope to fix recent files usability issues |
 
 ---
 
-### 22. JSON override toggle: stale form state when JSON is invalid and user switches back
+## UX Pitfalls
 
-**What goes wrong:**
-The JSON override panel holds a textarea with a string. If the user edits the JSON to be syntactically invalid (unclosed brace, trailing comma, etc.) and then clicks "back to form", there are three possible behaviors:
-- **Block exit** (keep user in JSON mode with an error): correct but potentially trapping.
-- **Discard changes** (silently revert to last-valid JSON): loses user work with no warning.
-- **Apply partial state** (attempt partial parse): produces corrupted form state.
-
-The pitfall is choosing "discard" or "apply partial" without explicit decision. The default of throwing on `JSON.parse` and then not updating form state leaves the form in whatever state it was when JSON mode was entered — which may be many edits ago if the user made extensive changes in JSON mode before making the syntax error.
-
-A secondary issue: "last valid JSON snapshot" must be stored separately from the form state. If not, there is no clean "revert to last valid" source.
-
-**Warning sign:**
-User edits JSON for 5 minutes, makes a typo, tries to switch back to form mode — all 5 minutes of changes are discarded. User is angry.
-
-**Prevention:**
-(1) Store the "last valid JSON" snapshot in component state whenever the textarea content parses successfully (on any valid keystroke). (2) On form-mode switch: if current JSON is invalid, show an inline error and offer two explicit choices: "Fix JSON" (stay in JSON mode) and "Discard changes" (revert to last-valid snapshot). Never silently discard. (3) Never attempt partial application of invalid JSON to form state.
-
-**Phase to address:** FORM-V2-03 (JSON override toggle).
+| Pitfall | User Impact | Better Approach |
+|---------|-------------|-----------------|
+| Randomizer replaces in-progress hand-typed values without confirmation | Data loss; user loses carefully typed values | Require the form to be empty (no dirty fields) or show a confirmation toast; use the existing `formState.isDirty` check |
+| Schema explorer opens in a tab/panel that hides the send form | Developer loses context when exploring schema | Open as a right-side collapsible panel (same pattern as BlockLibraryPanel) or as an overlay sheet, not a full view switch |
+| Recent files list shows deleted/moved files without explanation | User clicks, nothing happens — silent failure | Mark stale entries visually (strikethrough, muted color) with tooltip "File not found — click to remove" |
+| Clear form shortcut (Cmd+Shift+R) fires when user means browser refresh (in dev mode) | Confusing UX in dev mode; harmless in prod | No change needed in prod Tauri builds; add a warning in dev mode via `import.meta.env.DEV` guard |
+| Connection quick-switch closes the queue/exchange dropdowns mid-selection | User loses their selection | Disable quick-switch while any AMQP picker dropdown is open; or refresh the list immediately after switch |
+| Proto reload loses the current message type selection | User had scrolled down to a specific message; reloads resets to first | After reload, attempt to restore `selectedMessageType` if the type still exists in the reloaded schema |
 
 ---
 
-### 23. JSON override toggle: JSON shape valid but proto schema invalid — silent field drops
+## "Looks Done But Isn't" Checklist
 
-**What goes wrong:**
-`JSON.parse()` succeeds on any syntactically valid JSON. The JSON override panel accepts user-typed JSON and syncs it back to the form via `reset()`. If the user adds a field that does not exist in the proto schema (e.g., `"nonexistent_field": 42`), `reset()` places it in the form state but `encode.rs`'s `populate_message` iterates `msg_desc.fields()` and simply ignores any JSON keys that do not correspond to known field descriptors. The extra field is silently dropped — no error is shown to the user.
-
-Conversely, if the user renames a required field, the encode produces a message with that field absent (proto3 default value), again with no error.
-
-**Warning sign:**
-User types `"user_name": "Alice"` in JSON mode but the field is named `"username"` in the proto. The form shows "Alice" in the `user_name` slot (because `reset()` added it), but the encoded message has an empty `username` field.
-
-**Prevention:**
-Validate the parsed JSON object against the proto schema before applying it to the form. The simplest approach: after `JSON.parse`, check that all top-level keys in the JSON exist in `msg_desc.fields()` names. Warn about unknown keys ("Field 'user_name' is not in the schema — did you mean 'username'?"). This does not require a full deep validation pass — key-name checking at the top level catches the most common class of mistake. Full nested validation can be a follow-on improvement.
-
-**Phase to address:** FORM-V2-03 (JSON override toggle).
-
----
-
-### 24. JSON override toggle: form→JSON snapshot must use `getValues()` not `watch()`
-
-**What goes wrong:**
-When the user switches from form mode to JSON mode, the panel must populate the textarea with the current form values. Using `watch()` to subscribe to form changes and derive the JSON representation works, but `watch()` re-renders the JSON panel on every keystroke in the form, causing the textarea to reset to a serialized value while the user is typing. If the JSON panel is open alongside the form, every form change overwrites any edits the user has made in JSON mode.
-
-Using `useFormContext().getValues()` at the moment of mode switch (on the toggle click event) is the correct approach — it reads a snapshot at a point in time and does not subscribe to further changes.
-
-**Warning sign:**
-User opens JSON mode, starts editing the JSON, and the textarea content is replaced mid-edit by a re-serialized version of the form.
-
-**Prevention:**
-On toggle to JSON mode: call `getValues()` once to read the snapshot, serialize to JSON string, set textarea state. Do not use `watch()` or any subscription that continuously updates the textarea content while JSON mode is active. The JSON textarea must be a fully independent edit buffer while JSON mode is active.
-
-**Phase to address:** FORM-V2-03 (JSON override toggle).
+- [ ] **Proto reload:** Pool rebuilt atomically for all open files — verify by changing a field name and checking encode uses the new name without restart.
+- [ ] **Randomizer:** Enum fields pick from defined values, not arbitrary ints — verify with an enum field that has gap numbers (e.g., 0, 5, 10).
+- [ ] **Randomizer:** oneof fields set exactly one branch — verify the `_selected` key is set in form values after randomize.
+- [ ] **Randomizer:** int64/uint64 fields produce strings, not JS numbers — verify with a field that would lose precision as a float64.
+- [ ] **Randomizer:** bytes fields produce standard-alphabet base64 (no `-` or `_`) — run through the existing BytesField validation.
+- [ ] **Draft persistence:** oneof branch is correctly restored after app restart — verify with a non-first branch.
+- [ ] **Draft persistence:** map rows are restored via `replace()` not `reset()` — verify by checking that `formState.dirtyFields` does NOT show map fields as dirty after draft restore.
+- [ ] **Draft persistence:** `shouldDirty: false` on all draft restore `setValue` calls — verify block apply does not show false conflicts after draft restore.
+- [ ] **Keyboard shortcuts:** Cmd+Enter fires Send when focus is in CodeMirror JSON editor.
+- [ ] **Keyboard shortcuts:** Shortcuts use `event.metaKey || event.ctrlKey` for cross-platform support.
+- [ ] **Keyboard shortcuts:** Handler skips when focus is in `.cm-editor` for shortcuts that should not fire in JSON mode.
+- [ ] **Recent files:** Stale paths (file deleted) show a graceful error, not silent nothing.
+- [ ] **Recent files:** Paths with spaces and special characters work correctly.
+- [ ] **Recent files:** Uses `WR-04` path separator detection (`\\` vs `/`).
+- [ ] **Schema explorer:** Does not freeze on recursive message types.
+- [ ] **Schema explorer:** Scoped to current file's messages only, not the full transitive import graph.
+- [ ] **Import manager:** Removing an include path validates the parse succeeds before committing.
+- [ ] **Connection quick-switch:** Plan runner is stopped or warned when active profile changes.
+- [ ] **Connection quick-switch:** Queue/exchange list is refreshed after switch completes.
 
 ---
 
-## Phase Mapping
+## Recovery Strategies
 
-| Topic area | Pitfall(s) | Address when |
-|------------|-----------|--------------|
-| Proto parsing library selection | #1 (prost vs prost-reflect) | Before writing a single line of proto code — foundational |
-| Proto parsing: include paths UI | #2 (import path resolution) | When designing the file loading flow — include paths must be first-class |
-| Dynamic form generation | #3 (circular/recursive types), #9 (large repeated fields), #10 (oneof UX) | Before implementing the form renderer — depth guard and oneof model from day one |
-| AMQP connection layer | #5 (lapin channel lifecycle), #13 (Mutex + async) | AMQP integration milestone |
-| Queue/exchange listing | #4 (management API unavailability) | Connection profile feature — text-input fallback is the primary path, API listing is an enhancement |
-| Proto encoding | #8 (packed fields, field number reuse) | Encoding implementation — use prost-reflect's encoder, do not hand-roll |
-| Tauri project setup | #7 (capabilities model) | Day one — add every command to capabilities immediately after defining it |
-| Tauri IPC binary data | #6 (JSON serialisation of Vec<u8>) | Proto encode + send preview feature |
-| Distribution | #11 (code signing, notarisation), #12 (WebKitGTK Linux) | First distribution milestone — do not leave for last |
-| Cross-platform CI | #12 (WebKitGTK Linux) | CI pipeline setup, not just final QA |
-| BytesField (FORM-V2-01) | #14 (URL-safe base64 silent failure), #15 (UTF-8 helper one-way only), #16 (base64 alphabet consistency) | v1.2 BytesField phase |
-| MapField (FORM-V2-02) | #17 (no Map FieldKind variant), #18 (array not record storage), #19 (key type restrictions), #20 (ordering not preserved) | v1.2 MapField phase — requires coordinated Rust+React changes |
-| JSON override toggle (FORM-V2-03) | #21 (setValue vs reset for arrays), #22 (stale state on invalid JSON), #23 (schema-invalid JSON silent drops), #24 (getValues not watch) | v1.2 JSON toggle phase |
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| DescriptorPool stale after reload | MEDIUM | Add a `reload_proto` Rust command that tears down and rebuilds the global pool from all open file paths; requires Tauri State to be a `Mutex<Option<DescriptorPool>>` (already is) — replace the `Option` with a new pool |
+| Draft restore corrupts form state | LOW | Clear the draft key from `tap.json` and fall back to empty defaults; surface as "Draft restore failed, starting fresh" toast |
+| Randomizer produces invalid proto | LOW | Catch the Rust encode error on Send and show the existing `encodeError` banner; user can manually fix or randomize again |
+| Schema explorer freeze on recursive schema | MEDIUM | Add visited-set guard; if freeze has already occurred, app restart clears state; visited-set is a pure frontend fix with no data migration |
+| Import manager removes critical path | LOW | Re-open the IncludePathDialog from FileSection and add the path back; no data lost, only the in-memory schema is stale until re-parse |
+| Draft key collision in tap.json | LOW | Use namespaced keys from the start (`draft:{messageType}:{filePath}`); if collision occurs, clear the affected key and start fresh |
+
+---
+
+## Pitfall-to-Phase Mapping
+
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| DescriptorPool stale after reload | Proto file reload phase | Change a field name, reload, encode — verify new name in hex output without restart |
+| Randomizer recursion on self-referential messages | Randomizer phase | Run randomizer on a proto with `message Node { Node child = 1; }` — must complete without freeze |
+| Randomizer invalid proto values (enum, bytes, WKT, oneof) | Randomizer phase | Unit tests for each FieldKind variant in the randomizer utility; end-to-end Send with randomized values |
+| Draft persistence RHF state shape | Draft persistence phase | Restart app after filling oneof, map, repeated fields — all should restore correctly |
+| Global keydown vs CodeMirror | Keyboard shortcuts phase | Focus inside JSON editor, press Cmd+Enter — send must fire |
+| fs:scope blocks recent files outside $HOME | Recent files phase | Add a file from `/tmp/` (macOS/Linux) or a network path; verify graceful error, not silent failure |
+| Frozen ProtoFormRenderer switch | All v1.8 phases | Diff review gate: no changes to `switch (field.kind.type)` block |
+| Profile switch mid-plan-run | Connection quick-switch phase | Start a long plan run, switch profile mid-run — verify plan stops or warns, does not silently mix profiles |
+| Import manager removes needed path | Import manager phase | Remove an include path for a file that imports another type; verify parse fails before commit |
+| Schema explorer circular refs | Schema explorer phase | Load a schema with recursive message type; verify tree renders with depth cap |
 
 ---
 
 ## Sources
 
-- prost README: https://github.com/tokio-rs/prost/blob/master/README.md
-- prost-reflect docs: https://docs.rs/prost-reflect/latest/prost_reflect/
-- prost-reflect CHANGELOG: https://github.com/andrewhickman/prost-reflect/blob/main/CHANGELOG.md
-- protox GitHub: https://github.com/andrewhickman/protox
-- lapin README (auto_recover experimental): https://github.com/amqp-rs/lapin/blob/main/README.md
-- lapin reconnect issue: https://github.com/amqp-rs/lapin/issues/420
-- deadpool-lapin channel pooling limitation: https://github.com/deadpool-rs/deadpool/issues/47
-- Tauri v1 to v2 migration guide: https://v2.tauri.app/start/migrate/from-tauri-1/
-- Tauri 2 permissions: https://v2.tauri.app/security/permissions/
-- Tauri 2 capabilities: https://v2.tauri.app/security/capabilities/
-- Tauri 2 distribution: https://v2.tauri.app/distribute/
-- Tauri macOS signing: https://v2.tauri.app/distribute/sign/macos/
-- Tauri Windows signing: https://v2.tauri.app/distribute/sign/windows/
-- Tauri prerequisites (webkit2gtk-4.1): https://v2.tauri.app/start/prerequisites/
-- Tauri webkit2gtk issue (Ubuntu 24 dropping 4.0): https://github.com/tauri-apps/tauri/issues/9662
-- Tauri IPC binary data issue: https://github.com/tauri-apps/tauri/issues/7127
-- Protobuf encoding guide: https://protobuf.dev/programming-guides/encoding/
-- Protobuf field number reuse: https://protobuf.dev/programming-guides/proto3/
-- Protobuf oneof wire semantics: https://protobuf.dev/programming-guides/proto3/ ("Setting any member of the oneof automatically clears all other members")
-- Protobuf map key types: https://protobuf.dev/programming-guides/proto3/#maps ("The key_type can be any integral or string type... float and bytes are not supported")
-- Circular reference infinite loop (protobuf-swift #38): https://github.com/alexeyxo/protobuf-swift/issues/38
-- Kafka UI recursive schema error: https://github.com/provectus/kafka-ui/issues/2824
-- RabbitMQ Management Plugin docs: https://www.rabbitmq.com/docs/management
-- protobufjs import resolution issue: https://github.com/protobufjs/protobuf.js/issues/368
-- react-hook-form useFieldArray + setValue limitation: https://react-hook-form.com/docs/usefieldarray (documented behavior: setValue bypasses internal fields ref)
-- react-hook-form reset(): https://react-hook-form.com/docs/useform/reset
-- base64 crate (0.22) STANDARD engine: https://docs.rs/base64/latest/base64/engine/general_purpose/constant.STANDARD.html
-- Proto3 JSON canonical format (bytes as base64): https://protobuf.dev/programming-guides/proto3/#json
-- prost-reflect SerializeOptions: https://docs.rs/prost-reflect/latest/prost_reflect/struct.SerializeOptions.html
+- `src-tauri/src/commands/proto.rs` — DescriptorPool merge guard and comment (primary source for Pitfall 1)
+- `src/components/form/ProtoFormRenderer.tsx` — `MAX_DEPTH = 5`, `buildDefaultValues`, frozen switch (Pitfall 2, 3, 6, 8)
+- `src/stores/useProtoStore.ts` — `pendingReplayValues`, `resetRef` pattern (Pitfall 3)
+- `src/components/form/FormPanel.tsx` — `mapReplaceRegistry`, block apply ref wiring, `isJsonMode` state (Pitfall 3, 4, 6)
+- `CLAUDE.md` decisions table — "ProtoFormRenderer switch FROZEN", `shouldDirty: false` invariant (Pitfall 6, Technical Debt table)
+- `src/components/sidebar/FileSection.tsx` — `WR-04` path separator pattern, `include_paths:` key prefix (Pitfall 5, 9)
+- `src/stores/useConnectionStore.ts` — profile switching model (Pitfall 7)
+- `src/lib/types.ts` — `FieldKind`, `ScalarKind`, `EnumValue` type definitions (Pitfall 8)
+- `src-tauri/src/schema/extractor.rs` — WellKnownTypes list, map field extraction (Pitfall 8)
+- `src/lib/blockApply.ts` — `ConflictItem` discriminated union, `ApplyBlockRef` contract (Pitfall 3, 6)
+- PROJECT.md v1.4 context — "auto-stop on profile/connection change" for SubscribePanel (Pitfall 7)
+- PROJECT.md v1.7 known issues — `shouldDirty: false` invariant, `mapReplaceRegistry` pattern (Pitfall 3, Technical Debt)
 
 ---
-
-## v1.3 Publishing UX + Message Blocks Pitfalls
-
-The following pitfalls are specific to the v1.3 milestone: publisher confirms badge (PUBL-02), routing key autocomplete (PUBL-01), message block library with drag-and-drop (BLK-01 to BLK-04). All findings are grounded in the actual v1.3 codebase state — `publish.rs`, `PublishBar.tsx`, `useConnectionStore.ts`, `useHistoryStore.ts`, `App.tsx` (ThemeBootstrap pattern), `tauri.conf.json`.
-
----
-
-## Publisher Confirms Pitfalls
-
-### 25. Confirmation enum has three variants — current code ignores Nack
-
-**Symptom:**
-The broker returns a NACK (e.g., the queue was at capacity and the broker rejected the message), but `publish_message` returns `Ok(())` to the frontend and the UI shows a success badge. The user believes the message was delivered; the consumer never received it.
-
-**Root cause:**
-`publish.rs` (line 157) calls `confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))?`. This only converts an `Err(lapin::Error)` — a protocol-level failure — into an `AppError`. The `Confirmation` enum has three variants (verified against `docs.rs/lapin/1.4.3/lapin/publisher_confirm/enum.Confirmation.html`):
-- `Ack(Option<Box<BasicReturnMessage>>)` — broker accepted the message
-- `Nack(Option<Box<BasicReturnMessage>>)` — broker rejected the message
-- `NotRequested` — confirm mode was not enabled
-
-`map_err` on a `Result<Confirmation, lapin::Error>` converts `Err(lapin::Error)` to `AppError`, but a broker NACK is **not an Err** — it is `Ok(Confirmation::Nack(...))`. It passes through the `map_err` undetected, `?` unwraps it to `()`, and the command returns success.
-
-**Prevention for PUBL-02:**
-After `confirm_result.map_err(...)?.` add an explicit match on the `Confirmation` value:
-```rust
-match confirm_result.map_err(|e| AppError::AmqpError(e.to_string()))? {
-    Confirmation::Ack(_) => Ok(PublishOutcome::Ack),
-    Confirmation::Nack(_) => Ok(PublishOutcome::Nack),
-    Confirmation::NotRequested => Err(AppError::AmqpError(
-        "Confirm mode not active — this is a bug".to_string()
-    )),
-}
-```
-Return `PublishOutcome` (a new enum serializable via serde) to the frontend so it can show distinct ACK / NACK badges. Do not collapse NACK into an `Err` — a NACK is a valid broker response that should surface to the user as a warning, not a hard error.
-
-**Requirement:** PUBL-02.
-
----
-
-### 26. `BasicPublishOptions::mandatory = false` — unroutable messages ACK silently
-
-**Symptom:**
-User selects an exchange that has no binding for the routing key they typed. The broker has no queue to route to, discards the message, and still returns ACK (because confirm mode only confirms delivery to the exchange, not to a queue). The PUBL-02 badge shows green "ACK" while the message was never queued.
-
-**Root cause:**
-`BasicPublishOptions::default()` sets `mandatory: false`. With `mandatory: false`, the broker silently drops unroutable messages — the `basic.return` notification is not sent, and the ACK arrives as if delivery succeeded. This is AMQP 0-9-1 protocol behavior, not a lapin bug.
-
-To detect unroutable messages, `mandatory: true` must be set. With `mandatory: true`, if no queue is bound for the routing key the broker sends a `basic.return` frame carrying a `BasicReturnMessage` with reply code 312 (`NO_ROUTE`) before the ACK. In lapin, this arrives as `Confirmation::Ack(Some(Box<BasicReturnMessage>))` — the ACK carries the return message inside it.
-
-**Prevention for PUBL-02:**
-For the publisher confirms badge feature, set `mandatory: true` on `BasicPublishOptions`. After awaiting the confirm:
-- `Confirmation::Ack(None)` → message routed and queued (show green ACK badge)
-- `Confirmation::Ack(Some(ret))` → unroutable: `ret.reply_code == 312` (show amber "No Route" badge, not green ACK)
-- `Confirmation::Nack(_)` → broker rejected (show red NACK badge)
-
-The `Ack(Some(...))` variant carrying a return message is subtle and commonly missed — this is the difference between a correct and incorrect ACK badge.
-
-**Requirement:** PUBL-02.
-
----
-
-### 27. `confirm_future.await` has no timeout — stalled broker hangs the IPC command indefinitely
-
-**Symptom:**
-The broker becomes slow or unresponsive after the channel is created and the message is published. The `confirm_future.await` waits forever. The Tauri IPC command never returns. The frontend `Send` button spinner spins indefinitely with no error or timeout.
-
-**Root cause:**
-`publish.rs` wraps `Connection::connect` in a 10-second `tokio::time::timeout` (line 64), but `confirm_future.await` (line 152) has no timeout. The connection timeout only protects the initial handshake — it does not protect the confirm wait phase.
-
-**Prevention for PUBL-02:**
-Wrap the confirm future in a timeout:
-```rust
-let confirm = tokio::time::timeout(
-    Duration::from_secs(5),
-    confirm_future,
-)
-.await
-.map_err(|_| AppError::AmqpError("Publisher confirm timed out (5s)".to_string()))?
-.map_err(|e| AppError::AmqpError(e.to_string()))?;
-```
-Five seconds is a reasonable confirm timeout — well above normal broker latency but short enough to not appear hung. Surface the timeout as a distinct `PublishOutcome::Timeout` to the frontend so the badge shows an amber "Timeout" indicator rather than a generic error.
-
-**Requirement:** PUBL-02.
-
----
-
-### 28. Publisher confirm badge must be ephemeral — do not persist in global store
-
-**Symptom:**
-The ACK/NACK badge added in PUBL-02 is stored in a Zustand store. After the user navigates away and back, or switches profiles, stale badge state remains visible and shows the result of a previous send as if it were current.
-
-**Root cause:**
-Following the pattern of `connectionStatus` in `useConnectionStore`, a developer adds `confirmStatus: 'ack' | 'nack' | 'timeout' | null` to the Zustand store for cross-component sharing. Zustand store state persists for the lifetime of the React app (no automatic TTL). The badge does not dismiss itself unless explicitly reset.
-
-**Prevention for PUBL-02:**
-Keep the badge state local to `PublishBar` as React `useState`. Use a `useEffect` with a `setTimeout` to auto-dismiss after ~3 seconds. Clear the state on: (a) next send attempt (regardless of outcome), (b) exchange/queue selection change. Do not put ephemeral per-send state in global stores — the precedent from existing code is that `isSending` is local state in `PublishBar.tsx`, not in Zustand. Follow that pattern.
-
-**Requirement:** PUBL-02.
-
----
-
-## Routing Key Autocomplete Pitfalls
-
-### 29. Race condition: rapid exchange switching causes out-of-order binding responses
-
-**Symptom:**
-User rapidly clicks through several exchanges in the dropdown. The last exchange selected is `logs-exchange` but the suggestion list shows bindings for `orders-exchange` — an earlier fetch completed after the later one and overwrote the suggestions.
-
-**Root cause:**
-`PublishBar.tsx` already has a `useEffect` with `[activeProfileName, mode]` deps that calls `fetchExchanges`. PUBL-01 adds a second effect (or extends the existing one) that triggers on `selectedExchange` change and calls `fetchBindings(activeProfileName, selectedExchange)`. If the user selects exchange A (fetch A starts), then selects exchange B (fetch B starts), and fetch A resolves after fetch B, `setBindingSuggestions(aResults)` clobbers the correct B results.
-
-**Prevention for PUBL-01:**
-Use an `AbortController`-style cancellation ref. Because the actual fetch goes through Tauri IPC (not `fetch()`), true AbortController is not applicable, but the same pattern works with a request ID ref:
-```typescript
-const requestIdRef = useRef(0);
-// Inside effect:
-const myId = ++requestIdRef.current;
-const bindings = await fetchBindings(activeProfileName, selectedExchange);
-if (requestIdRef.current !== myId) return; // stale — discard
-setBindingSuggestions(bindings);
-```
-Increment the ref on each new exchange selection. Discard any response whose request ID no longer matches the latest. Debounce 250ms on `selectedExchange` change to coalesce rapid radio-toggles before firing the IPC call.
-
-**Requirement:** PUBL-01.
-
----
-
-### 30. Management API unavailability silently breaks autocomplete — no user feedback
-
-**Symptom:**
-User is in manual mode (Management API unavailable, Manual badge shown). They type a routing key. No suggestions appear and no explanation is given. User does not know whether the absence of suggestions means "no bindings exist" or "autocomplete is unavailable."
-
-**Root cause:**
-When `managementStatus === "manual"` in `useConnectionStore`, the exchange selector is already replaced by a text input (existing behavior in `PublishBar.tsx` lines 277-285). PUBL-01 needs to add binding suggestions to the routing key input. If the effect that fetches bindings is not gated on `managementStatus === "live"`, it fires anyway, fails with a connection error, and surfaces no suggestions — indistinguishable from an exchange with zero bindings.
-
-**Prevention for PUBL-01:**
-Gate the bindings-fetch effect on `managementStatus === "live"`. When `managementStatus !== "live"`, render the routing key input as a plain text Input (no combobox). Optionally add a "No binding suggestions — Management API unavailable" tooltip on the input. This is consistent with the existing Live/Manual badge behavior for the exchange/queue picker.
-
-Note: CORS is not a concern here. The bindings call goes through Rust `reqwest` (not WebView `fetch`), so the same-origin browser restriction does not apply.
-
-**Requirement:** PUBL-01.
-
----
-
-### 31. Topic exchange binding keys contain wildcards — suggesting them as literal routing keys misleads users
-
-**Symptom:**
-Exchange `events-topic` has a binding with routing key `orders.*.created`. The autocomplete shows this as a suggestion. User selects it as their routing key. The broker receives a message with routing key `orders.*.created` (literal) — which matches no binding because topic pattern matching only works on the binding side, not the publishing side. Message is dropped silently (or `NO_ROUTE` if `mandatory: true`).
-
-**Root cause:**
-RabbitMQ topic exchange binding keys use `*` (exactly one word) and `#` (zero or more words) as wildcards. These are patterns for the broker's routing algorithm. A publisher's routing key must always be a literal dotted string — wildcards in the routing key are not interpreted. Fetching binding `routing_key` values from `/api/exchanges/{vhost}/{name}/bindings/source` and presenting them as-is conflates binding patterns with valid publish targets.
-
-**Prevention for PUBL-01:**
-When building autocomplete suggestions from the bindings response (`routing_key` field):
-- For fanout exchanges: show no routing key suggestions (fanout ignores routing keys entirely).
-- For headers exchanges: show no routing key suggestions (headers exchanges match on headers, not routing key).
-- For direct exchanges: show binding keys as suggestions verbatim — direct routing keys are literal.
-- For topic exchanges: show binding keys but annotate wildcard patterns with a warning label: `"orders.*.created  (pattern — not a literal key)"`. Allow the user to select a wildcard as a template and edit it before sending. Never silently use a wildcard as a literal routing key.
-
-**Requirement:** PUBL-01. Fetch exchange type from `fetchExchanges` response (currently filtered but type not exposed to frontend) or add a new `fetch_exchange_type` command.
-
----
-
-### 32. Headers exchanges always return `x-match` as binding key — not a useful routing key
-
-**Symptom:**
-User selects a headers exchange. The autocomplete shows `x-match` (or empty string) as the only suggestion. User selects it. The message publishes with routing key `x-match`, which does nothing useful — headers exchanges route on AMQP headers, not routing key.
-
-**Root cause:**
-Headers exchange bindings use `arguments` (e.g., `x-match: all`, `type: order`) for routing decisions, not `routing_key`. The `routing_key` field in their binding objects is typically an empty string or `x-match`. These are not meaningful publish targets.
-
-**Prevention for PUBL-01:**
-Detect headers exchanges by exchange type and suppress routing key suggestions entirely for them. Show a UI note: "Headers exchanges route on AMQP headers — set headers in Properties, not routing key." This requires the exchange type to be available in the frontend. If `fetchExchanges` currently returns only `Vec<String>` (names), it must be extended to return `Vec<ExchangeInfo { name, type }>` for PUBL-01 to work correctly.
-
-**Requirement:** PUBL-01. The `fetch_exchanges` Rust command currently returns `Vec<String>` — it must be updated to return `Vec<{name, exchange_type}>` to support per-type suggestion behavior.
-
----
-
-## Drag-and-Drop in Tauri WebView
-
-### 33. `dragDropEnabled: true` (default) blocks HTML5 DnD events inside the WebView on Windows
-
-**Symptom:**
-Drag-and-drop works on macOS in development but not on Windows. Or: file drag-and-drop onto the window works (files can be dropped into the app) but in-app element dragging does not. Specifically, any library using HTML5 `dragstart`/`dragover`/`drop` events appears to do nothing on Windows.
-
-**Root cause:**
-Tauri 2's `dragDropEnabled` window setting (default: not set, which enables Tauri's OS-level drag-drop interception) intercepts native drag events at the OS level before they reach the WebView's DOM on Windows. This is documented in Tauri issue #8581 (originally `fileDropEnabled` in v1, renamed `dragDropEnabled` in v2): "When fileDropEnabled is enabled, users cannot use drag-and-drop components." The current `tauri.conf.json` does not set `dragDropEnabled` at all, meaning it defaults to Tauri's OS-level handling.
-
-**However:** `@dnd-kit` uses **pointer events** (`PointerSensor`), not HTML5 drag events. Pointer events are not affected by `dragDropEnabled`. This is confirmed by the `@dnd-kit` architecture: "dnd-kit is intentionally not built on the HTML5 Drag and Drop API because it has severe limitations." The `PointerSensor` (the default) works without setting `dragDropEnabled: false`.
-
-**Prevention for BLK-04:**
-Use `@dnd-kit/core` with `PointerSensor` only. Do not use `DragSensor` or any library that uses HTML5 `dragstart` events. If proto file drag-drop onto the window is needed (a separate future feature), that uses Tauri's native file drop — which requires `dragDropEnabled: true` (or unset). These two modes are compatible as long as in-app DnD uses pointer events.
-
-Test on Windows during development, not just macOS. Add a Windows-specific smoke test to the CI matrix if one does not exist.
-
-**Requirement:** BLK-04.
-
----
-
-### 34. `DndContext` must wrap both the block library and the form — shared context required for cross-container drag
-
-**Symptom:**
-Drag starts from a block in the block library panel. The drag item disappears (or a ghost appears) but dropping onto the form fields has no effect. The `onDragEnd` handler in `DndContext` reports `over: null`.
-
-**Root cause:**
-`@dnd-kit` requires both the draggable source (`useDraggable`) and the droppable target (`useDroppable`) to be inside the **same** `DndContext`. If the block library panel and the form panel are in sibling React subtrees with no shared `DndContext` ancestor, drops across the boundary produce `over: null`. This is a known dnd-kit constraint: "draggables and droppables that belong to different `DndContext` instances cannot interact with each other."
-
-**Prevention for BLK-04:**
-Place a single `DndContext` at the layout level — above both the block library panel and the form panel in the component tree. `AppLayout` is the correct insertion point, or a new `BlockDndProvider` wrapper at the same level. Do not add `DndContext` inside either panel individually.
-
-**Requirement:** BLK-04.
-
----
-
-### 35. Empty form panel has no registered droppable targets — drag ends with `over: null`
-
-**Symptom:**
-User drags a block over the form area. The block ghost follows the cursor. On drop, nothing happens. The `onDragEnd` event shows `over: null` even though the cursor was visually over the form.
-
-**Root cause:**
-`@dnd-kit` requires each drop target to be registered with `useDroppable`. The form panel is a React tree of individual field components — there is no single "form drop zone" element registered as droppable. When dragging over the form panel area, the cursor is over unregistered DOM elements, so dnd-kit reports `over: null`.
-
-A secondary issue: individual fields within the form cannot easily register as droppable targets because their field paths are dynamic and deeply nested (proto nested messages). Registering each individual field as a droppable target creates hundreds of active drop zones for complex schemas, all of which the dnd-kit collision detection must evaluate on every pointer move frame.
-
-**Prevention for BLK-04:**
-Register the entire form panel as a single droppable target with `useDroppable({ id: 'form-panel' })`. BLK-04 spec says "global/type-agnostic" merge — the block contents are merged into matching field names, not dropped onto specific fields. A single large drop zone for the whole form is the correct model and avoids the performance concern of per-field drop zones. In `onDragEnd`, when `over?.id === 'form-panel'`, execute the block merge logic.
-
-**Requirement:** BLK-04.
-
----
-
-### 36. Radix UI portals capture pointer events during active drag — breaks drag interactions when a popover is open
-
-**Symptom:**
-User opens a shadcn/ui Select or DropdownMenu in the block library (e.g., the "..." edit/delete menu on a block item). While that Radix popover is open, the user starts dragging a block. The drag does not initiate — the pointer down event is consumed by Radix's invisible click-outside overlay. Or: drag starts fine but the ghost disappears immediately when the cursor passes over the form area, where a Select dropdown happens to be open.
-
-**Root cause:**
-Radix UI renders portals (for Select, Tooltip, DropdownMenu, Popover, Dialog) outside the DndContext React subtree into a `document.body` container. When a Radix popover is open, Radix installs an invisible overlay element (the "dismiss layer") that listens for `pointerdown` events at the document level to detect click-outside. `@dnd-kit`'s `PointerSensor` also listens for `pointerdown` to initiate drag. When the invisible Radix overlay is in front of a draggable element, the Radix overlay captures the `pointerdown` first — Radix closes the popover and the event is not re-dispatched to dnd-kit, so the drag never starts.
-
-Note: this does not affect the DndContext React context (dnd-kit uses React context, not DOM hierarchy). The issue is purely about pointer event capture precedence on the DOM.
-
-**Prevention for BLK-04:**
-(1) Dismiss any open Radix popovers before a drag can start: add a `onDragStart` handler in `DndContext` that calls `document.body.click()` or dispatches a synthetic `pointerdown` to force all open Radix dismiss layers to close. (2) Avoid placing block library action menus (edit/delete DropdownMenu) inside the draggable element's drag handle area — move the action buttons to a non-draggable region so pointer events on the menu do not conflict with drag initiation. (3) Use `activationConstraint: { distance: 8 }` on `PointerSensor` — this delays drag activation until the pointer moves 8px, giving Radix time to process any click-outside dismissal before dnd-kit claims the pointer.
-
-**Requirement:** BLK-04.
-
----
-
-## Block Merge into react-hook-form
-
-### 37. "Fill empty fields only" is ambiguous — proto3 defaults pre-populate every field
-
-**Symptom:**
-User fills in several form fields manually, then drags a block onto the form. All their manually-entered values are overwritten by block values, even in fields they explicitly changed.
-
-**Root cause:**
-Proto3 defaults pre-populate the entire form on load (all scalars get `""`, `0`, `false`, etc. via `buildDefaultValues`). When block merge logic checks "is this field empty?" using a value-equality test (e.g., `getValues(fieldPath) === "" || getValues(fieldPath) === 0`), every unmodified field appears "empty" — but so does any field where the user happened to type the default value. Conversely, a field the user explicitly set to `0` looks identical to an unmodified field.
-
-**Prevention for BLK-04:**
-Use `formState.dirtyFields` to detect user-touched fields, not value comparison. `dirtyFields` is a nested object mirroring the form shape — a field is `true` in `dirtyFields` if its value differs from `defaultValues`. Block merge should call `setValue` only for fields where `getFieldState(fieldPath).isDirty === false`. This correctly distinguishes "user left this at default" from "user explicitly typed a value."
-
-Edge case: `isDirty` compares against `defaultValues` at form initialization. If `defaultValues` was set to the block's own values (e.g., replay path), all fields appear non-dirty. The block store and form initialization must use independent defaults. The form's `defaultValues` must remain the proto schema defaults, never the block values.
-
-**Requirement:** BLK-04.
-
----
-
-### 38. Block merge path matching is ambiguous for nested proto messages
-
-**Symptom:**
-Block contains `{ "name": "Alice" }`. The form has two fields: `user.name` (a string inside a nested `User` message) and `parent.name` (a string inside a `Parent` message). Block merge sets both `user.name` and `parent.name` to "Alice" — the user expected only one to be set.
-
-**Root cause:**
-BLK-04 spec says "global/type-agnostic" merge. This means block key names are matched against form field paths. If the block key is `"name"` and the form has multiple fields with path suffix `.name`, the merge strategy must define what "match" means:
-- **Top-level only:** match only paths like `name` (no dot) — conservative but misses nested fields entirely
-- **Suffix match:** match any path ending in `.name` — fills all matching paths, may fill unintended fields
-- **Full-path match:** require the block key to be a full RHF path like `user.name` — explicit but requires the block author to know the form's internal path structure
-
-**Prevention for BLK-04:**
-Implement top-level key match as the default behavior: block keys match only the top-level field names in the proto message (e.g., block key `name` matches a field whose RHF path is `name`, not `user.name`). Document this constraint in the block editor UI: "Block keys must match top-level field names in the proto message." Nested fields must use full dot-notation paths (`user.name`) if they are to be filled. Show a warning in the block editor if a key contains a dot but does not match any current schema field.
-
-**Requirement:** BLK-04, BLK-02 (block editor validation).
-
----
-
-### 39. `setValue` on unregistered fields silently does nothing
-
-**Symptom:**
-Block merge runs, calls `setValue('someField', blockValue)` for each matching key. For fields that exist in the block but not in the currently loaded proto schema (or not in the currently rendered form), `setValue` produces no error but also sets nothing. The merge appears to succeed but some block values are not applied.
-
-**Root cause:**
-In react-hook-form `mode: onChange`, calling `setValue` on a name that has not been registered via `register` or `Controller` updates the internal store but does not trigger re-renders for unregistered paths, and does not surface an error. If the proto schema was changed (new `.proto` file loaded) since the block was saved, block keys may not correspond to any current field. The merge silently skips them.
-
-**Prevention for BLK-04:**
-Before merging, compute the intersection of block keys and registered field names. Use `getValues()` to get all current form paths and diff against block keys. Surface unmatched block keys as a warning toast: "3 block fields did not match current schema: [list]." This is the same user-experience pattern as the JSON override unknown-field warning (pitfall #23).
-
-**Requirement:** BLK-04.
-
----
-
-### 40. Block merge must not call `reset()` — it must use `setValue` per field to preserve existing state
-
-**Symptom:**
-Block merge calls `reset(mergedValues)`. This resets the entire form, clearing all `fieldState` (dirty flags, touched state, validation errors) and resetting all fields — including fields not in the block. The user's work in fields not covered by the block is lost.
-
-**Root cause:**
-Pattern #21 (JSON override → use `reset()` for full replacement) does not apply here. Block merge is **partial** — it fills some fields and leaves others intact. `reset()` is a full replacement. Using it for partial merge destroys unrelated field state.
-
-**Prevention for BLK-04:**
-Use `setValue(fieldPath, value, { shouldDirty: false, shouldTouch: false })` for each matching field. The `shouldDirty: false` option prevents the block-filled fields from appearing in `dirtyFields` as user-touched — which is consistent with "the block pre-filled this, not the user." This also preserves the `isDirty` signal used in pitfall #37 for subsequent block merges.
-
-Note: `setValue` does not update `useFieldArray` internal `fields` refs for array paths. If a block key targets a `repeated` or `map` field (an array path), use the `replace()` function from the relevant `useFieldArray` instance instead of `setValue`. This is the same constraint documented in pitfall #21.
-
-**Requirement:** BLK-04.
-
----
-
-### 41. Block JSON values must be coerced to match RHF field types before `setValue`
-
-**Symptom:**
-Block contains `{ "user_id": 12345, "status": 1, "active": 1 }`. After merge, `user_id` shows a zod validation error ("Must be an integer (e.g. -9223372036854775808)"), `status` shows no error but submits the wrong value, and `active` cannot be submitted.
-
-**Root cause:**
-RHF stores field values in type-specific formats that differ from natural JSON types:
-- **int64 / uint64 / sint64 / fixed64 / sfixed64:** `ScalarField.tsx` uses `z.string().regex(...)` and `getInputType` returns `"text"` — values are stored as strings in RHF to avoid JS precision loss for numbers above `Number.MAX_SAFE_INTEGER`. A JSON block providing `{ "user_id": 12345 }` (a JS number) puts a `number` into a slot that zod expects to be a `string`. The validation error fires immediately on the next form interaction.
-- **enum fields:** `EnumField.tsx` calls `rhfField.onChange(Number(strVal))` — enums are stored as integer numbers in RHF (not string names). A JSON block providing `{ "status": "ACTIVE" }` (a string name) puts a string into a slot expecting a number. The Select component's `value={String(rhfField.value)}` renders `"ACTIVE"` as the select value, which does not match any `SelectItem value={String(v.number)}`, so the select renders blank.
-- **bytes fields:** stored as standard base64 strings. A JSON block providing `{ "data": [72, 101, 108, 108, 111] }` (a byte array) must be base64-encoded before being placed in the field.
-- **bool fields** stored as JS `boolean`. A JSON block providing `{ "active": 1 }` (truthy number) puts a number into a slot that the Checkbox `checked={rhfField.value}` coerces — functionally works but bypasses zod `z.boolean()` validation and can produce unexpected type errors.
-
-**Prevention for BLK-04:**
-Block merge must coerce each value to the RHF-expected type before calling `setValue`. Write a `coerceBlockValue(value: unknown, fieldKind: FieldKind): unknown` function that applies per-kind coercion:
-- `int64` family → `String(value)` if `typeof value === 'number'`
-- `enum` → `Number(value)` if `typeof value === 'string'` (look up name in `field.kind.values`)
-- `bytes` → base64-encode if value is an array
-- `bool` → `Boolean(value)` to normalize truthy integers
-- All others → pass through unchanged
-
-Run this coercion in the merge loop before each `setValue` call. Log or toast on coercion failures (e.g., an enum name not found in the descriptor's value list).
-
-**Requirement:** BLK-04, BLK-02 (block editor should store values in coercion-friendly format — prefer strings for int64, numbers for enum).
-
----
-
-## Block Persistence Pitfalls
-
-### 42. Appending blocks store to `tap.json` risks collisions with existing keys
-
-**Symptom:**
-The blocks store is initialized with key `"blocks"` in `tap.json` (the same file used by connection profiles under key `"profiles"` and the theme mode under key `"theme-mode"`). A future key collision (e.g., a profile named "blocks", or a new feature that uses the same key) silently overwrites block data.
-
-**Root cause:**
-`tap.json` is the app's primary store for all non-history persistent data (confirmed by `connection.rs` line 46: `app.store("tap.json")`). Using the same file for blocks adds a third unrelated domain. `tauri-plugin-store` uses flat key-value semantics per file — all keys in the same file share a namespace. A key named `"blocks"` in `tap.json` is two characters away from a collision with any future feature that also picks a short common key.
-
-**Prevention for BLK-03:**
-Use a dedicated store file: `blocks.json`. Pattern already established by `history.json` (see `useHistoryStore.ts`). Benefits:
-- Zero collision risk with `tap.json` keys
-- `blocks.json` can be deleted independently to reset the block library without touching profiles or theme
-- Store initialization is independent — blocks load asynchronously without blocking profile/theme bootstrap
-
-**Requirement:** BLK-03.
-
----
-
-### 43. Block store race condition: `appendBlock` fires before store hydration completes
-
-**Symptom:**
-App starts. ThemeBootstrap reads `tap.json`. Block library renders immediately. User creates a block before the async `loadBlocks()` call completes. `appendBlock` writes the new block to the store. `loadBlocks()` completes and calls `set({ blocks: saved })`, overwriting the in-memory state and losing the new block.
-
-**Root cause:**
-`useHistoryStore.ts` already solves this with a `historyLoaded` flag guard (line 51: `if (!get().historyLoaded) return`). Without the equivalent guard in the block store, a write that races ahead of the initial load is silently overwritten when the load resolves.
-
-**Prevention for BLK-03:**
-Mirror the `historyLoaded` pattern exactly: add a `blocksLoaded: boolean` flag to the block store. In `appendBlock`, `updateBlock`, and `deleteBlock`, guard with `if (!get().blocksLoaded) return`. Load `blocksLoaded` at app startup alongside `loadHistory`. The bootstrap sequence in `App.tsx` (or equivalent) must call `loadBlocks()` before the block library panel is interactive.
-
-**Requirement:** BLK-03.
-
----
-
-### 44. Block store initialization order: blocks panel renders before `loadBlocks()` resolves
-
-**Symptom:**
-Block library panel renders with zero blocks on first paint (even if blocks were saved). After a 200–500ms delay, blocks appear. User confusion: "Where did my blocks go?" — then they reappear.
-
-**Root cause:**
-`tauri-plugin-store` `load()` is async. The block library component mounts synchronously. If `blocksLoaded` is `false`, the panel renders an empty list. This is functionally correct but visually jarring if not handled.
-
-**Prevention for BLK-03:**
-Show a loading skeleton in the block library panel while `!blocksLoaded`. A simple `<Skeleton className="h-8 w-full" />` per expected block slot (or a spinner) prevents the empty-then-populated flash. This is consistent with the approach the connection sidebar already uses while profiles load. Do not show the "No blocks saved" empty state until `blocksLoaded === true`.
-
-**Requirement:** BLK-03, BLK-01 (block library panel UI).
-
----
-
-### 45. Block schema migration: `blocks.json` has no versioning — adding new required fields silently breaks old data
-
-**Symptom:**
-v1.3 ships blocks with `{ id, name, fields: Record<string, unknown> }`. A future milestone adds a `category` field (required) to each block. On app update, the existing `blocks.json` has blocks without `category`. The block list renders but category-dependent sorting/filtering crashes with `undefined` errors.
-
-**Root cause:**
-`tauri-plugin-store` stores JSON blobs without schema versioning. Unlike a database migration, there is no migration hook when the app reads a file written by an older version.
-
-**Prevention for BLK-03:**
-Apply defensive deserialization: when reading blocks from `blocks.json`, use a schema parser (Zod) that applies defaults for missing fields. If the saved block is missing `category`, Zod's `.default("uncategorized")` silently fills it in. This is the minimum viable migration strategy. Document the block schema version in a `"version"` key in `blocks.json` so future migrations can detect which transformations to apply.
-
-For v1.3, the block schema is simple enough that a Zod parse with defaults covers all forward-compatibility needs without a full migration system.
-
-**Requirement:** BLK-03.
-
----
-
-## v1.3 Phase Mapping
-
-| Requirement | Pitfall(s) | Address when |
-|-------------|-----------|--------------|
-| PUBL-02 (publisher confirms badge) | #25 (NACK not an Err), #26 (mandatory=false unroutable ACK), #27 (confirm timeout), #28 (ephemeral local state) | Start of PUBL-02 implementation — Rust command must return `PublishOutcome` enum, not `()` |
-| PUBL-01 (routing key autocomplete) | #29 (race condition), #30 (management API unavailable), #31 (wildcard binding keys), #32 (headers exchange), fetch_exchanges must return type | Start of PUBL-01 — `fetch_exchanges` Rust command signature change is a prerequisite |
-| BLK-04 (drag-and-drop infrastructure) | #33 (dragDropEnabled on Windows), #34 (DndContext scope), #35 (empty form drop zone), #36 (Radix portal pointer capture) | Before any DnD wiring — `DndContext` placement, droppable registration, and Radix conflict mitigation must be architectural decisions made before component implementation |
-| BLK-04 (merge logic) | #37 (dirtyFields for empty detection), #38 (path matching ambiguity), #39 (unregistered field setValue), #40 (setValue not reset), #41 (type coercion before setValue) | During BLK-04 merge implementation — these interact; design the merge function and coercion layer before writing it |
-| BLK-03 (block persistence) | #42 (separate store file), #43 (race condition), #44 (loading skeleton), #45 (schema migration) | At BLK-03 design — store file choice and race guard are foundational; skeleton and migration are implementation-time details |
-
----
-
-## v1.3 Sources
-
-- lapin `Confirmation` enum variants (Ack, Nack, NotRequested): https://docs.rs/lapin/1.4.3/lapin/publisher_confirm/enum.Confirmation.html
-- RabbitMQ publisher confirms — `basic.return` with mandatory: https://www.rabbitmq.com/docs/confirms
-- RabbitMQ Management API bindings endpoint `/api/exchanges/{vhost}/{name}/bindings/source`: https://www.rabbitmq.com/docs/http-api-reference
-- Tauri `dragDropEnabled` intercepts HTML5 DnD on Windows — issue #8581: https://github.com/tauri-apps/tauri/issues/8581
-- Tauri `dragDropEnabled` documentation discussion: https://github.com/orgs/tauri-apps/discussions/9696
-- @dnd-kit uses pointer events, not HTML5 DnD — architectural rationale: https://docs.dndkit.com/api-documentation/sensors
-- @dnd-kit cross-container DndContext requirement: https://github.com/clauderic/dnd-kit/discussions/181
-- @dnd-kit empty droppable container issue: https://github.com/clauderic/dnd-kit/issues/708
-- Radix UI dismiss layer pointer event capture — known interaction with dnd-kit: https://github.com/clauderic/dnd-kit/issues/291
-- react-hook-form `dirtyFields` and `getFieldState`: https://react-hook-form.com/docs/useformstate
-- react-hook-form `setValue` options (shouldDirty, shouldTouch): https://react-hook-form.com/docs/useform/setvalue
-- Existing codebase: `ScalarField.tsx` lines 42-53 — int64/uint64 use z.string() and input type "text" (confirmed)
-- Existing codebase: `EnumField.tsx` line 48 — `rhfField.onChange(Number(strVal))` stores enum as integer (confirmed)
-- Existing codebase: `useHistoryStore.ts` historyLoaded race guard pattern
-- Existing codebase: `publish.rs` — confirm_select already enabled, Confirmation not matched
-- Existing codebase: `PublishBar.tsx` — managementStatus gating pattern, isSending as local state
-- Existing codebase: `connection.rs` fetch_exchanges — returns Vec<String>, not Vec<{name, type}>
-- Existing codebase: `tauri.conf.json` — dragDropEnabled not set (defaults to OS-level handling)
-
-
----
-
-## v1.4 Advanced Response Consumer Pitfalls
-
-The following pitfalls are specific to the v1.4 milestone: replacing the one-at-a-time `basic_get` reader with drain mode and live subscribe mode using `basic_consume`. All findings are grounded in the existing v1.3 codebase — `consume.rs`, `lib.rs`, `useResponseStore.ts`, `ResponseTab.tsx`.
-
----
-
-## Long-Lived Consumer Lifecycle
-
-### 46. Prefetch count defaults to unlimited — broker dumps entire queue into client buffer
-
-**What goes wrong:**
-`lapin` starts a consumer with `basic_consume` and no prior `basic_qos` call. By default, RabbitMQ delivers an unlimited number of messages to the client before any are acked. On a queue with 50,000 messages, the broker pushes all 50,000 into the TCP buffers immediately. The Rust task accumulates them faster than the UI can process and emit events, leading to heap exhaustion (OOM kill of the app) or multi-second UI freeze.
-
-**Why it happens:**
-The existing `basic_get` pattern fetches one message at a time — there is no prefetch concept because the caller controls the loop. Switching to `basic_consume` without reading the prefetch documentation replicates the old mental model but breaks under the new delivery model.
-
-**Prevention:**
-Always call `channel.basic_qos(prefetch_count, BasicQosOptions::default()).await` before `basic_consume`. For this dev tool, 100–500 is the right range: enough to keep the pipe fed without buffering the whole queue. Drain mode should set prefetch to the requested drain count (e.g., drain-50 → prefetch 50) so the broker stops sending after N messages. Live subscribe mode should use a fixed low prefetch (100–200).
-
-**Warning signs:**
-App memory climbs rapidly on subscribe start. UI thread blocks for several seconds before showing the first message.
-
-**Phase to address:** Live subscribe phase — drain mode phase must also set prefetch if using `basic_consume` as the underlying primitive.
-
----
-
-### 47. `tauri::ipc::Channel<T>` not `app.emit()` for streaming to React
-
-**What goes wrong:**
-Developer reaches for `app.emit("amqp-message", payload)` (the global event system) to push each arriving message to the frontend. This creates four interacting problems:
-
-1. **No per-invocation routing.** Global events are broadcast to all windows. If two subscribe calls are active (impossible in v1.4 but easy to hit in future), both listeners receive each other's messages.
-2. **Ghost listeners on re-mount.** Every time `ResponseTab` mounts, it calls `listen("amqp-message", handler)`. If the previous unlisten cleanup did not run (component unmounted abnormally, fast re-mount), the handler from the previous mount is still registered. Each arriving message fires the handler twice (or more), producing duplicate rows in the list.
-3. **String-keyed routing.** Unique event names per session (e.g., `"amqp-message-"`) are needed to avoid crosstalk — a pattern that introduces a coordination contract between Rust and TypeScript that must be kept in sync.
-4. **No backpressure.** `app.emit()` is fire-and-forget with no ordering guarantee under high load.
-
-`tauri::ipc::Channel<T>` is the correct primitive. It is per-invocation (the frontend creates a `new Channel<MsgType>()` and passes it as a command argument), ordered, typed, and automatically scoped to the one invoke call. There are no global event names, no ghost listener risk, and no session ID coordination needed.
-
-**Prevention:**
-Design the `start_consume` command signature to accept a `tauri::ipc::Channel<ConsumedMessage>` argument:
-```rust
-#[tauri::command]
-pub async fn start_consume(
-    ...,
-    on_message: tauri::ipc::Channel<ConsumedMessage>,
-) -> Result<(), AppError> { ... }
-```
-Frontend passes it in invoke:
-```typescript
-import { invoke, Channel } from '@tauri-apps/api/core';
-const onMessage = new Channel<ConsumedMessage>();
-onMessage.onmessage = (msg) => addToList(msg);
-await invoke('start_consume', { ..., onMessage });
-```
-The Channel is closed automatically when the command future resolves or the connection is cancelled.
-
-**Warning signs:**
-Duplicate rows appearing in the message list. Messages from a previous subscribe session appearing in a new one. Event listener count in DevTools grows on each mount.
-
-**Phase to address:** Live subscribe phase — use Channel<T> from the first implementation; retrofitting from global events is disruptive.
-
----
-
-### 48. `std::sync::Mutex` on consumer handle state panics when guard is held across await
-
-**What goes wrong:**
-The existing `lib.rs` stores the `DescriptorPool` behind a `std::sync::Mutex` (line 33: `Mutex::new(Option::<prost_reflect::DescriptorPool>::None)`). This pattern works because the lock is taken, the pool is cloned (O(1), Arc-backed), and the guard is dropped before any `.await`. The same pattern applied naively to a long-lived consumer handle fails.
-
-A new `Mutex<Option<ConsumerHandle>>` stored in Tauri managed state, with a command that locks the mutex, reads the handle, and then `.await`s a stop signal — holds the `std::sync::MutexGuard` across an async boundary. `std::sync::MutexGuard` is `!Send`. The compiler rejects this with "future is not `Send`" pointing at the guard.
-
-The attempted fix — cloning the handle out before the await — does not work if the handle itself is not cheaply cloneable (e.g., a `lapin::Consumer` stream is not `Clone`).
-
-**Prevention:**
-Use `tokio::sync::Mutex` for any state that must be locked across an async boundary (the stop-signal sender, a consumer join handle). Alternatively, store the cancel token (`tokio_util::CancellationToken`) and a task JoinHandle separately:
-```rust
-// In lib.rs managed state:
-Mutex::new(Option::<tokio_util::CancellationToken>::None)
-```
-The `CancellationToken` is `Clone + Send + Sync`, so it can be taken out of the mutex before the await — no lock held across the async boundary. The consumer task holds its own copy; the stop command holds another.
-
-**Warning signs:**
-Compile error: "future is not `Send`" in any command that touches `Mutex<ConsumerState>`. Runtime deadlock if `std::sync::Mutex` is used inside a tokio task that yields.
-
-**Phase to address:** Live subscribe phase — state shape is the first decision.
-
----
-
-### 49. Stop/cancel design: `basic_cancel` alone does not drain buffered messages
-
-**What goes wrong:**
-When user clicks Stop, the command calls `channel.basic_cancel(consumer_tag, BasicCancelOptions::default()).await`. This sends a `basic.cancel` frame to the broker, which stops new deliveries. But the lapin `Consumer` stream is backed by an internal channel that may already hold dozens of messages that the broker delivered before the cancel frame was processed. The consumer task loop is still blocked in `consumer.next().await` and will continue yielding those buffered messages — emitting them to the UI — for an indeterminate period after the user clicked Stop.
-
-The cancel is not instantaneous: messages already in-flight on the TCP connection or buffered in lapin's internal queue are delivered before the stream yields `None`.
-
-**Prevention:**
-Use a `tokio_util::CancellationToken` as the primary stop signal. Wrap the consumer loop with `tokio::select!`:
-```rust
-loop {
-    tokio::select! {
-        biased;
-        _ = token.cancelled() => { break; }
-        msg = consumer.next() => {
-            match msg { ... }
-        }
-    }
-}
-// Drop consumer here — releases the channel
-drop(consumer);
-let _ = channel.close(0, "consumer stopped").await;
-```
-The `biased;` directive checks the cancellation branch first on each iteration, so the loop exits as soon as the token is cancelled even if messages are buffered. Messages that were already delivered and are in the `consumer.next()` buffer are discarded after cancellation — document this as "in-flight messages at stop time may not be displayed." For a dev tool, this is acceptable.
-
-**Warning signs:**
-Messages continue appearing in the UI 1–2 seconds after Stop is clicked. Stop appears laggy.
-
-**Phase to address:** Live subscribe phase — the select! pattern must be designed before the consumer loop is written.
-
----
-
-### 50. Race between stop and in-flight ack: already-acked messages lost on stop
-
-**What goes wrong:**
-The existing `consume.rs` uses D-10: ack before decode, immediately after receiving the delivery. The same pattern applied in the consumer loop means the broker acks each message the instant `consumer.next().await` resolves — before the message is decoded or emitted to the UI.
-
-If the user clicks Stop between ack and emit (the decode + channel send window), the message is acked (removed from broker queue) but never shown in the UI. From the user's perspective, the queue lost a message.
-
-**Prevention:**
-This race is narrow (microseconds) and acceptable for a developer tool. Document explicitly: "Messages acked by the consumer but not yet displayed may be lost if Stop is clicked mid-flight. This is by design — consistent with D-10 ack-before-decode." Do not attempt to buffer acked messages to guarantee display — the complexity outweighs the benefit for this use case.
-
-If the stricter guarantee is needed in a future milestone, reverse the order: decode first, emit to UI via Channel, then ack. This makes decode failure recoverable (re-deliver) but reintroduces the poison-pill problem that D-10 was designed to prevent.
-
-**Warning signs:**
-Rare: user reports queue count decreasing by more than the displayed message count when Stop is clicked.
-
-**Phase to address:** Live subscribe phase — document the accepted race at code review time.
-
----
-
-### 51. Connection drop silently kills the consumer — no UI feedback
-
-**What goes wrong:**
-The lapin `Consumer` stream yields `None` when the underlying channel is closed — either explicitly or due to a connection error (broker restart, network drop, TCP timeout). The consumer loop exits normally with no error. If the loop exit is not translated into a UI notification, the live feed just silently stops with no indication to the user.
-
-The app appears stuck: the live feed shows old messages, the Stop button is still enabled, and new messages being published to the queue are not appearing.
-
-**Why it happens:**
-Developers implement `while let Some(delivery) = consumer.next().await` loops correctly for the happy path but do not handle the `None` case (stream end).
-
-**Prevention:**
-After the consumer loop exits (either by cancellation or by stream end), emit a status event to the frontend. Distinguish the two exit paths:
-- Cancelled by user: emit `{ status: "stopped" }` via the Channel before it closes.
-- Stream ended unexpectedly: emit `{ status: "disconnected", reason: "AMQP connection lost" }`.
-
-The frontend should transition the UI to a "Disconnected" state that requires the user to re-connect and re-subscribe. Do not auto-reconnect — surfacing the error is sufficient for a dev tool.
-
-Monitor `conn.on_error()` in the consumer task (lapin provides an `on_error` callback on `Connection`) as an alternative signal for network-level failures that do not propagate through the consumer stream immediately.
-
-**Warning signs:**
-Live feed stops updating. No error shown. Stop button remains active. Queue depth counter (if implemented) continues rising.
-
-**Phase to address:** Live subscribe phase — exit-path handling must be a first-class concern, not an afterthought.
-
----
-
-## Tauri Event Streaming to React
-
-### 52. React useEffect event listener not cleaned up — ghost handlers on re-mount
-
-**What goes wrong:**
-If `app.emit()` + `listen()` is used despite pitfall #47, every `ResponseTab` mount registers a new handler. If the component unmounts without calling `unlisten()` — either because the cleanup function was omitted from the `useEffect` return or because `listen()` resolves asynchronously and the unlisten promise is not awaited — the previous handler keeps firing. On each re-mount, a new handler stacks on top. After 3 re-mounts, each message produces 3 appends to the list.
-
-This is the single most commonly reported Tauri+React integration bug across the community.
-
-**Why it happens:**
-`listen()` returns a `Promise<UnlistenFn>`. Developers write the unlisten in the `useEffect` return but forget that the returned cleanup runs synchronously while the `UnlistenFn` is async-resolved. Naive cleanup:
-```typescript
-useEffect(() => {
-  const unlistenP = listen('amqp-message', handler);
-  return () => { unlistenP.then(fn => fn()); }; // WRONG: cleanup is fire-and-forget
-}, []);
-```
-The cleanup fires the unlisten but does not wait for it — if the component remounts before the promise resolves, the old handler is still active.
-
-**Prevention:**
-Use `tauri::ipc::Channel<T>` (pitfall #47) to eliminate this entire class of issue. If global events are used for any reason, follow this pattern:
-```typescript
-useEffect(() => {
-  let unlisten: (() => void) | null = null;
-  let cancelled = false;
-  listen('amqp-message', handler).then(fn => {
-    if (cancelled) fn(); // already unmounted
-    else unlisten = fn;
-  });
-  return () => {
-    cancelled = true;
-    unlisten?.();
-  };
-}, []);
-```
-
-**Warning signs:**
-Console shows the handler firing multiple times per message. List row count grows faster than expected.
-
-**Phase to address:** Live subscribe phase — architectural choice (Channel vs emit) prevents this entirely.
-
----
-
-### 53. Unbounded React list state causes progressive UI freeze at high message rates
-
-**What goes wrong:**
-Each arriving AMQP message appends to a `messages: ConsumedMessage[]` array in `useResponseStore`. React re-renders the list on every append. At 100 messages/sec, this is 100 full re-renders per second. At 500 messages/sec, the React scheduler cannot keep up — the UI drops frames and the app becomes unresponsive. The list grows indefinitely: at 10,000 messages, serializing the Zustand state for devtools or persistence alone takes significant CPU.
-
-**Why it happens:**
-The single-message pattern (`setLastResult`) in `useResponseStore` does not need a cap. The transition to a list-based store for v1.4 introduces an unbounded accumulation that was not a problem before.
-
-**Prevention:**
-Cap the in-memory list at a hard limit (recommended: 500 messages). Apply FIFO truncation on each append:
-```typescript
-setMessages: (msg) => set((s) => ({
-  messages: s.messages.length >= MAX_MESSAGES
-    ? [...s.messages.slice(1), msg]  // drop oldest
-    : [...s.messages, msg]
-})),
-```
-Show a "Capped at 500 — oldest messages removed" banner when the limit is reached. For high-frequency queues (hundreds/sec), add a UI message rate indicator and recommend enabling filtering to reduce the ingest rate.
-
-For list virtualization: use `react-window` (FixedSizeList or VariableSizeList) for the message list. Without virtualization, rendering 500 DOM rows of expandable message cards becomes slow to scroll. The existing app already has a precedent concern for large lists — message history is capped at 100 (`HIST-CAP-01`). Apply the same philosophy here.
-
-**Warning signs:**
-UI frame rate drops below 30fps with more than ~200 messages in the list. Chrome DevTools Performance panel shows long React reconciliation tasks.
-
-**Phase to address:** Both drain mode and live subscribe phases — the list and its cap must exist before either mode appends to it.
-
----
-
-## Drain Mode Pitfalls
-
-### 54. Drain mode implemented as a `basic_get` loop re-opens a new connection per message
-
-**What goes wrong:**
-The simplest drain implementation loops N times calling the existing `consume_message` IPC command (which creates a new lapin connection, fetches one message, acks it, closes the connection). For drain-50, this opens and closes 50 TCP connections to the RabbitMQ broker. On a remote broker, each connection takes 50–300ms to establish. Draining 50 messages takes 2.5–15 seconds instead of under 1 second.
-
-**Why it happens:**
-The existing `consume_message` command is already implemented and tested. Calling it in a loop from the frontend is the path of least resistance.
-
-**Prevention:**
-Implement drain mode as a single backend command that opens one connection, sets prefetch to N, starts a `basic_consume`, collects up to N messages, stops, and returns all results (or streams them via `Channel<T>`). One connection, one channel, N message deliveries. This is the same infrastructure as live subscribe — drain is just subscribe-with-auto-stop-after-N.
-
-If the frontend-loop approach is kept for simplicity (only acceptable for very small drain counts like ≤5), add a clear comment documenting the connection-per-message overhead and the threshold at which it becomes unacceptable.
-
-**Warning signs:**
-Drain of 20+ messages takes noticeably longer than expected. RabbitMQ management UI shows connection count spiking during drain.
-
-**Phase to address:** Drain mode phase — implement as a proper backend command, not a frontend loop.
-
----
-
-### 55. Drain mode acks all N messages before any are displayed — no partial failure recovery
-
-**What goes wrong:**
-Drain command acks each message immediately after receipt (D-10 pattern: ack-before-decode). If the frontend call succeeds but the app crashes before the user sees the results (e.g., process kill mid-drain), all N messages are gone from the queue — unrecoverable.
-
-**Prevention:**
-For a developer tool, this risk is acceptable — the same as the existing single-message D-10 behavior. Document it explicitly in the drain mode UI: "Messages are acked immediately. If this session closes before results are displayed, messages will not be re-delivered." Do not reverse the ack-after-decode order to solve this — it reintroduces poison-pill blocking.
-
-For extra resilience (optional, not required for v1.4): after all N messages are acked and decoded, write results to a temporary `drain-session.json` via `tauri-plugin-store` before displaying them. This acts as a crash recovery buffer. Clear it when the user dismisses the drain results or starts a new operation.
-
-**Warning signs:**
-User reports messages disappearing from the queue after a drain that showed no results (app crashed between ack and display).
-
-**Phase to address:** Drain mode phase — document the D-10 extension at design time.
-
----
-
-## DescriptorPool Snapshot Pitfalls
-
-### 56. DescriptorPool snapshot taken at subscribe start — proto schema changes not reflected
-
-**What goes wrong:**
-`consume.rs` clones the `DescriptorPool` at command start (line 40-54 pattern). For a long-lived consumer, this snapshot is taken when `start_consume` is invoked. If the user loads a new `.proto` file while the consumer is running, the consumer task continues decoding with the old schema. Messages that use the new schema are decoded incorrectly (fields mapped to wrong names, unknown fields silently ignored) without any error.
-
-**Why it happens:**
-The existing pool-clone pattern is correct and efficient for ephemeral commands. Extending it unchanged to long-lived commands silently creates a stale-schema risk.
-
-**Prevention:**
-Snapshot the pool at subscribe start. This is the correct behavior for a dev tool — the user chose a schema when they started the subscribe session. Document in the UI: "Schema snapshot taken at subscribe start. Load a new .proto file and re-subscribe to use the updated schema." When a new proto is loaded while the consumer is running, show a warning banner: "Proto schema changed — active consumer is using the old schema. Stop and re-subscribe to decode with the new schema."
-
-This is simpler than re-fetching the pool on each decode and avoids a second lock acquisition per message in the hot path.
-
-**Warning signs:**
-User loads a new proto, consumer is still running, decoded fields start showing wrong names or missing fields.
-
-**Phase to address:** Live subscribe phase — add the schema-changed warning at the proto-load command level.
-
----
-
-## App Shutdown Pitfalls
-
-### 57. App quit while consumer is running leaves tokio task running until OS kills the process
-
-**What goes wrong:**
-User closes the app window while a live subscribe session is active. The Tauri window is destroyed, but the tokio task running the consumer loop is still alive, holding a lapin `Connection` and an open TCP socket to the broker. The task continues reading from the consumer stream (and trying to emit to the now-closed Channel or AppHandle). Eventually the task errors out, but the TCP connection may remain open on the broker side until the keep-alive timeout (default: 60s in RabbitMQ).
-
-On the Rust side: if the task panics after the AppHandle is dropped, the panic output goes to stderr but may not be visible to the user. The process exits cleanly but leaves behind a ghost consumer registration in RabbitMQ (visible in management UI as a dangling consumer).
-
-**Prevention:**
-Register a `RunEvent::ExitRequested` handler in `lib.rs` that cancels the active consumer token before allowing the process to exit:
-```rust
-.on_window_event(|_window, event| {
-    if let tauri::WindowEvent::Destroyed = event {
-        // cancel active consumer if running
-    }
-})
-```
-Alternatively, store the `CancellationToken` in managed state and cancel it in the `RunEvent::ExitRequested` callback. The consumer task detects cancellation, closes the channel, and the task future resolves cleanly before the runtime shuts down.
-
-For a developer tool, the impact is low (ghost consumer visible in RabbitMQ management), but it is easy to prevent.
-
-**Warning signs:**
-RabbitMQ management UI shows a consumer registered on a queue even after the app is closed. The consumer disappears only after the broker's heartbeat timeout expires.
-
-**Phase to address:** Live subscribe phase — add shutdown hook when the consumer state is first introduced to managed state.
-
----
-
-## v1.4 Technical Debt Patterns
-
-| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
-|----------|-------------------|----------------|-----------------|
-| Re-use existing `consume_message` in a frontend loop for drain | No new Rust code | 1 connection per message — unusably slow for drain > 5 | Never for drain > 5 messages |
-| Use `app.emit()` instead of `Channel<T>` | Familiar pattern | Ghost listeners, session crosstalk, no per-invocation typing | Never — use Channel<T> from the start |
-| Skip `basic_qos` prefetch | Simpler code | OOM on large queues, entire queue buffered in memory | Never |
-| Extend `std::sync::Mutex` to consumer handle | Consistent with pool pattern | Compile error on any await holding the guard | Never — use CancellationToken (Clone+Send) |
-| Unbounded messages array in store | Simple append logic | Progressive UI freeze past ~200 messages | Never — cap at 500 from day one |
-
----
-
-## v1.4 Integration Gotchas
-
-| Integration | Common Mistake | Correct Approach |
-|-------------|----------------|------------------|
-| lapin `basic_consume` | No `basic_qos` before consume | Always set prefetch_count before `basic_consume` |
-| lapin Consumer stream | `basic_cancel` alone as stop mechanism | `CancellationToken` + `tokio::select! biased` to exit loop, then drop Consumer |
-| lapin Consumer stream end | Not handling `None` yield | Translate stream-end to "disconnected" UI state |
-| Tauri streaming | `app.emit()` + `listen()` | `tauri::ipc::Channel<T>` passed as command argument |
-| Zustand message list | Unbounded array append | FIFO-capped array at 500 + react-window virtualization |
-| DescriptorPool in long-lived task | Re-locking mutex per message | Snapshot Arc-clone at task start, warn on proto reload |
-| App shutdown | Ignoring exit event | `on_window_event Destroyed` cancels CancellationToken |
-
----
-
-## v1.4 Pitfall-to-Phase Mapping
-
-| Pitfall | Prevention Phase | Verification |
-|---------|------------------|--------------|
-| #46 Prefetch unlimited | Drain phase + Live subscribe phase | Test with a queue containing 1000+ messages — app memory stays stable |
-| #47 emit() vs Channel<T> | Live subscribe phase — architectural decision | No duplicate rows on component re-mount; no event name strings in Rust streaming code |
-| #48 std::sync::Mutex + await | Live subscribe phase — state design | Compile succeeds; no deadlock under concurrent stop + message arrival |
-| #49 basic_cancel + buffered messages | Live subscribe phase — loop design | Stop responds within one consumer.next() iteration (< 1s on idle queue) |
-| #50 ack/display race | Live subscribe phase — accepted, document | Code review comment at the ack call site; no "fix" needed |
-| #51 Silent connection drop | Live subscribe phase — exit path | Kill broker mid-subscribe; UI shows "Disconnected" within heartbeat interval |
-| #52 Ghost listeners | Live subscribe phase — use Channel<T> | Handler fires exactly once per message after 3 rapid tab remounts |
-| #53 Unbounded list freeze | Drain + live subscribe phases | UI stays responsive at 500 messages; cap banner appears at limit |
-| #54 Loop of basic_get for drain | Drain phase — backend command | Drain-20 completes in < 1 second on local broker |
-| #55 Drain ack before display | Drain phase — accepted, document | D-10 extended: code comment + UI tooltip |
-| #56 Stale schema snapshot | Live subscribe phase — proto reload warning | Load new proto while consuming; warning banner appears |
-| #57 App quit with live consumer | Live subscribe phase — shutdown hook | Close app window; RabbitMQ consumer count returns to 0 immediately |
-
----
-
-## v1.4 Sources
-
-- Tauri 2 Channel<T> IPC streaming — command argument pattern: https://v2.tauri.app/develop/calling-frontend/ (confirmed: `new Channel<T>()` on frontend, `tauri::ipc::Channel<T>` as command param)
-- lapin basic_qos + prefetch_count: https://docs.rs/lapin/latest/lapin/struct.Channel.html#method.basic_qos
-- lapin Consumer stream + basic_cancel: https://docs.rs/lapin/latest/lapin/struct.Consumer.html
-- tokio_util CancellationToken: https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html
-- tokio::select! biased: https://docs.rs/tokio/latest/tokio/macro.select.html (biased directive — checks branches in order)
-- Tauri listen() + UnlistenFn cleanup: https://v2.tauri.app/develop/calling-frontend/#event-system
-- RabbitMQ prefetch (basic.qos) documentation: https://www.rabbitmq.com/docs/confirms#channel-qos-prefetch
-- Tauri RunEvent::ExitRequested / WindowEvent::Destroyed: https://docs.rs/tauri/latest/tauri/enum.RunEvent.html
-- Existing codebase: `consume.rs` — D-10 ack-before-decode, DescriptorPool clone pattern (lines 40–54)
-- Existing codebase: `lib.rs` — `std::sync::Mutex<Option<DescriptorPool>>` managed state pattern (line 33)
-- Existing codebase: `useResponseStore.ts` — `lastResult` single-result store shape
-- Existing codebase: `useHistoryStore.ts` — FIFO cap at 100 (HIST-CAP-01 precedent)
-- react-window (FixedSizeList, VariableSizeList): https://react-window.vercel.app/
-
----
-
-## v1.6 Plan Runner Pitfalls
-
-The following pitfalls are specific to the v1.6 milestone: Plan Runner added to Tap. All
-findings are grounded in the actual v1.5.7 source tree. References cite specific files and
-line numbers verified during research.
-
----
-
-## Critical: CorrelationId Tracking
-
-### 58. Reading the Wrong AMQP Property for CorrelationId Matching
-
-**Phase:** Runner engine phase (correlationId response matching)
-
-**What goes wrong:**
-A plan step configured with "wait for correlationId match" starts a consumer on the reply
-queue. The consumer must read `delivery.properties.correlation_id()` from lapin's
-`AMQPProperties`. If the implementation reads a custom AMQP header, or reads `message_id`,
-every response fails the match and the step times out even when the broker delivers the
-correct reply.
-
-**Why it happens:**
-The existing subscribe.rs reads only `content_type` and `timestamp` from delivery properties
-(lines 238-244). The `correlation_id` property extraction does not exist in the codebase yet.
-The publish path (`publish.rs` line 121) sets it via `props.with_correlation_id(cid.into())`
-— the consumer must use the matching lapin accessor.
-
-**Prevention:**
-- Extract with `delivery.properties.correlation_id().as_ref().map(|s| s.to_string())`.
-- Generate the correlationId in Rust via `uuid::Uuid::new_v4().to_string()` at publish time,
-  not on the frontend. Avoids an extra IPC round-trip.
-- Write a focused unit test: construct a synthetic `BasicProperties` with a known
-  correlationId, extract via the accessor, assert equality — before wiring to the full runner.
-
-**Detection:**
-Every step with a correlationId wait times out, even with a real reply on the queue. Adding a
-debug log of `delivery.properties.correlation_id()` inside the consumer loop reveals the value.
-
----
-
-### 59. Consumer Started After Publish — Fast Replies Are Missed
-
-**Phase:** Runner engine phase (correlationId response matching)
-
-**What goes wrong:**
-The runner publishes step N, then starts the reply consumer. On localhost, the responding
-service can deliver a reply before `basic_consume` is called. If the reply queue has a short
-TTL configured by the broker admin, the message expires in the window between publish and
-consumer start. The runner times out, but the reply was delivered and discarded.
-
-**Why it happens:**
-Tap's existing model opens a connection per operation and closes it when done. A naive plan
-runner that calls "publish step N" then "start consumer for step N" as two sequential IPC
-commands violates the ordering constraint.
-
-**Prevention:**
-- Start the reply consumer BEFORE publishing. Order per step:
-  (1) `basic_consume` on reply queue, (2) publish with correlationId,
-  (3) wait on consumer stream with timeout, (4) close consumer.
-- The reply consumer connection must survive the full step duration. Use a persistent
-  `lapin::Connection` held in `PlanRunState` (mirroring `SubscribeState`).
-
----
-
-### 60. Ack-Before-Decode Discards Unmatched Replies
-
-**Phase:** Runner engine phase (correlationId response matching)
-
-**What goes wrong:**
-Tap uses ack-before-decode everywhere: `subscribe.rs` line 249 ("ACK BEFORE DECODE D-13")
-and `consume.rs` "D-10 DEVIATION." If the plan reply consumer adopts the same pattern, it
-ACKs every arriving message regardless of whether the correlationId matches. Non-matching
-replies are permanently removed from the queue. If those messages were replies intended for a
-later step, step N+1's wait times out because its reply was already discarded.
-
-**Prevention:**
-- For the correlationId-matching consumer only: do NOT ack-before-decode.
-- Only ACK after verifying the correlationId matches the expected value.
-- For non-matching messages: NACK with `requeue=true` so they remain in the queue.
-  `BasicNackOptions { requeue: true, multiple: false }`
-- Per-step timeout is mandatory to bound the NACK+requeue loop on busy reply queues.
-
----
-
-## Critical: Complex Nested Storage
-
-### 61. field_values undefined→null Corruption on Store Round-Trip
-
-**Phase:** Plan storage/persistence phase
-
-**What goes wrong:**
-Each `PlanStep` stores `field_values: Record<string, unknown>` — arbitrary proto form values.
-JavaScript `undefined` (from unset optional proto fields) is coerced to `null` by
-`JSON.stringify` inside tauri-plugin-store. On reload, those fields appear as `null` rather
-than the empty-string or zero-value defaults that `buildDefaultValues()` produces. The user
-sees zod validation errors in a plan they successfully ran before saving.
-
-**Why it happens:**
-`useHistoryStore.ts` (line 16) stores `fieldValues: Record<string, unknown>` directly. The
-same `undefined`→`null` coercion exists there, but history is consumed via `form.reset()`
-which treats `null` as a reset signal. Plan steps reuse saved field values on every run,
-making the corruption visible on repeated executions.
-
-**Prevention:**
-Store `field_values` as a pre-serialized JSON string per step — matching the pattern from
-`useBlockStore` (`Block.content: string`, line 9). On plan step load:
-`JSON.parse(step.fieldValues)`. On save: `JSON.stringify(formValues)`. Makes the
-serialization boundary explicit and eliminates the `undefined`→`null` coercion.
-
----
-
-### 62. Write-Before-Hydration Race in Plan Store
-
-**Phase:** Plan storage/persistence phase
-
-**What goes wrong:**
-A plan mutation fires before `loadPlans()` completes. The mutation writes to the store with
-only in-memory state (empty array), overwriting previously persisted plans.
-
-This is the identical race solved in:
-- `useHistoryStore.ts` line 47: `if (!get().historyLoaded) return;`
-- `useBlockStore.ts` line 52: `if (!get().blocksLoaded) return;`
-
-**Prevention:**
-Add `plansLoaded: boolean` to `usePlanStore`. Gate every write action with
-`if (!get().plansLoaded) return;`. Render the plan library in a loading state until
-`plansLoaded` is `true`. Exact same pattern as both existing stores.
-
----
-
-### 63. load() With Options Requires `defaults` Field
-
-**Phase:** Plan storage/persistence phase
-
-**What goes wrong:**
-Calling `load(path, { autoSave: false })` without `defaults` throws a runtime error in
-tauri-plugin-store. Documented in CLAUDE.md ("StoreOptions.defaults required when passing
-options") and confirmed by both existing stores using `load(path)` with no options.
-
-**Prevention:**
-Use `load(PLANS_STORE_PATH)` with no options object. Follow `useHistoryStore.ts` line 31
-and `useBlockStore.ts` line 35 exactly.
-
----
-
-## Critical: Frozen Component Constraints
-
-### 64. Plan Step Editor Leaks into useProtoStore
-
-**Phase:** Step editor UI phase
-
-**What goes wrong:**
-Mounting `ProtoFormRenderer` inside a `PlanStepEditor` and routing its `onValuesChange`
-through `useProtoStore.setLatestValues()` (as `FormPanel` does) pollutes global proto store
-with per-step state. The main form panel shows the last-edited plan step's values when the
-user returns to the main view.
-
-Additionally, `resetRef` and `applyBlockRef` in `FormPanel.tsx` (lines 46-50) are single
-imperative refs set to `ref.current` by the last-mounted `ProtoFormRenderer`. Multiple
-instances cannot share one ref — the last one wins, breaking replay and block-apply in the
-main form.
-
-**Prevention:**
-Route plan step `onValuesChange` to per-step local state. Never route through `useProtoStore`
-for plan step forms. Keep `useProtoStore` exclusively for the main form's active message. The
-ProtoFormRenderer switch is frozen — no plan-specific concepts go inside the switch.
-
----
-
-### 65. "Import from History" — fieldValues Are Form Values, Not Bytes
-
-**Phase:** Step authoring/import phase
-
-**What goes wrong:**
-The milestone context states: "field_values in history are stored as encoded bytes — round-
-trip decode needed." This is incorrect. In `useHistoryStore.ts` (line 16), `fieldValues` is
-`Record<string, unknown>` — RHF form values from `useProtoStore.getState().latestValues` at
-send time. Encoded bytes are the separate `payloadBytes: number[]` field (line 18).
-
-The actual pitfall: `fieldValues` from history may contain fields not present in the plan
-step's schema (schema drift), or may be missing fields added since the history entry was
-written. Importing without handling drift causes silent incorrect form state.
-
-**Prevention:**
-- Call `buildDefaultValues(stepSchema)` first, then shallow-merge `entry.fieldValues` on top.
-  Unknown history keys are harmlessly overridden; missing keys get schema defaults.
-- Validate that `entry.messageTypeName` matches the step's message type before importing.
-- Do NOT attempt to decode `entry.payloadBytes` — the form values are already in
-  `entry.fieldValues`.
-
----
-
-## Moderate Pitfalls
-
-### 66. Ephemeral Connection Cannot Hold a Reply Consumer Across a Step
-
-**Phase:** Runner engine phase
-
-**What goes wrong:**
-Tap opens one `lapin::Connection` per operation and closes it when done. A plan step waiting
-for a correlationId reply needs a persistent consumer open from before the publish until the
-reply arrives. Opening two connections per step (one for publish, one for reply consumer)
-doubles broker resource usage and TLS handshake latency. For a 10-step plan on a remote
-broker, this adds seconds of overhead.
-
-**Prevention:**
-Open one `lapin::Connection` per plan run. Create separate AMQP channels on it for publish
-and for the reply consumer. Keep both open for the plan's duration. Manage via `PlanRunState`
-in Tauri managed state:
-```rust
-pub struct PlanRunState {
-    pub token: CancellationToken,
-    pub handle: Option<tauri::async_runtime::JoinHandle<()>>,
-}
-```
-`run_plan` stores state. `stop_plan` cancels and awaits. Mirrors `SubscribeState` exactly.
-
----
-
-### 67. Navigation Away While Plan Is Running — Orphaned Backend Session
-
-**Phase:** Runner engine + plan library view phase
-
-**What goes wrong:**
-The plan view component unmounts when the user navigates to the main view. The backend plan
-runner continues executing. The Tauri Channel used for step status updates has no receiver.
-Messages accumulate in memory. The plan cannot be stopped from the UI.
-
-`SubscribePanel.tsx` solves this with a `useEffect` cleanup (lines 92-101):
-```typescript
-useEffect(() => {
-  return () => {
-    const { subscribeStatus: status } = useResponseStore.getState();
-    if (status === "Running" || status === "Stopping") {
-      void stopSubscribe().catch(() => {});
-    }
-  };
-}, []);
-```
-
-**Prevention:**
-Implement the identical unmount cleanup pattern for the plan view: on unmount, call
-`stop_plan()` if plan execution status is "Running" or "Stopping". For v1.6 this is the
-correct approach — plans are not long-running background jobs. Never leave a Tauri Channel
-open with no receiver.
-
----
-
-### 68. PlanRunState Must Be Separate From SubscribeState
-
-**Phase:** Runner engine phase
-
-**What goes wrong:**
-Reusing `SubscribeState` for plan runner sessions causes `stop_subscribe` to also stop the
-plan runner (it takes the slot and sets it to `None`).
-
-**Prevention:**
-Register a separate entry in `lib.rs`:
-```rust
-.manage(Mutex::new(Option::<commands::plan::PlanRunState>::None))
-```
-alongside the existing subscribe state. The two are fully independent.
-
----
-
-### 69. DndContext Scope for Step Reordering Interferes With Block DnD
-
-**Phase:** Step editor UI phase
-
-**What goes wrong:**
-The `DndContext` in `AppLayout.tsx` (line 39) is for block-library-to-form drag. If the plan
-step list shares this context, plan step drag events trigger `AppLayout`'s `handleDragEnd`,
-which searches `blocks` for the dragged ID, finds nothing, and renders a broken `DragOverlay`.
-
-**Prevention:**
-Mount a separate `DndContext` inside the plan view for step reordering. Use `PointerSensor`
-with `activationConstraint: { distance: 8 }` — same as `AppLayout`. WKWebView breaks HTML5
-DnD; PointerSensor is required on Tauri macOS (learned mid-v1.3). Mount the plan step
-`DragOverlay` inside the plan view's own `DndContext`, not in `AppLayout`.
-
----
-
-### 70. Per-Step Timeout Must Use tokio::select! With Cancellation Branch
-
-**Phase:** Runner engine phase
-
-**What goes wrong:**
-Implementing the per-step timeout as a plain `tokio::time::timeout()` wrapper means a user
-clicking Stop during the timeout wait must wait the full timeout duration before the step
-exits. Additionally, if timeout fires while the consumer has buffered messages, those messages
-are dropped without NACK.
-
-**Prevention:**
-Three-branch `tokio::select!` — same pattern as `subscribe.rs` line 231:
-```rust
-tokio::select! {
-    delivery_opt = consumer.next() => { /* match */ },
-    _ = tokio::time::sleep(per_step_timeout) => { /* mark TimedOut */ },
-    _ = token_child.cancelled() => { /* NACK buffered, close, break */ },
-}
-```
-
----
-
-### 71. No-Wait Step Delay Must Use tokio::time::sleep
-
-**Phase:** Runner engine phase
-
-**What goes wrong:**
-`std::thread::sleep` in an async Tauri command blocks the tokio executor thread, starving all
-other tasks. The app appears frozen during the delay.
-
-**Prevention:**
-```rust
-tokio::select! {
-    _ = tokio::time::sleep(delay) => { /* proceed */ },
-    _ = token.cancelled() => { break; }
-}
-```
-
----
-
-### 72. Full-Screen Plan View Without a Router
-
-**Phase:** Plan library view / navigation phase
-
-**What goes wrong:**
-Adding `react-router-dom` mid-project is a significant scope change and risks breaking
-existing layout state management. All stores are Zustand, not route-scoped.
-
-**Prevention:**
-Do NOT add `react-router-dom` for v1.6. Use a `viewMode` enum at `App.tsx` level:
-```typescript
-type ViewMode = "main" | "plan-library";
-const [viewMode, setViewMode] = useState<ViewMode>("main");
-```
-Render `<AppLayout />` or `<PlanLibraryLayout />` conditionally alongside `<ThemeBootstrap />`
-and `<UpdateChecker />`. Zustand stores persist across view switches — the active connection
-and loaded proto files survive navigation.
-
----
-
-### 73. DescriptorPool Replaced Mid-Run Breaks Response Decoding
-
-**Phase:** Runner engine phase
-
-**What goes wrong:**
-If the user loads a new proto file while a plan is running, the `DescriptorPool` in managed
-state changes. Steps that started before the change use the cloned old pool correctly. Steps
-that start after the change use the new pool, potentially decoding responses against the wrong
-schema with no error (protobuf is lenient about unknown fields — decode succeeds with wrong
-values).
-
-**Prevention:**
-Clone the `DescriptorPool` once at plan run start. Store the clone in `PlanRunState`. Do not
-re-lock the managed pool per step. Show a UI warning if the user loads a new proto file while
-a plan is running.
-
----
-
-## Minor Pitfalls
-
-### 74. Plan Feed Re-Render at High Message Volume
-
-**Phase:** Response feed / runner UI phase
-
-**What goes wrong:**
-The shared response feed accumulates messages from all watched queues during a run. Without
-a FIFO cap and component memoization, the UI becomes unresponsive above ~100 new messages
-per second. The existing `useResponseStore` enforces FIFO-500 (line 5) — apply the same cap.
-
-**Prevention:**
-- Reuse `useResponseStore`'s FIFO-500 cap or define an equivalent for the plan feed.
-- `React.memo` on feed row components.
-- Batch incoming channel messages: `appendMessages([msg1, msg2, ...])` not one call per message.
-- Consider `@tanstack/react-virtual` only if testing reveals jank with realistic volumes.
-
----
-
-### 75. Store Write Latency for Large Plans
-
-**Phase:** Plan storage/persistence phase
-
-**What goes wrong:**
-tauri-plugin-store rewrites the entire file on every `store.save()`. A plan with 50 steps
-and deeply nested proto messages can produce a file of hundreds of KB. Full rewrites on slow
-storage (encrypted home, network home) cause 200ms+ write latency on every step edit.
-
-**Prevention:**
-- Accept the latency for first implementation. Test with realistic sizes (5-20 steps).
-- Debounce plan persistence to 200ms after the last change — mirrors `useDebounce(latestValues, 200)` in `FormPanel.tsx`.
-- Soft caps: 50 plans max, 100 steps per plan, with UI warnings at limits.
-
----
-
-## v1.6 Phase-Specific Warning Table
-
-| Phase Topic | Pitfall | Mitigation |
-|-------------|---------|------------|
-| Plan storage schema | field_values undefined→null (#61) | Store field_values as serialized JSON string |
-| Plan storage hydration | Write-before-hydration race (#62) | `plansLoaded` guard on all mutations |
-| Plan storage options | load() options require defaults (#63) | Use `load(path)` with no options |
-| Step editor UI | ProtoFormRenderer leaks into useProtoStore (#64) | Per-step isolated form state |
-| Step authoring from history | fieldValues vs bytes confusion + schema drift (#65) | Merge onto buildDefaultValues baseline |
-| Runner engine — correlationId | Wrong AMQP property (#58) | `delivery.properties.correlation_id()` |
-| Runner engine — reply ordering | Consumer after publish misses fast replies (#59) | Start consumer BEFORE publishing |
-| Runner engine — ack | Ack-before-decode discards unmatched replies (#60) | NACK+requeue non-matching; ack only on match |
-| Runner engine — connection | Ephemeral model cannot hold reply consumer (#66) | One persistent connection per plan run via PlanRunState |
-| Runner engine — navigation | Orphaned backend on view switch (#67) | useEffect cleanup calling stop_plan() on unmount |
-| Runner engine — state | Reusing SubscribeState for plan (#68) | Separate PlanRunState in lib.rs |
-| Runner engine — timeout | No cancellation inside timeout (#70) | Three-branch tokio::select! |
-| Runner engine — delay | std::thread::sleep blocks tokio (#71) | tokio::time::sleep + select! |
-| Runner engine — schema | DescriptorPool replaced mid-run (#73) | Clone once at plan start, hold in PlanRunState |
-| Plan view layout | Adding react-router mid-project (#72) | viewMode conditional render at App.tsx |
-| Plan DnD step reorder | Outer DndContext interference (#69) | Nested DndContext inside plan view |
-| Performance | Feed re-render at volume (#74) | FIFO cap + React.memo |
-| Performance | Store rewrite latency (#75) | Debounce + soft caps |
-
----
-
-## v1.6 Sources
-
-All findings verified in the Tap v1.5.7 source tree:
-
-- `src-tauri/src/commands/subscribe.rs` — CancellationToken, SubscribeState, ack-before-decode (D-13), tokio::select! pattern, CR-01 slot claim
-- `src-tauri/src/commands/publish.rs` — correlationId property path (`with_correlation_id`), ephemeral connection model
-- `src-tauri/src/commands/consume.rs` — ack-before-decode (D-10 DEVIATION)
-- `src-tauri/src/lib.rs` — SubscribeState at line 35, DescriptorPool at line 34
-- `src/stores/useHistoryStore.ts` — fieldValues shape (line 16), payloadBytes (line 18), historyLoaded guard (line 47)
-- `src/stores/useBlockStore.ts` — content-as-string (line 9), blocksLoaded guard (line 52), load() no-options (line 35)
-- `src/stores/useResponseStore.ts` — FIFO-500 cap (line 5), appendMessages batching (line 62)
-- `src/stores/useProtoStore.ts` — latestValues, pendingReplayValues
-- `src/stores/useAmqpStore.ts` — correlationId in AmqpProperties (line 14)
-- `src/components/response/SubscribePanel.tsx` — unmount cleanup (lines 92-101), auto-stop on profile change (lines 127-139)
-- `src/components/layout/AppLayout.tsx` — DndContext scope (line 39), PointerSensor constraint (line 17)
-- `src/components/history/MessageHistoryPanel.tsx` — handleReplay fieldValues path (lines 31-42)
-- `src/components/form/FormPanel.tsx` — resetRef and applyBlockRef (lines 46-50)
-- `src/App.tsx` — no router; conditional render pattern at App level
+*Pitfalls research for: Tap v1.8 UX Polish + Proto Ergonomics*
+*Researched: 2026-05-25*
