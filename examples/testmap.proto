@@ -1,6 +1,5 @@
 syntax = "proto3";
 
   message TestMap {
-    map<string, int32> labels = 1;
-    map<bool, string> flags = 2;
+    map<string, string> labels = 1;
   }
