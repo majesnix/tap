@@ -2,6 +2,52 @@
 
 ---
 
+## Milestone: v1.6 — Plan Runner
+
+**Shipped:** 2026-05-24
+**Phases:** 5 (19–23) | **Plans:** 15
+**Stats:** 50 commits, 176 files changed, +24,262 / −328 LOC, 3 days (2026-05-23 → 2026-05-25)
+
+### What Was Built
+
+- Plan data model — `Plan` / `PlanStep` types, `usePlanStore` CRUD, `plans.json` persistence via tauri-plugin-store (mirrors `useBlockStore` pattern exactly)
+- Full-screen plan library view — plan list sidebar with inline create/rename/delete (cancellingRef double-commit guard), plan detail panel, `viewMode` switcher at `App.tsx` level (no router)
+- `StepFieldEditor` — isolated react-hook-form instance per step, 300 ms auto-save debounce with stale-step guard, all proto + target + response-mode fields; `@dnd-kit/sortable` reorder; import from history (`StepHistoryPicker`) and block library (`StepBlockPicker`)
+- Sequential plan runner — `execute_step` Rust command (no-wait / correlation-id / first-arrival), `CancellationToken` stop, `usePlanRunner` JS loop, `usePlanExecutionStore` step statuses, `PlanRunBar` UI
+- Response view — `StepReplyView` inline decoded reply per step, `PlanReplyFeedTab` FIFO-500 shared feed with ms-precision timestamps; reply dot indicator + pane toggle on step rows
+- Proto auto-load bonus — selecting a plan silently re-opens referenced `.proto` files using saved include paths
+
+### What Worked
+
+- Phased isolation: Phase 19 (data model only, no UI) meant Phases 20–23 could import clean types from day one — zero type-definition churn in later phases
+- `StepFieldEditor` isolation from `ProtoFormRenderer` avoided touching the frozen switch body — each step mounts a fresh form, no shared state leakage
+- Separated `usePlanExecutionStore` (ephemeral per-run) from `usePlanStore` (persistent) — clean boundary; no risk of stale execution state persisting across app restarts
+- Consumer-before-publish ordering for correlation-id mode eliminated the reply-miss race entirely — one correct pattern, enforced in the Rust command
+- Wave-based planning caught the IPC naming mismatch (CR-01: `step_id` vs `stepId`) and cancel logic inversion (CR-02) in code review before live testing — gap-closure plan 22-05 fixed both atomically
+
+### What Was Inefficient
+
+- REQUIREMENTS.md checkbox drift: PLAN-01–06 and RESP-04–05 stayed unchecked throughout execution despite being delivered — caught only at milestone close. Same pattern as v1.5 ("Patterns Established" lesson 3 was not applied)
+- Post-execution fix cycle for Phase 21 was heavier than expected: stale Radix UI state (remount per step), proto/message-type persistence across step switches, live queue/exchange combobox — three separate commits after Phase 21 "closed"
+- `TabsContent` missing `flex flex-col` broke `ScrollArea` height chain — caught in live UAT rather than code review; the root cause (Radix `TabsContent` swallows flex layout) should be in a checklist
+- 23-VERIFICATION.md note about REQUIREMENTS.md was correct — the issue was known and still not fixed during execution
+
+### Patterns Established
+
+- `key={selectedStepId}` on `StepFieldEditor` — force-remount on step switch to clear Radix UI portal state; this is the correct pattern for switching between distinct instances of the same component tree
+- `forceMount` + CSS `hidden` on Radix `TabsContent` — preserves `StepFieldEditor` form state when switching to Reply Feed tab without unmounting
+- `usePlanExecutionStore.getState()` imperative read in event handlers — avoids stale closure captures in click handlers that fire during or after a run
+- Proto auto-load pattern: store `protoPath` + `protoIncludes` on PlanStep, then call `openProtoFile` on plan select if the path isn't already in `openFiles`
+
+### Key Lessons
+
+1. **Update REQUIREMENTS.md during execution, not after** — stale "Pending" checkboxes are a false alarm at milestone close; the fix is cheap if done phase-by-phase
+2. **Radix UI `TabsContent` collapses flex children** — when switching tabs, use `forceMount` + `hidden` if child components hold form state that must survive the switch
+3. **`key=` on form components is a hard remount** — use it intentionally when switching between independent instances; avoid it when continuity is needed
+4. **IPC field naming: Rust snake_case ≠ TS camelCase** — Tauri's serde auto-converts, but verify with a manual type-check on the frontend side before wiring the runner loop
+
+---
+
 ## Milestone: v1.5 — Distribution
 
 **Shipped:** 2026-05-23

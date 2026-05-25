@@ -85,13 +85,18 @@ See [milestones/v1.5-ROADMAP.md](milestones/v1.5-ROADMAP.md) for full phase deta
 
 </details>
 
-**v1.6 Plan Runner (Phases 19–23):**
+<details>
+<summary>✅ v1.6 Plan Runner (Phases 19–23) — SHIPPED 2026-05-24</summary>
 
 - [x] **Phase 19: Plan Data Model and Persistence** — Type contract, `usePlanStore` CRUD, `plans.json` persistence — no UI (completed 2026-05-23)
 - [x] **Phase 20: Plan View Shell and Navigation** — Full-screen plan library view, plan list panel, CRUD UI, nav button (completed 2026-05-23)
 - [x] **Phase 21: Step Editor (Authoring)** — Step authoring, drag-and-drop reorder, import from history + block library (completed 2026-05-23)
 - [x] **Phase 22: Plan Runner — Sequential Execution** — JS runner loop, all three response modes, run controls, new Rust commands (completed 2026-05-24)
 - [x] **Phase 23: Response View — Inline and Shared Feed** — Decoded response per step, shared scrollable plan execution feed (completed 2026-05-24)
+
+See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase details, decisions, and retrospective.
+
+</details>
 
 ---
 
@@ -317,9 +322,9 @@ Plans:
 | 18. Auto-Update + Linux + Docs | v1.5 | 4/4 | Complete | 2026-05-23 |
 | 19. Plan Data Model and Persistence | v1.6 | 1/1 | Complete | 2026-05-23 |
 | 20. Plan View Shell and Navigation | v1.6 | 2/2 | Complete | 2026-05-23 |
-| 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete    | 2026-05-23 |
-| 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete    | 2026-05-24 |
-| 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete   | 2026-05-24 |
+| 21. Step Editor (Authoring) | v1.6 | 4/4 | Complete | 2026-05-23 |
+| 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete | 2026-05-24 |
+| 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete | 2026-05-24 |
 
 ---
 
@@ -427,34 +432,10 @@ Plans:
 - Mapped: 12
 - Delivered: 12/12
 
-**v1.6 Plan Runner — 23 requirements, 0/23 delivered**
+**v1.6 Plan Runner — 23/23 requirements delivered**
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| PLAN-01 | Phase 19 | Complete |
-| PLAN-02 | Phase 19 | Complete |
-| PLAN-03 | Phase 19 | Complete |
-| PLAN-04 | Phase 19 | Complete |
-| PLAN-05 | Phase 19 | Complete |
-| PLAN-06 | Phase 20 | ✅ Complete |
-| STEP-01 | Phase 21 | Pending |
-| STEP-02 | Phase 21 | Pending |
-| STEP-03 | Phase 21 | Pending |
-| STEP-04 | Phase 21 | Pending |
-| STEP-05 | Phase 21 | Pending |
-| STEP-06 | Phase 21 | Pending |
-| RUN-01 | Phase 22 | Pending |
-| RUN-02 | Phase 22 | Pending |
-| RUN-03 | Phase 22 | Pending |
-| RUN-04 | Phase 22 | Pending |
-| RUN-05 | Phase 22 | Pending |
-| RUN-06 | Phase 22 | Pending |
-| RESP-01 | Phase 22 | Pending |
-| RESP-02 | Phase 22 | Pending |
-| RESP-03 | Phase 22 | Pending |
-| RESP-04 | Phase 23 | Pending |
-| RESP-05 | Phase 23 | Pending |
+See [milestones/v1.6-REQUIREMENTS.md](milestones/v1.6-REQUIREMENTS.md) for full traceability.
 
 - Total v1.6: 23
 - Mapped: 23/23 ✓
-- Delivered: 0/23
+- Delivered: 23/23 ✓

@@ -2,7 +2,7 @@
 
 ## v1.6 Plan Runner (Shipped: 2026-05-24)
 
-**Phases completed:** 5 phases (19–23), 15 plans | **Requirements:** 10/10 (PLAN-01–04, RUN-01–06, RESP-04–05)
+**Phases completed:** 5 phases (19–23), 15 plans | **Requirements:** 23/23 (PLAN-01–06, STEP-01–06, RUN-01–06, RESP-01–05)
 
 **Key accomplishments:**
 

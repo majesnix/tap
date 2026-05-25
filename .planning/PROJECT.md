@@ -89,9 +89,10 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - Tauri gives a native desktop window with a Rust backend handling AMQP and proto encoding; React handles the form UI.
 - Team use means packaging/distribution matters — distributed via signed GitHub Releases (macOS: notarized .dmg; Linux: .AppImage + .deb + .rpm).
 - v1.5 shipped 2026-05-23. Distribution pipeline complete: signed notarized macOS releases, Linux AppImage, in-app auto-update with native macOS menu integration. Repository is public.
-- v1.6 (Plan Runner) in progress. Phase 21 complete: step editor authoring — full step CRUD, drag-and-drop reorder (@dnd-kit/sortable), StepFieldEditor (isolated form, auto-save debounce), import from history and block library. Plans: 4, commits: ~14.
+- v1.6 shipped 2026-05-24. Plan Runner delivered: named plans with ordered steps, StepFieldEditor (isolated form, auto-save debounce, all field/target/response-mode types), sequential JS runner loop, all three response modes (no-wait / correlation-id / first-arrival) with Rust `execute_step` + `stop_plan` commands, StepReplyView inline decoded replies, PlanReplyFeedTab FIFO-500 shared feed, proto auto-load on plan select. +24,262 / -328 LOC, 50 commits, 5 phases, 15 plans, 176 files changed.
+- Current release: v1.6.0.
 
-**Known issues / tech debt at v1.5:**
+**Known issues / tech debt at v1.6:**
 - No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
 - JSON mode + map field round-trip (Flow 4) has no automated test — FormPanel.test.tsx uses scalar-only schema.
 - oneof / WellKnownType / map fields not eligible for block apply (skipped with toast) — complex field type support deferred to future milestone.
@@ -100,6 +101,8 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - Export format is JSON only (CSV deferred to future milestone).
 - Auto-update requires public GitHub repository; no solution for teams wanting private distribution.
 - Windows distribution not yet supported (no EV/OV certificate + Authenticode signing strategy).
+- StepFieldEditor uses useEffect for step-switch reset — creates a two-render cycle; acceptable for a dev tool.
+- Reply feed timestamp is frontend-assigned (JS Date.now()), not AMQP delivery timestamp — AMQP timestamp field is optional and often unset by brokers.
 
 ## Constraints
 
@@ -157,47 +160,12 @@ This document evolves at phase transitions and milestone boundaries.
 
 ---
 
-## Current Milestone: v1.6 Plan Runner
-
-**Goal:** Let developers define, save, and execute ordered sequences of protobuf messages — each step with its own schema, target, and response config — and monitor all replies inline and in a shared feed.
-
-**Target features:**
-- Plan library: named plans saved to disk, accessible via a dedicated full-screen view
-- Step editor: ordered list of steps; each step picks its own .proto file + message type, fills field values, selects a target queue/exchange, and configures response behaviour (wait for correlationId match / wait for first arrival on reply queue / no-wait with configurable delay before next step)
-- Step authoring: compose from scratch, import from message history, or pull from the block library
-- Plan runner: sequential execution with per-step status (Pending → Sending → WaitingResponse → Done / Error) and Run / Pause / Stop controls
-- Response view: decoded response shown inline under each step that received one, plus a shared scrollable feed of all messages arriving on watched queues during the run
-- Plan CRUD: create, rename, duplicate, delete; steps reorderable via drag-and-drop
-
----
-
 ## Current State
 
-v1.0 shipped 2026-05-18. All 30 v1 requirements delivered across 4 phases (18 plans). The app is fully functional as a local dev tool: load a `.proto` file, fill out the form, connect to RabbitMQ, publish a binary-encoded protobuf message, and read back response messages from a reply queue.
+v1.6 shipped 2026-05-24. All 23 requirements delivered across 5 phases (15 plans): plan data model with `usePlanStore` CRUD + `plans.json` persistence (PLAN-01–05), full-screen plan library view with inline CRUD (PLAN-06), step editor with StepFieldEditor isolated form + auto-save + DnD reorder + import from history and block library (STEP-01–06), sequential plan runner with all three response modes and Rust `execute_step` / `stop_plan` commands (RUN-01–06, RESP-01–03), inline StepReplyView and shared PlanReplyFeedTab FIFO-500 feed (RESP-04–05). Proto auto-load bonus: selecting a plan silently re-opens referenced `.proto` files.
 
-v1.1 shipped 2026-05-18. Phase 5 (dark-mode) delivered all 4 DRK requirements. Dark mode is complete across all UI surfaces.
-
-v1.2 shipped 2026-05-19. All 15 requirements delivered: bytes field (BFLD-01–04), map field (MFLD-01–05), JSON override toggle (JSON-01–06). The form renderer now covers all practical proto field types. One regression (MFLD-03 send-block) was introduced by a code review finding and fixed by quick task 260519-q01.
-
-The app is feature-complete for v1 scope: all major proto field types, full send/receive cycle, connection profiles, message history, and dark mode. Next focus area to be defined in `/gsd-new-milestone`.
-
-v1.3 shipped 2026-05-20. All 16 requirements delivered across 4 phases (11 plans): routing key autocomplete from RabbitMQ exchange bindings (PUBL-01–04), per-send delivery outcome badges (PUBL-05–08), block library with CodeMirror editor and persistence (BLK-01–05), and drag-and-drop block apply to form (BLK-06–08). The HTML5 DnD API was replaced mid-execution with dnd-kit after discovering WKWebView's dataTransfer limitation.
-
-The app is feature-rich for the v1 scope. All proto field types supported, full send/receive cycle, connection profiles with OS keychain, message history, dark mode, block library.
-
-v1.4 shipped 2026-05-21. All 11 requirements delivered across 3 phases (8 plans): batch drain with multi-type decode (CONS-01–04, CONS-08), live subscribe via Tauri Channel (CONS-05–07), feed filtering by routing key + content-type (FILT-01–02), and JSON export via native save dialog (XPRT-01). Tauri security hardened: strict CSP, narrowed fs:scope, unused permissions removed. Project renamed from Proto Sender to Tap.
-
-The app now has a full consume experience: drain, subscribe, filter, and export. 8 Phase 13 live-broker verification items deferred (require running RabbitMQ instance).
-
-Phase 16 complete 2026-05-21. Release pipeline foundation delivered: `macos-latest` runner, `Swatinem/rust-cache@v2` on both build jobs, Hardened Runtime Entitlements.plist (4 cs.* WebView keys), version bumped to 1.5.0 across all 3 config files. Two green workflow_dispatch dry-runs confirm pipeline structure (CICD-02, CICD-03 ✓). Phase 17 (macOS signing + notarization) unblocked.
+Next: `/gsd-new-milestone` to define v1.7 scope.
 
 ---
-Phase 17 complete 2026-05-23. macOS signing + notarization pipeline operational: Developer ID cert imported in CI, notarytool submits to Apple notary service, `spctl --assess` Gatekeeper gate in CI, draft release on tag push. Tag v1.5.5 verified: `accepted source=Notarized Developer ID` on clean Mac, no quarantine warning. `cs.allow-unsigned-executable-memory` restored in Entitlements.plist (was removed by WR-03; required for WKWebView JIT under Hardened Runtime). docs/release-setup.md added with 8-secret setup checklist.
 
-v1.5 shipped 2026-05-23. All 12 distribution requirements delivered across 3 phases (8 plans): signed/notarized macOS releases, Linux AppImage, in-app auto-update with live UAT confirmed, libsecret docs, and "Check for Updates..." in macOS native menu bar. Repository is now public. Current release: v1.5.7.
-
-Phase 19 complete 2026-05-23. Plan data contract established: `Plan`, `PlanStep`, `StepStatus`, `PublishTarget`, `ResponseMode` types exported from `src/lib/types.ts`; `usePlanStore` with CRUD + `plans.json` persistence (mirrors useBlockStore pattern exactly); 21 Vitest tests covering all D-14 conditions. Phases 20–23 can import from this foundation immediately.
-
-Phase 22 complete 2026-05-24. Sequential plan runner delivered: `execute_step` Rust command (protobuf encode → AMQP publish → optional reply wait with correlation-ID or first-arrival matching), `usePlanRunner` hook with stop-on-error and cancellation support, `usePlanExecutionStore` Zustand store (Pending → Sending → WaitingResponse → Done/Error per step), `PlanRunBar` (Run/Stop controls + summary line), and `StepListPanel` / `StepStatusBadge` UI. Two BLOCKER gaps closed in plan 22-05: IPC field name (step_id → stepId) and inverted cancel break condition. All 9 RUN/RESP requirements satisfied.
-
-*Last updated: 2026-05-24 after Phase 22 (Plan Runner — Sequential Execution)*
+*Last updated: 2026-05-25 after v1.6 milestone (Plan Runner)*
