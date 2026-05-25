@@ -327,8 +327,8 @@ if (currentBranch !== blockBranch) {
         subFieldName,
       });
     } else {
-      // Clean sub-field → apply directly
-      toApply.push({ fieldName: key, value: { _selected: blockBranch, [subFieldName]: subValue }, kind: 'oneof' });
+      // Clean sub-field → apply directly (dotted-path: same-branch, _selected unchanged)
+      toApply.push({ fieldName: `${key}.${subFieldName}`, value: subValue, kind: 'oneof' });
     }
   }
 }
@@ -451,11 +451,9 @@ A1 is the only load-bearing assumption. It is MEDIUM confidence (cited from RHF 
 
 ## Open Questions
 
-1. **`buildApplyPlan` oneof `toApply` item shape — one item or multiple?**
-   - **What we know:** The same-branch path may produce multiple clean sub-fields, each needing a separate `setValue` call in `commitApply` (e.g., `payment.card_number` and `payment.expiry`).
-   - **What's unclear:** Should `toApply` carry one `ApplyItem` per clean sub-field (fine-grained) or one item for the whole oneof field (coarse-grained atomic)?
-   - **Recommendation:** One item per clean sub-field, with `fieldName = "{fieldName}.{subFieldName}"` and `kind = 'oneof'`. This avoids special-casing in `commitApply` for partial same-branch writes. The atomic form is only needed for branch-switch (conflict overwrite path), not same-branch clean fills.
-   - **Alternative:** One item per oneof field carrying the full `{ _selected, [branch]: value }` object. This is simpler but prevents applying only the non-dirty sub-fields atomically. Either approach is valid — planner decides.
+1. **`buildApplyPlan` oneof `toApply` item shape — RESOLVED: dotted-path fine-grained.**
+   - **Decision:** One `ApplyItem` per clean sub-field, with `fieldName = "${fieldName}.${subFieldName}"` and `value = subValue`, `kind = 'oneof'`. See Section 6 code example.
+   - **Rationale:** Avoids clobber bug — multiple `setValue("payment", { ... })` calls in a loop overwrite each other; only the last sub-field survives. RHF `setValue("payment.card_number", v, { shouldDirty: false })` writes into the nested object without touching siblings. The atomic form (`{ _selected, [branch]: value }`) is ONLY needed for the branch-switch overwrite path in `commitApply` — not for same-branch clean fills where `_selected` is already correct.
 
 ---
 
