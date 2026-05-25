@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import type { ProtoSchema } from "@/lib/types";
 
 const MAX_OPEN_FILES = 20;
+const MAX_RECENT_FILES = 10;
 
 interface OpenFileEntry {
   filePath: string;
@@ -24,18 +25,23 @@ interface ProtoStore {
   isEncoding: boolean;
   encodeError: string | null;
 
+  // Recent files (persisted externally via tap.json)
+  recentFiles: string[];
+
   // Signal fields for downstream plans
   latestValues: Record<string, unknown> | null;
   lastSendAt: number | null;
   pendingReplayValues: Record<string, unknown> | null;
   sendRequested: number;
   openFileRequested: number;
+  reloadRequested: number;
 
   // Actions
   addOrActivateFile: (filePath: string, schema: ProtoSchema) => void;
   addFileBackground: (filePath: string, schema: ProtoSchema) => void;
   closeFile: (index: number) => void;
   setActiveIndex: (index: number) => void;
+  updateFileSchema: (filePath: string, schema: ProtoSchema) => void;
 
   setSelectedType: (messageType: string) => void;
   setHexPreview: (hex: string) => void;
@@ -47,6 +53,9 @@ interface ProtoStore {
   setPendingReplayValues: (values: Record<string, unknown> | null) => void;
   requestSend: () => void;
   requestOpenFile: () => void;
+  requestReload: () => void;
+  addRecentFile: (filePath: string) => void;
+  setRecentFiles: (files: string[]) => void;
 
   reset: () => void;
 }
@@ -65,6 +74,8 @@ const INITIAL_STATE = {
   pendingReplayValues: null as Record<string, unknown> | null,
   sendRequested: 0,
   openFileRequested: 0,
+  reloadRequested: 0,
+  recentFiles: [] as string[],
 };
 
 export const useProtoStore = create<ProtoStore>((set) => ({
@@ -183,6 +194,39 @@ export const useProtoStore = create<ProtoStore>((set) => ({
   requestSend: () => set((s) => ({ sendRequested: s.sendRequested + 1 })),
 
   requestOpenFile: () => set((s) => ({ openFileRequested: s.openFileRequested + 1 })),
+
+  requestReload: () => set((s) => ({ reloadRequested: s.reloadRequested + 1 })),
+
+  addRecentFile: (filePath) =>
+    set((s) => {
+      const filtered = s.recentFiles.filter((f) => f !== filePath);
+      return { recentFiles: [filePath, ...filtered].slice(0, MAX_RECENT_FILES) };
+    }),
+
+  setRecentFiles: (files) => set({ recentFiles: files }),
+
+  updateFileSchema: (filePath, schema) =>
+    set((s) => {
+      const idx = s.openFiles.findIndex((f) => f.filePath === filePath);
+      if (idx === -1) return s;
+
+      const newFiles = s.openFiles.map((f, i) =>
+        i === idx ? { ...f, schema } : f
+      );
+
+      const isActive = idx === s.activeIndex;
+      if (!isActive) return { openFiles: newFiles };
+
+      const prevType = s.selectedMessageType;
+      const stillExists = schema.messages.some((m) => m.full_name === prevType);
+      return {
+        openFiles: newFiles,
+        schema,
+        selectedMessageType: stillExists
+          ? prevType
+          : schema.messages[0]?.full_name ?? null,
+      };
+    }),
 
   reset: () => set({ ...INITIAL_STATE }),
 }));

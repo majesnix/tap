@@ -22,9 +22,11 @@ export function AppLayout({ viewMode, onViewChange }: AppLayoutProps) {
   const activeDragBlock = activeDragId ? (blocks.find((b) => b.id === activeDragId) ?? null) : null;
 
   const requestOpenFile = useProtoStore((s) => s.requestOpenFile);
+  const requestReload = useProtoStore((s) => s.requestReload);
   const setActiveTabRef = useRef<((tab: RightPanelTab) => void) | null>(null);
 
   useHotkeys("mod+o", (e) => { e.preventDefault(); requestOpenFile(); }, { enableOnFormTags: true });
+  useHotkeys("mod+r", (e) => { e.preventDefault(); requestReload(); }, { enableOnFormTags: true });
   useHotkeys("mod+1", (e) => { e.preventDefault(); setActiveTabRef.current?.("hex"); }, { enableOnFormTags: true });
   useHotkeys("mod+2", (e) => { e.preventDefault(); setActiveTabRef.current?.("history"); }, { enableOnFormTags: true });
   useHotkeys("mod+3", (e) => { e.preventDefault(); setActiveTabRef.current?.("response"); }, { enableOnFormTags: true });
