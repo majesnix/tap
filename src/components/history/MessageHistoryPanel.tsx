@@ -95,9 +95,10 @@ export function MessageHistoryPanel() {
         fieldValues: entry.fieldValues,
         payloadBytes: entry.payloadBytes,
       });
-    } catch {
+    } catch (err: unknown) {
       // Non-fatal: message was sent; history record could not be persisted.
-      // Silently ignored — history panel will simply not show this resend.
+      // Log for diagnostics but do not surface to the user as a "Resend failed" toast.
+      console.error("[history] appendEntry after resend failed:", err);
     }
   };
 
