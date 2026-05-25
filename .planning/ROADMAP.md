@@ -366,7 +366,17 @@ Plans:
   3. When a block targets a different oneof branch than the active one, user sees a confirmation prompt; confirming switches the branch and applies block values after the new branch mounts
   4. All conflicts from a single block drag — regardless of field type — appear in one dialog, not a chain of per-field modals; the dialog has Apply and Cancel actions
   5. Conflict rows default to skip (not overwrite), preventing accidental data loss if the user clicks Apply without reviewing each row
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+
+**Wave 1**
+
+- [ ] 26-01-PLAN.md — buildApplyPlan oneof support + map key collision detection + ConflictItemKind/ConflictChoices types (TDD)
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 26-02-PLAN.md — BlockApplyConflictDialog inline in FormPanel + commitApply conflict resolution (map merge, oneof dirty-subfield, atomic branch-switch)
+
 **UI hint**: yes
 
 ---
@@ -399,8 +409,8 @@ Plans:
 | 22. Plan Runner — Sequential Execution | v1.6 | 5/5 | Complete | 2026-05-24 |
 | 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete | 2026-05-24 |
 | 24. History Full-Text Search | v1.7 | 2/2 | Complete    | 2026-05-25 |
-| 25. Block Apply — WKT + Map Empty Case | v1.7 | 2/2 | Complete   | 2026-05-25 |
-| 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 0/TBD | Not started | - |
+| 25. Block Apply — WKT + Map Empty Case | v1.7 | 2/2 | Complete    | 2026-05-25 |
+| 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 0/2 | Not started | - |
 
 ---
 
