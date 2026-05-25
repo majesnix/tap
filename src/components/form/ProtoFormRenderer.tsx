@@ -195,7 +195,10 @@ export function ProtoFormRenderer({
           if (!choices) return;
 
           // Group map_key_collision items by fieldName for atomic per-field merge.
-          const mapCollisionsByField = new Map<string, ConflictItem[]>();
+          // IN-01: type the map narrowly so collisionKey and nonCollidingBlockRows
+          // are accessible without casts inside the loop.
+          type MapCollisionItem = Extract<ConflictItem, { kind: "map_key_collision" }>;
+          const mapCollisionsByField = new Map<string, MapCollisionItem[]>();
           for (const item of plan.conflicts) {
             if (item.kind === "map_key_collision") {
               const existing = mapCollisionsByField.get(item.fieldName) ?? [];
@@ -262,7 +265,8 @@ export function ProtoFormRenderer({
             } else if (item.kind === "oneof_branch_switch") {
               // D-05: single atomic setValue to switch branch — prevents Pitfall A
               // (setting _selected then branch field separately triggers unregister)
-              const blockBranch = item.blockBranch!;
+              // IN-01: blockBranch is now required on this union variant — no ! needed.
+              const blockBranch = item.blockBranch;
               const subValue = (item.blockValue as Record<string, unknown>)[blockBranch];
               methods.setValue(
                 item.fieldName,

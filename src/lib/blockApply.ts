@@ -13,50 +13,65 @@ export type ApplyItem = {
 };
 
 /**
- * Discriminated union for the kind of conflict.
- * - map_key_collision: a block map row's key already exists in the form
- * - oneof_dirty_subfield: same branch, but the sub-field is dirty (user-edited)
- * - oneof_branch_switch: block targets a different branch than the current selection
+ * Proper discriminated union for conflict items.
+ *
+ * Each variant carries only the fields that are meaningful for its kind,
+ * so TypeScript narrows field access after a `kind` check (IN-01 fix).
+ *
+ * - map_key_collision:     collisionKey and nonCollidingBlockRows are required
+ * - oneof_dirty_subfield:  subFieldName is required (was optional before IN-01)
+ * - oneof_branch_switch:   currentBranch and blockBranch are required
+ *
+ * Common fields (fieldName, blockValue, currentValue, fieldLabel) are present
+ * on every variant.
  */
-export type ConflictItemKind =
-  | "map_key_collision"
-  | "oneof_dirty_subfield"
-  | "oneof_branch_switch";
+export type ConflictItem =
+  | {
+      kind: "map_key_collision";
+      fieldName: string;
+      blockValue: unknown;
+      currentValue: unknown;
+      /** The map key that collides with an existing entry. */
+      collisionKey: string;
+      /**
+       * Block rows that did NOT collide with existing keys. Carried so
+       * commitApply Phase B can append them atomically after resolving the
+       * collision. Same array reference on every ConflictItem for this field.
+       */
+      nonCollidingBlockRows: unknown[];
+      /** Display label for the field row in the conflict dialog UI. */
+      fieldLabel?: string;
+    }
+  | {
+      kind: "oneof_dirty_subfield";
+      fieldName: string;
+      blockValue: unknown;
+      currentValue: unknown;
+      /** The sub-field name that is dirty. Required for this kind. */
+      subFieldName: string;
+      /** Display label for the field row in the conflict dialog UI. */
+      fieldLabel?: string;
+      /** Display label for the sub-field in the conflict dialog UI. */
+      subFieldLabel?: string;
+    }
+  | {
+      kind: "oneof_branch_switch";
+      fieldName: string;
+      blockValue: unknown;
+      currentValue: unknown;
+      /** The branch currently selected in the form. */
+      currentBranch: string;
+      /** The branch targeted by the block. */
+      blockBranch: string;
+      /** Display label for the field row in the conflict dialog UI. */
+      fieldLabel?: string;
+    };
 
 /**
- * A field where the block value conflicts with an existing non-empty form value.
- * Phase 26 populates this for non-empty map key collisions and oneof conflicts.
- *
- * Optional fields are kind-specific:
- * - subFieldName: oneof_dirty_subfield only
- * - currentBranch, blockBranch: oneof_branch_switch only
- * - collisionKey, nonCollidingBlockRows: map_key_collision only
- * - fieldLabel, subFieldLabel: UI rendering hints
+ * @deprecated Use ConflictItem["kind"] instead.
+ * Kept for backwards compatibility — will be removed in a future phase.
  */
-export type ConflictItem = {
-  fieldName: string;
-  blockValue: unknown;
-  currentValue: unknown;
-  kind: ConflictItemKind;
-  /** oneof_dirty_subfield: the sub-field name that is dirty */
-  subFieldName?: string;
-  /** oneof_branch_switch: the branch currently selected in the form */
-  currentBranch?: string;
-  /** oneof_branch_switch: the branch targeted by the block */
-  blockBranch?: string;
-  /** map_key_collision: the map key that collides */
-  collisionKey?: string;
-  /**
-   * map_key_collision: block rows that did NOT collide with existing keys.
-   * Carried so commitApply Phase B can append them atomically after resolving
-   * the collision. Same array reference on every ConflictItem for this field.
-   */
-  nonCollidingBlockRows?: unknown[];
-  /** Display label for the field row in the conflict dialog UI. */
-  fieldLabel?: string;
-  /** Display label for the sub-field in oneof_dirty_subfield rows. */
-  subFieldLabel?: string;
-};
+export type ConflictItemKind = ConflictItem["kind"];
 
 /**
  * User choices for resolving conflicts — keyed by a compound key:
