@@ -17,6 +17,7 @@
         { "path": "$DOCUMENT/**" }
       ]
     },
+    "fs:allow-exists",
     "store:default",
     "store:allow-load",
     "store:allow-set",

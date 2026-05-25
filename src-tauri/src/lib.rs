@@ -82,6 +82,8 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             commands::proto::parse_proto,
+            commands::proto::reload_proto,
+            commands::proto::check_paths_exist,
             commands::encode::encode_message,
             commands::connection::save_profile,
             commands::connection::list_profiles,

@@ -44,3 +44,69 @@ pub async fn parse_proto(
 
     Ok(schema)
 }
+
+#[tauri::command]
+pub async fn reload_proto(
+    file_paths: Vec<String>,
+    include_paths: Vec<Vec<String>>,
+    pool_state: tauri::State<'_, Mutex<Option<prost_reflect::DescriptorPool>>>,
+) -> Result<ProtoSchema, AppError> {
+    if file_paths.len() != include_paths.len() {
+        return Err(AppError::InvalidInput(
+            "file_paths and include_paths must have the same length".into(),
+        ));
+    }
+    if file_paths.is_empty() {
+        return Err(AppError::InvalidInput("file_paths must not be empty".into()));
+    }
+
+    let mut merged_pool: Option<prost_reflect::DescriptorPool> = None;
+    let mut first_schema: Option<ProtoSchema> = None;
+
+    for (i, file_path) in file_paths.iter().enumerate() {
+        let mut compiler = protox::Compiler::new(&include_paths[i])
+            .map_err(|e| AppError::ParseError(e.to_string()))?;
+        compiler.include_imports(true);
+        compiler
+            .open_file(file_path)
+            .map_err(|e| AppError::ParseError(e.to_string()))?;
+
+        let pool = prost_reflect::DescriptorPool::from_file_descriptor_set(
+            compiler.file_descriptor_set(),
+        )
+        .map_err(|e| AppError::ParseError(e.to_string()))?;
+
+        if i == 0 {
+            first_schema = Some(extractor::extract_schema(&pool));
+        }
+
+        match merged_pool.as_mut() {
+            None => {
+                merged_pool = Some(pool);
+            }
+            Some(existing) => {
+                for file_proto in compiler.file_descriptor_set().file {
+                    let name = file_proto.name().to_string();
+                    if existing.get_file_by_name(&name).is_none() {
+                        existing
+                            .add_file_descriptor_proto(file_proto)
+                            .map_err(|e| AppError::ParseError(e.to_string()))?;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut guard = pool_state.lock().unwrap();
+    *guard = merged_pool;
+
+    Ok(first_schema.unwrap())
+}
+
+#[tauri::command]
+pub async fn check_paths_exist(paths: Vec<String>) -> Vec<bool> {
+    paths
+        .iter()
+        .map(|p| std::path::Path::new(p).exists())
+        .collect()
+}
