@@ -3,9 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Block Apply Completeness + History Search
 status: executing
-stopped_at: Phase 25 context gathered
-last_updated: "2026-05-25T11:22:21.872Z"
-last_activity: 2026-05-25 -- Phase 25 planning complete
+last_updated: "2026-05-25T11:30:23.525Z"
+last_activity: 2026-05-25 -- Phase 25 execution started
 progress:
   total_phases: 11
   completed_phases: 1
@@ -21,14 +20,14 @@ progress:
 See: .planning/PROJECT.md (updated 2026-05-25)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Phase 25 — block apply — wkt + map empty case
+**Current focus:** Phase 25 — block-apply-wkt-map-empty-case
 
 ## Current Position
 
-Phase: 25
-Plan: Not started
-Status: Ready to execute
-Last activity: 2026-05-25 -- Phase 25 planning complete
+Phase: 25 (block-apply-wkt-map-empty-case) — EXECUTING
+Plan: 1 of 2
+Status: Executing Phase 25
+Last activity: 2026-05-25 -- Phase 25 execution started
 
 ## Progress
 
