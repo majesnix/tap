@@ -2,11 +2,11 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Block Apply Completeness + History Search
-status: in_progress
-last_updated: "2026-05-25T08:17:16.245Z"
-last_activity: 2026-05-25
+status: executing
+last_updated: "2026-05-25T09:03:45.141Z"
+last_activity: 2026-05-25 — Milestone v1.7 roadmap created
 progress:
-  total_phases: 3
+  total_phases: 11
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
