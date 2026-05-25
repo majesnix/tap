@@ -378,4 +378,38 @@ describe("buildApplyPlan", () => {
     expect(plan.conflicts.filter((c) => (c as any).collisionKey === "team")).toHaveLength(0);
     expect(plan.unknownKeys).toEqual([]);
   });
+
+  it("appends block rows to non-empty map when no keys collide (IN-02 — regression guard for CR-01)", () => {
+    // Arrange: existing row that the block does NOT collide with
+    const fields = [makeMapField("labels")];
+    const formValues = { labels: [{ key: "env", value: "prod" }] };
+    const dirtyFields = {};
+    const blockValues = { labels: [{ key: "team", value: "infra" }] };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert: no conflicts, toApply carries the merged (existing + new) array
+    expect(plan.conflicts).toEqual([]);
+    expect(plan.toApply).toHaveLength(1);
+    expect(plan.toApply[0].value).toEqual([
+      { key: "env", value: "prod" },
+      { key: "team", value: "infra" },
+    ]);
+  });
+
+  it("treats all sub-fields as dirty when whole oneof field is marked dirty (IN-03 — regression guard for WR-01)", () => {
+    // Arrange: dirtyFields[payment] = true (boolean, not per-sub-field object)
+    const fields = [makeOneofField("payment", ["card_number"])];
+    const formValues = { payment: { _selected: "card_number", card_number: "existing" } };
+    const dirtyFields: Record<string, unknown> = { payment: true }; // whole-field dirty
+    const blockValues = { payment: { _selected: "card_number", card_number: "4111" } };
+
+    // Act
+    const plan = buildApplyPlan(fields, formValues, dirtyFields, blockValues);
+
+    // Assert: whole-field dirty — block must not overwrite any sub-field
+    expect(plan.toApply).toEqual([]);
+    expect(plan.conflicts).toEqual([]);
+  });
 });

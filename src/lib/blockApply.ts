@@ -295,17 +295,22 @@ export function buildApplyPlan(
       // Casting a boolean to Record<string, unknown> silently yields a value whose
       // indexed properties are always undefined, defeating dirty-protection.
       const rawDirtyEntry = dirtyFields[key];
+      // Whole-field dirty (boolean true): skip the entire oneof field silently,
+      // consistent with the scalar dirty guard. No conflicts emitted — the user
+      // has already edited this field and a whole-field block override should not
+      // trigger a dialog.
+      if (rawDirtyEntry === true) {
+        continue;
+      }
       const dirtyForField: Record<string, unknown> =
         typeof rawDirtyEntry === "object" && rawDirtyEntry !== null
           ? (rawDirtyEntry as Record<string, unknown>)
           : {};
-      // Whole-field dirty (boolean true) means every sub-field is dirty.
-      const wholeFieldDirty = rawDirtyEntry === true;
 
       for (const [subFieldName, subValue] of Object.entries(blockObj)) {
         if (subFieldName === "_selected") continue; // skip discriminator key
 
-        const isSubFieldDirty = wholeFieldDirty || dirtyForField[subFieldName] === true;
+        const isSubFieldDirty = dirtyForField[subFieldName] === true;
 
         if (isSubFieldDirty) {
           // Dirty sub-field → conflict
