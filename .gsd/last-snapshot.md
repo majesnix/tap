@@ -1,4 +1,4 @@
-# GSD context snapshot (2026-05-25T22:05:18.898Z)
+# GSD context snapshot (2026-05-25T22:21:08.081Z)
 
 ## Top project memories
 - [MEM008] (gotcha) react-hotkeys-hook v5 useHotkeys does not fire with fireEvent.keyDown in jsdom. Must use native `new KeyboardEvent` with explicit `code` property and dispatch via `document.dispatchEvent`. Use `ctrlKey: true` (not `metaKey`) since jsdom reports non-Mac user agent.
@@ -9,6 +9,6 @@
 - [MEM001] (architecture) Keyboard shortcut library for React Chose: react-hotkeys-hook@^5.3.2. Rationale: Lightweight, well-maintained, supports enableOnFormTags for inhibit control, integrates with React lifecycle. Native addEventListener rejected for boilerplate and cleanup complexity..
 
 ## Recent gsd_exec runs
-- [ceab2790-daae-4f89-a600-399e280e9430] bash exit:0 — S05 UAT: TypeScript compile check
-- [f33e7a25-cedb-4cfc-a381-15bfbd25bf81] b
+- [10cdd029-3873-4780-ae34-16e29a4a0f63] bash exit:0 — enumerate planning directory structure
+- [ceab2790-daae-4f89-a600-399e280e94
 …[truncated]
