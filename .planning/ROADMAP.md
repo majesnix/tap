@@ -1,7 +1,7 @@
 # Roadmap: Tap
 
-**Last Milestone:** v1.6 Plan Runner — SHIPPED 2026-05-24
-**Current:** v1.7 Block Apply Completeness + History Search — Roadmap created 2026-05-25
+**Last Milestone:** v1.7 Block Apply Completeness + History Search — SHIPPED 2026-05-25
+**Current:** Planning next milestone
 
 ---
 
@@ -14,7 +14,7 @@
 - ✅ **v1.4 Response Stream** — Phases 13–15 (shipped 2026-05-21)
 - ✅ **v1.5 Distribution** — Phases 16–18 (shipped 2026-05-23)
 - ✅ **v1.6 Plan Runner** — Phases 19–23 (shipped 2026-05-24)
-- 🚧 **v1.7 Block Apply Completeness + History Search** — Phases 24–26 (in progress)
+- ✅ **v1.7 Block Apply Completeness + History Search** — Phases 24–26 (shipped 2026-05-25)
 
 ---
 
@@ -99,11 +99,16 @@ See [milestones/v1.6-ROADMAP.md](milestones/v1.6-ROADMAP.md) for full phase deta
 
 </details>
 
-### v1.7 Block Apply Completeness + History Search (Phases 24–26) — IN PROGRESS
+<details>
+<summary>✅ v1.7 Block Apply Completeness + History Search (Phases 24–26) — SHIPPED 2026-05-25</summary>
 
-- [x] **Phase 24: History Full-Text Search** - Search bar across type name, target, and field names; AND logic with existing filters (completed 2026-05-25)
-- [x] **Phase 25: Block Apply — WKT + Map Empty Case** - Two-phase applyBlockRef architecture; WKT fill and empty-map replace (completed 2026-05-25)
-- [x] **Phase 26: Block Apply — Conflict Prompt + Oneof** - Batched conflict dialog; map collision; oneof branch-switch (completed 2026-05-25)
+- [x] **Phase 24: History Full-Text Search** — 2/2 plans — completed 2026-05-25
+- [x] **Phase 25: Block Apply — WKT + Map Empty Case** — 2/2 plans — completed 2026-05-25
+- [x] **Phase 26: Block Apply — Conflict Prompt + Oneof** — 2/2 plans — completed 2026-05-25
+
+See [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) for full phase details, decisions, and retrospective.
+
+</details>
 
 ---
 
@@ -526,25 +531,10 @@ See [milestones/v1.6-REQUIREMENTS.md](milestones/v1.6-REQUIREMENTS.md) for full 
 - Mapped: 23/23 ✓
 - Delivered: 23/23 ✓
 
-**v1.7 Block Apply Completeness + History Search — 7/14 requirements delivered**
+**v1.7 Block Apply Completeness + History Search — 14/14 requirements delivered**
 
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| HIST-FT-01 | Phase 24 | Shipped |
-| HIST-FT-02 | Phase 24 | Shipped |
-| HIST-FT-03 | Phase 24 | Shipped |
-| HIST-FT-04 | Phase 24 | Shipped |
-| HIST-FT-05 | Phase 24 | Shipped |
-| HIST-FT-06 | Phase 24 | Shipped |
-| HIST-FT-07 | Phase 24 | Shipped |
-| BLK-EXT-01 | Phase 25 | Pending |
-| BLK-EXT-02 | Phase 25 | Pending |
-| BLK-EXT-07 | Phase 25 | Pending |
-| BLK-EXT-03 | Phase 26 | Pending |
-| BLK-EXT-04 | Phase 26 | Pending |
-| BLK-EXT-05 | Phase 26 | Pending |
-| BLK-EXT-06 | Phase 26 | Pending |
+See [milestones/v1.7-REQUIREMENTS.md](milestones/v1.7-REQUIREMENTS.md) for full traceability.
 
 - Total v1.7: 14
 - Mapped: 14/14 ✓
-- Delivered: 0/14
+- Delivered: 14/14 ✓

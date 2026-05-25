@@ -2,32 +2,32 @@
 gsd_state_version: 1.0
 milestone: v1.7
 milestone_name: Block Apply Completeness + History Search
-status: milestone_complete
-last_updated: 2026-05-25T15:43:15.850Z
-last_activity: 2026-05-25 -- Phase 26 execution started
+status: archived
+last_updated: 2026-05-25T18:00:00.000Z
+last_activity: 2026-05-25 -- v1.7 milestone archived
 progress:
-  total_phases: 11
-  completed_phases: 2
+  total_phases: 3
+  completed_phases: 3
   total_plans: 6
-  completed_plans: 13
-  percent: 18
-stopped_at: Milestone complete (Phase 26 was final phase)
+  completed_plans: 6
+  percent: 100
+stopped_at: Milestone archived
 ---
 
 # Project State: Tap
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-05-25)
+See: .planning/PROJECT.md (updated 2026-05-25 after v1.7 milestone)
 
 **Core value:** Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto` file — no code, no curl, no manual encoding.
-**Current focus:** Milestone complete
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Phase: 26
-Plan: Not started
-Status: Milestone complete
+Phase: 26 (final, archived)
+Plan: Archived
+Status: v1.7 milestone archived 2026-05-25
 Last activity: 2026-05-25
 
 ## Progress
@@ -74,10 +74,8 @@ None.
 
 ## Session Continuity
 
-Last session: 2026-05-25T13:14:07.979Z
-Stopped at: Phase 26 UI-SPEC approved
-Resume file: .planning/phases/26-block-apply-conflict-prompt-oneof/26-UI-SPEC.md
+Last session: 2026-05-25 (milestone archive)
+Stopped at: v1.7 milestone archived, git tagged v1.7
 
-- v1.7: 2/3 phases complete (24 history search ✓, 25 WKT+map-empty ✓)
-- Phase 26 remaining: conflict prompt + oneof block apply
-- Next action: `/gsd-discuss-phase 26` or `/gsd-plan-phase 26`
+- v1.7: 3/3 phases complete and archived
+- Next action: `/gsd-new-milestone` to begin v1.8 planning

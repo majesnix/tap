@@ -67,13 +67,13 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Block apply for WellKnownType (Timestamp etc.) and empty map fields — dirty-field guard only for WKT; mapReplaceRegistry useRef + two-phase `{ buildPlan, commitApply }` ref; block-filled fields stay non-dirty and are re-writable by subsequent block drags — v1.7 (Phase 25)
 - ✓ Block apply conflict resolution — map-key collision dialog (per-row skip/overwrite), oneof branch-switch dialog, oneof dirty-subfield dialog; commitApply Phase B atomic merge; Pitfall D fix (shouldDirty:false on all block fills) — v1.7 (Phase 26)
 
-## Current Milestone: v1.7 Block Apply Completeness + History Search
+## Current State
 
-**Goal:** Close the remaining gap in block apply for complex field types (oneof / WellKnownType / map), and add full-text search to the history panel.
+**Shipped:** v1.7 Block Apply Completeness + History Search (2026-05-25)
 
-**Target features:**
-- Block apply for oneof / WellKnownType / map fields — currently silently skipped with a toast; apply values for these types, with per-field overwrite/skip prompt when form already has values
-- Full-text search in the history panel — search bar across decoded field values, field names/keys, message type name, and queue/exchange target; works alongside existing filters
+Block apply is now complete for all field types: WellKnownType (Timestamp, Duration), empty map fields, map-key collisions (batched conflict dialog, per-row skip/overwrite), oneof same-branch fills, and oneof cross-branch switches. History search adds full-text search across message type name, queue/exchange target, and field name keys, with AND logic alongside existing filters.
+
+**Next milestone:** TBD — run `/gsd-new-milestone` to define goals and requirements.
 
 ## Backlog (future milestones)
 
@@ -100,12 +100,16 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - Team use means packaging/distribution matters — distributed via signed GitHub Releases (macOS: notarized .dmg; Linux: .AppImage + .deb + .rpm).
 - v1.5 shipped 2026-05-23. Distribution pipeline complete: signed notarized macOS releases, Linux AppImage, in-app auto-update with native macOS menu integration. Repository is public.
 - v1.6 shipped 2026-05-24. Plan Runner delivered: named plans with ordered steps, StepFieldEditor (isolated form, auto-save debounce, all field/target/response-mode types), sequential JS runner loop, all three response modes (no-wait / correlation-id / first-arrival) with Rust `execute_step` + `stop_plan` commands, StepReplyView inline decoded replies, PlanReplyFeedTab FIFO-500 shared feed, proto auto-load on plan select. +24,262 / -328 LOC, 50 commits, 5 phases, 15 plans, 176 files changed.
-- Current release: v1.6.0.
+- v1.7 shipped 2026-05-25. Block apply completed for all complex field types: two-phase `{ buildPlan, commitApply }` ApplyBlockRef architecture; WKT + empty-map fill; batched `BlockApplyConflictDialog` for map-key collisions and oneof conflicts (skip-default, per-row skip/overwrite RadioGroup); Pitfall D fix (`shouldDirty: false` on all block-apply `setValue` calls); history full-text search with AND logic. ~108 commits, 162 files changed, +10,509 / −10,463 lines, 506/506 tests passing.
+- Current release: v1.7.0.
 
-**Known issues / tech debt at v1.6:**
+**Known issues / tech debt at v1.7:**
 - No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
 - JSON mode + map field round-trip (Flow 4) has no automated test — FormPanel.test.tsx uses scalar-only schema.
-- oneof / WellKnownType / map fields not eligible for block apply (skipped with toast) — complex field type support deferred to future milestone.
+- Block apply in JSON mode guarded off (`BLK-EXT-FUTURE-01`) — complex field type support in JSON override mode deferred.
+- Recursive nested-message merge from a block (`BLK-EXT-FUTURE-02`) — requires schema-aware deep merge; deferred.
+- Search field values (`HIST-FT-FUTURE-01`) — decoded scalar data search deferred; requires stripping RHF internals before indexing.
+- `collectFieldNames` dead export in `historyHelpers.ts` — exported but unused at runtime; live code uses `collectSearchTokens`. Not a blocker.
 - No automated browser-level DnD test for dnd-kit drag gestures — manual UAT is the current coverage.
 - Phase 13 live-broker UAT deferred (8 items): ack-before-decode, AMQP metadata, multi-type decode, queue depth badge, accordion UX, RightPanel auto-switch, FIFO-500 cap, partial-error toast.
 - Export format is JSON only (CSV deferred to future milestone).
@@ -160,6 +164,9 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 | `{ buildPlan, commitApply }` two-phase applyBlockRef (Phase 25) | Single-function ref couldn't return plan data needed to compute `skipped` in FormPanel | ✓ Good — FormPanel derives skipped inline from `plan.toApply + plan.conflicts`; clean separation |
 | mapReplaceRegistry useRef pattern for empty-map fill (Phase 25) | ProtoFormRenderer switch is frozen; `useFieldArray.replace()` must be reached without touching the switch | ✓ Good — MapField registers its `replace` fn via `onRegisterReplace` stable callback; no switch changes |
 | block-filled map fields treated as dirty after first fill (Phase 25) | RHF 7.76.1 `replace()` has no `shouldDirty: false` option — marks field dirty by design | Accepted — block-filled map is "user-owned" after first fill; Phase 26 conflict prompt handles re-drag |
+| `ConflictItem` discriminated union with kind-tag (Phase 26) | Union of plain objects without a kind discriminant causes unsafe field access at runtime | ✓ Good — refactored to proper discriminated union; TypeScript guards `fieldName`, `key`, `blockBranch` access |
+| Conflict rows default to skip (Phase 26) | Prevents accidental data loss if user clicks Apply without reviewing each row | ✓ Good — consistent with principle of least surprise; overwrite is always opt-in |
+| `shouldDirty: false` on all block-apply `setValue` calls / Pitfall D (Phase 26) | Omitting causes block-filled fields to register as user-touched, triggering false conflicts on subsequent drags | ✓ Good — invariant enforced in both Phase A and Phase B; no false conflict triggers |
 
 ## Evolution
 
@@ -175,8 +182,8 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
-v1.7 in progress. Phase 26 complete (2026-05-25): block apply conflict dialog + oneof support delivered — `buildApplyPlan` detects map-key collisions and oneof branch-switch/dirty-subfield conflicts; inline `BlockApplyConflictDialog` in FormPanel with per-row skip/overwrite RadioGroup; `commitApply(plan, choices?)` Phase A+B logic; Pitfall D fix (shouldDirty:false). All 5 UAT tests approved. Phase 26 is the last phase of v1.7 milestone.
+v1.7 shipped 2026-05-25. Block apply is now complete for all field types; history full-text search delivered. Ready for next milestone — run `/gsd-new-milestone` to begin.
 
 ---
 
-*Last updated: 2026-05-25 — Phase 26 complete (block-apply-conflict-prompt-oneof)*
+*Last updated: 2026-05-25 after v1.7 milestone*

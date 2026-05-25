@@ -2,6 +2,54 @@
 
 ---
 
+## Milestone: v1.7 — Block Apply Completeness + History Search
+
+**Shipped:** 2026-05-25
+**Phases:** 3 (24–26) | **Plans:** 6
+**Stats:** ~108 commits, 162 files changed, +10,509 / −10,463 LOC, 1 day (2026-05-25)
+
+### What Was Built
+
+1. History full-text search — `filterHistoryEntries` optional `searchQuery` param; `collectSearchTokens` helper; `HistoryFilterBar` search input; AND logic with existing filters; "X of Y / 100" label (Phase 24)
+2. Two-phase block apply architecture — `buildApplyPlan` (pure) + `commitApply` (writes); `ApplyBlockRef { buildPlan, commitApply }` ref; `mapReplaceRegistry` pattern for frozen switch (Phase 25)
+3. Block apply for WKT and empty map — Timestamp/Duration fields, empty map fill via `useFieldArray.replace()`, dirty-field guard (Phase 25)
+4. Block apply conflict dialog — map-key collision + oneof branch-switch + oneof dirty-subfield detection; batched `BlockApplyConflictDialog` with per-row skip/overwrite RadioGroup; Pitfall D fix (Phase 26)
+
+### What Worked
+
+- **Two-phase architecture split was correct from the start.** Separating plan detection from form writes meant Phase 26's conflict dialog could be added without rearchitecting Phase 25's work. The boundary between phases was clean.
+- **TDD enforced discipline on discriminated union design.** Writing tests first for `ConflictItem` variants forced explicit type contracts before implementation — the IN-01 code review finding (non-discriminated union) was caught quickly and refactored cleanly.
+- **mapReplaceRegistry useRef pattern scales.** The "register a callback via prop, store in useRef, call at apply time" pattern worked for MapField without touching the frozen ProtoFormRenderer switch. Zero regressions on the existing 499+ tests.
+- **Pitfall tracking in STATE.md paid off.** Pitfalls A, B, D, E from research were documented before execution. Pitfall D (`shouldDirty: false`) was caught during Phase 26 code review and applied globally — would have been a subtle regression otherwise.
+- **Milestone audit before archive was fast.** Audit passed 14/14 with no gaps — all requirements tracked throughout execution meant the audit was a verification, not a discovery.
+
+### What Was Inefficient
+
+- **Phase 25 test count discrepancy in SUMMARY.md.** Reported 997/16 vs actual 499/8. SUMMARY was written quickly after execution without double-checking the `vitest` output. Caught in audit but only as an INFO item.
+- **`collectFieldNames` vs `collectSearchTokens` naming.** The dead export (`collectFieldNames`) lingered because the rename happened during implementation without updating the export. Minor but could confuse future readers.
+- **WR-01/WR-02/CR-01 code review fixes in Phase 26.** Three execution-layer bugs (hooks order, whole-field guard, zero-collision path) were caught by code review rather than tests. All three were simple logic errors that TDD could have prevented if test cases had been written for those exact paths first.
+
+### Patterns Established
+
+- **`ApplyBlockRef { buildPlan, commitApply }` two-phase ref** as the canonical extension pattern for frozen component trees — avoids touching ProtoFormRenderer switch, keeps dialog logic in FormPanel.
+- **`shouldDirty: false` invariant on all block-apply `setValue` calls** — established as a hard rule for any future block-apply extensions.
+- **`mapReplaceRegistry` useRef registration pattern** — MapField registers `replace()` fn via stable `onRegisterReplace` callback; FormPanel/ProtoFormRenderer stores in `useRef`; called at apply time. Reusable for any field type that needs escape-hatch array operations.
+- **Conflict rows default to skip** — UX rule: any destructive-path dialog should require explicit opt-in (overwrite), not opt-out. Codified in Phase 26.
+
+### Key Lessons
+
+- **Test the overwrite paths as explicitly as the skip paths.** The CR-01 bug (zero-collision map path not appending existing rows) was a path that required explicit assertion in tests, not just a "happy path" test.
+- **Discriminated unions are worth the extra typing.** The IN-01 finding showed that union-of-plain-objects type shapes break quickly when a codebase adds more variants. Kind-tags are load-bearing.
+- **Document pitfalls in STATE.md during research, not during review.** All five pitfalls were documented in STATE.md during Phase 25 research. Phase 26 referenced them directly during execution. This pattern works — pitfalls found in review after coding are more expensive.
+
+### Cost Observations
+
+- Model mix: 100% sonnet (claude-sonnet-4-6)
+- Sessions: 1 day, 3 phases, 6 plans
+- Notable: milestone delivered in a single session day; three phases were executed sequentially with no blocking dependencies between 24 (history) and 25–26 (block apply)
+
+---
+
 ## Milestone: v1.6 — Plan Runner
 
 **Shipped:** 2026-05-24
@@ -328,15 +376,15 @@
 
 ## Cross-Milestone Trends
 
-| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 |
-|--------|------|------|------|------|------|
-| Phases | 4 | 1 | 3 | 4 | 3 |
-| Plans | 18 | 3 | 7 | 11 | 8 |
-| Commits | 50 | 36 | 83 | 50 | 50 |
-| LOC added | ~42,800 | +3,234 | +10,173 | +17,550 | +20,585 |
-| Requirements delivered | 30/30 | 4/4 | 15/15 | 16/16 | 11/11 |
-| GAP/quick-task fixes | 2 | 0 | 1 | 0 | 1+3 (s1j + Phase 14 gaps) |
-| Duration | 1 day | ~3 hours | ~7 hours | 2 days | 1 day |
-| Regression from code review | 0 | 0 | 1 (MFLD-03) | 0 | 0 |
-| Mid-execution pivot | 0 | 0 | 0 | 1 (HTML5→dnd-kit) | 0 |
-| Deferred live-broker UAT | — | — | — | — | 8 (Phase 13) |
+| Metric | v1.0 | v1.1 | v1.2 | v1.3 | v1.4 | v1.5 | v1.6 | v1.7 |
+|--------|------|------|------|------|------|------|------|------|
+| Phases | 4 | 1 | 3 | 4 | 3 | 3 | 5 | 3 |
+| Plans | 18 | 3 | 7 | 11 | 8 | 8 | 15 | 6 |
+| Commits | 50 | 36 | 83 | 50 | 50 | ~50 | 50 | ~108 |
+| LOC added | ~42,800 | +3,234 | +10,173 | +17,550 | +20,585 | +4,390 | +24,262 | +10,509 |
+| Requirements delivered | 30/30 | 4/4 | 15/15 | 16/16 | 11/11 | 12/12 | 23/23 | 14/14 |
+| GAP/quick-task fixes | 2 | 0 | 1 | 0 | 1+3 | 0 | 0 | 3 |
+| Duration | 1 day | ~3 h | ~7 h | 2 days | 1 day | 2 days | 2 days | 1 day |
+| Regression from code review | 0 | 0 | 1 (MFLD-03) | 0 | 0 | 0 | 0 | 3 (WR-01, WR-02, CR-01) |
+| Mid-execution pivot | 0 | 0 | 0 | 1 (HTML5→dnd-kit) | 0 | 0 | 0 | 0 |
+| Deferred live-broker UAT | — | — | — | — | 8 (Phase 13) | — | — | — |

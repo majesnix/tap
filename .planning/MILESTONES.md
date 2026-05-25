@@ -1,5 +1,23 @@
 # Milestones: Tap
 
+## v1.7 Block Apply Completeness + History Search (Shipped: 2026-05-25)
+
+**Phases completed:** 3 phases (24–26), 6 plans | **Requirements:** 14/14 (HIST-FT-01–07, BLK-EXT-01–07)
+**Git range:** bc9dd2a..21c6144 — ~108 commits, 162 files, +10,509 / −10,463 lines
+
+**Key accomplishments:**
+
+1. History full-text search — `filterHistoryEntries` extended with optional `searchQuery` param; `collectSearchTokens` extracts field name keys + primitive values; `HistoryFilterBar` search input above type/target filters; AND logic; "X of Y / 100" count label; 477/477 tests (Phase 24)
+2. Two-phase block apply architecture — `buildApplyPlan` (pure, returns `{ toApply, conflicts, unknownKeys }`) + `commitApply` (writes to form); `{ buildPlan, commitApply }` ref replaces single-function `applyBlockRef`; clean separation enables conflict prompting without logic duplication (Phase 25)
+3. Block apply for WKT + empty map — `mapReplaceRegistry` useRef pattern reaches `useFieldArray.replace()` without touching the frozen ProtoFormRenderer switch; dirty-field guard enforced for WKT; 499/499 tests (Phase 25)
+4. Block apply conflict dialog — `buildApplyPlan` extended with map-key collision + oneof branch-switch + oneof dirty-subfield detection; inline `BlockApplyConflictDialog` in FormPanel with per-row RadioGroup (skip default); `commitApply` Phase B with three overwrite branches; 506/506 tests (Phase 26)
+5. `shouldDirty: false` invariant (Pitfall D fix) — all `setValue` calls in block apply Phase A and Phase B now use `{ shouldDirty: false }`; prevents false conflict triggers on subsequent drags (Phase 26)
+6. `ConflictItem` discriminated union — refactored from union of plain objects to proper kind-tag discriminated union; guards `fieldName`, `key`, `blockBranch` access correctly (Phase 26 review fix)
+
+**Archive:** [milestones/v1.7-ROADMAP.md](milestones/v1.7-ROADMAP.md) | [milestones/v1.7-REQUIREMENTS.md](milestones/v1.7-REQUIREMENTS.md) | [milestones/v1.7-MILESTONE-AUDIT.md](milestones/v1.7-MILESTONE-AUDIT.md)
+
+---
+
 ## v1.6 Plan Runner (Shipped: 2026-05-24)
 
 **Phases completed:** 5 phases (19–23), 15 plans | **Requirements:** 23/23 (PLAN-01–06, STEP-01–06, RUN-01–06, RESP-01–05)
