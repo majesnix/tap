@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { IncludePathDialog } from "@/components/include-paths/IncludePathDialog";
+import { IncludePathManager } from "@/components/sidebar/IncludePathManager";
 import { parseProto, reloadProto, checkPathsExist } from "@/lib/ipc";
 import { useProtoStore } from "@/stores/useProtoStore";
 
@@ -307,6 +308,10 @@ export function FileSection() {
               </TabsList>
             </ScrollArea>
           </Tabs>
+        )}
+
+        {openFiles.length > 0 && activeIndex >= 0 && openFiles[activeIndex] && (
+          <IncludePathManager filePath={openFiles[activeIndex].filePath} />
         )}
 
         {closedRecentFiles.length > 0 && (
