@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { FieldKind, FieldSchema, RenderFieldFn, ScalarKind } from "@/lib/types";
+import { FieldTooltip } from "./FieldTooltip";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -189,7 +190,9 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
         <Badge variant="secondary" className="text-xs">
           {badgeLabel}
         </Badge>
-        <span className="text-sm font-semibold">{field.label}</span>
+        <FieldTooltip field={field}>
+          <span className="text-sm font-semibold">{field.label}</span>
+        </FieldTooltip>
       </div>
 
       {/* Row list */}
@@ -205,6 +208,7 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
         const valueFieldSchema: FieldSchema = {
           name: `${field.name}[${index}].value`,
           label: "Value",
+          field_number: 0,
           kind: value_kind,
           repeated: false,
         };

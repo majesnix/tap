@@ -67,27 +67,22 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Block apply for WellKnownType (Timestamp etc.) and empty map fields — dirty-field guard only for WKT; mapReplaceRegistry useRef + two-phase `{ buildPlan, commitApply }` ref; block-filled fields stay non-dirty and are re-writable by subsequent block drags — v1.7 (Phase 25)
 - ✓ Block apply conflict resolution — map-key collision dialog (per-row skip/overwrite), oneof branch-switch dialog, oneof dirty-subfield dialog; commitApply Phase B atomic merge; Pitfall D fix (shouldDirty:false on all block fills) — v1.7 (Phase 26)
 
-## Current Milestone: v1.8 UX Polish + Proto Ergonomics
-
-**Goal:** Make Tap faster to use day-to-day — keyboard-first workflow, persistent draft state, quick proto navigation, and a schema explorer for power users.
-
-**Target features:**
-- Keyboard shortcuts — Send (Cmd+Enter), Open proto (Cmd+O), Clear form (Cmd+Shift+R), Tab navigation (Cmd+1/2/3)
-- Form reset / clear + field-level copy to clipboard
-- Randomizer — fill all fields with type-appropriate random values for quick test sends
-- Proto file reload + recent files nav (quick-access list of recently used `.proto` files)
-- Proto import manager — view/edit include paths and import dependencies for the loaded file
-- Schema explorer — collapsible tree (messages, fields, enums) + inline field type tooltips on hover
-- Connection quick-switch — switch profiles without opening the sidebar
-- Message draft persistence — auto-save/restore last form state per message type, survives restart
+- ✓ Keyboard shortcuts — Send (Cmd+Enter, dual-registered for CodeMirror), Open proto (Cmd+O), Clear form (Cmd+Shift+R), Tab navigation (Cmd+1/2/3), Reload proto (Cmd+R); discoverable via title attribute on buttons — v1.8 (S01, S02)
+- ✓ Form ergonomics — Clear button (RotateCcw), hover-reveal CopyButton on scalar/enum/bytes fields (Copy → Check icon swap, 1500ms feedback), Randomize button (Dices) for fill-all-empty fields — v1.8 (S01, S04)
+- ✓ Randomizer — type-aware generators for scalar/enum/bytes/int64-uint64/WellKnownTypes/oneof/nested/map/repeated with MAX_RECURSION_DEPTH=5; routes through setPendingReplayValues to honor mapReplaceRegistry — v1.8 (S04)
+- ✓ Proto reload — `reload_proto` Rust command with atomic DescriptorPool rebuild; Cmd+R from anywhere — v1.8 (S02)
+- ✓ Recent files — useProtoStore tracks last 10 paths persisted via `tap.json`; quick-access list in FileSection with stale-entry indicator via batch `check_paths_exist` IPC — v1.8 (S02)
+- ✓ Include path manager — inline path chips in FileSection with add/remove (native directory picker); auto-reload of open files on path change — v1.8 (S02)
+- ✓ Connection quick-switch — compact dropdown in PublishBar with status dot; blocked with toast warning while a plan is running (plan-run guard via imperative getState().isRunning) — v1.8 (S03)
+- ✓ Draft persistence — useDraftStore on tauri-plugin-store LazyStore (`drafts.json`); 200ms debounced auto-save keyed by `${filePath}::${messageType}`; restore via setPendingReplayValues with isRestoringRef 300ms guard; LRU cap at 50 entries; explicit clearDraft on Clear — v1.8 (S03)
+- ✓ Field tooltips — FieldTooltip wrapper showing proto type, field number (omitted when 0 = synthetic), and cardinality on hover; applied to all 8 field components — v1.8 (S04)
+- ✓ Schema explorer — collapsible sidebar tree (messages, fields, top-level enums) with click-to-select message type; recursive safety via visited-set + MAX_DEPTH=5 hard cap; reads schema directly from useProtoStore — v1.8 (S05)
 
 ## Current State
 
-**Shipped:** v1.7 Block Apply Completeness + History Search (2026-05-25)
+**Shipped:** v1.8 UX Polish + Proto Ergonomics (2026-05-26)
 
-Block apply is now complete for all field types: WellKnownType (Timestamp, Duration), empty map fields, map-key collisions (batched conflict dialog, per-row skip/overwrite), oneof same-branch fills, and oneof cross-branch switches. History search adds full-text search across message type name, queue/exchange target, and field name keys, with AND logic alongside existing filters.
-
-**Now planning:** v1.8 UX Polish + Proto Ergonomics
+Keyboard-first workflow is now the default: Cmd+Enter sends from anywhere (including CodeMirror), Cmd+O opens the file picker, Cmd+Shift+R clears the form, Cmd+1/2/3 swaps tabs, Cmd+R reloads the loaded `.proto`. Draft persistence per `(filePath, messageType)` survives restart via `drafts.json` with LRU eviction. Recent files (cap 10) and inline include-path management remove file-picker round-trips. Randomize fills empty fields with type-appropriate values; FieldTooltip surfaces proto type/field number/cardinality on hover; SchemaExplorer renders the full pool as a click-to-select tree with cycle-safe recursion. Live-runtime UAT user-approved on the running Tauri app (localhost:1420) on 2026-05-26.
 
 ## Backlog (future milestones)
 
@@ -115,7 +110,8 @@ Block apply is now complete for all field types: WellKnownType (Timestamp, Durat
 - v1.5 shipped 2026-05-23. Distribution pipeline complete: signed notarized macOS releases, Linux AppImage, in-app auto-update with native macOS menu integration. Repository is public.
 - v1.6 shipped 2026-05-24. Plan Runner delivered: named plans with ordered steps, StepFieldEditor (isolated form, auto-save debounce, all field/target/response-mode types), sequential JS runner loop, all three response modes (no-wait / correlation-id / first-arrival) with Rust `execute_step` + `stop_plan` commands, StepReplyView inline decoded replies, PlanReplyFeedTab FIFO-500 shared feed, proto auto-load on plan select. +24,262 / -328 LOC, 50 commits, 5 phases, 15 plans, 176 files changed.
 - v1.7 shipped 2026-05-25. Block apply completed for all complex field types: two-phase `{ buildPlan, commitApply }` ApplyBlockRef architecture; WKT + empty-map fill; batched `BlockApplyConflictDialog` for map-key collisions and oneof conflicts (skip-default, per-row skip/overwrite RadioGroup); Pitfall D fix (`shouldDirty: false` on all block-apply `setValue` calls); history full-text search with AND logic. ~108 commits, 162 files changed, +10,509 / −10,463 lines, 506/506 tests passing.
-- Current release: v1.7.0.
+- v1.8 shipped 2026-05-26. UX polish + proto ergonomics: keyboard-first workflow (Cmd+Enter dual-registered for CodeMirror, Cmd+O / Cmd+Shift+R / Cmd+1/2/3 / Cmd+R), hover-reveal CopyButton on scalar/enum/bytes, Clear + Randomize buttons in FormPanel; proto reload via atomic `reload_proto` DescriptorPool rebuild; recent-files list (cap 10, stale detection via batch `check_paths_exist` IPC) and inline include-path manager with auto-reload; useDraftStore (drafts.json, LRU 50) with 200ms debounced auto-save and isRestoringRef-guarded restore via setPendingReplayValues for map/repeated/oneof round-trip; PublishBar connection quick-switch with plan-run guard; FieldTooltip (proto type / field number / cardinality) on all 8 field components; SchemaExplorer sidebar tree with visited-set + MAX_DEPTH=5 recursion guard, top-level EnumSchema extraction via `pool.all_enums()`. 5 slices, 19 tasks, +16,056 / −120 LOC across 279 files. Live-runtime UAT user-approved on running Tauri app (localhost:1420).
+- Current release: v1.8.0 (planned).
 
 **Known issues / tech debt at v1.7:**
 - No E2E test for cross-restart theme persistence (requires full Tauri app + tauri-plugin-store integration — manual UAT is the check).
@@ -181,6 +177,16 @@ Block apply is now complete for all field types: WellKnownType (Timestamp, Durat
 | `ConflictItem` discriminated union with kind-tag (Phase 26) | Union of plain objects without a kind discriminant causes unsafe field access at runtime | ✓ Good — refactored to proper discriminated union; TypeScript guards `fieldName`, `key`, `blockBranch` access |
 | Conflict rows default to skip (Phase 26) | Prevents accidental data loss if user clicks Apply without reviewing each row | ✓ Good — consistent with principle of least surprise; overwrite is always opt-in |
 | `shouldDirty: false` on all block-apply `setValue` calls / Pitfall D (Phase 26) | Omitting causes block-filled fields to register as user-touched, triggering false conflicts on subsequent drags | ✓ Good — invariant enforced in both Phase A and Phase B; no false conflict triggers |
+| react-hotkeys-hook@^5.3.2 over native `addEventListener` (v1.8 S01) | Integrates with React lifecycle; supports `enableOnFormTags`; avoids boilerplate cleanup | ✓ Good — works in production; jsdom limitation worked around via integration tests dispatching native `KeyboardEvent` |
+| Dual-register Cmd+Enter with `.cm-editor` guard (v1.8 S01) | react-hotkeys-hook does not see events inside CodeMirror's contenteditable; needed both window and editor keymaps | ✓ Good — guard at FormPanel.tsx:161 prevents double-fire; live UAT confirmed Cmd+Enter fires from CodeMirror |
+| Route all form fills through `setPendingReplayValues` (v1.8 S04) | Direct `resetRef.current()` corrupts map/repeated state — only setPendingReplayValues honors the Phase 25 mapReplaceRegistry | ✓ Good — Clear, draft restore, and Randomize all share the same fill path |
+| Dedicated `drafts.json` (not `tap.json`) with LRU cap 50 (v1.8 S03) | Separation of concerns (history.json, blocks.json each own their domain); LRU keeps file size bounded | ✓ Good — restart-cycle UAT user-approved 2026-05-26; drafts.json artifact contains expected complex-field shape |
+| `isRestoringRef` + 300ms guard for bidirectional store ↔ form sync (v1.8 S03) | Without the guard, draft restore triggers debounced save which then races with the next user edit | ✓ Good — heuristic timeout; flagged in summary as needing update if debounce timing changes |
+| Atomic `DescriptorPool` rebuild in `reload_proto` (v1.8 S02) | protox/prost-reflect DescriptorPool is append-only — incremental update not supported | ✓ Good — simple correct approach for a dev tool; reload is fast on small `.proto` sets |
+| `field_number: 0` sentinel for synthetic FieldSchema rows (v1.8 S04) | Synthesized oneof/map renderers have no real proto field number; FieldTooltip omits the line when 0 | ✓ Good — invariant: 0 = synthetic everywhere in the form layer |
+| SchemaExplorer recursion guard: visited-set + MAX_DEPTH=5 (v1.8 S05) | Either alone is insufficient — visited-set misses non-cyclic deep nesting; depth cap misses cycles at shallow depth | ✓ Good — Level0→Level6 test fixture halts cleanly; user-confirmed against recursive proto in live Tauri app |
+| Inline `paddingLeft` instead of dynamic Tailwind classes for tree indentation (v1.8 S05) | Tailwind 4 purges dynamically-computed class names like `pl-${depth*4}` | ✓ Good — surfaced only at prod build; inline style avoids the purge entirely |
+| `title` attribute over Radix Tooltip for small affordances (v1.8 S01) | Radix Tooltip's portal rendering intercepts click events under jsdom, making tests unreliable | ✓ Good — reserved Radix Tooltip for richer FieldTooltip content; title attr handles single-word tooltips |
 
 ## Evolution
 
@@ -196,8 +202,8 @@ This document evolves at phase transitions and milestone boundaries.
 
 ## Current State
 
-v1.7 shipped 2026-05-25. Block apply is now complete for all field types; history full-text search delivered. Ready for next milestone — run `/gsd-new-milestone` to begin.
+v1.8 shipped 2026-05-26. Keyboard-first workflow, draft persistence, proto reload + recent files + include path manager, connection quick-switch, randomizer, field tooltips, and schema explorer all delivered with passing validation and live-runtime UAT user-approval. Ready for next milestone — run `/gsd-new-milestone` to begin.
 
 ---
 
-*Last updated: 2026-05-25 — v1.8 milestone started*
+*Last updated: 2026-05-26 — v1.8 shipped*

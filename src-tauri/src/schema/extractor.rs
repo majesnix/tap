@@ -1,7 +1,7 @@
 use prost_reflect::{DescriptorPool, FieldDescriptor, Kind, MessageDescriptor};
 use std::collections::HashMap;
 
-use super::types::{EnumValue, FieldKind, FieldSchema, MessageSchema, ProtoSchema, ScalarKind};
+use super::types::{EnumSchema, EnumValue, FieldKind, FieldSchema, MessageSchema, ProtoSchema, ScalarKind};
 
 const WELL_KNOWN_TYPES: &[&str] = &[
     "google.protobuf.Timestamp",
@@ -37,9 +37,26 @@ pub fn extract_schema(pool: &DescriptorPool) -> ProtoSchema {
         .map(|m| (m.full_name.clone(), m.clone()))
         .collect();
 
+    let enums: Vec<EnumSchema> = pool
+        .all_enums()
+        .filter(|e| !e.full_name().starts_with("google.protobuf."))
+        .map(|e| EnumSchema {
+            name: e.name().to_string(),
+            full_name: e.full_name().to_string(),
+            values: e
+                .values()
+                .map(|v| EnumValue {
+                    name: v.name().to_string(),
+                    number: v.number(),
+                })
+                .collect(),
+        })
+        .collect();
+
     ProtoSchema {
         messages,
         message_map,
+        enums,
     }
 }
 
@@ -76,6 +93,7 @@ fn extract_message(msg: &MessageDescriptor) -> MessageSchema {
                 fields.push(FieldSchema {
                     name: group_name.clone(),
                     label: to_label(group_name),
+                    field_number: 0,
                     kind: FieldKind::Oneof { branches },
                     repeated: false,
                     oneof_group: None,
@@ -119,6 +137,7 @@ fn extract_field_schema(field: &FieldDescriptor, oneof_group: Option<String>) ->
         return FieldSchema {
             name: field.name().to_string(),
             label: to_label(field.name()),
+            field_number: field.number(),
             kind: FieldKind::Map { key_type, value_kind: Box::new(value_kind) },
             repeated: false, // is_list() returns false for map fields; set explicitly per D-02
             oneof_group,
@@ -132,6 +151,7 @@ fn extract_field_schema(field: &FieldDescriptor, oneof_group: Option<String>) ->
     FieldSchema {
         name: field.name().to_string(),
         label: to_label(field.name()),
+        field_number: field.number(),
         kind,
         repeated,
         oneof_group,

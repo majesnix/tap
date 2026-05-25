@@ -1,0 +1,107 @@
+=== Cargo.toml dependencies ===
+[package]
+name = "tap"
+version = "1.6.1"
+description = "Tap — load .proto files and send protobuf messages to RabbitMQ"
+authors = ["majesnix"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "tauri_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-store = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+protox = "0.9"
+prost-reflect = { version = "0.16", features = ["serde"] }
+tokio = { version = "1", features = ["rt", "time", "sync"] }
+tokio-util = { version = "0.7", features = ["rt"] }
+futures-util = "0.3"
+lapin = { version = "4", features = ["tokio"] }
+uuid = { version = "1", features = ["v4"] }
+percent-encoding = "2"
+tracing = "0.1"
+base64 = "0.22"
+keyring-core = "1"
+reqwest = { version = "0.13", features = ["json", "rustls"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+dbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-native-keyring-store = "1"
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+
+
+=== App.tsx - auto-load / recent files patterns ===
+10:const THEME_STORE_PATH = "tap.json";
+23:    load(THEME_STORE_PATH)
+44:    load(THEME_STORE_PATH)
+
+=== usePlanProtoAutoLoad ===
+import { useEffect } from "react";
+import { load } from "@tauri-apps/plugin-store";
+import { toast } from "sonner";
+import { parseProto } from "@/lib/ipc";
+import { useProtoStore } from "@/stores/useProtoStore";
+import type { PlanStep } from "@/lib/types";
+
+const STORE_PATH = "tap.json";
+const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
+
+/**
+ * When a plan is selected, auto-load any proto files referenced by its steps
+ * that are not already open in the proto store. Uses saved include paths from
+ * tap.json (same key as FileSection: "include_paths:{absoluteFilePath}").
+ *
+ * Falls back to the file's parent directory as include path if none were saved.
+ * Shows a warning toast if a file cannot be loaded (moved/deleted/inaccessible).
+ */
+export function usePlanProtoAutoLoad(steps: PlanStep[]): void {
+  const addFileBackground = useProtoStore((s) => s.addFileBackground);
+
+  useEffect(() => {
+    const missingPaths = [
+      ...new Set(steps.map((s) => s.proto_path).filter(Boolean)),
+    ].filter(
+      (path) =>
+        !useProtoStore.getState().openFiles.some((f) => f.filePath === path)
+    );
+
+    if (missingPaths.length === 0) return;
+
+    void (async () => {
+      const store = await load(STORE_PATH);
+
+      for (const filePath of missingPaths) {
+        try {
+          const savedPaths = await store.get<string[]>(
+            `${INCLUDE_PATH_KEY_PREFIX}${filePath}`
+          );
+
+
+=== fs:allow-exists search ===
+No fs:allow-exists found
+
+=== check_paths_exist or fs::exists in Rust ===

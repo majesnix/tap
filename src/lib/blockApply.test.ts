@@ -8,6 +8,7 @@ function makeScalarField(name: string, scalar: ScalarKind = "string"): FieldSche
   return {
     name,
     label: name,
+    field_number: 1,
     kind: { type: "scalar", scalar },
     repeated: false,
   };
@@ -17,6 +18,7 @@ function makeEnumField(name: string): FieldSchema {
   return {
     name,
     label: name,
+    field_number: 1,
     kind: { type: "enum", values: [{ name: "OK", number: 0 }, { name: "ERR", number: 1 }] },
     repeated: false,
   };
@@ -26,6 +28,7 @@ function makeWktField(name: string, wkt: string = "Timestamp"): FieldSchema {
   return {
     name,
     label: name,
+    field_number: 1,
     kind: { type: "well_known", wkt },
     repeated: false,
   };
@@ -35,6 +38,7 @@ function makeMapField(name: string): FieldSchema {
   return {
     name,
     label: name,
+    field_number: 1,
     kind: {
       type: "map",
       key_type: "string",
@@ -48,6 +52,7 @@ function makeMessageField(name: string): FieldSchema {
   return {
     name,
     label: name,
+    field_number: 1,
     kind: { type: "message", full_name: "com.Nested" },
     repeated: false,
   };
@@ -57,6 +62,7 @@ function makeOneofField(name: string, branchNames: string[]): FieldSchema {
   return {
     name,
     label: name,
+    field_number: 1,
     kind: {
       type: "oneof",
       branches: branchNames.map((b) => [makeScalarField(b)]),

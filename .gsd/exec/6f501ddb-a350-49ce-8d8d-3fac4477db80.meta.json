@@ -1,0 +1,18 @@
+{
+  "id": "6f501ddb-a350-49ce-8d8d-3fac4477db80",
+  "runtime": "bash",
+  "purpose": "Find tauri-plugin-store usage patterns",
+  "script_chars": 314,
+  "started_at": "2026-05-25T20:05:30.106Z",
+  "finished_at": "2026-05-25T20:05:30.132Z",
+  "exit_code": 2,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 26,
+  "stdout_bytes": 16,
+  "stderr_bytes": 88,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/6f501ddb-a350-49ce-8d8d-3fac4477db80.stdout",
+  "stderr_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/6f501ddb-a350-49ce-8d8d-3fac4477db80.stderr"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "b221a687-26f0-4304-b114-b57cdabf66ad",
+  "runtime": "bash",
+  "purpose": "tsc type-check for S03 closeout",
+  "script_chars": 108,
+  "started_at": "2026-05-25T20:28:17.246Z",
+  "finished_at": "2026-05-25T20:28:19.811Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 2565,
+  "stdout_bytes": 7,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/b221a687-26f0-4304-b114-b57cdabf66ad.stdout",
+  "stderr_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/b221a687-26f0-4304-b114-b57cdabf66ad.stderr"
+}

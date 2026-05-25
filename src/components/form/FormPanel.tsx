@@ -1,13 +1,15 @@
 import { useCallback, useRef, useEffect, useState } from "react";
 import { useDroppable, useDndMonitor } from "@dnd-kit/core";
 import { useProtoStore } from "@/stores/useProtoStore";
+import { useDraftStore } from "@/stores/useDraftStore";
 import { encodeMessage } from "@/lib/ipc";
+import { generateRandomValues } from "@/lib/randomizer";
 import { useDebounce } from "@/hooks/useDebounce";
 import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
 import { JsonEditor } from "./JsonEditor";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { Braces, Library } from "lucide-react";
+import { Braces, Dices, Library, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useBlockStore } from "@/stores/useBlockStore";
@@ -24,6 +26,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
+import { useHotkeys } from "react-hotkeys-hook";
+import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 
 /**
  * Converts a byte array to a formatted hex string.
@@ -49,11 +53,16 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     setPendingReplayValues,
   } = useProtoStore();
 
+  const activeFilePath = useProtoStore((s) => s.activeFilePath);
+  const { draftsLoaded, saveDraft, getDraft, clearDraft } = useDraftStore();
+
   const { resolvedTheme } = useTheme();
 
   // latestValues is now in Zustand store (D-07 / advisor Option A)
   const latestValues = useProtoStore((s) => s.latestValues);
   const debouncedValues = useDebounce(latestValues, 200);
+
+  const isRestoringRef = useRef(false);
 
   // resetRef is passed to ProtoFormRenderer so FormPanel can trigger form.reset() for replay (HIST-02)
   const resetRef = useRef<((values: Record<string, unknown>) => void) | null>(
@@ -61,6 +70,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   );
 
   const applyBlockRef = useRef<ApplyBlockRef | null>(null);
+  const getDirtyFieldsRef = useRef<(() => Record<string, boolean>) | null>(null);
 
   // Conflict dialog state (Phase 26 — BLK-EXT-06)
   const [conflictPlan, setConflictPlan] = useState<ApplyPlan | null>(null);
@@ -140,13 +150,66 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     })();
   }, [debouncedValues, selectedMessageType, setHexPreview, setEncoding, setEncodeError]);
 
-  // WR-01: reset JSON mode state when the active message type changes
+  // Draft auto-save: persist form values on debounced change, skip during restore
+  useEffect(() => {
+    if (!draftsLoaded || !activeFilePath || !selectedMessageType || !debouncedValues) return;
+    if (isRestoringRef.current) return;
+    const msg = schema?.message_map[selectedMessageType];
+    if (!msg) return;
+    const defaults = buildDefaultValues(msg);
+    if (JSON.stringify(debouncedValues) === JSON.stringify(defaults)) return;
+    void saveDraft(activeFilePath, selectedMessageType, debouncedValues);
+  }, [debouncedValues, selectedMessageType, activeFilePath, draftsLoaded, schema, saveDraft]);
+
+  const { modSymbol } = usePlatformLabel();
+
+  const handleClear = useCallback(() => {
+    if (!schema || !selectedMessageType) return;
+    const msg = schema.message_map[selectedMessageType];
+    if (!msg) return;
+    if (isJsonMode) setIsJsonMode(false);
+    setPendingReplayValues(buildDefaultValues(msg));
+    if (activeFilePath) {
+      void clearDraft(activeFilePath, selectedMessageType);
+    }
+  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues, activeFilePath, clearDraft]);
+
+  const handleRandomize = useCallback(() => {
+    if (!schema || !selectedMessageType) return;
+    const msg = schema.message_map[selectedMessageType];
+    if (!msg) return;
+    if (isJsonMode) setIsJsonMode(false);
+    const dirtyFields = getDirtyFieldsRef.current?.() ?? {};
+    const randomValues = generateRandomValues(msg, schema.message_map, dirtyFields);
+    setPendingReplayValues(randomValues);
+  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues]);
+
+  useHotkeys("mod+shift+r", (e) => {
+    e.preventDefault();
+    handleClear();
+  }, { enableOnFormTags: true, preventDefault: true });
+
+  useHotkeys("mod+enter", (e) => {
+    if (document.activeElement?.closest(".cm-editor")) return;
+    e.preventDefault();
+    useProtoStore.getState().requestSend();
+  }, { enableOnFormTags: true, preventDefault: true });
+
+  // WR-01: reset JSON mode state when the active message type changes + restore draft
   useEffect(() => {
     setIsJsonMode(false);
     setJsonDraft("");
     setEntrySnapshot(null);
     setParseError(null);
-  }, [selectedMessageType]);
+
+    if (!draftsLoaded || !activeFilePath || !selectedMessageType) return;
+    const draft = getDraft(activeFilePath, selectedMessageType);
+    if (draft) {
+      isRestoringRef.current = true;
+      setPendingReplayValues(draft.values);
+      setTimeout(() => { isRestoringRef.current = false; }, 300);
+    }
+  }, [selectedMessageType, activeFilePath, draftsLoaded, getDraft, setPendingReplayValues]);
 
   // Consume pendingReplayValues: when set by HIST-02, call form.reset() and clear the signal
   // WR-02: also handle replay arriving while in JSON mode — exit JSON mode first so renderer
@@ -381,6 +444,24 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Clear form"
+            title={`Clear form (${modSymbol}+Shift+R)`}
+            onClick={handleClear}
+          >
+            <RotateCcw size={16} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label="Randomize"
+            title="Fill empty fields with random values"
+            onClick={handleRandomize}
+          >
+            <Dices size={16} />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
             aria-label={isJsonMode ? "Return to form" : "Edit as JSON"}
             aria-pressed={isJsonMode}
             title={isJsonMode ? "Return to form" : "Edit as JSON"}
@@ -401,6 +482,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
             parseError={parseError}
             onFixJson={handleFixJson}
             onDiscard={handleDiscard}
+            onSubmit={() => useProtoStore.getState().requestSend()}
           />
         </div>
       ) : (
@@ -414,6 +496,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
               message={message}
               onValuesChange={handleValuesChange}
               resetRef={resetRef}
+              getDirtyFieldsRef={getDirtyFieldsRef}
               applyBlockRef={applyBlockRef}
             />
           </ScrollArea>

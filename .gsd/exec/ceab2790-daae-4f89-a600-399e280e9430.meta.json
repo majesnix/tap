@@ -1,0 +1,18 @@
+{
+  "id": "ceab2790-daae-4f89-a600-399e280e9430",
+  "runtime": "bash",
+  "purpose": "S05 UAT: TypeScript compile check",
+  "script_chars": 93,
+  "started_at": "2026-05-25T21:35:38.868Z",
+  "finished_at": "2026-05-25T21:35:41.739Z",
+  "exit_code": 0,
+  "signal": null,
+  "timed_out": false,
+  "duration_ms": 2871,
+  "stdout_bytes": 128,
+  "stderr_bytes": 0,
+  "stdout_truncated": false,
+  "stderr_truncated": false,
+  "stdout_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/ceab2790-daae-4f89-a600-399e280e9430.stdout",
+  "stderr_path": "/Users/majesnix/.gsd/projects/10bbdb07c38c/worktrees/M001/.gsd/exec/ceab2790-daae-4f89-a600-399e280e9430.stderr"
+}

@@ -84,6 +84,7 @@ vi.mock("@/components/ui/select", () => ({
 const statusField: FieldSchema = {
   name: "status",
   label: "status",
+  field_number: 1,
   kind: {
     type: "enum",
     values: [

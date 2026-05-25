@@ -1,0 +1,4 @@
+rg: regex parse error:
+    (?:tap\.json\|LazyStore\|Store()
+    ^
+error: unclosed group

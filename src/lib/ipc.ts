@@ -8,6 +8,19 @@ export async function parseProto(
   return invoke<ProtoSchema>("parse_proto", { filePath, includePaths });
 }
 
+export async function reloadProto(
+  filePaths: string[],
+  includePaths: string[][]
+): Promise<ProtoSchema> {
+  return invoke<ProtoSchema>("reload_proto", { filePaths, includePaths });
+}
+
+export async function checkPathsExist(
+  paths: string[]
+): Promise<boolean[]> {
+  return invoke<boolean[]>("check_paths_exist", { paths });
+}
+
 export async function encodeMessage(
   messageType: string,
   formValues: unknown

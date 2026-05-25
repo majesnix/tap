@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useHotkeys } from "react-hotkeys-hook";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
 import { Sidebar } from "@/components/sidebar/Sidebar";
 import { FormPanel } from "@/components/form/FormPanel";
-import { RightPanel } from "@/components/layout/RightPanel";
+import { RightPanel, type RightPanelTab } from "@/components/layout/RightPanel";
 import { PublishBar } from "@/components/publish/PublishBar";
 import { BlockLibraryPanel } from "@/components/blocks/BlockLibraryPanel";
 import { useBlockStore } from "@/stores/useBlockStore";
+import { useProtoStore } from "@/stores/useProtoStore";
 
 interface AppLayoutProps {
   viewMode: "main" | "plans";
@@ -18,6 +20,16 @@ export function AppLayout({ viewMode, onViewChange }: AppLayoutProps) {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const blocks = useBlockStore((s) => s.blocks);
   const activeDragBlock = activeDragId ? (blocks.find((b) => b.id === activeDragId) ?? null) : null;
+
+  const requestOpenFile = useProtoStore((s) => s.requestOpenFile);
+  const requestReload = useProtoStore((s) => s.requestReload);
+  const setActiveTabRef = useRef<((tab: RightPanelTab) => void) | null>(null);
+
+  useHotkeys("mod+o", (e) => { e.preventDefault(); requestOpenFile(); }, { enableOnFormTags: true });
+  useHotkeys("mod+r", (e) => { e.preventDefault(); requestReload(); }, { enableOnFormTags: true });
+  useHotkeys("mod+1", (e) => { e.preventDefault(); setActiveTabRef.current?.("hex"); }, { enableOnFormTags: true });
+  useHotkeys("mod+2", (e) => { e.preventDefault(); setActiveTabRef.current?.("history"); }, { enableOnFormTags: true });
+  useHotkeys("mod+3", (e) => { e.preventDefault(); setActiveTabRef.current?.("response"); }, { enableOnFormTags: true });
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -69,7 +81,7 @@ export function AppLayout({ viewMode, onViewChange }: AppLayoutProps) {
 
       {/* Right: hex preview + message history tabs */}
       <aside className="w-80 min-w-64 border-l border-border flex flex-col shrink-0">
-        <RightPanel />
+        <RightPanel setActiveTabRef={setActiveTabRef} />
       </aside>
     </div>
   );

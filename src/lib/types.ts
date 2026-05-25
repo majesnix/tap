@@ -33,6 +33,7 @@ export interface EnumValue {
 export interface FieldSchema {
   name: string;
   label: string;
+  field_number: number;
   kind: FieldKind;
   repeated: boolean;
   oneof_group?: string;
@@ -45,9 +46,16 @@ export interface MessageSchema {
   fields: FieldSchema[];
 }
 
+export interface EnumSchema {
+  name: string;
+  full_name: string;
+  values: EnumValue[];
+}
+
 export interface ProtoSchema {
   messages: MessageSchema[];
   message_map: Record<string, MessageSchema>;
+  enums: EnumSchema[];
 }
 
 /**

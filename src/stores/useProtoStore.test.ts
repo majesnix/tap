@@ -26,6 +26,7 @@ function makeSchema(name: string): ProtoSchema {
         fields: [],
       },
     },
+    enums: [],
   };
 }
 

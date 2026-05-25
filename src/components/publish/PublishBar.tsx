@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Send, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -22,10 +22,12 @@ import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useAmqpStore } from "@/stores/useAmqpStore";
 import { useHistoryStore } from "@/stores/useHistoryStore";
-import { fetchExchanges, fetchQueues, publishMessage, fetchBindings } from "@/lib/ipc";
+import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
+import { fetchExchanges, fetchQueues, publishMessage, fetchBindings, listProfiles, activateProfile } from "@/lib/ipc";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
 import type { PublishOutcome } from "@/lib/types";
+import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 
 type Mode = "queue" | "exchange";
 
@@ -76,17 +78,46 @@ export function PublishBar() {
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const {
+    profiles,
     activeProfileName,
     connectionStatus,
     managementStatus,
     managementAuthError,
     queues,
     exchanges,
+    setProfiles,
+    setActiveProfile,
+    setConnectionStatus,
     setQueues,
     setExchanges,
     setManagementStatus,
     setManagementAuthError,
   } = useConnectionStore();
+
+  useEffect(() => {
+    if (profiles.length === 0) {
+      listProfiles()
+        .then((ps) => setProfiles(ps))
+        .catch(() => {});
+    }
+  }, []);
+
+  const handleQuickSwitch = useCallback(async (name: string) => {
+    if (usePlanExecutionStore.getState().isRunning) {
+      toast.warning("Cannot switch profile while a plan is running");
+      return;
+    }
+    setActiveProfile(name);
+    setConnectionStatus("disconnected");
+    try {
+      await activateProfile(name);
+      setConnectionStatus("connected");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setConnectionStatus("error", message);
+      toast.error(`Connection failed: ${message}`);
+    }
+  }, [setActiveProfile, setConnectionStatus]);
 
   // Phase 9: Derived state for combobox eligibility and hint text
   const selectedExchangeObj = exchanges.find((ex) => ex.name === selectedExchange);
@@ -97,6 +128,8 @@ export function PublishBar() {
     !isHintExchange && managementStatus === "live" && Boolean(selectedExchange);
 
   const { hexPreview, encodeError } = useProtoStore();
+  const sendRequested = useProtoStore((s) => s.sendRequested);
+  const { modSymbol } = usePlatformLabel();
 
   // Fetch queues or exchanges on mount and whenever profile or mode changes.
   // Implements 401 discrimination: auth failure → destructive badge, NOT silent Manual fallback.
@@ -192,7 +225,14 @@ export function PublishBar() {
   const hasTarget = mode === "queue" ? Boolean(selectedQueue) : Boolean(selectedExchange);
   const canSend = isConnected && hasTarget && !encodeError;
 
-  const handleSend = async () => {
+  const handleSendRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    if (sendRequested === 0) return;
+    handleSendRef.current();
+  }, [sendRequested]);
+
+  const handleSend = useCallback(async () => {
     if (!activeProfileName || !canSend) return;
 
     const targetName = mode === "queue" ? selectedQueue : selectedExchange;
@@ -294,10 +334,41 @@ export function PublishBar() {
     } finally {
       setIsSending(false);
     }
-  };
+  }, [activeProfileName, canSend, hexPreview, mode, selectedQueue, selectedExchange, routingKey]);
+
+  handleSendRef.current = handleSend;
 
   return (
     <div className="flex items-center gap-4 flex-wrap bg-card border-b border-border px-4 py-2">
+      {/* Connection quick-switch dropdown (R017) */}
+      <div className="flex items-center gap-1.5">
+        <span
+          className={`w-2 h-2 rounded-full shrink-0 ${
+            connectionStatus === "connected"
+              ? "bg-emerald-500"
+              : connectionStatus === "error"
+                ? "bg-red-500"
+                : "bg-amber-500"
+          }`}
+        />
+        <Select
+          value={activeProfileName ?? ""}
+          onValueChange={handleQuickSwitch}
+          disabled={profiles.length <= 1}
+        >
+          <SelectTrigger className="w-36 h-7 text-xs">
+            <SelectValue placeholder="No profile" />
+          </SelectTrigger>
+          <SelectContent position="popper" className="max-h-60">
+            {profiles.map((p) => (
+              <SelectItem key={p.name} value={p.name}>
+                {p.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Mode toggle: Queue | Exchange */}
       <RadioGroup
         value={mode}
@@ -487,18 +558,25 @@ export function PublishBar() {
 
       {/* Send button — disabled with tooltip when no active connection */}
       {isConnected ? (
-        <Button
-          variant="default"
-          disabled={!canSend || isSending}
-          onClick={handleSend}
-        >
-          {isSending ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4 mr-2" />
-          )}
-          Send
-        </Button>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="default"
+                disabled={!canSend || isSending}
+                onClick={handleSend}
+              >
+                {isSending ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4 mr-2" />
+                )}
+                Send
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{modSymbol}+Enter</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       ) : (
         <TooltipProvider>
           <Tooltip>

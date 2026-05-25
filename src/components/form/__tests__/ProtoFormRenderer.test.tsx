@@ -40,6 +40,7 @@ test("renders depth cap placeholder when MAX_DEPTH is exceeded", () => {
       {
         name: "value",
         label: "value",
+        field_number: 1,
         kind: { type: "scalar", scalar: "string" },
         repeated: false,
       },
@@ -81,7 +82,7 @@ describe('applyBlockRef', () => {
   test('applyBlockRef.current is set after ProtoFormRenderer mounts', async () => {
     // Arrange
     const applyBlockRef = { current: null as ApplyBlockRef | null };
-    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
+    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', field_number: 1, kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
     // Act
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     // Assert
@@ -93,7 +94,7 @@ describe('applyBlockRef', () => {
   test('buildPlan + commitApply fills a non-dirty scalar field; skipped is empty', async () => {
     // Arrange
     const applyBlockRef = { current: null as ApplyBlockRef | null };
-    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
+    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', field_number: 1, kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     await waitFor(() => expect(applyBlockRef.current).not.toBeNull());
     const blockValues = { value: 'hello' };
@@ -109,7 +110,7 @@ describe('applyBlockRef', () => {
   test('buildPlan produces skipped list when block key has no matching field', async () => {
     // Arrange
     const applyBlockRef = { current: null as ApplyBlockRef | null };
-    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
+    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', field_number: 1, kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     await waitFor(() => expect(applyBlockRef.current).not.toBeNull());
     const blockValues = { unknown_key: 'foo' };
@@ -126,7 +127,7 @@ describe('applyBlockRef', () => {
   test('buildPlan skips message-kind field (deprecated per BLK-EXT-FUTURE-02)', async () => {
     // Arrange: 'message' kind is no longer eligible — block keys for message fields go to skipped
     const applyBlockRef = { current: null as ApplyBlockRef | null };
-    const msg = makeMessage({ fields: [{ name: 'nested', label: 'nested', kind: { type: 'message', full_name: 'Other' }, repeated: false }] });
+    const msg = makeMessage({ fields: [{ name: 'nested', label: 'nested', field_number: 2, kind: { type: 'message', full_name: 'Other' }, repeated: false }] });
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     await waitFor(() => expect(applyBlockRef.current).not.toBeNull());
     const blockValues = { nested: { foo: 'bar' } };
@@ -144,7 +145,7 @@ describe('applyBlockRef', () => {
   test('buildPlan includes repeated scalar field in toApply (eligible by kind)', async () => {
     // Arrange: repeated scalar fields have kind.type === 'scalar' — eligible
     const applyBlockRef = { current: null as ApplyBlockRef | null };
-    const msg = makeMessage({ fields: [{ name: 'tags', label: 'tags', kind: { type: 'scalar', scalar: 'string' }, repeated: true }] });
+    const msg = makeMessage({ fields: [{ name: 'tags', label: 'tags', field_number: 1, kind: { type: 'scalar', scalar: 'string' }, repeated: true }] });
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     await waitFor(() => expect(applyBlockRef.current).not.toBeNull());
     const blockValues = { tags: ['a', 'b'] };
@@ -159,7 +160,7 @@ describe('applyBlockRef', () => {
   test('buildPlan excludes dirty field from toApply (dirty guard, BLK-07)', async () => {
     // Arrange
     const applyBlockRef = { current: null as ApplyBlockRef | null };
-    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
+    const msg = makeMessage({ fields: [{ name: 'value', label: 'value', field_number: 1, kind: { type: 'scalar', scalar: 'string' }, repeated: false }] });
     render(<ProtoFormRenderer message={msg} onValuesChange={() => undefined} applyBlockRef={applyBlockRef} />);
     await waitFor(() => expect(applyBlockRef.current).not.toBeNull());
     // Make the field dirty by typing a value via the input

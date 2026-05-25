@@ -1,10 +1,12 @@
-import { Controller, useFormContext } from "react-hook-form";
+import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import type { FieldSchema, ScalarKind } from "@/lib/types";
+import { CopyButton } from "./CopyButton";
+import { FieldTooltip } from "./FieldTooltip";
 
 interface ScalarFieldProps {
   field: FieldSchema;
@@ -107,6 +109,7 @@ function getFallbackDefault(inputType: "text" | "number" | "checkbox"): unknown 
  */
 export function ScalarField({ field, path }: ScalarFieldProps) {
   const { control } = useFormContext();
+  const watchedValue = useWatch({ control, name: path });
 
   if (field.kind.type !== "scalar") return null;
 
@@ -128,18 +131,21 @@ export function ScalarField({ field, path }: ScalarFieldProps) {
   };
 
   return (
-    <div className="flex flex-col gap-1 mb-3">
+    <div className="flex flex-col gap-1 mb-3 group">
       {/* Label row with scalar type badge */}
       <div className="flex items-center gap-2">
-        <Label
-          className="text-xs font-semibold text-foreground"
-          htmlFor={path}
-        >
-          {field.label}
-        </Label>
+        <FieldTooltip field={field}>
+          <Label
+            className="text-xs font-semibold text-foreground"
+            htmlFor={path}
+          >
+            {field.label}
+          </Label>
+        </FieldTooltip>
         <Badge variant="outline" className="text-xs px-1.5 py-0 w-fit">
           {scalar}
         </Badge>
+        <CopyButton value={String(watchedValue ?? "")} />
       </div>
 
       {/* Single Controller wraps both the input and the error display */}
