@@ -3,6 +3,7 @@ import {
   filterHistoryEntries,
   findReplayTabIndex,
   collectFieldNames,
+  collectSearchTokens,
 } from "./historyHelpers";
 import type { HistoryEntry } from "@/stores/useHistoryStore";
 import type { ProtoSchema } from "@/lib/types";
@@ -226,6 +227,54 @@ describe("filterHistoryEntries", () => {
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("arr");
   });
+
+  // ── searchQuery value matching (WR-02 fix) ───────────────────────────────────
+
+  it("searchQuery matches a top-level fieldValues VALUE (WR-02)", () => {
+    const entriesWithValues = [
+      makeEntry({ id: "v1", fieldValues: { orderId: "ORD-001", amount: 99.99 } }),
+      makeEntry({ id: "v2", fieldValues: { orderId: "ORD-002" } }),
+    ];
+    const result = filterHistoryEntries(entriesWithValues, "", "", "ORD-001");
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("v1");
+  });
+
+  it("searchQuery matches a numeric fieldValues VALUE (WR-02)", () => {
+    const entriesWithNumbers = [
+      makeEntry({ id: "n1", fieldValues: { amount: 99.99 } }),
+      makeEntry({ id: "n2", fieldValues: { amount: 50 } }),
+    ];
+    const result = filterHistoryEntries(entriesWithNumbers, "", "", "99.99");
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("n1");
+  });
+
+  it("searchQuery matches a nested fieldValues VALUE via recursion (WR-02)", () => {
+    const entriesWithNestedValues = [
+      makeEntry({
+        id: "nv1",
+        fieldValues: { address: { city: "Berlin" } as unknown },
+      }),
+      makeEntry({ id: "nv2", fieldValues: { address: { city: "Munich" } as unknown } }),
+    ];
+    const result = filterHistoryEntries(entriesWithNestedValues, "", "", "berlin");
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("nv1");
+  });
+
+  it("searchQuery matches a primitive value inside an array element (WR-02)", () => {
+    const entriesWithArrayValues = [
+      makeEntry({
+        id: "av1",
+        fieldValues: { tags: ["urgent", "billing"] as unknown },
+      }),
+      makeEntry({ id: "av2", fieldValues: { tags: ["normal"] as unknown } }),
+    ];
+    const result = filterHistoryEntries(entriesWithArrayValues, "", "", "urgent");
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe("av1");
+  });
 });
 
 // ── findReplayTabIndex ────────────────────────────────────────────────────────
@@ -267,6 +316,67 @@ describe("findReplayTabIndex", () => {
     ];
     const result = findReplayTabIndex(openFiles, "com.example.Foo");
     expect(result).toBe(0);
+  });
+});
+
+// ── collectSearchTokens ───────────────────────────────────────────────────────
+
+describe("collectSearchTokens", () => {
+  it("returns both keys and string values from a flat object", () => {
+    const result = collectSearchTokens({ orderId: "ORD-001" });
+    expect(result).toContain("orderId");
+    expect(result).toContain("ORD-001");
+  });
+
+  it("returns both keys and numeric values (as strings)", () => {
+    const result = collectSearchTokens({ amount: 99.99 });
+    expect(result).toContain("amount");
+    expect(result).toContain("99.99");
+  });
+
+  it("returns both keys and boolean values (as strings)", () => {
+    const result = collectSearchTokens({ active: true });
+    expect(result).toContain("active");
+    expect(result).toContain("true");
+  });
+
+  it("recurses into nested objects and collects nested keys and values", () => {
+    const result = collectSearchTokens({ address: { city: "Berlin" } as unknown });
+    expect(result).toContain("address");
+    expect(result).toContain("city");
+    expect(result).toContain("Berlin");
+  });
+
+  it("collects primitive values from array elements", () => {
+    const result = collectSearchTokens({ tags: ["urgent", "billing"] as unknown });
+    expect(result).toContain("tags");
+    expect(result).toContain("urgent");
+    expect(result).toContain("billing");
+  });
+
+  it("recurses into array elements that are objects", () => {
+    const result = collectSearchTokens({
+      items: [{ name: "Widget", price: 10 }] as unknown,
+    });
+    expect(result).toContain("items");
+    expect(result).toContain("name");
+    expect(result).toContain("Widget");
+    expect(result).toContain("price");
+    expect(result).toContain("10");
+  });
+
+  it("excludes the _selected key and its value", () => {
+    const result = collectSearchTokens({ _selected: "branchA", fieldA: "x" });
+    expect(result).not.toContain("_selected");
+    expect(result).not.toContain("branchA");
+    expect(result).toContain("fieldA");
+    expect(result).toContain("x");
+  });
+
+  it("handles null values without throwing and includes the key", () => {
+    expect(() => collectSearchTokens({ a: null as unknown })).not.toThrow();
+    const result = collectSearchTokens({ a: null as unknown });
+    expect(result).toContain("a");
   });
 });
 

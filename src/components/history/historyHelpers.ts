@@ -27,6 +27,37 @@ export function collectFieldNames(obj: Record<string, unknown>): string[] {
 }
 
 /**
+ * Recursively collects both field name keys AND primitive values from a fieldValues record.
+ * Extends collectFieldNames by also including string/number/boolean values in the search corpus.
+ * This enables full-text search — a user can query a known field value (e.g. "ORD-001") in
+ * addition to field names.
+ *
+ * Excludes the `_selected` discriminator key and its value.
+ * Recurses into nested objects and array elements that are objects.
+ */
+export function collectSearchTokens(obj: Record<string, unknown>): string[] {
+  const tokens: string[] = [];
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === "_selected") continue;
+    tokens.push(key);
+    if (value !== null && !Array.isArray(value) && typeof value === "object") {
+      tokens.push(...collectSearchTokens(value as Record<string, unknown>));
+    } else if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item !== null && typeof item === "object" && !Array.isArray(item)) {
+          tokens.push(...collectSearchTokens(item as Record<string, unknown>));
+        } else if (item !== null && typeof item !== "object") {
+          tokens.push(String(item));
+        }
+      }
+    } else if (value !== null && typeof value !== "object") {
+      tokens.push(String(value));
+    }
+  }
+  return tokens;
+}
+
+/**
  * Pure filter function for history entries.
  * Used by MessageHistoryPanel.filteredEntries via useMemo.
  *
@@ -59,8 +90,8 @@ export function filterHistoryEntries(
       if (e.messageTypeName.toLowerCase().includes(q)) return true;
       if (e.exchange.toLowerCase().includes(q)) return true;
       if (e.routingKey.toLowerCase().includes(q)) return true;
-      const fieldNames = collectFieldNames(e.fieldValues);
-      return fieldNames.some((name) => name.toLowerCase().includes(q));
+      const tokens = collectSearchTokens(e.fieldValues);
+      return tokens.some((token) => token.toLowerCase().includes(q));
     });
 }
 
