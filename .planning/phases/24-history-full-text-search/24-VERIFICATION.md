@@ -1,7 +1,7 @@
 ---
 phase: 24-history-full-text-search
 verified: 2026-05-25T11:50:00Z
-status: human_needed
+status: complete
 score: 6/6 roadmap success criteria verified
 overrides_applied: 0
 human_verification:
@@ -23,7 +23,7 @@ human_verification:
 
 **Phase Goal:** Users can search across history entries by typing a query that matches message type name, queue/exchange target, or field names — in addition to the existing type and target filter controls
 **Verified:** 2026-05-25T11:50:00Z
-**Status:** human_needed
+**Status:** complete
 **Re-verification:** No — initial verification
 
 ## Goal Achievement

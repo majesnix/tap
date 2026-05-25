@@ -63,6 +63,7 @@ Send a real protobuf message to RabbitMQ in under 30 seconds from a raw `.proto`
 - ✓ Plan runner — sequential JS runner loop, all three response modes (no-wait / correlation-id / first-arrival), run controls (Run / Stop), live step status badges, new Rust commands (execute_plan_step, stop_plan) — v1.6 (Phase 22)
 - ✓ Response view — decoded protobuf reply shown inline per step (StepReplyView), shared scrollable Reply Feed tab (PlanReplyFeedTab, FIFO-500), reply dot indicator on step rows, ms-precision timestamps — v1.6 (Phase 23)
 - ✓ Proto auto-load — plans remember their proto paths; selecting a plan silently re-opens any .proto files not already loaded, using saved include paths — v1.6 (Phase 23 bonus)
+- ✓ History full-text search — search input above type/target filters, case-insensitive substring match on message type name, queue/exchange target, and `fieldValues` key names (`_selected` excluded); AND logic with existing filters; "X of Y / 100" count label — v1.7 (Phase 24)
 
 ## Current Milestone: v1.7 Block Apply Completeness + History Search
 

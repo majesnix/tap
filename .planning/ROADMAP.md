@@ -506,17 +506,17 @@ See [milestones/v1.6-REQUIREMENTS.md](milestones/v1.6-REQUIREMENTS.md) for full 
 - Mapped: 23/23 ✓
 - Delivered: 23/23 ✓
 
-**v1.7 Block Apply Completeness + History Search — 0/14 requirements delivered**
+**v1.7 Block Apply Completeness + History Search — 7/14 requirements delivered**
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| HIST-FT-01 | Phase 24 | Pending |
-| HIST-FT-02 | Phase 24 | Pending |
-| HIST-FT-03 | Phase 24 | Pending |
-| HIST-FT-04 | Phase 24 | Pending |
-| HIST-FT-05 | Phase 24 | Pending |
-| HIST-FT-06 | Phase 24 | Pending |
-| HIST-FT-07 | Phase 24 | Pending |
+| HIST-FT-01 | Phase 24 | Shipped |
+| HIST-FT-02 | Phase 24 | Shipped |
+| HIST-FT-03 | Phase 24 | Shipped |
+| HIST-FT-04 | Phase 24 | Shipped |
+| HIST-FT-05 | Phase 24 | Shipped |
+| HIST-FT-06 | Phase 24 | Shipped |
+| HIST-FT-07 | Phase 24 | Shipped |
 | BLK-EXT-01 | Phase 25 | Pending |
 | BLK-EXT-02 | Phase 25 | Pending |
 | BLK-EXT-07 | Phase 25 | Pending |

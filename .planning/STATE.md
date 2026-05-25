@@ -7,10 +7,10 @@ last_updated: 2026-05-25T09:56:04.082Z
 last_activity: 2026-05-25 -- Phase 24 execution started
 progress:
   total_phases: 11
-  completed_phases: 0
-  total_plans: 2
-  completed_plans: 9
-  percent: 0
+  completed_phases: 1
+  total_plans: 3
+  completed_plans: 11
+  percent: 33
 stopped_at: Phase 24 complete (2/2) — ready to discuss Phase 25
 ---
 
@@ -33,13 +33,13 @@ Last activity: 2026-05-25
 ## Progress
 
 ```
-v1.7 milestone: [░░░░░░░░░░░░░░░░░░░░] 0% (0/3 phases)
+v1.7 milestone: [██████░░░░░░░░░░░░░░] 33% (1/3 phases)
 ```
 
 ## Performance Metrics
 
-- Phases complete: 0/3
-- Plans complete: 0/TBD
+- Phases complete: 1/3
+- Plans complete: 2/2 (Phase 24)
 
 ## Accumulated Context
 
@@ -51,13 +51,12 @@ None yet for v1.7.
 
 - **Pitfall A — Oneof branch registration race (CRITICAL for Phase 26):** Setting `_selected` then the branch field separately triggers OneofField's unregister effect mid-write. Prevention: set the entire oneof atomically — `setValue(key, { _selected: branchName, [branchName]: branchValue }, { shouldDirty: false })`.
 - **Pitfall B — Map useFieldArray: setValue vs replace() (VERIFY in Phase 25):** ARCHITECTURE.md section 1.4 claims `setValue(mapKey, arrayOfPairs)` refreshes useFieldArray rows; Pitfall #21 documents the opposite. Empirically verify at Phase 25 implementation start before finalizing the commit implementation.
-- **Pitfall C — `_selected` in field names search (Phase 24):** Per REQUIREMENTS.md HIST-FT-04, `_selected` discriminator keys are excluded from field name matching.
 - **Pitfall D — shouldDirty: false on all block apply setValue calls (Phases 25–26):** Omitting this can register block-filled fields as user-touched, causing false conflicts on the next drag.
 - **Pitfall E — Conflict dialog default state (Phase 26):** Each conflict row must default to skip (not overwrite) to prevent accidental data loss.
 
 ### Todos
 
-- [ ] Plan Phase 24: History Full-Text Search
+- [x] Phase 24: History Full-Text Search — complete (4/4 UAT passed 2026-05-25)
 - [ ] Plan Phase 25: Block Apply — WKT + Map Empty Case
 - [ ] Plan Phase 26: Block Apply — Conflict Prompt + Oneof
 
@@ -67,7 +66,11 @@ None.
 
 ## Session Continuity
 
+Last session: 2026-05-25
+Stopped at: Phase 24 complete (4/4 UAT passed), Phase 25 ready to plan
+Resume file: None
+
 - v1.7 roadmap created 2026-05-25
-- 3 phases defined: 24 (history search), 25 (WKT + empty map), 26 (conflict dialog + oneof)
-- 14/14 requirements mapped
-- Next action: `/gsd-plan-phase 24`
+- 3 phases defined: 24 (history search ✓), 25 (WKT + empty map), 26 (conflict dialog + oneof)
+- 14/14 requirements mapped; 7/14 delivered (HIST-FT-01 through HIST-FT-07)
+- Next action: `/gsd-discuss-phase 25` or `/gsd-plan-phase 25`
