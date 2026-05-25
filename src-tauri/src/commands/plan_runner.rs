@@ -182,7 +182,7 @@ pub async fn execute_step(
                     )),
                 });
             }
-            if let Err(e) = compile_and_merge_proto(&step.proto_path, &*pool_state) {
+            if let Err(e) = compile_and_merge_proto(&step.proto_path, &pool_state) {
                 return Ok(StepResult {
                     step_id: step.id,
                     status: "error".into(),
@@ -514,7 +514,7 @@ fn compile_and_merge_proto(
         if joined.is_empty() { sep.to_string() } else { joined }
     };
 
-    let mut compiler = protox::Compiler::new(&[parent_dir.as_str()])
+    let mut compiler = protox::Compiler::new([parent_dir.as_str()])
         .map_err(|e| AppError::ParseError(e.to_string()))?;
     compiler.include_imports(true);
     compiler
