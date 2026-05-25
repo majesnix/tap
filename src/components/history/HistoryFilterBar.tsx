@@ -21,6 +21,7 @@ export function HistoryFilterBar({
     <div className="flex flex-col">
       <div className="px-3 pt-2 pb-0 border-b border-border">
         <Input
+          aria-label="Full-text search"
           placeholder="Search…"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
