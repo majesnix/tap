@@ -5,8 +5,8 @@ interface HistoryFilterBarProps {
   targetFilter: string;
   onTypeChange: (query: string) => void;
   onTargetChange: (query: string) => void;
-  searchQuery?: string;
-  onSearchChange?: (query: string) => void;
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
 }
 
 export function HistoryFilterBar({
@@ -14,8 +14,8 @@ export function HistoryFilterBar({
   targetFilter,
   onTypeChange,
   onTargetChange,
-  searchQuery = "",
-  onSearchChange = () => {},
+  searchQuery,
+  onSearchChange,
 }: HistoryFilterBarProps) {
   return (
     <div className="flex flex-col">
