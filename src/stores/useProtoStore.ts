@@ -29,6 +29,7 @@ interface ProtoStore {
   lastSendAt: number | null;
   pendingReplayValues: Record<string, unknown> | null;
   sendRequested: number;
+  openFileRequested: number;
 
   // Actions
   addOrActivateFile: (filePath: string, schema: ProtoSchema) => void;
@@ -45,6 +46,7 @@ interface ProtoStore {
   setLastSendAt: (ts: number | null) => void;
   setPendingReplayValues: (values: Record<string, unknown> | null) => void;
   requestSend: () => void;
+  requestOpenFile: () => void;
 
   reset: () => void;
 }
@@ -62,6 +64,7 @@ const INITIAL_STATE = {
   lastSendAt: null as number | null,
   pendingReplayValues: null as Record<string, unknown> | null,
   sendRequested: 0,
+  openFileRequested: 0,
 };
 
 export const useProtoStore = create<ProtoStore>((set) => ({
@@ -178,6 +181,8 @@ export const useProtoStore = create<ProtoStore>((set) => ({
   setPendingReplayValues: (values) => set({ pendingReplayValues: values }),
 
   requestSend: () => set((s) => ({ sendRequested: s.sendRequested + 1 })),
+
+  requestOpenFile: () => set((s) => ({ openFileRequested: s.openFileRequested + 1 })),
 
   reset: () => set({ ...INITIAL_STATE }),
 }));

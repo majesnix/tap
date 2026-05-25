@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { load } from "@tauri-apps/plugin-store";
 import { X } from "lucide-react";
@@ -31,6 +31,16 @@ export function FileSection() {
   const addOrActivateFile = useProtoStore((s) => s.addOrActivateFile);
   const closeFile = useProtoStore((s) => s.closeFile);
   const setActiveIndex = useProtoStore((s) => s.setActiveIndex);
+
+  const openFileRequested = useProtoStore((s) => s.openFileRequested);
+  const openFileRequestedRef = useRef(openFileRequested);
+
+  useEffect(() => {
+    if (openFileRequested > 0 && openFileRequested !== openFileRequestedRef.current) {
+      openFileRequestedRef.current = openFileRequested;
+      handleOpenFile();
+    }
+  }, [openFileRequested]);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pendingFilePath, setPendingFilePath] = useState<string | null>(null);

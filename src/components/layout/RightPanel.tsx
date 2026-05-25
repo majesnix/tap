@@ -5,10 +5,25 @@ import { MessageHistoryPanel } from "@/components/history/MessageHistoryPanel";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { MessageFeedTab } from "@/components/response/MessageFeedTab";
+import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 
-export function RightPanel() {
+export type RightPanelTab = "hex" | "history" | "response";
+
+interface RightPanelProps {
+  setActiveTabRef?: React.MutableRefObject<((tab: RightPanelTab) => void) | null>;
+}
+
+export function RightPanel({ setActiveTabRef }: RightPanelProps) {
+  const { modSymbol } = usePlatformLabel();
   // CRITICAL (Pitfall 6): activeTab MUST be local state, NOT in the global store.
-  const [activeTab, setActiveTab] = useState<"hex" | "history" | "response">("hex");
+  const [activeTab, setActiveTab] = useState<RightPanelTab>("hex");
+
+  useEffect(() => {
+    if (setActiveTabRef) {
+      setActiveTabRef.current = setActiveTab;
+      return () => { setActiveTabRef.current = null; };
+    }
+  }, [setActiveTabRef]);
 
   const lastSendAt = useProtoStore((s) => s.lastSendAt);
   const pendingReplayValues = useProtoStore((s) => s.pendingReplayValues);
@@ -52,17 +67,17 @@ export function RightPanel() {
   return (
     <Tabs
       value={activeTab}
-      onValueChange={(v) => setActiveTab(v as "hex" | "history" | "response")}
+      onValueChange={(v) => setActiveTab(v as RightPanelTab)}
       className="flex flex-col h-full"
     >
       <TabsList className="w-full rounded-none border-b border-border justify-start px-2">
-        <TabsTrigger value="hex" className="text-xs">
+        <TabsTrigger value="hex" className="text-xs" title={`${modSymbol}1`}>
           Hex
         </TabsTrigger>
-        <TabsTrigger value="history" className="text-xs">
+        <TabsTrigger value="history" className="text-xs" title={`${modSymbol}2`}>
           History
         </TabsTrigger>
-        <TabsTrigger value="response" className="text-xs">
+        <TabsTrigger value="response" className="text-xs" title={`${modSymbol}3`}>
           Response
         </TabsTrigger>
       </TabsList>
