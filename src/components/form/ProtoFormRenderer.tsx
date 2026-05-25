@@ -1,6 +1,8 @@
 import { FormProvider, useForm, useWatch } from "react-hook-form";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { FieldSchema, MessageSchema, RenderFieldFn } from "@/lib/types";
+import { buildApplyPlan } from "@/lib/blockApply";
+import type { ApplyBlockRef } from "@/lib/blockApply";
 import { ScalarField } from "./fields/ScalarField";
 import { NestedMessageField } from "./fields/NestedMessageField";
 import { RepeatedField } from "./fields/RepeatedField";
@@ -26,18 +28,16 @@ interface ProtoFormRendererProps {
     ((values: Record<string, unknown>) => void) | null
   >;
   /**
-   * Optional ref that will be populated with a function to apply block values
-   * to unfilled form fields. FormPanel uses this to merge a block on drop.
-   * Returns the array of block key names that were skipped (no matching eligible field).
+   * Optional ref populated with a two-phase { buildPlan, commitApply } object (D-01).
+   * FormPanel calls `buildPlan(blockValues)` to get an ApplyPlan, then
+   * `commitApply(plan)` to write eligible field values to the form.
    *
-   * Eligibility: top-level scalar or enum fields only (not repeated, not message/map/oneof/well_known).
+   * Eligibility: top-level scalar, enum, well_known, and map fields (BLK-EXT-01/02).
    * Protection: fields where formState.dirtyFields[key] is truthy are not overwritten (BLK-07).
-   * Note: uses dirtyFields per D-03 (value-based semantics). A field typed back to its default
-   * is NOT protected. For interaction-history semantics, use formState.touchedFields instead.
+   * Map fields: applied only when the current form value is empty ([] or null); non-empty
+   * maps are silently skipped in Phase 25 — Phase 26 adds conflict resolution.
    */
-  applyBlockRef?: React.MutableRefObject<
-    ((blockValues: Record<string, unknown>) => string[]) | null
-  >;
+  applyBlockRef?: React.MutableRefObject<ApplyBlockRef | null>;
 }
 
 /**
@@ -117,6 +117,19 @@ export function ProtoFormRenderer({
     mode: "onBlur",
   });
 
+  // Registry keyed by full field path string; value is MapField's replace fn (or null after unmount).
+  // Used by commitApply to replace map rows when block fill targets an empty map field (D-05).
+  const mapReplaceRegistry = useRef<Record<string, ((rows: unknown[]) => void) | null>>({});
+
+  // Stable callback passed as onRegisterReplace prop to MapField instances.
+  // useCallback with empty deps: mapReplaceRegistry ref object identity never changes (Pitfall 5).
+  const handleRegisterReplace = useCallback(
+    (path: string, fn: ((rows: unknown[]) => void) | null) => {
+      mapReplaceRegistry.current[path] = fn;
+    },
+    [] // stable: mapReplaceRegistry.current is mutated in place, no reference change
+  );
+
   const watchedValues = useWatch({ control: methods.control });
 
   useEffect(() => {
@@ -144,34 +157,35 @@ export function ProtoFormRenderer({
     };
   }, [resetRef, methods]);
 
-  // Wire up applyBlockRef so FormPanel can call applyBlock() on drop (BLK-06/BLK-07).
+  // Wire up applyBlockRef with the two-phase { buildPlan, commitApply } object (D-01, BLK-EXT-07).
   // Dependency array [applyBlockRef, methods, message] — message.fields drives the eligible set.
   useEffect(() => {
     if (applyBlockRef) {
-      applyBlockRef.current = (blockValues: Record<string, unknown>): string[] => {
-        const skipped: string[] = [];
-        const eligibleFields = new Set(
-          message.fields
-            .filter(f =>
-              f.kind.type === 'scalar' ||
-              f.kind.type === 'enum' ||
-              f.kind.type === 'message'
-            )
-            .map(f => f.name)
-        );
-        for (const [key, value] of Object.entries(blockValues)) {
-          if (!eligibleFields.has(key)) {
-            skipped.push(key);
-          } else if (methods.formState.dirtyFields[key]) {
-            // Field is dirty (user has edited it) — do not overwrite. Not added to skipped
-            // because this is intentional protection, not a missing-field warning (BLK-08).
-          } else {
-            methods.setValue(key, value as Parameters<typeof methods.setValue>[1]);
-            // shouldDirty defaults to false — block-filled fields remain non-dirty so a
-            // subsequent block drop can still fill them (Pitfall 3 in RESEARCH.md).
+      applyBlockRef.current = {
+        buildPlan: (blockValues: Record<string, unknown>) =>
+          buildApplyPlan(
+            message.fields,
+            methods.getValues(),
+            methods.formState.dirtyFields as Partial<Record<string, unknown>>,
+            blockValues
+          ),
+        commitApply: (plan) => {
+          for (const item of plan.toApply) {
+            if (item.kind === "map") {
+              // Map fields: call the registered replace fn (D-05).
+              // replace() marks the field dirty — a second block drag will skip it.
+              // This is accepted Phase 25 behavior: a block-filled map is "user-owned".
+              mapReplaceRegistry.current[item.fieldName]?.(item.value as unknown[]);
+            } else {
+              // Scalar / enum / well_known: setValue without shouldDirty so block-filled
+              // fields stay non-dirty and remain eligible on the next drag (Pitfall 3).
+              methods.setValue(
+                item.fieldName,
+                item.value as Parameters<typeof methods.setValue>[1]
+              );
+            }
           }
-        }
-        return skipped;
+        },
       };
     }
     return () => {
@@ -210,6 +224,7 @@ export function ProtoFormRenderer({
           path={path}
           depth={depth}
           renderValue={renderField}
+          onRegisterReplace={handleRegisterReplace}
         />
       );
     }
