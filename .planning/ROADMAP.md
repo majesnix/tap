@@ -371,7 +371,7 @@ Plans:
 
 **Wave 1**
 
-- [ ] 26-01-PLAN.md — buildApplyPlan oneof support + map key collision detection + ConflictItemKind/ConflictChoices types (TDD)
+- [x] 26-01-PLAN.md — buildApplyPlan oneof support + map key collision detection + ConflictItemKind/ConflictChoices types (TDD)
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -410,7 +410,7 @@ Plans:
 | 23. Response View — Inline and Shared Feed | v1.6 | 3/3 | Complete | 2026-05-24 |
 | 24. History Full-Text Search | v1.7 | 2/2 | Complete    | 2026-05-25 |
 | 25. Block Apply — WKT + Map Empty Case | v1.7 | 2/2 | Complete    | 2026-05-25 |
-| 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 0/2 | Not started | - |
+| 26. Block Apply — Conflict Prompt + Oneof | v1.7 | 1/2 | In Progress|  |
 
 ---
 
