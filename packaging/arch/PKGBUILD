@@ -1,6 +1,6 @@
 # Maintainer: majesnix <claude@electronicintelligence.de>
 pkgname=tap
-pkgver=1.8.1
+pkgver=1.8.2
 pkgrel=1
 pkgdesc="Send protobuf messages to RabbitMQ from a generated form — load any .proto, no code"
 arch=('x86_64')
