@@ -1,3 +1,3 @@
 # Queue
 
-- No queued milestones.
+- 🔄 **M002: Release v1.8.0**
