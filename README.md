@@ -66,6 +66,29 @@ pnpm tauri build
 
 ---
 
+## Install on Arch Linux
+
+Tap ships a native Arch package (`.pkg.tar.zst`) with every tagged release, alongside the macOS `.dmg` and Linux `.AppImage`/`.deb` artifacts.
+
+**From a tagged release (recommended):**
+
+```bash
+curl -LO https://github.com/majesnix/tap/releases/latest/download/tap-1.8.0-1-x86_64.pkg.tar.zst
+sudo pacman -U tap-1.8.0-1-x86_64.pkg.tar.zst
+```
+
+**From source (in-repo `makepkg`):**
+
+```bash
+git clone https://github.com/majesnix/tap.git
+cd tap/packaging/arch
+makepkg -si
+```
+
+See [`packaging/arch/README.md`](packaging/arch/README.md) for details on the PKGBUILD and runtime dependencies.
+
+---
+
 ## RabbitMQ quick-start (Docker)
 
 ```bash

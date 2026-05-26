@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Tap
+GenericName=Protobuf Sender
+Comment=Send protobuf messages to RabbitMQ from a generated form
+Exec=tap
+Icon=tap
+Terminal=false
+Categories=Development;Utility;Network;
+Keywords=protobuf;rabbitmq;amqp;dev;
+StartupWMClass=Tap

@@ -1,0 +1,53 @@
+# Maintainer: majesnix <claude@electronicintelligence.de>
+pkgname=tap
+pkgver=1.8.0
+pkgrel=1
+pkgdesc="Send protobuf messages to RabbitMQ from a generated form — load any .proto, no code"
+arch=('x86_64')
+url="https://github.com/majesnix/tap"
+license=('MIT')
+depends=(
+  'webkit2gtk-4.1'
+  'gtk3'
+  'libappindicator-gtk3'
+  'librsvg'
+  'openssl'
+)
+makedepends=(
+  'rust'
+  'cargo'
+  'nodejs>=20'
+  'pnpm'
+  'pkgconf'
+  'patchelf'
+)
+source=()
+
+# By default this PKGBUILD builds from the current working tree
+# (intended for in-repo `cd packaging/arch && makepkg -si`).
+# CI overrides ${SRC_DIR} to point at a checkout sibling.
+SRC_DIR="${SRC_DIR:-$startdir/../..}"
+
+build() {
+  cd "$SRC_DIR"
+  pnpm install --frozen-lockfile
+  # --no-bundle: produce only the native binary (frontend assets are embedded
+  # into it by tauri-build). We package it ourselves below, so we don't need
+  # tauri's deb/AppImage bundlers (which require dpkg / appimagetool).
+  pnpm tauri build --no-bundle
+}
+
+package() {
+  cd "$SRC_DIR"
+
+  # Install the binary produced by `cargo build --release`.
+  install -Dm755 "src-tauri/target/release/tap" "$pkgdir/usr/bin/tap"
+
+  # Desktop entry + icons (reused from src-tauri/icons).
+  install -Dm644 "packaging/arch/tap.desktop" "$pkgdir/usr/share/applications/tap.desktop"
+  install -Dm644 "src-tauri/icons/32x32.png" "$pkgdir/usr/share/icons/hicolor/32x32/apps/tap.png"
+  install -Dm644 "src-tauri/icons/128x128.png" "$pkgdir/usr/share/icons/hicolor/128x128/apps/tap.png"
+  install -Dm644 "src-tauri/icons/128x128@2x.png" "$pkgdir/usr/share/icons/hicolor/256x256/apps/tap.png"
+
+  install -Dm644 "README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
