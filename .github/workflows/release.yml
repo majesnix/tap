@@ -31,7 +31,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
 
       - name: Install frontend dependencies
@@ -120,7 +120,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "20"
+          node-version: "22"
           cache: pnpm
 
       - name: Install frontend dependencies
@@ -202,7 +202,7 @@ jobs:
           gh release upload "$TAG" "$PKG" --clobber --repo "${{ github.repository }}"
 
       - name: Upload artifact (always)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tap-arch-pkg
           path: /home/builder/build/tap/packaging/arch/*.pkg.tar.zst
