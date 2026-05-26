@@ -15,18 +15,29 @@ depends=(
 )
 makedepends=(
   'rust'
-  'cargo'
   'nodejs>=20'
   'pnpm'
   'pkgconf'
   'patchelf'
 )
+# ring (pulled in by rustls→lapin) compiles C via the `cc` crate, which
+# respects CFLAGS. makepkg's lto option injects -flto=auto, producing GCC
+# thin-LTO objects whose .text sections are empty; rust-lld cannot read GCC
+# LTO IR and fails with "undefined symbol" for every ring C function.
+options=('!lto')
 source=()
 
 # By default this PKGBUILD builds from the current working tree
 # (intended for in-repo `cd packaging/arch && makepkg -si`).
 # CI overrides ${SRC_DIR} to point at a checkout sibling.
 SRC_DIR="${SRC_DIR:-$startdir/../..}"
+
+prepare() {
+  # Clear any cached build artifacts that may have been compiled with different
+  # CFLAGS (e.g. a prior run that injected -flto=auto before options=('!lto')
+  # was added). Without this, cargo may reuse stale LTO-contaminated objects.
+  cargo clean --manifest-path "$SRC_DIR/src-tauri/Cargo.toml"
+}
 
 build() {
   cd "$SRC_DIR"
