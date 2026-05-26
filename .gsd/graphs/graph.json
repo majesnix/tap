@@ -192,8 +192,21 @@
     },
     {
       "id": "slice:M002:S02",
-      "label": "M002/S02",
+      "label": "S02: Draft v1.8.0 release notes covering v1.6.1..HEAD with v1.7 acknowledgment",
       "type": "slice",
+      "confidence": "EXTRACTED",
+      "sourceFile": "milestones/M002/slices/S02/S02-PLAN.md"
+    },
+    {
+      "id": "task:M002:S02:T01",
+      "label": "T01: Capture full git log v1.6.1..HEAD to a buffer file for the appendix",
+      "type": "task",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "id": "task:M002:S02:T02",
+      "label": "T02: Write RELEASE-NOTES-v1.8.0.md with intro, v1.7 acknowledgment, six highlight sections, and full changelog appendix",
+      "type": "task",
       "confidence": "EXTRACTED"
     }
   ],
@@ -365,7 +378,19 @@
       "to": "slice:M002:S02",
       "type": "contains",
       "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M002:S02",
+      "to": "task:M002:S02:T01",
+      "type": "contains",
+      "confidence": "EXTRACTED"
+    },
+    {
+      "from": "slice:M002:S02",
+      "to": "task:M002:S02:T02",
+      "type": "contains",
+      "confidence": "EXTRACTED"
     }
   ],
-  "builtAt": "2026-05-26T09:29:42.851Z"
+  "builtAt": "2026-05-26T09:36:58.460Z"
 }
