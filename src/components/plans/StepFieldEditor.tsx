@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FormProvider, useForm, useWatch } from "react-hook-form";
 import { toast } from "sonner";
-import { Check, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronsUpDown, Dices } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import { fetchQueues, fetchExchanges } from "@/lib/ipc";
+import { generateRandomValues } from "@/lib/randomizer";
 import { buildDefaultValues } from "@/components/form/ProtoFormRenderer";
 import { ScalarField } from "@/components/form/fields/ScalarField";
 import { EnumField } from "@/components/form/fields/EnumField";
@@ -667,6 +668,17 @@ function StepFieldEditorInner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [watchedValues, message]); // message added: re-evaluate when schema loads
 
+  const handleRandomize = useCallback(() => {
+    if (!schema || !message) return;
+    // Preserve fields the user has edited in this session; randomize the rest.
+    // Mirrors FormPanel's randomize semantics (FormPanel.tsx:182).
+    const dirtyFields = methods.formState.dirtyFields as Record<string, boolean>;
+    const randomValues = generateRandomValues(message, schema.message_map, dirtyFields);
+    // reset() pushes the new values through useWatch, which trips the debounced
+    // auto-save effect above and persists field_values for this step only.
+    methods.reset(randomValues);
+  }, [schema, message, methods]);
+
   return (
     <ProtoSchemaContext.Provider value={schema?.message_map ?? null}>
     <ScrollArea className="flex-1 min-h-0">
@@ -761,7 +773,20 @@ function StepFieldEditorInner({
 
           {/* Section 2: Fields */}
           <div className="px-4 py-3 border-b border-border">
-            <h3 className="text-sm font-semibold mb-3">Fields</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">Fields</h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Randomize fields"
+                title="Fill empty fields with random values"
+                onClick={handleRandomize}
+                disabled={disabled || !message}
+              >
+                <Dices size={16} />
+              </Button>
+            </div>
             {!message ? (
               <p className="text-xs text-muted-foreground">
                 No message type selected.
