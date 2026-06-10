@@ -50,7 +50,7 @@ pub async fn reload_proto(
     file_paths: Vec<String>,
     include_paths: Vec<Vec<String>>,
     pool_state: tauri::State<'_, Mutex<Option<prost_reflect::DescriptorPool>>>,
-) -> Result<ProtoSchema, AppError> {
+) -> Result<Vec<ProtoSchema>, AppError> {
     if file_paths.len() != include_paths.len() {
         return Err(AppError::InvalidInput(
             "file_paths and include_paths must have the same length".into(),
@@ -61,7 +61,8 @@ pub async fn reload_proto(
     }
 
     let mut merged_pool: Option<prost_reflect::DescriptorPool> = None;
-    let mut first_schema: Option<ProtoSchema> = None;
+    // BUG-3 fix: collect a schema per file (not just the first one)
+    let mut schemas: Vec<ProtoSchema> = Vec::with_capacity(file_paths.len());
 
     for (i, file_path) in file_paths.iter().enumerate() {
         let mut compiler = protox::Compiler::new(&include_paths[i])
@@ -76,9 +77,8 @@ pub async fn reload_proto(
         )
         .map_err(|e| AppError::ParseError(e.to_string()))?;
 
-        if i == 0 {
-            first_schema = Some(extractor::extract_schema(&pool));
-        }
+        // Push a schema for every file, not just the first
+        schemas.push(extractor::extract_schema(&pool));
 
         match merged_pool.as_mut() {
             None => {
@@ -100,7 +100,7 @@ pub async fn reload_proto(
     let mut guard = pool_state.lock().unwrap();
     *guard = merged_pool;
 
-    Ok(first_schema.unwrap())
+    Ok(schemas)
 }
 
 #[tauri::command]
