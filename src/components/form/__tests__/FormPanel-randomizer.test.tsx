@@ -127,9 +127,13 @@ test("clicking Randomize triggers setPendingReplayValues with generated values",
     fireEvent.click(screen.getByRole("button", { name: "Randomize" }));
   });
 
+  // BUG-6 fix: generateRandomValues now takes a 4th argument (currentValues) so dirty
+  // field values are preserved rather than omitted. The test verifies the call shape
+  // matches the updated signature.
   expect(randomizer.generateRandomValues).toHaveBeenCalledWith(
     SCHEMA_WITH_TWO_FIELDS.message_map.Msg,
     SCHEMA_WITH_TWO_FIELDS.message_map,
+    expect.any(Object),
     expect.any(Object)
   );
   expect(spy).toHaveBeenCalledWith(mockValues);

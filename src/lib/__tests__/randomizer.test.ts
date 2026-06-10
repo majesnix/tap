@@ -35,11 +35,15 @@ describe("generateRandomValues", () => {
       expect(result.name).toMatch(/^[a-z0-9]+$/);
     });
 
-    test("bytes returns hex string", () => {
+    test("bytes returns base64 string", () => {
+      // BUG-6 fix: randomBytes() now returns base64 (not hex) because the encoder expects base64.
+      // Base64 characters are [A-Za-z0-9+/] optionally padded with '='.
       const msg = makeMessage([makeField({ name: "data", kind: { type: "scalar", scalar: "bytes" } })]);
       const result = generateRandomValues(msg, {});
       expect(typeof result.data).toBe("string");
-      expect(result.data).toMatch(/^[0-9a-f]+$/);
+      expect(result.data).toMatch(/^[A-Za-z0-9+/]+=*$/);
+      // Verify it decodes as valid base64
+      expect(() => atob(result.data as string)).not.toThrow();
     });
 
     test("int32 returns a number within int32 range", () => {
@@ -258,14 +262,32 @@ describe("generateRandomValues", () => {
     });
   });
 
-  describe("dirty field skip", () => {
-    test("fields in dirtyFields are not overwritten", () => {
+  describe("dirty field preservation", () => {
+    test("dirty fields are preserved from currentValues, not randomized", () => {
+      // BUG-6 fix: dirty fields are now INCLUDED in the result with their currentValues
+      // (rather than being omitted entirely). This ensures the form never zeros out
+      // a field the user intentionally typed.
       const msg = makeMessage([
         makeField({ name: "keep", kind: { type: "scalar", scalar: "string" } }),
         makeField({ name: "fill", kind: { type: "scalar", scalar: "string" } }),
       ]);
+      const currentValues = { keep: "user-typed-value" };
+      const result = generateRandomValues(msg, {}, { keep: true }, currentValues);
+      // Dirty field IS present — set to the currentValues value, not randomized
+      expect(result).toHaveProperty("keep", "user-typed-value");
+      // Non-dirty field IS randomized
+      expect(result).toHaveProperty("fill");
+      expect(typeof result.fill).toBe("string");
+    });
+
+    test("dirty field has undefined value when no currentValues provided", () => {
+      const msg = makeMessage([
+        makeField({ name: "keep", kind: { type: "scalar", scalar: "string" } }),
+        makeField({ name: "fill", kind: { type: "scalar", scalar: "string" } }),
+      ]);
+      // No currentValues passed — dirty field is preserved as undefined
       const result = generateRandomValues(msg, {}, { keep: true });
-      expect(result).not.toHaveProperty("keep");
+      expect(result).toHaveProperty("keep", undefined);
       expect(result).toHaveProperty("fill");
     });
   });

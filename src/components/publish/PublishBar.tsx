@@ -50,16 +50,6 @@ export function buildPublishArgs(
   return { exchange: selectedExchange, routingKey };
 }
 
-/** Decode a hex string like "0a 05 68 65 6c 6c 6f" to an array of bytes. */
-function hexToBytes(hex: string): number[] {
-  // hexPreview format: "0a 05 68 65 6c 6c 6f" (space-separated hex pairs)
-  return hex
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((h) => parseInt(h, 16))
-    .filter((b) => Number.isInteger(b) && b >= 0 && b <= 255);
-}
 
 export function PublishBar() {
   const [mode, setMode] = useState<Mode>("queue");
@@ -127,7 +117,7 @@ export function PublishBar() {
   const isEligibleForCombobox =
     !isHintExchange && managementStatus === "live" && Boolean(selectedExchange);
 
-  const { hexPreview, encodeError } = useProtoStore();
+  const { encodeError } = useProtoStore();
   const sendRequested = useProtoStore((s) => s.sendRequested);
   const { modSymbol } = usePlatformLabel();
 
