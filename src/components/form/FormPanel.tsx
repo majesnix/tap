@@ -60,7 +60,15 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
 
   // latestValues is now in Zustand store (D-07 / advisor Option A)
   const latestValues = useProtoStore((s) => s.latestValues);
-  const debouncedValues = useDebounce(latestValues, 200);
+
+  // BUG-5 fix: tagged values capture (filePath, messageType) at watch time to prevent
+  // stale debounced values from contaminating draft saves after a type switch.
+  type TaggedValues = { filePath: string; messageType: string; values: Record<string, unknown> };
+  const [taggedValues, setTaggedValues] = useState<TaggedValues | null>(null);
+  const debouncedTagged = useDebounce(taggedValues, 200);
+
+  // Keep a plain debounced alias for the encode effect (same 200ms, same behavior)
+  const debouncedValues = debouncedTagged?.values ?? null;
 
   const isRestoringRef = useRef(false);
 
@@ -126,10 +134,15 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   });
 
   // Mirror current form values into store for PublishBar / other consumers (D-07)
+  // BUG-5 fix: also capture the (filePath, messageType) tag at watch time
   const handleValuesChange = useCallback((values: unknown) => {
-    useProtoStore
-      .getState()
-      .setLatestValues(values as Record<string, unknown>);
+    const { activeFilePath: fp, selectedMessageType: mt } = useProtoStore.getState();
+    useProtoStore.getState().setLatestValues(values as Record<string, unknown>);
+    setTaggedValues({
+      filePath: fp ?? "",
+      messageType: mt ?? "",
+      values: values as Record<string, unknown>,
+    });
   }, []);
 
   useEffect(() => {
@@ -151,15 +164,19 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   }, [debouncedValues, selectedMessageType, setHexPreview, setEncoding, setEncodeError]);
 
   // Draft auto-save: persist form values on debounced change, skip during restore
+  // BUG-5 fix: use tagged values and skip if tag doesn't match current selection
+  // (prevents stale debounce after type switch from contaminating new type's draft)
   useEffect(() => {
-    if (!draftsLoaded || !activeFilePath || !selectedMessageType || !debouncedValues) return;
+    if (!draftsLoaded || !activeFilePath || !selectedMessageType || !debouncedTagged) return;
     if (isRestoringRef.current) return;
+    // Skip if tag was captured for a different file or message type than currently selected
+    if (debouncedTagged.filePath !== activeFilePath || debouncedTagged.messageType !== selectedMessageType) return;
     const msg = schema?.message_map[selectedMessageType];
     if (!msg) return;
     const defaults = buildDefaultValues(msg);
-    if (JSON.stringify(debouncedValues) === JSON.stringify(defaults)) return;
-    void saveDraft(activeFilePath, selectedMessageType, debouncedValues);
-  }, [debouncedValues, selectedMessageType, activeFilePath, draftsLoaded, schema, saveDraft]);
+    if (JSON.stringify(debouncedTagged.values) === JSON.stringify(defaults)) return;
+    void saveDraft(activeFilePath, selectedMessageType, debouncedTagged.values);
+  }, [debouncedTagged, selectedMessageType, activeFilePath, draftsLoaded, schema, saveDraft]);
 
   const { modSymbol } = usePlatformLabel();
 
@@ -180,9 +197,11 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     if (!msg) return;
     if (isJsonMode) setIsJsonMode(false);
     const dirtyFields = getDirtyFieldsRef.current?.() ?? {};
-    const randomValues = generateRandomValues(msg, schema.message_map, dirtyFields);
+    // BUG-6 fix: pass current values so dirty fields are preserved (not zeroed)
+    const currentValues: Record<string, unknown> = latestValues ?? {};
+    const randomValues = generateRandomValues(msg, schema.message_map, dirtyFields, currentValues);
     setPendingReplayValues(randomValues);
-  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues]);
+  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues, latestValues]);
 
   useHotkeys("mod+shift+r", (e) => {
     e.preventDefault();

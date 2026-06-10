@@ -22,13 +22,12 @@ function randomString(): string {
   return result;
 }
 
+// BUG-6 fix: return base64 not hex — the encoder expects base64 for bytes fields
 function randomBytes(): string {
   const len = randomInt(4, 16);
   const bytes = new Uint8Array(len);
   crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+  return btoa(String.fromCharCode(...bytes));
 }
 
 function randomScalar(scalar: ScalarKind): unknown {
@@ -65,7 +64,9 @@ function randomWellKnown(wkt: string): string {
   if (wkt === "Timestamp") {
     const now = Date.now();
     const offset = randomInt(-86400000, 86400000);
-    return new Date(now + offset).toISOString();
+    // BUG-6 fix: strip Z and fractional seconds — datetime-local input format requires
+    // "YYYY-MM-DDTHH:MM:SS" without trailing Z; toISOString produces "...T...Z"
+    return new Date(now + offset).toISOString().slice(0, 19);
   }
   if (wkt === "Duration") {
     return `${randomInt(0, 3600)}s`;
@@ -142,14 +143,21 @@ function generateRandomValuesInternal(
   return values;
 }
 
+// BUG-6 fix: add optional currentValues parameter; dirty fields are preserved from
+// currentValues rather than skipped entirely — ensures dirty values appear in the result
 export function generateRandomValues(
   message: MessageSchema,
   messageMap: Record<string, MessageSchema>,
-  dirtyFields?: Record<string, boolean>
+  dirtyFields?: Record<string, boolean>,
+  currentValues?: Record<string, unknown>
 ): Record<string, unknown> {
   const values: Record<string, unknown> = {};
   for (const field of message.fields) {
-    if (dirtyFields?.[field.name]) continue;
+    if (dirtyFields?.[field.name]) {
+      // Preserve the dirty field value from currentValues (immutable: read, don't mutate)
+      values[field.name] = currentValues?.[field.name];
+      continue;
+    }
     if (field.repeated) {
       const count = randomInt(MIN_COLLECTION_SIZE, MAX_COLLECTION_SIZE);
       const items: unknown[] = [];

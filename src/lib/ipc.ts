@@ -11,8 +11,8 @@ export async function parseProto(
 export async function reloadProto(
   filePaths: string[],
   includePaths: string[][]
-): Promise<ProtoSchema> {
-  return invoke<ProtoSchema>("reload_proto", { filePaths, includePaths });
+): Promise<ProtoSchema[]> {
+  return invoke<ProtoSchema[]>("reload_proto", { filePaths, includePaths });
 }
 
 export async function checkPathsExist(
