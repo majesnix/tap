@@ -27,7 +27,7 @@ See: .planning/PROJECT.md (updated 2026-05-25 after v1.7 milestone)
 Phase: 27 of 31 (Keyboard Shortcuts + Field Copy)
 Plan: — (not yet planned)
 Status: Ready to plan
-Last activity: 2026-05-25 — v1.8 roadmap created; 5 phases defined (27–31)
+Last activity: 2026-06-10 — Completed quick task 260610-vmn: Fix 7 HIGH-severity correctness bugs from full app review
 
 ```
 v1.8 milestone: [░░░░░░░░░░░░░░░░░░░░] 0% (0/5 phases)
@@ -79,6 +79,12 @@ v1.8 milestone: [░░░░░░░░░░░░░░░░░░░░] 0
 ### Blockers
 
 None.
+
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 260610-vmn | Fix 7 HIGH-severity correctness bugs from full app review | 2026-06-10 | 5998fe9 | [260610-vmn-fix-7-high-severity-correctness-bugs-fro](./quick/260610-vmn-fix-7-high-severity-correctness-bugs-fro/) |
 
 ## Session Continuity
 
