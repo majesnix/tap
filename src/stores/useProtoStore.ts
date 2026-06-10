@@ -164,6 +164,8 @@ export const useProtoStore = create<ProtoStore>((set) => ({
 
   setActiveIndex: (index) =>
     set((s) => {
+      // BUG-4 fix: no-op when index is unchanged to prevent unnecessary re-renders
+      if (s.activeIndex === index) return s;
       const entry = s.openFiles[index];
       return {
         activeIndex: index,

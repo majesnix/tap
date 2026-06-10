@@ -332,17 +332,17 @@ fn scalar_or_message_value(
             // Handle well-known types specially
             match full_name {
                 "google.protobuf.Timestamp" => {
-                    let secs = if let Some(s) = json_val.as_str() {
+                    let (secs, nanos) = if let Some(s) = json_val.as_str() {
                         parse_datetime_to_epoch(s)
                     } else {
-                        json_val.as_i64().unwrap_or(0)
+                        (json_val.as_i64().unwrap_or(0), 0i32)
                     };
                     let mut ts_msg = DynamicMessage::new(msg_desc.clone());
                     if let Some(secs_field) = msg_desc.get_field_by_name("seconds") {
                         ts_msg.set_field(&secs_field, Value::I64(secs));
                     }
                     if let Some(nanos_field) = msg_desc.get_field_by_name("nanos") {
-                        ts_msg.set_field(&nanos_field, Value::I32(0));
+                        ts_msg.set_field(&nanos_field, Value::I32(nanos));
                     }
                     Some(Value::Message(ts_msg))
                 }
@@ -396,34 +396,100 @@ fn parse_u64(v: &JsonValue) -> Option<u64> {
         .or_else(|| v.as_str().and_then(|s| s.parse::<u64>().ok()))
 }
 
-/// Parse an ISO-8601 datetime string to Unix epoch seconds.
-/// Falls back to 0 on parse failure.
-fn parse_datetime_to_epoch(s: &str) -> i64 {
-    // Try parsing as a plain integer first
-    if let Ok(n) = s.parse::<i64>() {
-        return n;
-    }
-    // Minimal ISO-8601 support: YYYY-MM-DDTHH:MM:SSZ
-    // Use a simple calculation — no external date crate dependency
-    if s.len() >= 19 {
-        let year: i64 = s[0..4].parse().unwrap_or(1970);
-        let month: i64 = s[5..7].parse().unwrap_or(1);
-        let day: i64 = s[8..10].parse().unwrap_or(1);
-        let hour: i64 = s[11..13].parse().unwrap_or(0);
-        let min: i64 = s[14..16].parse().unwrap_or(0);
-        let sec: i64 = s[17..19].parse().unwrap_or(0);
+/// Howard Hinnant's days_from_civil algorithm: computes the number of days since
+/// the Unix epoch (1970-01-01) for a given proleptic Gregorian calendar date.
+/// Correctly handles leap years including century/400-year rules.
+fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
+    let (y, era_m) = if m <= 2 {
+        (y - 1, m + 9)
+    } else {
+        (y, m - 3)
+    };
+    // Use flooring division for negative years (Rust % is remainder, not modulo)
+    let era = if y >= 0 { y / 400 } else { (y - 399) / 400 };
+    let yoe = y - era * 400; // year-of-era: 0..=399
+    let doy = (153 * era_m + 2) / 5 + d - 1; // day-of-year within era-year: 0..=365
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy; // day-of-era: 0..=146096
+    era * 146097 + doe - 719468 // days since Unix epoch
+}
 
-        // Days since epoch (approximate, ignores leap seconds)
-        let y = year - 1970;
-        let leap_days = (y / 4) - (y / 100) + (y / 400);
-        let days_in_months: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-        let month_days: i64 = days_in_months[..((month - 1) as usize).min(12)]
-            .iter()
-            .sum();
-        let total_days = y * 365 + leap_days + month_days + (day - 1);
-        return total_days * 86400 + hour * 3600 + min * 60 + sec;
+/// Parse an ISO-8601 datetime string to `(unix_seconds, nanos)`.
+/// Returns `(0, 0)` on any parse failure (no panic).
+///
+/// Supported forms:
+///   - Plain integer → `(n, 0)`
+///   - "YYYY-MM-DDTHH:MM:SS[.frac][Z|±HH:MM]"
+fn parse_datetime_to_epoch(s: &str) -> (i64, i32) {
+    // 1. Try plain integer first
+    if let Ok(n) = s.parse::<i64>() {
+        return (n, 0);
     }
-    0
+
+    // 2. Must be ASCII-only — reject multi-byte UTF-8 to prevent any panic on byte indexing
+    if !s.is_ascii() {
+        return (0, 0);
+    }
+
+    // 3. Require at least "YYYY-MM-DDTHH:MM:SS" (19 chars)
+    if s.len() < 19 {
+        return (0, 0);
+    }
+
+    // 4. Parse date/time components using safe .get() slices
+    let year: i64 = s.get(0..4).unwrap_or("0").parse().unwrap_or(0);
+    let month: i64 = s.get(5..7).unwrap_or("0").parse().unwrap_or(0);
+    let day: i64 = s.get(8..10).unwrap_or("0").parse().unwrap_or(0);
+    let hour: i64 = s.get(11..13).unwrap_or("0").parse().unwrap_or(0);
+    let min: i64 = s.get(14..16).unwrap_or("0").parse().unwrap_or(0);
+    let sec: i64 = s.get(17..19).unwrap_or("0").parse().unwrap_or(0);
+
+    // 5. Compute total UTC seconds using days_from_civil
+    let total_days = days_from_civil(year, month, day);
+    let mut total_secs = total_days * 86400 + hour * 3600 + min * 60 + sec;
+
+    // 6. Fractional seconds: parse digits after '.' if present at position 19
+    let mut nanos: i32 = 0;
+    let mut tz_start = 19usize;
+
+    if s.as_bytes().get(19) == Some(&b'.') {
+        // Collect digit characters after the dot
+        let frac_start = 20usize;
+        let frac_end = s[frac_start..]
+            .find(|c: char| !c.is_ascii_digit())
+            .map(|rel| frac_start + rel)
+            .unwrap_or(s.len());
+
+        let frac_str = &s[frac_start..frac_end];
+        // Left-pad / truncate to exactly 9 digits for nanoseconds
+        if !frac_str.is_empty() {
+            let digits: String = if frac_str.len() >= 9 {
+                frac_str[..9].to_string()
+            } else {
+                format!("{:0<9}", frac_str) // right-pad with zeros to 9 digits
+            };
+            nanos = digits.parse::<i32>().unwrap_or(0);
+        }
+        tz_start = frac_end;
+    }
+
+    // 7. Timezone offset: scan suffix starting at tz_start for Z, +HH:MM, -HH:MM
+    let tz_suffix = s.get(tz_start..).unwrap_or("");
+    let tz_offset_secs: i64 = if tz_suffix.starts_with('Z') || tz_suffix.is_empty() {
+        0
+    } else if tz_suffix.starts_with('+') || tz_suffix.starts_with('-') {
+        let sign: i64 = if tz_suffix.starts_with('-') { -1 } else { 1 };
+        let tz_str = &tz_suffix[1..];
+        let tz_hour: i64 = tz_str.get(0..2).unwrap_or("0").parse().unwrap_or(0);
+        let tz_min: i64 = tz_str.get(3..5).unwrap_or("0").parse().unwrap_or(0);
+        sign * (tz_hour * 3600 + tz_min * 60)
+    } else {
+        0
+    };
+
+    // UTC = local - offset
+    total_secs -= tz_offset_secs;
+
+    (total_secs, nanos)
 }
 
 /// Parse a human-readable duration string to seconds.
@@ -620,5 +686,107 @@ mod tests {
         let mut buf = Vec::new();
         dyn_msg.encode(&mut buf).unwrap();
         assert!(buf.is_empty(), "empty map array should encode as absent field (empty bytes)");
+    }
+
+    // ── Timestamp epoch tests (BUG-1) ────────────────────────────────────────
+
+    #[test]
+    fn test_epoch_unix_origin() {
+        let (secs, nanos) = parse_datetime_to_epoch("1970-01-01T00:00:00Z");
+        assert_eq!(secs, 0, "Unix epoch origin must be 0");
+        assert_eq!(nanos, 0);
+    }
+
+    #[test]
+    fn test_epoch_leap_day_1972_02_29() {
+        // 1972 is a leap year; 1972-02-29 must be a valid date
+        let (secs, _) = parse_datetime_to_epoch("1972-02-29T00:00:00Z");
+        // Days from 1970-01-01 to 1972-02-29: 365 (1970) + 365 (1971) + 59 (Jan+Feb leap) = 789
+        assert_eq!(secs, 789 * 86400, "1972-02-29 should be 789 days after epoch");
+    }
+
+    #[test]
+    fn test_epoch_1972_03_01_is_one_day_after_leap() {
+        let (leap_secs, _) = parse_datetime_to_epoch("1972-02-29T00:00:00Z");
+        let (next_secs, _) = parse_datetime_to_epoch("1972-03-01T00:00:00Z");
+        assert_eq!(next_secs - leap_secs, 86400, "1972-03-01 must be exactly 1 day after 1972-02-29");
+    }
+
+    #[test]
+    fn test_epoch_2025_06_10() {
+        let (secs, nanos) = parse_datetime_to_epoch("2025-06-10T00:00:00Z");
+        assert_eq!(secs, 1749513600, "2025-06-10T00:00:00Z must equal Unix epoch 1749513600");
+        assert_eq!(nanos, 0);
+    }
+
+    #[test]
+    fn test_epoch_2024_leap_year_feb_29() {
+        // 2024 is a leap year (divisible by 4, not by 100)
+        let (secs, _) = parse_datetime_to_epoch("2024-02-29T00:00:00Z");
+        // 2024-02-28 is day (2024-02-28T00:00:00Z) — should not panic and should be adjacent
+        let (prev_secs, _) = parse_datetime_to_epoch("2024-02-28T00:00:00Z");
+        assert_eq!(secs - prev_secs, 86400, "2024-02-29 should be exactly 1 day after 2024-02-28");
+    }
+
+    #[test]
+    fn test_epoch_fractional_seconds() {
+        let (secs, nanos) = parse_datetime_to_epoch("2025-06-10T12:30:45.123456789Z");
+        // 2025-06-10T12:30:45Z = 1749513600 + 12*3600 + 30*60 + 45 = 1749513600 + 45045
+        let expected_secs = 1749513600i64 + 12 * 3600 + 30 * 60 + 45;
+        assert_eq!(secs, expected_secs, "base seconds should match");
+        assert_eq!(nanos, 123456789, "full 9-digit fractional seconds should be preserved");
+    }
+
+    #[test]
+    fn test_epoch_fractional_short() {
+        // ".123" → 123000000 nanos (3 digits left-padded to 9)
+        let (_, nanos) = parse_datetime_to_epoch("2025-06-10T00:00:00.123Z");
+        assert_eq!(nanos, 123000000, ".123 should become 123000000 nanos");
+    }
+
+    #[test]
+    fn test_epoch_positive_timezone_offset() {
+        // 2025-06-10T14:30:00+02:00 should equal 2025-06-10T12:30:00Z
+        let (with_tz, _) = parse_datetime_to_epoch("2025-06-10T14:30:00+02:00");
+        let (utc, _) = parse_datetime_to_epoch("2025-06-10T12:30:00Z");
+        assert_eq!(with_tz, utc, "+02:00 should be subtracted to yield UTC equivalent");
+    }
+
+    #[test]
+    fn test_epoch_negative_timezone_offset() {
+        // 2025-06-10T10:30:00-02:00 should equal 2025-06-10T12:30:00Z
+        let (with_tz, _) = parse_datetime_to_epoch("2025-06-10T10:30:00-02:00");
+        let (utc, _) = parse_datetime_to_epoch("2025-06-10T12:30:00Z");
+        assert_eq!(with_tz, utc, "-02:00 should be added to yield UTC equivalent");
+    }
+
+    #[test]
+    fn test_epoch_invalid_string_returns_zero() {
+        let (secs, nanos) = parse_datetime_to_epoch("not-a-date");
+        assert_eq!(secs, 0, "invalid string should return 0 seconds");
+        assert_eq!(nanos, 0, "invalid string should return 0 nanos");
+    }
+
+    #[test]
+    fn test_epoch_multibyte_utf8_no_panic() {
+        // Multi-byte UTF-8 must not panic; must return (0, 0)
+        let (secs, nanos) = parse_datetime_to_epoch("2025-éé-10T00:00:00Z");
+        assert_eq!(secs, 0, "multi-byte UTF-8 input must return 0 seconds");
+        assert_eq!(nanos, 0, "multi-byte UTF-8 input must return 0 nanos");
+    }
+
+    #[test]
+    fn test_epoch_short_string_no_panic() {
+        let (secs, nanos) = parse_datetime_to_epoch("short");
+        assert_eq!(secs, 0, "short string must return 0 seconds");
+        assert_eq!(nanos, 0, "short string must return 0 nanos");
+    }
+
+    #[test]
+    fn test_epoch_plain_integer() {
+        // A plain integer string should be returned as-is
+        let (secs, nanos) = parse_datetime_to_epoch("1749513600");
+        assert_eq!(secs, 1749513600, "plain integer string should parse as epoch seconds");
+        assert_eq!(nanos, 0);
     }
 }

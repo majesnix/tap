@@ -12,6 +12,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use futures_util::StreamExt;
+use tauri::Manager;
 use lapin::{
     options::{BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicQosOptions},
     types::FieldTable,
@@ -192,8 +193,22 @@ pub async fn start_subscribe(
     // active session via the CR-01 atomic slot claim above.
     let consumer_tag = "tap-subscriber".to_string();
 
+    // Clone app handle for use inside the spawn closure to clear state on self-termination.
+    let app_handle_clone = app.clone();
+
     // Spawn consumer task using tauri::async_runtime::spawn (NOT tokio::spawn — panics on Windows).
     let handle = tauri::async_runtime::spawn(async move {
+        // BUG-2 fix: clear the subscribe state slot on every non-cancellation exit path
+        // so start_subscribe never returns "Already running" after a self-termination.
+        let clear_state = || {
+            if let Ok(mut g) = app_handle_clone
+                .state::<Mutex<Option<SubscribeState>>>()
+                .lock()
+            {
+                *g = None;
+            }
+        };
+
         // D-12: basic_qos BEFORE basic_consume — cap in-flight deliveries at 20.
         // WR-01: propagate QoS failure rather than silently continuing without a prefetch cap.
         if let Err(e) = amqp_channel.basic_qos(20, BasicQosOptions::default()).await {
@@ -201,6 +216,7 @@ pub async fn start_subscribe(
             let _ = channel.send(error_drain_result(
                 "Failed to set QoS prefetch — aborting subscribe".to_string(),
             ));
+            clear_state();
             let _ = conn.close(0, "".into()).await;
             return;
         }
@@ -220,6 +236,7 @@ pub async fn start_subscribe(
                 let _ = channel.send(error_drain_result(
                     "Failed to start consumer — queue may not exist or permissions are insufficient".to_string(),
                 ));
+                clear_state();
                 let _ = conn.close(0, "".into()).await;
                 return;
             }
@@ -255,6 +272,9 @@ pub async fn start_subscribe(
                                 let _ = channel.send(error_drain_result(
                                     "Failed to acknowledge message — stream interrupted".to_string(),
                                 ));
+                                // BUG-2: clear slot + close connection on ack failure exit
+                                clear_state();
+                                let _ = conn.close(0, "".into()).await;
                                 break;
                             }
 
@@ -330,6 +350,9 @@ pub async fn start_subscribe(
                             let _ = channel.send(error_drain_result(
                                 "Consumer delivery error — stream interrupted".to_string(),
                             ));
+                            // BUG-2: clear slot + close connection on delivery error exit
+                            clear_state();
+                            let _ = conn.close(0, "".into()).await;
                             break;
                         }
                         None => {
@@ -338,12 +361,16 @@ pub async fn start_subscribe(
                             let _ = channel.send(error_drain_result(
                                 "Broker closed the consumer — queue may have been deleted".to_string(),
                             ));
+                            // BUG-2: clear slot + close connection when broker closes stream
+                            clear_state();
+                            let _ = conn.close(0, "".into()).await;
                             break;
                         }
                     }
                 }
                 _ = token_child.cancelled() => {
                     // Stop requested by stop_subscribe command
+                    // NOTE: do NOT call clear_state() here — stop_subscribe already calls guard.take()
                     tracing::info!("start_subscribe: cancellation received, shutting down consumer");
                     let _ = amqp_channel
                         .basic_cancel(consumer_tag.as_str().into(), BasicCancelOptions::default())

@@ -69,8 +69,13 @@ export function IncludePathManager({ filePath }: IncludePathManagerProps) {
           })
         );
 
-        const schema = await reloadProto(allFilePaths, allIncludePaths);
-        updateFileSchema(filePath, schema);
+        // BUG-3 fix: reloadProto now returns ProtoSchema[] (one per file).
+        // Update each open file's schema by index, matching FileSection.tsx pattern.
+        const schemas = await reloadProto(allFilePaths, allIncludePaths);
+        schemas.forEach((schema, i) => {
+          const file = openFiles[i];
+          if (file) updateFileSchema(file.filePath, schema);
+        });
         toast.success("Proto schema reloaded");
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);

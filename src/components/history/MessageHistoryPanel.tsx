@@ -35,14 +35,26 @@ export function MessageHistoryPanel() {
   );
 
   const handleReplay = (entry: HistoryEntry) => {
-    const { openFiles, setActiveIndex, setPendingReplayValues } =
+    const { openFiles, activeIndex, setActiveIndex, setSelectedType, setPendingReplayValues } =
       useProtoStore.getState();
     const tabIndex = findReplayTabIndex(openFiles, entry.messageTypeName);
     if (tabIndex === -1) {
       toast.error("Replay failed: .proto file not open. Open the file first.");
       return;
     }
-    setActiveIndex(tabIndex);
+    // BUG-4 fix: only switch tabs if needed (setActiveIndex already no-ops on same index,
+    // but we also verify the message type exists before calling setSelectedType)
+    if (tabIndex !== activeIndex) {
+      setActiveIndex(tabIndex);
+    }
+    // Verify message type exists in the target file's schema
+    const targetFile = openFiles[tabIndex];
+    const targetSchema = targetFile?.schema;
+    if (!targetSchema?.message_map[entry.messageTypeName]) {
+      toast.error("Replay failed: message type not found in schema.");
+      return;
+    }
+    setSelectedType(entry.messageTypeName);
     setPendingReplayValues(entry.fieldValues);
     // NOTE: No explicit tab-switch-to-Hex needed here.
     // RightPanel watches pendingReplayValues (null → non-null) and auto-switches to "hex" tab.
@@ -56,14 +68,25 @@ export function MessageHistoryPanel() {
     }
 
     // Step 1: Pre-populate form (same as handleReplay, so user sees the form values)
-    const { openFiles, setActiveIndex, setPendingReplayValues } =
+    const { openFiles, activeIndex, setActiveIndex, setSelectedType, setPendingReplayValues } =
       useProtoStore.getState();
     const tabIndex = findReplayTabIndex(openFiles, entry.messageTypeName);
     if (tabIndex === -1) {
       toast.error("Message type not found in active schema");
       return;
     }
-    setActiveIndex(tabIndex);
+    // BUG-4 fix: only switch tabs if needed
+    if (tabIndex !== activeIndex) {
+      setActiveIndex(tabIndex);
+    }
+    // Verify message type exists in the target file's schema
+    const targetFile = openFiles[tabIndex];
+    const targetSchema = targetFile?.schema;
+    if (!targetSchema?.message_map[entry.messageTypeName]) {
+      toast.error("Resend failed: message type not found in schema.");
+      return;
+    }
+    setSelectedType(entry.messageTypeName);
     setPendingReplayValues(entry.fieldValues);
     // NOTE: RightPanel auto-switches to "hex" tab via pendingReplayValues edge-detection.
 

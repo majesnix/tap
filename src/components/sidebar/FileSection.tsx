@@ -113,8 +113,12 @@ export function FileSection() {
         })
       );
 
-      const schema = await reloadProto(allFilePaths, allIncludePaths);
-      updateFileSchema(activeFile.filePath, schema);
+      // BUG-3 fix: apply each schema to its own filePath (not all to activeFile)
+      const schemas = await reloadProto(allFilePaths, allIncludePaths);
+      schemas.forEach((schema, i) => {
+        const file = openFiles[i];
+        if (file) updateFileSchema(file.filePath, schema);
+      });
       toast.success("Proto schema reloaded");
       setParseError(null);
     } catch (err: unknown) {

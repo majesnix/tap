@@ -23,7 +23,7 @@ import { useProtoStore } from "@/stores/useProtoStore";
 import { useAmqpStore } from "@/stores/useAmqpStore";
 import { useHistoryStore } from "@/stores/useHistoryStore";
 import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
-import { fetchExchanges, fetchQueues, publishMessage, fetchBindings, listProfiles, activateProfile } from "@/lib/ipc";
+import { fetchExchanges, fetchQueues, publishMessage, fetchBindings, listProfiles, activateProfile, encodeMessage } from "@/lib/ipc";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
 import type { PublishOutcome } from "@/lib/types";
@@ -50,16 +50,6 @@ export function buildPublishArgs(
   return { exchange: selectedExchange, routingKey };
 }
 
-/** Decode a hex string like "0a 05 68 65 6c 6c 6f" to an array of bytes. */
-function hexToBytes(hex: string): number[] {
-  // hexPreview format: "0a 05 68 65 6c 6c 6f" (space-separated hex pairs)
-  return hex
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean)
-    .map((h) => parseInt(h, 16))
-    .filter((b) => Number.isInteger(b) && b >= 0 && b <= 255);
-}
 
 export function PublishBar() {
   const [mode, setMode] = useState<Mode>("queue");
@@ -127,7 +117,7 @@ export function PublishBar() {
   const isEligibleForCombobox =
     !isHintExchange && managementStatus === "live" && Boolean(selectedExchange);
 
-  const { hexPreview, encodeError } = useProtoStore();
+  const { encodeError } = useProtoStore();
   const sendRequested = useProtoStore((s) => s.sendRequested);
   const { modSymbol } = usePlatformLabel();
 
@@ -255,18 +245,27 @@ export function PublishBar() {
       routingKey,
     );
 
-    if (!hexPreview) {
-      toast.error("Send failed: No encoded message. Fill out the form first.");
+    // BUG-7 fix: re-encode from current latestValues to prevent stale-bytes race.
+    // The hexPreview may be stale if the user typed values faster than the debounce settled.
+    // Capturing latestValues synchronously (getState is sync) guarantees fresh bytes.
+    const { latestValues, selectedMessageType, activeFilePath } = useProtoStore.getState();
+    if (!selectedMessageType || !latestValues) {
+      toast.error("Send failed: No form values. Fill out the form first.");
       return;
     }
 
-    const payload = hexToBytes(hexPreview);
-
-    // Capture proto store fields synchronously BEFORE any await (Zustand getState() is synchronous)
-    const { latestValues, selectedMessageType, activeFilePath } = useProtoStore.getState();
-
     // Capture AMQP properties synchronously BEFORE any await (Pitfall 3)
     const { properties } = useAmqpStore.getState();
+
+    let freshPayload: number[];
+    try {
+      freshPayload = await encodeMessage(selectedMessageType, latestValues);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Send failed: encoding error — ${msg}`);
+      return;
+    }
+    const payload = freshPayload;
     const amqpProps = {
       contentType: properties.contentType ?? undefined,
       deliveryMode: properties.deliveryMode ?? undefined,
@@ -334,7 +333,7 @@ export function PublishBar() {
     } finally {
       setIsSending(false);
     }
-  }, [activeProfileName, canSend, hexPreview, mode, selectedQueue, selectedExchange, routingKey]);
+  }, [activeProfileName, canSend, mode, selectedQueue, selectedExchange, routingKey]);
 
   handleSendRef.current = handleSend;
 
