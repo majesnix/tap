@@ -1,8 +1,0 @@
-src/components/sidebar/__tests__/FileSection-reload.test.tsx(33,3): error TS2322: Type '{ full_name: string; fields: never[]; }[]' is not assignable to type 'MessageSchema[]'.
-  Property 'name' is missing in type '{ full_name: string; fields: never[]; }' but required in type 'MessageSchema'.
-src/components/sidebar/__tests__/IncludePathManager.test.tsx(7,50): error TS6133: 'mockSet' is declared but its value is never read.
-src/components/sidebar/__tests__/IncludePathManager.test.tsx(7,59): error TS6133: 'mockSave' is declared but its value is never read.
-src/components/sidebar/__tests__/IncludePathManager.test.tsx(29,3): error TS2322: Type '{ full_name: string; fields: never[]; }[]' is not assignable to type 'MessageSchema[]'.
-  Property 'name' is missing in type '{ full_name: string; fields: never[]; }' but required in type 'MessageSchema'.
-src/stores/__tests__/useProtoStore-reload.test.ts(10,3): error TS2322: Type '{ full_name: string; fields: never[]; }[]' is not assignable to type 'MessageSchema[]'.
-  Property 'name' is missing in type '{ full_name: string; fields: never[]; }' but required in type 'MessageSchema'.
