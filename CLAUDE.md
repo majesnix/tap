@@ -1,4 +1,3 @@
-<!-- GSD:project-start source:PROJECT.md -->
 ## Project
 
 **Tap**
@@ -14,9 +13,7 @@ A Tauri desktop application (Rust backend + React frontend) that lets developers
 - **Proto parsing**: Runtime parsing of raw `.proto` files (not pre-compiled descriptors)
 - **RabbitMQ**: Must support queues, exchanges + routing key, and virtual hosts
 - **Distribution**: Should be cross-platform (macOS, Windows, Linux) since it's a team tool
-<!-- GSD:project-end -->
 
-<!-- GSD:stack-start source:research/STACK.md -->
 ## Technology Stack
 
 ## Recommended Stack
@@ -110,31 +107,3 @@ A Tauri desktop application (Rust backend + React frontend) that lets developers
 - Tauri 2 tokio::spawn panic issue: https://github.com/tauri-apps/tauri/issues/10289
 - react-hook-form useFieldArray: https://react-hook-form.com/ (Context7 verified v7.66.0)
 - rabbitmq-management-client crate: https://github.com/stefandanaita/rabbitmq-management-client
-<!-- GSD:stack-end -->
-
-<!-- GSD:conventions-start source:CONVENTIONS.md -->
-## Conventions
-
-Conventions not yet established. Will populate as patterns emerge during development.
-<!-- GSD:conventions-end -->
-
-<!-- GSD:architecture-start source:ARCHITECTURE.md -->
-## Architecture
-
-Architecture not yet mapped. Follow existing patterns found in the codebase.
-<!-- GSD:architecture-end -->
-
-<!-- GSD:skills-start source:skills/ -->
-## Project Skills
-
-No project skills found. Add skills to any of: `.claude/skills/`, `.agents/skills/`, `.cursor/skills/`, `.github/skills/`, or `.codex/skills/` with a `SKILL.md` index file.
-<!-- GSD:skills-end -->
-
-
-
-<!-- GSD:profile-start -->
-## Developer Profile
-
-> Profile not yet configured. Run `/gsd-profile-user` to generate your developer profile.
-> This section is managed by `generate-claude-profile` -- do not edit manually.
-<!-- GSD:profile-end -->
