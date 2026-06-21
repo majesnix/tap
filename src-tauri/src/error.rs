@@ -35,3 +35,22 @@ impl serde::Serialize for AppError {
         serializer.serialize_str(self.to_string().as_ref())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn serializes_to_display_string() {
+        let json = serde_json::to_string(&AppError::ParseError("boom".into())).unwrap();
+        assert_eq!(json, "\"Proto parse error: boom\"");
+    }
+
+    #[test]
+    fn management_api_unavailable_includes_status_code() {
+        assert_eq!(
+            AppError::ManagementApiUnavailable(404).to_string(),
+            "Management API unavailable (HTTP 404)"
+        );
+    }
+}

@@ -206,6 +206,25 @@ pub async fn execute_step(
     };
     // Guard dropped here — before first .await
 
+    execute_step_core(pool, token, &profile.host, profile.port, &profile.vhost, &profile.username, password, step)
+        .await
+}
+
+/// Pure async core for [`execute_step`]: encode, connect, and run the response-mode branch.
+/// Decoupled from Tauri State (pool/run_state) and keychain so it can be integration-tested
+/// against a live broker. The descriptor pool and cancellation token are resolved by the
+/// command and passed in.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn execute_step_core(
+    pool: prost_reflect::DescriptorPool,
+    token: CancellationToken,
+    host: &str,
+    port: u16,
+    vhost: &str,
+    username: &str,
+    password: String,
+    step: PlanStep,
+) -> Result<StepResult, AppError> {
     // ── 5. Parse field_values JSON and encode message ─────────────────────────
     let field_values_json: serde_json::Value = match serde_json::from_str(&step.field_values) {
         Ok(v) => v,
@@ -236,13 +255,7 @@ pub async fn execute_step(
     //    Follow the tight-scope URI pattern from publish.rs (WR-01: password not leaked).
     let conn = {
         use crate::profiles::build_amqp_uri;
-        let uri = build_amqp_uri(
-            &profile.host,
-            profile.port,
-            &profile.vhost,
-            &profile.username,
-            &password,
-        );
+        let uri = build_amqp_uri(host, port, vhost, username, &password);
         drop(password);
         let result = tokio::time::timeout(
             Duration::from_secs(10),
@@ -591,5 +604,422 @@ fn build_reply_message(
         decoded,
         decoded_as,
         hex_string,
+    }
+}
+
+// ─── Tests ─────────────────────────────────────────────────────────────────────
+//
+// Coverage scope: this module is dominated by `execute_step`, an async command that
+// requires a live AMQP broker and a Tauri runtime, so it is exercised by integration
+// testing rather than here (mirrors the pure-helper-only approach in subscribe.rs).
+// These unit tests cover the parts that are pure and testable in isolation:
+//   - compile_and_merge_proto (proto compilation + pool merge/dedup logic)
+//   - the serde contracts for the IPC input/output structs (TS ↔ Rust shape).
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Write inline `.proto` content to a temp file and return its absolute path.
+    fn write_proto(content: &str, file_name: &str) -> String {
+        let tmp_dir = std::env::temp_dir().join("tap_plan_runner_tests");
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+        let path = tmp_dir.join(file_name);
+        std::fs::write(&path, content).unwrap();
+        path.to_str().unwrap().to_string()
+    }
+
+    // ---- compile_and_merge_proto ------------------------------------------
+
+    #[test]
+    fn compile_into_empty_pool_initializes_it() {
+        let path = write_proto(
+            r#"syntax = "proto3"; message Alpha { string a = 1; }"#,
+            "alpha.proto",
+        );
+        let pool: Mutex<Option<DescriptorPool>> = Mutex::new(None);
+
+        compile_and_merge_proto(&path, &pool).expect("compile should succeed");
+
+        let guard = pool.lock().unwrap();
+        let pool = guard.as_ref().expect("pool should be initialized");
+        assert!(pool.get_message_by_name("Alpha").is_some());
+    }
+
+    #[test]
+    fn merge_into_existing_pool_adds_new_messages() {
+        let alpha = write_proto(
+            r#"syntax = "proto3"; message Alpha { string a = 1; }"#,
+            "merge_alpha.proto",
+        );
+        let beta = write_proto(
+            r#"syntax = "proto3"; message Beta { string b = 1; }"#,
+            "merge_beta.proto",
+        );
+        let pool: Mutex<Option<DescriptorPool>> = Mutex::new(None);
+
+        compile_and_merge_proto(&alpha, &pool).unwrap();
+        compile_and_merge_proto(&beta, &pool).unwrap();
+
+        let guard = pool.lock().unwrap();
+        let pool = guard.as_ref().unwrap();
+        assert!(pool.get_message_by_name("Alpha").is_some(), "first file retained");
+        assert!(pool.get_message_by_name("Beta").is_some(), "second file merged");
+    }
+
+    #[test]
+    fn merge_is_idempotent_for_same_file_name() {
+        // Compiling the same file twice must not error (file-already-present skip path).
+        let path = write_proto(
+            r#"syntax = "proto3"; message Gamma { string g = 1; }"#,
+            "gamma.proto",
+        );
+        let pool: Mutex<Option<DescriptorPool>> = Mutex::new(None);
+
+        compile_and_merge_proto(&path, &pool).unwrap();
+        compile_and_merge_proto(&path, &pool).expect("re-compiling same file must not error");
+
+        let guard = pool.lock().unwrap();
+        assert!(guard.as_ref().unwrap().get_message_by_name("Gamma").is_some());
+    }
+
+    #[test]
+    fn compile_invalid_proto_returns_parse_error() {
+        let path = write_proto("this is not valid protobuf syntax", "invalid.proto");
+        let pool: Mutex<Option<DescriptorPool>> = Mutex::new(None);
+
+        let err = compile_and_merge_proto(&path, &pool).unwrap_err();
+        assert!(matches!(err, AppError::ParseError(_)), "got {err:?}");
+        assert!(pool.lock().unwrap().is_none(), "pool must stay uninitialized on failure");
+    }
+
+    #[test]
+    fn compile_nonexistent_file_returns_parse_error() {
+        let pool: Mutex<Option<DescriptorPool>> = Mutex::new(None);
+        let err =
+            compile_and_merge_proto("/nonexistent/path/to/missing.proto", &pool).unwrap_err();
+        assert!(matches!(err, AppError::ParseError(_)), "got {err:?}");
+    }
+
+    // ---- input deserialization (TS discriminated unions) ------------------
+
+    #[test]
+    fn deserializes_queue_target() {
+        let target: PublishTarget =
+            serde_json::from_value(serde_json::json!({ "kind": "queue", "queue": "orders" }))
+                .unwrap();
+        match target {
+            PublishTarget::Queue { queue } => assert_eq!(queue, "orders"),
+            other => panic!("expected Queue, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn deserializes_exchange_target() {
+        let target: PublishTarget = serde_json::from_value(serde_json::json!({
+            "kind": "exchange",
+            "exchange": "events",
+            "routing_key": "user.created"
+        }))
+        .unwrap();
+        match target {
+            PublishTarget::Exchange { exchange, routing_key } => {
+                assert_eq!(exchange, "events");
+                assert_eq!(routing_key, "user.created");
+            }
+            other => panic!("expected Exchange, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn deserializes_all_response_modes() {
+        let no_wait: ResponseMode =
+            serde_json::from_value(serde_json::json!({ "mode": "no-wait", "delay_ms": 250 }))
+                .unwrap();
+        assert!(matches!(no_wait, ResponseMode::NoWait { delay_ms: 250 }));
+
+        let corr: ResponseMode = serde_json::from_value(serde_json::json!({
+            "mode": "correlation-id",
+            "reply_queue": "replies",
+            "timeout_ms": 5000
+        }))
+        .unwrap();
+        match corr {
+            ResponseMode::CorrelationId { reply_queue, timeout_ms } => {
+                assert_eq!(reply_queue, "replies");
+                assert_eq!(timeout_ms, 5000);
+            }
+            other => panic!("expected CorrelationId, got {other:?}"),
+        }
+
+        let first: ResponseMode = serde_json::from_value(serde_json::json!({
+            "mode": "first-arrival",
+            "reply_queue": "replies",
+            "timeout_ms": 3000
+        }))
+        .unwrap();
+        match first {
+            ResponseMode::FirstArrival { reply_queue, timeout_ms } => {
+                assert_eq!(reply_queue, "replies");
+                assert_eq!(timeout_ms, 3000);
+            }
+            other => panic!("expected FirstArrival, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn deserializes_full_plan_step() {
+        let step: PlanStep = serde_json::from_value(serde_json::json!({
+            "id": "step-1",
+            "name": "Send order",
+            "proto_path": "/tmp/order.proto",
+            "message_type": "Order",
+            "field_values": "{\"id\":1}",
+            "target": { "kind": "queue", "queue": "orders" },
+            "response_mode": { "mode": "no-wait", "delay_ms": 0 }
+        }))
+        .unwrap();
+
+        assert_eq!(step.id, "step-1");
+        assert_eq!(step.message_type, "Order");
+        assert!(matches!(step.target, PublishTarget::Queue { .. }));
+        assert!(matches!(step.response_mode, ResponseMode::NoWait { .. }));
+    }
+
+    #[test]
+    fn unknown_target_kind_fails_deserialization() {
+        let result: Result<PublishTarget, _> =
+            serde_json::from_value(serde_json::json!({ "kind": "topic", "queue": "x" }));
+        assert!(result.is_err(), "unknown discriminant must be rejected");
+    }
+
+    // ---- output serialization (camelCase IPC contract) --------------------
+
+    #[test]
+    fn step_result_serializes_to_camel_case() {
+        let result = StepResult {
+            step_id: "s1".into(),
+            status: "done".into(),
+            reply: None,
+            error: None,
+        };
+        let json = serde_json::to_value(&result).unwrap();
+        assert_eq!(json["stepId"], "s1");
+        assert_eq!(json["status"], "done");
+        assert!(json.get("step_id").is_none(), "snake_case key must not be emitted");
+    }
+
+    #[test]
+    fn reply_message_serializes_to_camel_case() {
+        let reply = ReplyMessage {
+            routing_key: "rk".into(),
+            exchange: "ex".into(),
+            content_type: Some("application/x-protobuf".into()),
+            correlation_id: Some("abc".into()),
+            decoded: None,
+            decoded_as: None,
+            hex_string: "deadbeef".into(),
+        };
+        let json = serde_json::to_value(&reply).unwrap();
+        assert_eq!(json["routingKey"], "rk");
+        assert_eq!(json["contentType"], "application/x-protobuf");
+        assert_eq!(json["correlationId"], "abc");
+        assert_eq!(json["decodedAs"], serde_json::Value::Null);
+        assert_eq!(json["hexString"], "deadbeef");
+    }
+}
+
+// ─── Broker-backed integration tests for execute_step_core ────────────────────────
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::test_support::{broker_or_skip, test_channel, TestBroker};
+    use lapin::options::{
+        BasicPublishOptions, ConfirmSelectOptions, QueueDeclareOptions, QueuePurgeOptions,
+    };
+    use lapin::types::FieldTable;
+    use prost_reflect::DescriptorPool;
+
+    const PROTO: &str = r#"syntax = "proto3"; message Cmd { string action = 1; }"#;
+
+    fn pool_and_bytes(values: serde_json::Value) -> (DescriptorPool, Vec<u8>) {
+        let tmp_dir = std::env::temp_dir().join("tap_plan_it");
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+        let path = tmp_dir.join("cmd.proto");
+        std::fs::write(&path, PROTO).unwrap();
+        let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        c.include_imports(true);
+        c.open_file(path.to_str().unwrap()).unwrap();
+        let pool = DescriptorPool::from_file_descriptor_set(c.file_descriptor_set()).unwrap();
+        let bytes = crate::commands::encode::encode_message_with_pool(&pool, "Cmd", &values).unwrap();
+        (pool, bytes)
+    }
+
+    async fn seed_queue(b: &TestBroker, queue: &str, payloads: &[Vec<u8>]) {
+        let ch = test_channel(b).await;
+        ch.queue_declare(queue.into(), QueueDeclareOptions { durable: true, ..Default::default() }, FieldTable::default())
+            .await
+            .unwrap();
+        ch.queue_purge(queue.into(), QueuePurgeOptions::default()).await.unwrap();
+        ch.confirm_select(ConfirmSelectOptions::default()).await.unwrap();
+        for p in payloads {
+            ch.basic_publish("".into(), queue.into(), BasicPublishOptions::default(), p, lapin::BasicProperties::default())
+                .await
+                .unwrap()
+                .await
+                .unwrap();
+        }
+    }
+
+    fn step(id: &str, mtype: &str, values: &str, target: PublishTarget, mode: ResponseMode) -> PlanStep {
+        PlanStep {
+            id: id.to_string(),
+            name: "test step".to_string(),
+            proto_path: String::new(),
+            message_type: mtype.to_string(),
+            field_values: values.to_string(),
+            target,
+            response_mode: mode,
+        }
+    }
+
+    // ── No-broker paths (parse/encode happen before connect) ──
+
+    #[tokio::test]
+    async fn bad_field_values_json_returns_error_result() {
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "x" }));
+        let s = step(
+            "s-badjson", "Cmd", "{not valid json",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::NoWait { delay_ms: 0 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+        assert!(res.error.unwrap().contains("field_values"));
+    }
+
+    #[tokio::test]
+    async fn unknown_message_type_returns_encode_error_result() {
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "x" }));
+        let s = step(
+            "s-badtype", "NotInPool", "{}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::NoWait { delay_ms: 0 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+    }
+
+    #[tokio::test]
+    async fn unreachable_host_returns_amqp_error() {
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "x" }));
+        let s = step(
+            "s-unreach", "Cmd", "{\"action\":\"go\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::NoWait { delay_ms: 0 },
+        );
+        let err = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::AmqpError(_)), "got {err:?}");
+    }
+
+    // ── Broker-backed paths ──
+
+    #[tokio::test]
+    async fn no_wait_publishes_and_returns_done() {
+        let Some(b) = broker_or_skip("plan_no_wait").await else { return };
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "go" }));
+        let s = step(
+            "s-nowait", "Cmd", "{\"action\":\"go\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::NoWait { delay_ms: 1 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "done");
+        assert!(res.reply.is_none());
+    }
+
+    #[tokio::test]
+    async fn first_arrival_receives_seeded_reply_and_decodes() {
+        let Some(b) = broker_or_skip("plan_first_arrival").await else { return };
+        let reply_q = "tap-it-plan-fa-reply";
+        let (pool, reply_bytes) = pool_and_bytes(serde_json::json!({ "action": "pong" }));
+        // Pre-seed the reply queue — FirstArrival consumes before publish, first delivery wins.
+        seed_queue(&b, reply_q, &[reply_bytes]).await;
+        let s = step(
+            "s-firstarr", "Cmd", "{\"action\":\"ping\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 5000 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "done");
+        let reply = res.reply.expect("expected a reply");
+        assert_eq!(reply.decoded_as, Some("Cmd".to_string()));
+        assert_eq!(reply.decoded.unwrap()["action"], "pong");
+    }
+
+    #[tokio::test]
+    async fn first_arrival_times_out_on_empty_reply_queue() {
+        let Some(b) = broker_or_skip("plan_fa_timeout").await else { return };
+        let reply_q = "tap-it-plan-fa-timeout";
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "ping" }));
+        seed_queue(&b, reply_q, &[]).await; // empty
+        let s = step(
+            "s-fatimeout", "Cmd", "{\"action\":\"ping\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 400 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+        assert!(res.error.unwrap().contains("Timeout"));
+    }
+
+    #[tokio::test]
+    async fn first_arrival_cancelled_returns_cancelled() {
+        let Some(b) = broker_or_skip("plan_fa_cancel").await else { return };
+        let reply_q = "tap-it-plan-fa-cancel";
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "ping" }));
+        seed_queue(&b, reply_q, &[]).await;
+        let token = CancellationToken::new();
+        token.cancel(); // pre-cancelled → biased select picks the cancel arm
+        let s = step(
+            "s-facancel", "Cmd", "{\"action\":\"ping\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 5000 },
+        );
+        let res = execute_step_core(pool, token, &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+        assert_eq!(res.error, Some("Cancelled".to_string()));
+    }
+
+    #[tokio::test]
+    async fn correlation_id_nacks_nonmatching_then_times_out() {
+        let Some(b) = broker_or_skip("plan_corr_timeout").await else { return };
+        let reply_q = "tap-it-plan-corr-timeout";
+        let (pool, junk) = pool_and_bytes(serde_json::json!({ "action": "unrelated" }));
+        // Seed a reply with no/!matching correlation_id → NACK+requeue branch, then deadline.
+        seed_queue(&b, reply_q, &[junk]).await;
+        let s = step(
+            "s-corr", "Cmd", "{\"action\":\"ping\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::CorrelationId { reply_queue: reply_q.into(), timeout_ms: 500 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+        assert!(res.error.unwrap().contains("Timeout"));
     }
 }

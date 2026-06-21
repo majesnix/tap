@@ -173,16 +173,34 @@ pub async fn test_connection(app: AppHandle, profile_name: String) -> Result<(),
     // Load password from OS keychain (NOT from store JSON)
     let password = get_password(&profile_name)?;
 
-    // Build URI in a tight scope and sanitize connect errors.
-    // SECURITY: URI contains cleartext password; do not propagate raw connect errors.
+    test_connection_core(
+        &profile.host,
+        profile.port,
+        &profile.vhost,
+        &profile.username,
+        password,
+    )
+    .await?;
+
+    tracing::debug!("Connection test passed for profile: {}", profile_name);
+    Ok(())
+}
+
+/// Pure async core for [`test_connection`]: connect, open a channel, close.
+/// Decoupled from Tauri/keychain so it can be integration-tested against a live broker.
+///
+/// SECURITY: the `password` is moved in, used to build the URI in a tight scope, and
+/// dropped before the connect attempt. Connect errors are sanitized — never propagate
+/// the raw error (it may contain the cleartext URI).
+pub(crate) async fn test_connection_core(
+    host: &str,
+    port: u16,
+    vhost: &str,
+    username: &str,
+    password: String,
+) -> Result<(), AppError> {
     let conn = {
-        let uri = build_amqp_uri(
-            &profile.host,
-            profile.port,
-            &profile.vhost,
-            &profile.username,
-            &password,
-        );
+        let uri = build_amqp_uri(host, port, vhost, username, &password);
         // password is no longer needed; drop before connect attempt
         drop(password);
         let result = tokio::time::timeout(
@@ -201,18 +219,12 @@ pub async fn test_connection(app: AppHandle, profile_name: String) -> Result<(),
     };
 
     // Open a channel to verify credentials and vhost access
-    conn.create_channel()
-        .await
-        .map_err(|_| {
-            AppError::AmqpError(
-                "Failed to open AMQP channel — check broker permissions".to_string(),
-            )
-        })?;
+    conn.create_channel().await.map_err(|_| {
+        AppError::AmqpError("Failed to open AMQP channel — check broker permissions".to_string())
+    })?;
 
     // Close the connection — ephemeral pattern, no persistent state
     let _ = conn.close(0, "".into()).await;
-
-    tracing::debug!("Connection test passed for profile: {}", profile_name);
     Ok(())
 }
 
@@ -241,21 +253,35 @@ pub async fn fetch_queues(
     profile_name: String,
 ) -> Result<Vec<String>, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-
-    let encoded_vhost = percent_encoding::utf8_percent_encode(
+    fetch_queues_core(
+        &profile.host,
+        profile.management_port,
+        profile.management_ssl,
         &profile.vhost,
-        percent_encoding::NON_ALPHANUMERIC,
-    );
-    let scheme = if profile.management_ssl { "https" } else { "http" };
-    let url = format!(
-        "{}://{}:{}/api/queues/{}",
-        scheme, profile.host, profile.management_port, encoded_vhost
-    );
+        &profile.username,
+        &password,
+    )
+    .await
+}
+
+/// Pure async core for [`fetch_queues`] — decoupled from Tauri/keychain for integration testing.
+pub(crate) async fn fetch_queues_core(
+    host: &str,
+    management_port: u16,
+    management_ssl: bool,
+    vhost: &str,
+    username: &str,
+    password: &str,
+) -> Result<Vec<String>, AppError> {
+    let encoded_vhost =
+        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
+    let scheme = if management_ssl { "https" } else { "http" };
+    let url = format!("{}://{}:{}/api/queues/{}", scheme, host, management_port, encoded_vhost);
 
     let client = Client::new();
     let resp = client
         .get(&url)
-        .basic_auth(&profile.username, Some(&password))
+        .basic_auth(username, Some(password))
         // SECURITY: basic_auth sets Authorization header — credentials NOT in URL
         .send()
         .await
@@ -292,25 +318,43 @@ pub async fn fetch_queue_depth(
     queue_name: String,
 ) -> Result<u64, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-
-    let encoded_vhost = percent_encoding::utf8_percent_encode(
+    fetch_queue_depth_core(
+        &profile.host,
+        profile.management_port,
+        profile.management_ssl,
         &profile.vhost,
-        percent_encoding::NON_ALPHANUMERIC,
-    );
-    let encoded_queue = percent_encoding::utf8_percent_encode(
+        &profile.username,
+        &password,
         &queue_name,
-        percent_encoding::NON_ALPHANUMERIC,
-    );
-    let scheme = if profile.management_ssl { "https" } else { "http" };
+    )
+    .await
+}
+
+/// Pure async core for [`fetch_queue_depth`] — decoupled from Tauri/keychain for integration testing.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn fetch_queue_depth_core(
+    host: &str,
+    management_port: u16,
+    management_ssl: bool,
+    vhost: &str,
+    username: &str,
+    password: &str,
+    queue_name: &str,
+) -> Result<u64, AppError> {
+    let encoded_vhost =
+        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
+    let encoded_queue =
+        percent_encoding::utf8_percent_encode(queue_name, percent_encoding::NON_ALPHANUMERIC);
+    let scheme = if management_ssl { "https" } else { "http" };
     let url = format!(
         "{}://{}:{}/api/queues/{}/{}",
-        scheme, profile.host, profile.management_port, encoded_vhost, encoded_queue
+        scheme, host, management_port, encoded_vhost, encoded_queue
     );
 
     let client = Client::new();
     let resp = client
         .get(&url)
-        .basic_auth(&profile.username, Some(&password))
+        .basic_auth(username, Some(password))
         .send()
         .await
         .map_err(|e| {
@@ -346,21 +390,35 @@ pub async fn fetch_exchanges(
     profile_name: String,
 ) -> Result<Vec<ExchangeSummary>, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-
-    let encoded_vhost = percent_encoding::utf8_percent_encode(
+    fetch_exchanges_core(
+        &profile.host,
+        profile.management_port,
+        profile.management_ssl,
         &profile.vhost,
-        percent_encoding::NON_ALPHANUMERIC,
-    );
-    let scheme = if profile.management_ssl { "https" } else { "http" };
-    let url = format!(
-        "{}://{}:{}/api/exchanges/{}",
-        scheme, profile.host, profile.management_port, encoded_vhost
-    );
+        &profile.username,
+        &password,
+    )
+    .await
+}
+
+/// Pure async core for [`fetch_exchanges`] — decoupled from Tauri/keychain for integration testing.
+pub(crate) async fn fetch_exchanges_core(
+    host: &str,
+    management_port: u16,
+    management_ssl: bool,
+    vhost: &str,
+    username: &str,
+    password: &str,
+) -> Result<Vec<ExchangeSummary>, AppError> {
+    let encoded_vhost =
+        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
+    let scheme = if management_ssl { "https" } else { "http" };
+    let url = format!("{}://{}:{}/api/exchanges/{}", scheme, host, management_port, encoded_vhost);
 
     let client = Client::new();
     let resp = client
         .get(&url)
-        .basic_auth(&profile.username, Some(&password))
+        .basic_auth(username, Some(password))
         .send()
         .await
         .map_err(|e| {
@@ -410,25 +468,43 @@ pub async fn fetch_bindings(
     exchange_name: String,
 ) -> Result<Vec<String>, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-
-    let encoded_vhost = percent_encoding::utf8_percent_encode(
+    fetch_bindings_core(
+        &profile.host,
+        profile.management_port,
+        profile.management_ssl,
         &profile.vhost,
-        percent_encoding::NON_ALPHANUMERIC,
-    );
-    let encoded_exchange = percent_encoding::utf8_percent_encode(
+        &profile.username,
+        &password,
         &exchange_name,
-        percent_encoding::NON_ALPHANUMERIC,
-    );
-    let scheme = if profile.management_ssl { "https" } else { "http" };
+    )
+    .await
+}
+
+/// Pure async core for [`fetch_bindings`] — decoupled from Tauri/keychain for integration testing.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn fetch_bindings_core(
+    host: &str,
+    management_port: u16,
+    management_ssl: bool,
+    vhost: &str,
+    username: &str,
+    password: &str,
+    exchange_name: &str,
+) -> Result<Vec<String>, AppError> {
+    let encoded_vhost =
+        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
+    let encoded_exchange =
+        percent_encoding::utf8_percent_encode(exchange_name, percent_encoding::NON_ALPHANUMERIC);
+    let scheme = if management_ssl { "https" } else { "http" };
     let url = format!(
         "{}://{}:{}/api/exchanges/{}/{}/bindings/source",
-        scheme, profile.host, profile.management_port, encoded_vhost, encoded_exchange
+        scheme, host, management_port, encoded_vhost, encoded_exchange
     );
 
     let client = Client::new();
     let resp = client
         .get(&url)
-        .basic_auth(&profile.username, Some(&password))
+        .basic_auth(username, Some(password))
         .send()
         .await
         .map_err(|e| {
@@ -459,5 +535,130 @@ pub async fn fetch_bindings(
         401 => Err(AppError::ManagementApiAuthFailed),
         404 => Err(AppError::ManagementApiUnavailable(404)),
         other => Err(AppError::ManagementApiUnavailable(other)),
+    }
+}
+
+// ─── Tests ─────────────────────────────────────────────────────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_connection_core_succeeds_against_live_broker() {
+        let Some(b) = crate::test_support::broker_or_skip("test_connection_core_succeeds").await
+        else {
+            return;
+        };
+        let res =
+            test_connection_core(&b.host, b.port, &b.vhost, &b.username, b.password.clone()).await;
+        assert!(res.is_ok(), "expected successful connection, got {res:?}");
+    }
+
+    #[tokio::test]
+    async fn test_connection_core_fails_on_bad_credentials() {
+        let Some(b) = crate::test_support::broker_or_skip("test_connection_core_bad_creds").await
+        else {
+            return;
+        };
+        let res =
+            test_connection_core(&b.host, b.port, &b.vhost, "wrong-user", "wrong-pass".to_string())
+                .await;
+        assert!(res.is_err(), "bad credentials must fail");
+    }
+
+    #[tokio::test]
+    async fn test_connection_core_fails_on_unreachable_host() {
+        // No broker needed — port 1 is refused fast, exercising the connect-error arm.
+        let res = test_connection_core("127.0.0.1", 1, "/", "dev", "dev".to_string()).await;
+        assert!(res.is_err(), "unreachable host must error");
+    }
+
+    // ── Management API cores (HTTP, port 15672) ──────────────────────────────────
+
+    #[tokio::test]
+    async fn fetch_queues_core_lists_predeclared_queues() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_queues").await else { return };
+        let queues = fetch_queues_core(
+            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password,
+        )
+        .await
+        .unwrap();
+        // definitions.json pre-declares these.
+        assert!(queues.iter().any(|q| q == "test-queue"));
+        assert!(queues.iter().any(|q| q == "proto-test"));
+    }
+
+    #[tokio::test]
+    async fn fetch_queues_core_bad_credentials_is_auth_failed() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_queues_401").await else { return };
+        let err = fetch_queues_core(
+            &b.host, b.management_port, false, &b.vhost, "wrong", "wrong",
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, AppError::ManagementApiAuthFailed), "got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn fetch_queues_core_unreachable_is_unavailable_zero() {
+        // No broker needed — connect failure maps to ManagementApiUnavailable(0).
+        let err = fetch_queues_core("127.0.0.1", 1, false, "/", "dev", "dev")
+            .await
+            .unwrap_err();
+        assert!(matches!(err, AppError::ManagementApiUnavailable(0)), "got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn fetch_queue_depth_core_returns_count_for_existing_queue() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_depth").await else { return };
+        let depth = fetch_queue_depth_core(
+            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password, "proto-test",
+        )
+        .await
+        .unwrap();
+        let _ = depth; // count varies; just assert the 200/parse path works
+    }
+
+    #[tokio::test]
+    async fn fetch_queue_depth_core_missing_queue_is_404() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_depth_404").await else { return };
+        let err = fetch_queue_depth_core(
+            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password,
+            "no-such-queue-zzz-404",
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(err, AppError::ManagementApiUnavailable(404)), "got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn fetch_exchanges_core_filters_system_exchanges() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_exchanges").await else { return };
+        let exchanges = fetch_exchanges_core(
+            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password,
+        )
+        .await
+        .unwrap();
+        // User exchanges present; amq.* / internal / default ("") filtered out.
+        assert!(exchanges.iter().any(|e| e.name == "test-direct"));
+        assert!(exchanges.iter().all(|e| !e.name.starts_with("amq.")));
+        assert!(exchanges.iter().all(|e| !e.name.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn fetch_bindings_core_returns_sorted_dedup_keys() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_bindings").await else { return };
+        // test-direct → test-queue with routing key "proto.test" (definitions.json).
+        let keys = fetch_bindings_core(
+            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password, "test-direct",
+        )
+        .await
+        .unwrap();
+        assert!(keys.contains(&"proto.test".to_string()));
+        // Non-empty keys only, sorted+deduped (no consecutive dupes).
+        assert!(keys.iter().all(|k| !k.is_empty()));
+        let mut sorted = keys.clone();
+        sorted.sort();
+        assert_eq!(keys, sorted);
     }
 }

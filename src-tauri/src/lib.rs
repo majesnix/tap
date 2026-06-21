@@ -5,6 +5,8 @@ mod commands;
 mod error;
 mod profiles;
 mod schema;
+#[cfg(test)]
+mod test_support;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {

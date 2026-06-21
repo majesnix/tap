@@ -790,3 +790,224 @@ mod tests {
         assert_eq!(nanos, 0);
     }
 }
+
+// ─── Coverage-focused tests (encode_message_with_pool, enums, WKTs, maps, parsers) ───
+#[cfg(test)]
+mod coverage_tests {
+    use super::*;
+    use prost_reflect::DescriptorPool;
+
+    fn make_pool(proto_content: &str, file_name: &str) -> DescriptorPool {
+        let tmp_dir = std::env::temp_dir().join("tap_encode_cov_tests");
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+        let proto_path = tmp_dir.join(file_name);
+        std::fs::write(&proto_path, proto_content).unwrap();
+        let mut compiler = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        compiler.include_imports(true);
+        compiler.open_file(proto_path.to_str().unwrap()).unwrap();
+        DescriptorPool::from_file_descriptor_set(compiler.file_descriptor_set()).unwrap()
+    }
+
+    /// Encode then decode back into a JSON value for assertions.
+    fn round_trip(pool: &DescriptorPool, msg_type: &str, values: &JsonValue) -> serde_json::Value {
+        let bytes = encode_message_with_pool(pool, msg_type, values).unwrap();
+        let desc = pool.get_message_by_name(msg_type).unwrap();
+        let decoded = DynamicMessage::decode(desc, bytes.as_ref()).unwrap();
+        serde_json::to_value(&decoded).unwrap()
+    }
+
+    #[test]
+    fn encode_message_with_pool_happy_path() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; message M { string name = 1; }"#,
+            "ewp_ok.proto",
+        );
+        let bytes = encode_message_with_pool(&pool, "M", &serde_json::json!({ "name": "x" }))
+            .unwrap();
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn encode_message_with_pool_unknown_type_errors() {
+        let pool = make_pool(r#"syntax = "proto3"; message M { string a = 1; }"#, "ewp_err.proto");
+        let err = encode_message_with_pool(&pool, "DoesNotExist", &serde_json::json!({}))
+            .unwrap_err();
+        assert!(matches!(err, AppError::EncodeError { .. }));
+    }
+
+    #[test]
+    fn enum_encoded_by_number_and_by_name() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               enum Color { RED = 0; GREEN = 1; BLUE = 2; }
+               message M { Color c = 1; }"#,
+            "enum.proto",
+        );
+        // By number
+        let json = round_trip(&pool, "M", &serde_json::json!({ "c": 2 }));
+        assert_eq!(json["c"], "BLUE");
+        // By name
+        let json = round_trip(&pool, "M", &serde_json::json!({ "c": "GREEN" }));
+        assert_eq!(json["c"], "GREEN");
+    }
+
+    #[test]
+    fn enum_unknown_name_falls_back_to_zero() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; enum E { A = 0; B = 1; } message M { E e = 1; }"#,
+            "enum_fallback.proto",
+        );
+        // Unknown name falls back to enum 0; proto3 omits default values on the wire,
+        // so the result must equal encoding the explicit zero value "A".
+        let unknown =
+            encode_message_with_pool(&pool, "M", &serde_json::json!({ "e": "NOPE" })).unwrap();
+        let zero = encode_message_with_pool(&pool, "M", &serde_json::json!({ "e": "A" })).unwrap();
+        assert_eq!(unknown, zero);
+    }
+
+    #[test]
+    fn timestamp_from_rfc3339_string_and_from_int() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               import "google/protobuf/timestamp.proto";
+               message M { google.protobuf.Timestamp t = 1; }"#,
+            "ts.proto",
+        );
+        // From ISO string: 1970-01-01T00:00:01Z → 1 second
+        let bytes = encode_message_with_pool(
+            &pool,
+            "M",
+            &serde_json::json!({ "t": "1970-01-01T00:00:01Z" }),
+        )
+        .unwrap();
+        assert!(!bytes.is_empty());
+        // From integer seconds
+        let bytes2 =
+            encode_message_with_pool(&pool, "M", &serde_json::json!({ "t": 5 })).unwrap();
+        assert!(!bytes2.is_empty());
+    }
+
+    #[test]
+    fn duration_from_string_and_int() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               import "google/protobuf/duration.proto";
+               message M { google.protobuf.Duration d = 1; }"#,
+            "dur.proto",
+        );
+        let bytes =
+            encode_message_with_pool(&pool, "M", &serde_json::json!({ "d": "30s" })).unwrap();
+        assert!(!bytes.is_empty());
+        let bytes2 =
+            encode_message_with_pool(&pool, "M", &serde_json::json!({ "d": 42 })).unwrap();
+        assert!(!bytes2.is_empty());
+    }
+
+    #[test]
+    fn map_int64_uint32_uint64_keys_encode() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               message M {
+                 map<int64, string> a = 1;
+                 map<uint32, string> b = 2;
+                 map<uint64, string> c = 3;
+               }"#,
+            "map_keys.proto",
+        );
+        let bytes = encode_message_with_pool(
+            &pool,
+            "M",
+            &serde_json::json!({
+                "a": [{ "key": "10", "value": "x" }],
+                "b": [{ "key": "20", "value": "y" }],
+                "c": [{ "key": "30", "value": "z" }],
+            }),
+        )
+        .unwrap();
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn map_message_value_recurses() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               message Inner { string label = 1; }
+               message M { map<string, Inner> items = 1; }"#,
+            "map_msg.proto",
+        );
+        let json = round_trip(
+            &pool,
+            "M",
+            &serde_json::json!({ "items": [{ "key": "k", "value": { "label": "v" } }] }),
+        );
+        assert_eq!(json["items"]["k"]["label"], "v");
+    }
+
+    #[test]
+    fn map_duplicate_key_errors() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; message M { map<string, int32> m = 1; }"#,
+            "map_dup.proto",
+        );
+        let err = encode_message_with_pool(
+            &pool,
+            "M",
+            &serde_json::json!({ "m": [{ "key": "k", "value": 1 }, { "key": "k", "value": 2 }] }),
+        )
+        .unwrap_err();
+        assert!(matches!(err, AppError::EncodeError { .. }));
+    }
+
+    #[test]
+    fn float_double_from_string_values() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; message M { float f = 1; double d = 2; }"#,
+            "floats.proto",
+        );
+        let json = round_trip(&pool, "M", &serde_json::json!({ "f": "1.5", "d": "2.25" }));
+        assert_eq!(json["f"], 1.5);
+        assert_eq!(json["d"], 2.25);
+    }
+
+    #[test]
+    fn bytes_field_from_base64() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; message M { bytes b = 1; }"#,
+            "bytes.proto",
+        );
+        // "AQID" is base64 for [1,2,3]
+        let bytes = encode_message_with_pool(&pool, "M", &serde_json::json!({ "b": "AQID" }))
+            .unwrap();
+        assert!(!bytes.is_empty());
+    }
+
+    #[test]
+    fn repeated_scalar_list_encodes() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; message M { repeated int32 nums = 1; }"#,
+            "repeated.proto",
+        );
+        let json = round_trip(&pool, "M", &serde_json::json!({ "nums": [1, 2, 3] }));
+        assert_eq!(json["nums"], serde_json::json!([1, 2, 3]));
+    }
+
+    #[test]
+    fn parse_duration_string_handles_all_suffixes() {
+        assert_eq!(parse_duration_string("45"), 45);
+        assert_eq!(parse_duration_string("30s"), 30);
+        assert_eq!(parse_duration_string("5m"), 300);
+        assert_eq!(parse_duration_string("2h"), 7200);
+        assert_eq!(parse_duration_string("1d"), 86400);
+        assert_eq!(parse_duration_string("garbage"), 0);
+    }
+
+    #[test]
+    fn parse_unsigned_from_number_and_string() {
+        assert_eq!(parse_u32(&serde_json::json!(42)), Some(42));
+        assert_eq!(parse_u32(&serde_json::json!("99")), Some(99));
+        assert_eq!(parse_u64(&serde_json::json!(7)), Some(7));
+        assert_eq!(parse_u64(&serde_json::json!("8")), Some(8));
+        // Overflow: value too large for u32
+        assert_eq!(parse_u32(&serde_json::json!(u64::MAX)), None);
+    }
+}
