@@ -99,7 +99,7 @@ jobs:
           curl -sf -u dev:dev http://localhost:15672/api/queues/%2F \
             | grep -o '"name":"[^"]*"' || true
 
-      - name: Run Rust tests with coverage (gate: region >= 80%)
+      - name: "Run Rust tests with coverage (gate: region >= 80%)"
         # TAP_INTEGRATION=1 makes broker-backed tests fail loudly if the broker is
         # unreachable (rather than silently skipping). Wiring files that no test can
         # cover (lib.rs/main.rs Tauri bootstrap, test_support.rs) are excluded.
