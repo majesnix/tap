@@ -11,6 +11,26 @@ on:
 jobs:
   test:
     runs-on: ubuntu-22.04
+
+    # RabbitMQ broker for the Rust integration tests (TAP_INTEGRATION=1).
+    # NOTE: service containers start before checkout, so the repo's
+    # docker/definitions.json cannot be volume-mounted here. The topology is
+    # imported via the Management API in a dedicated step below instead.
+    services:
+      rabbitmq:
+        image: rabbitmq:4-management
+        ports:
+          - 5672:5672
+          - 15672:15672
+        env:
+          RABBITMQ_DEFAULT_USER: dev
+          RABBITMQ_DEFAULT_PASS: dev
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -28,6 +48,13 @@ jobs:
 
       - name: Install Rust (stable)
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, llvm-tools-preview
+
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -52,8 +79,36 @@ jobs:
       - name: Type-check frontend
         run: pnpm build
 
-      - name: Run Rust unit tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml
+      - name: Import RabbitMQ topology
+        # Service containers can't mount ./docker/definitions.json, so import it via
+        # the Management API once the broker is reachable. This creates the queues,
+        # exchanges, and bindings the integration tests assert on.
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf -u dev:dev http://localhost:15672/api/overview >/dev/null; then
+              echo "Management API is up"
+              break
+            fi
+            echo "Waiting for RabbitMQ Management API ($i)..."
+            sleep 2
+          done
+          curl -sf -u dev:dev -H "content-type: application/json" \
+            -X POST http://localhost:15672/api/definitions \
+            --data @docker/definitions.json
+          echo "Imported topology:"
+          curl -sf -u dev:dev http://localhost:15672/api/queues/%2F \
+            | grep -o '"name":"[^"]*"' || true
+
+      - name: "Run Rust tests with coverage (gate: region >= 80%)"
+        # TAP_INTEGRATION=1 makes broker-backed tests fail loudly if the broker is
+        # unreachable (rather than silently skipping). Wiring files that no test can
+        # cover (lib.rs/main.rs Tauri bootstrap, test_support.rs) are excluded.
+        env:
+          TAP_INTEGRATION: "1"
+        run: |
+          cargo llvm-cov --manifest-path src-tauri/Cargo.toml \
+            --ignore-filename-regex '(lib\.rs|main\.rs|test_support\.rs)$' \
+            --fail-under-regions 80
 
       - name: Run Clippy (Rust linter)
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings

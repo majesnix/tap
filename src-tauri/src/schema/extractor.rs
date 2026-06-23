@@ -241,3 +241,333 @@ fn to_label(name: &str) -> String {
         .collect::<Vec<_>>()
         .join(" ")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Compile inline `.proto` content into a DescriptorPool for testing.
+    fn make_pool(proto_content: &str, file_name: &str) -> DescriptorPool {
+        let tmp_dir = std::env::temp_dir().join("tap_extractor_tests");
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+        let proto_path = tmp_dir.join(file_name);
+        std::fs::write(&proto_path, proto_content).unwrap();
+
+        let mut compiler = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        compiler.include_imports(true);
+        compiler.open_file(proto_path.to_str().unwrap()).unwrap();
+        let fds = compiler.file_descriptor_set();
+        DescriptorPool::from_file_descriptor_set(fds).unwrap()
+    }
+
+    /// Find a message in a ProtoSchema by its short name.
+    fn find_message<'a>(schema: &'a ProtoSchema, name: &str) -> &'a MessageSchema {
+        schema
+            .messages
+            .iter()
+            .find(|m| m.name == name)
+            .unwrap_or_else(|| panic!("message '{name}' not found in schema"))
+    }
+
+    /// Find a field within a MessageSchema by name.
+    fn find_field<'a>(msg: &'a MessageSchema, name: &str) -> &'a FieldSchema {
+        msg.fields
+            .iter()
+            .find(|f| f.name == name)
+            .unwrap_or_else(|| panic!("field '{name}' not found in message '{}'", msg.name))
+    }
+
+    // ---- to_label ----------------------------------------------------------
+
+    #[test]
+    fn to_label_capitalizes_each_snake_case_word() {
+        assert_eq!(to_label("user_id"), "User Id");
+        assert_eq!(to_label("first_name_field"), "First Name Field");
+    }
+
+    #[test]
+    fn to_label_handles_single_word() {
+        assert_eq!(to_label("name"), "Name");
+    }
+
+    #[test]
+    fn to_label_handles_empty_string() {
+        assert_eq!(to_label(""), "");
+    }
+
+    #[test]
+    fn to_label_handles_leading_and_trailing_underscores() {
+        // Empty segments collapse to empty words, preserving surrounding spaces.
+        assert_eq!(to_label("_leading"), " Leading");
+        assert_eq!(to_label("trailing_"), "Trailing ");
+    }
+
+    // ---- scalar field extraction ------------------------------------------
+
+    #[test]
+    fn extracts_all_scalar_kinds() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               message Scalars {
+                 bool b = 1;
+                 string s = 2;
+                 bytes by = 3;
+                 int32 i32 = 4;
+                 int64 i64 = 5;
+                 uint32 u32 = 6;
+                 uint64 u64 = 7;
+                 sint32 si32 = 8;
+                 sint64 si64 = 9;
+                 fixed32 f32 = 10;
+                 fixed64 f64 = 11;
+                 sfixed32 sf32 = 12;
+                 sfixed64 sf64 = 13;
+                 float fl = 14;
+                 double db = 15;
+               }"#,
+            "scalars.proto",
+        );
+        let schema = extract_schema(&pool);
+        let msg = find_message(&schema, "Scalars");
+
+        let expected = [
+            ("b", ScalarKind::Bool),
+            ("s", ScalarKind::String),
+            ("by", ScalarKind::Bytes),
+            ("i32", ScalarKind::Int32),
+            ("i64", ScalarKind::Int64),
+            ("u32", ScalarKind::Uint32),
+            ("u64", ScalarKind::Uint64),
+            ("si32", ScalarKind::Sint32),
+            ("si64", ScalarKind::Sint64),
+            ("f32", ScalarKind::Fixed32),
+            ("f64", ScalarKind::Fixed64),
+            ("sf32", ScalarKind::Sfixed32),
+            ("sf64", ScalarKind::Sfixed64),
+            ("fl", ScalarKind::Float),
+            ("db", ScalarKind::Double),
+        ];
+
+        for (field_name, expected_scalar) in expected {
+            let field = find_field(msg, field_name);
+            match &field.kind {
+                FieldKind::Scalar { scalar } => assert_eq!(
+                    std::mem::discriminant(scalar),
+                    std::mem::discriminant(&expected_scalar),
+                    "field '{field_name}' had unexpected scalar kind"
+                ),
+                other => panic!("field '{field_name}' expected Scalar, got {other:?}"),
+            }
+            assert!(!field.repeated, "scalar field '{field_name}' should not be repeated");
+        }
+    }
+
+    #[test]
+    fn populates_field_metadata() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; message Meta { string user_name = 7; }"#,
+            "meta.proto",
+        );
+        let schema = extract_schema(&pool);
+        let field = find_field(find_message(&schema, "Meta"), "user_name");
+
+        assert_eq!(field.name, "user_name");
+        assert_eq!(field.label, "User Name");
+        assert_eq!(field.field_number, 7);
+        assert!(field.oneof_group.is_none());
+        assert!(field.default_value.is_none());
+    }
+
+    // ---- repeated fields ---------------------------------------------------
+
+    #[test]
+    fn marks_repeated_scalar_fields() {
+        let pool = make_pool(
+            r#"syntax = "proto3"; message Tags { repeated string tags = 1; string single = 2; }"#,
+            "tags.proto",
+        );
+        let schema = extract_schema(&pool);
+        let msg = find_message(&schema, "Tags");
+
+        assert!(find_field(msg, "tags").repeated);
+        assert!(!find_field(msg, "single").repeated);
+    }
+
+    // ---- nested message fields --------------------------------------------
+
+    #[test]
+    fn extracts_nested_message_field() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               message Address { string city = 1; }
+               message Person { string name = 1; Address address = 2; }"#,
+            "nested.proto",
+        );
+        let schema = extract_schema(&pool);
+        let field = find_field(find_message(&schema, "Person"), "address");
+
+        match &field.kind {
+            FieldKind::Message { full_name } => assert_eq!(full_name, "Address"),
+            other => panic!("expected Message kind, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn message_map_indexes_all_messages_by_full_name() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               message Address { string city = 1; }
+               message Person { string name = 1; Address address = 2; }"#,
+            "msgmap.proto",
+        );
+        let schema = extract_schema(&pool);
+
+        assert_eq!(schema.message_map.len(), 2);
+        assert!(schema.message_map.contains_key("Address"));
+        assert!(schema.message_map.contains_key("Person"));
+        assert_eq!(schema.message_map["Person"].name, "Person");
+    }
+
+    // ---- enums -------------------------------------------------------------
+
+    #[test]
+    fn extracts_enum_field_with_values() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               enum Status { UNKNOWN = 0; ACTIVE = 1; INACTIVE = 2; }
+               message Account { Status status = 1; }"#,
+            "enum_field.proto",
+        );
+        let schema = extract_schema(&pool);
+        let field = find_field(find_message(&schema, "Account"), "status");
+
+        match &field.kind {
+            FieldKind::Enum { values } => {
+                assert_eq!(values.len(), 3);
+                assert_eq!(values[0].name, "UNKNOWN");
+                assert_eq!(values[0].number, 0);
+                assert_eq!(values[2].name, "INACTIVE");
+                assert_eq!(values[2].number, 2);
+            }
+            other => panic!("expected Enum kind, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn extracts_top_level_enums() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               enum Color { RED = 0; GREEN = 1; }
+               message Dummy { string x = 1; }"#,
+            "top_enum.proto",
+        );
+        let schema = extract_schema(&pool);
+
+        let color = schema
+            .enums
+            .iter()
+            .find(|e| e.name == "Color")
+            .expect("Color enum should be extracted");
+        assert_eq!(color.full_name, "Color");
+        assert_eq!(color.values.len(), 2);
+        assert_eq!(color.values[1].name, "GREEN");
+        assert_eq!(color.values[1].number, 1);
+    }
+
+    // ---- oneof -------------------------------------------------------------
+
+    #[test]
+    fn extracts_oneof_as_synthetic_field_with_branches() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               message Contact {
+                 string name = 1;
+                 oneof method { string email = 2; string phone = 3; }
+               }"#,
+            "oneof.proto",
+        );
+        let schema = extract_schema(&pool);
+        let msg = find_message(&schema, "Contact");
+
+        // The two oneof members collapse into a single synthetic "method" field.
+        assert_eq!(msg.fields.len(), 2, "expected name + synthetic oneof field");
+        let oneof_field = find_field(msg, "method");
+        assert_eq!(oneof_field.label, "Method");
+        assert_eq!(oneof_field.field_number, 0);
+        assert!(!oneof_field.repeated);
+
+        match &oneof_field.kind {
+            FieldKind::Oneof { branches } => {
+                assert_eq!(branches.len(), 2);
+                assert_eq!(branches[0].len(), 1);
+                assert_eq!(branches[0][0].name, "email");
+                assert_eq!(branches[1][0].name, "phone");
+            }
+            other => panic!("expected Oneof kind, got {other:?}"),
+        }
+    }
+
+    // ---- maps --------------------------------------------------------------
+
+    #[test]
+    fn extracts_map_field_and_excludes_synthetic_entry() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               message WithMap { map<string, int32> counts = 1; }"#,
+            "map.proto",
+        );
+        let schema = extract_schema(&pool);
+
+        // The synthetic map-entry message must not appear as a top-level message.
+        assert_eq!(schema.messages.len(), 1);
+        let field = find_field(find_message(&schema, "WithMap"), "counts");
+
+        assert!(!field.repeated, "map fields must report repeated=false");
+        match &field.kind {
+            FieldKind::Map { key_type, value_kind } => {
+                assert!(matches!(key_type, ScalarKind::String));
+                match value_kind.as_ref() {
+                    FieldKind::Scalar { scalar } => assert!(matches!(scalar, ScalarKind::Int32)),
+                    other => panic!("expected scalar map value, got {other:?}"),
+                }
+            }
+            other => panic!("expected Map kind, got {other:?}"),
+        }
+    }
+
+    // ---- well-known types --------------------------------------------------
+
+    #[test]
+    fn extracts_well_known_type_field() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               import "google/protobuf/timestamp.proto";
+               message Event { google.protobuf.Timestamp created_at = 1; }"#,
+            "wkt.proto",
+        );
+        let schema = extract_schema(&pool);
+        let field = find_field(find_message(&schema, "Event"), "created_at");
+
+        match &field.kind {
+            FieldKind::WellKnown { wkt } => assert_eq!(wkt, "Timestamp"),
+            other => panic!("expected WellKnown kind, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn excludes_well_known_messages_from_schema() {
+        let pool = make_pool(
+            r#"syntax = "proto3";
+               import "google/protobuf/timestamp.proto";
+               message Event { google.protobuf.Timestamp created_at = 1; }"#,
+            "wkt_exclude.proto",
+        );
+        let schema = extract_schema(&pool);
+
+        assert!(
+            schema.messages.iter().all(|m| !m.full_name.starts_with("google.protobuf.")),
+            "google.protobuf.* messages must be filtered out"
+        );
+        assert!(schema.messages.iter().any(|m| m.name == "Event"));
+    }
+}

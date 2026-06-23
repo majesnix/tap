@@ -36,7 +36,7 @@ pub async fn consume_message(
     message_type_name: String,
     pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<ConsumeResult, crate::error::AppError> {
-    // Step 1: Clone pool FIRST (before any .await — MutexGuard is not Send)
+    // Clone pool FIRST (before any .await — MutexGuard is not Send)
     let pool = {
         let guard = pool_state
             .lock()
@@ -44,28 +44,48 @@ pub async fn consume_message(
                 field: "<root>".to_string(),
                 message: "Internal state lock poisoned — restart the application".to_string(),
             })?;
-        guard
-            .as_ref()
-            .ok_or_else(|| crate::error::AppError::EncodeError {
-                field: "<root>".to_string(),
-                message: "No proto file loaded".to_string(),
-            })?
-            .clone() // O(1) — Arc-backed
+        guard.clone() // O(1) — Arc-backed
     }; // guard drops here
 
-    // Step 2: Load credentials (sync, no await)
+    // Load credentials (sync, no await)
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
 
-    // Step 3: Connect in tight URI scope (SECURITY: password and URI dropped before result inspection)
+    consume_message_core(
+        pool,
+        &profile.host,
+        profile.port,
+        &profile.vhost,
+        &profile.username,
+        password,
+        queue_name,
+        message_type_name,
+    )
+    .await
+}
+
+/// Pure async core for [`consume_message`]: basic_get one message, ack-before-decode.
+/// Decoupled from Tauri/keychain so it can be integration-tested against a live broker.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn consume_message_core(
+    pool: Option<prost_reflect::DescriptorPool>,
+    host: &str,
+    port: u16,
+    vhost: &str,
+    username: &str,
+    password: String,
+    queue_name: String,
+    message_type_name: String,
+) -> Result<ConsumeResult, crate::error::AppError> {
+    // Require a loaded pool — single-message consume cannot decode without one.
+    let pool = pool.ok_or_else(|| crate::error::AppError::EncodeError {
+        field: "<root>".to_string(),
+        message: "No proto file loaded".to_string(),
+    })?;
+
+    // Connect in tight URI scope (SECURITY: password and URI dropped before result inspection)
     let conn = {
-        let uri = crate::profiles::build_amqp_uri(
-            &profile.host,
-            profile.port,
-            &profile.vhost,
-            &profile.username,
-            &password,
-        );
+        let uri = crate::profiles::build_amqp_uri(host, port, vhost, username, &password);
         // password is no longer needed — drop it before connecting
         drop(password);
         let result = tokio::time::timeout(
@@ -248,18 +268,6 @@ pub async fn drain_messages(
     count: u32,
     pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<DrainOutcome, crate::error::AppError> {
-    // Validate inputs at system boundary (CLAUDE.md: validate at system boundaries)
-    if message_type_names.is_empty() {
-        return Err(crate::error::AppError::InvalidInput(
-            "message_type_names must not be empty".to_string(),
-        ));
-    }
-    if count == 0 || count > 500 {
-        return Err(crate::error::AppError::InvalidInput(
-            "count must be between 1 and 500".to_string(),
-        ));
-    }
-
     // Clone pool BEFORE any .await (MutexGuard is not Send)
     let pool = {
         let guard = pool_state.lock().map_err(|_| {
@@ -272,15 +280,49 @@ pub async fn drain_messages(
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
 
+    drain_messages_core(
+        pool,
+        &profile.host,
+        profile.port,
+        &profile.vhost,
+        &profile.username,
+        password,
+        queue_name,
+        message_type_names,
+        count,
+    )
+    .await
+}
+
+/// Pure async core for [`drain_messages`]: drain up to `count` messages, ack-before-decode,
+/// first-candidate-decodes-wins. Decoupled from Tauri/keychain for integration testing.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn drain_messages_core(
+    pool: Option<prost_reflect::DescriptorPool>,
+    host: &str,
+    port: u16,
+    vhost: &str,
+    username: &str,
+    password: String,
+    queue_name: String,
+    message_type_names: Vec<String>,
+    count: u32,
+) -> Result<DrainOutcome, crate::error::AppError> {
+    // Validate inputs at system boundary (CLAUDE.md: validate at system boundaries)
+    if message_type_names.is_empty() {
+        return Err(crate::error::AppError::InvalidInput(
+            "message_type_names must not be empty".to_string(),
+        ));
+    }
+    if count == 0 || count > 500 {
+        return Err(crate::error::AppError::InvalidInput(
+            "count must be between 1 and 500".to_string(),
+        ));
+    }
+
     // Open connection in tight URI scope — password dropped before result inspection (security)
     let conn = {
-        let uri = crate::profiles::build_amqp_uri(
-            &profile.host,
-            profile.port,
-            &profile.vhost,
-            &profile.username,
-            &password,
-        );
+        let uri = crate::profiles::build_amqp_uri(host, port, vhost, username, &password);
         drop(password);
         let result = tokio::time::timeout(
             std::time::Duration::from_secs(10),
@@ -517,5 +559,168 @@ mod tests {
         assert!(r.decoded_as.is_none());
         assert!(r.error.is_some());
         assert!(!r.is_terminal);
+    }
+}
+
+// ─── Broker-backed integration tests ─────────────────────────────────────────────
+#[cfg(test)]
+mod integration_tests {
+    use super::*;
+    use crate::test_support::{broker_or_skip, test_channel, TestBroker};
+    use lapin::options::{
+        BasicPublishOptions, ConfirmSelectOptions, QueueDeclareOptions, QueuePurgeOptions,
+    };
+    use lapin::types::FieldTable;
+    use lapin::BasicProperties;
+    use prost_reflect::DescriptorPool;
+
+    /// Build a pool from inline proto and encode a message to wire bytes.
+    fn encode(proto: &str, file: &str, msg_type: &str, values: serde_json::Value) -> (DescriptorPool, Vec<u8>) {
+        let tmp_dir = std::env::temp_dir().join("tap_consume_it");
+        std::fs::create_dir_all(&tmp_dir).unwrap();
+        let path = tmp_dir.join(file);
+        std::fs::write(&path, proto).unwrap();
+        let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        c.include_imports(true);
+        c.open_file(path.to_str().unwrap()).unwrap();
+        let pool = DescriptorPool::from_file_descriptor_set(c.file_descriptor_set()).unwrap();
+        let bytes =
+            crate::commands::encode::encode_message_with_pool(&pool, msg_type, &values).unwrap();
+        (pool, bytes)
+    }
+
+    /// Declare+purge a queue and publish raw payloads to it (default exchange), with confirms.
+    async fn seed_queue(b: &TestBroker, queue: &str, payloads: &[Vec<u8>]) {
+        let ch = test_channel(b).await;
+        // RabbitMQ 4 rejects transient non-exclusive queues, so declare durable.
+        ch.queue_declare(queue.into(), QueueDeclareOptions { durable: true, ..Default::default() }, FieldTable::default())
+            .await
+            .unwrap();
+        ch.queue_purge(queue.into(), QueuePurgeOptions::default()).await.unwrap();
+        ch.confirm_select(ConfirmSelectOptions::default()).await.unwrap();
+        for p in payloads {
+            ch.basic_publish("".into(), queue.into(), BasicPublishOptions::default(), p, BasicProperties::default())
+                .await
+                .unwrap()
+                .await
+                .unwrap();
+        }
+    }
+
+    const PROTO: &str = r#"syntax = "proto3"; message Item { string name = 1; int32 qty = 2; }"#;
+
+    #[tokio::test]
+    async fn consume_no_pool_errors_without_broker() {
+        let res = consume_message_core(
+            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            "q".to_string(), "Item".to_string(),
+        )
+        .await;
+        assert!(matches!(res, Err(crate::error::AppError::EncodeError { .. })));
+    }
+
+    #[tokio::test]
+    async fn consume_empty_queue_returns_empty_sentinel() {
+        let Some(b) = broker_or_skip("consume_empty").await else { return };
+        let queue = "tap-it-consume-empty";
+        seed_queue(&b, queue, &[]).await;
+        let (pool, _) = encode(PROTO, "c_empty.proto", "Item", serde_json::json!({}));
+        let res = consume_message_core(
+            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            queue.to_string(), "Item".to_string(),
+        )
+        .await
+        .unwrap();
+        assert!(res.empty);
+    }
+
+    #[tokio::test]
+    async fn consume_decodes_a_published_message() {
+        let Some(b) = broker_or_skip("consume_decode").await else { return };
+        let queue = "tap-it-consume-decode";
+        let (pool, bytes) = encode(PROTO, "c_dec.proto", "Item", serde_json::json!({ "name": "widget", "qty": 5 }));
+        seed_queue(&b, queue, &[bytes]).await;
+        let res = consume_message_core(
+            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            queue.to_string(), "Item".to_string(),
+        )
+        .await
+        .unwrap();
+        assert!(!res.empty);
+        assert_eq!(res.decoded.as_ref().unwrap()["name"], "widget");
+        assert!(res.error.is_none());
+    }
+
+    #[tokio::test]
+    async fn consume_unknown_type_returns_inline_error() {
+        let Some(b) = broker_or_skip("consume_unknown").await else { return };
+        let queue = "tap-it-consume-unknown";
+        let (pool, bytes) = encode(PROTO, "c_unk.proto", "Item", serde_json::json!({ "name": "x" }));
+        seed_queue(&b, queue, &[bytes]).await;
+        let res = consume_message_core(
+            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            queue.to_string(), "NotAType".to_string(),
+        )
+        .await
+        .unwrap();
+        assert!(!res.empty);
+        assert!(res.decoded.is_none());
+        assert!(res.error.unwrap().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn drain_rejects_empty_type_names() {
+        let res = drain_messages_core(
+            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            "q".to_string(), vec![], 10,
+        )
+        .await;
+        assert!(matches!(res, Err(crate::error::AppError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn drain_rejects_invalid_count() {
+        let res = drain_messages_core(
+            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            "q".to_string(), vec!["Item".to_string()], 0,
+        )
+        .await;
+        assert!(matches!(res, Err(crate::error::AppError::InvalidInput(_))));
+    }
+
+    #[tokio::test]
+    async fn drain_drains_multiple_messages() {
+        let Some(b) = broker_or_skip("drain_multi").await else { return };
+        let queue = "tap-it-drain-multi";
+        let (pool, b1) = encode(PROTO, "d1.proto", "Item", serde_json::json!({ "name": "a", "qty": 1 }));
+        let (_, b2) = encode(PROTO, "d1.proto", "Item", serde_json::json!({ "name": "b", "qty": 2 }));
+        let (_, b3) = encode(PROTO, "d1.proto", "Item", serde_json::json!({ "name": "c", "qty": 3 }));
+        seed_queue(&b, queue, &[b1, b2, b3]).await;
+        let outcome = drain_messages_core(
+            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 10,
+        )
+        .await
+        .unwrap();
+        assert_eq!(outcome.messages.len(), 3);
+        assert!(outcome.partial_error.is_none());
+        assert_eq!(outcome.messages[0].decoded_as, Some("Item".to_string()));
+    }
+
+    #[tokio::test]
+    async fn drain_without_pool_reports_decode_error_per_message() {
+        let Some(b) = broker_or_skip("drain_no_pool").await else { return };
+        let queue = "tap-it-drain-nopool";
+        let (_, bytes) = encode(PROTO, "dnp.proto", "Item", serde_json::json!({ "name": "x" }));
+        seed_queue(&b, queue, &[bytes]).await;
+        let outcome = drain_messages_core(
+            None, &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 10,
+        )
+        .await
+        .unwrap();
+        assert_eq!(outcome.messages.len(), 1);
+        assert!(outcome.messages[0].decoded.is_none());
+        assert!(outcome.messages[0].error.as_ref().unwrap().contains("No proto schema"));
     }
 }

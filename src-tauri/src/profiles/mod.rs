@@ -65,6 +65,43 @@ pub fn delete_password(profile_name: &str) -> Result<(), AppError> {
 }
 
 #[cfg(test)]
+mod keychain_tests {
+    use super::*;
+    use std::sync::Once;
+
+    static INIT: Once = Once::new();
+
+    /// Install the in-memory mock keychain store once for the whole test process.
+    fn init_mock_store() {
+        INIT.call_once(|| {
+            keyring_core::set_default_store(keyring_core::mock::Store::new().unwrap());
+        });
+    }
+
+    #[test]
+    fn store_get_delete_password_round_trip() {
+        init_mock_store();
+        let profile = "tap-test-profile-roundtrip";
+        store_password(profile, "s3cret").unwrap();
+        assert_eq!(get_password(profile).unwrap(), "s3cret");
+
+        // Overwrite is allowed.
+        store_password(profile, "rotated").unwrap();
+        assert_eq!(get_password(profile).unwrap(), "rotated");
+
+        delete_password(profile).unwrap();
+        assert!(get_password(profile).is_err(), "password must be gone after delete");
+    }
+
+    #[test]
+    fn get_password_missing_profile_errors() {
+        init_mock_store();
+        let err = get_password("tap-test-profile-never-stored").unwrap_err();
+        assert!(matches!(err, AppError::KeyringError(_)), "got {err:?}");
+    }
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
 

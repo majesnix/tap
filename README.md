@@ -55,7 +55,26 @@ pnpm tauri dev
 **Run tests:**
 
 ```bash
-pnpm test
+pnpm test                                   # frontend (vitest)
+cargo test --manifest-path src-tauri/Cargo.toml   # Rust unit + integration
+```
+
+The Rust suite includes broker-backed integration tests. They **skip automatically**
+when no RabbitMQ broker is reachable, so the command above stays green without Docker.
+To run them, start the local broker first and require them explicitly:
+
+```bash
+docker compose up -d rabbitmq
+TAP_INTEGRATION=1 cargo test --manifest-path src-tauri/Cargo.toml
+```
+
+`TAP_INTEGRATION=1` makes a missing broker fail loudly instead of skipping (this is how
+CI runs them). Coverage is enforced in CI at ≥80% region coverage via `cargo llvm-cov`:
+
+```bash
+cargo install cargo-llvm-cov
+TAP_INTEGRATION=1 cargo llvm-cov --manifest-path src-tauri/Cargo.toml \
+  --ignore-filename-regex '(lib\.rs|main\.rs|test_support\.rs)$'
 ```
 
 **Build a release bundle:**

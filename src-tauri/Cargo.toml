@@ -39,6 +39,10 @@ base64 = "0.22"
 keyring-core = "1"
 reqwest = { version = "0.13", features = ["json", "rustls"] }
 
+[dev-dependencies]
+# Test-only: async test runtime. Merged with the main `tokio` feature set for test builds.
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 dbus-secret-service-keyring-store = { version = "1", features = ["crypto-rust"] }
 
