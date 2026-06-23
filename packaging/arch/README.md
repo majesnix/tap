@@ -17,8 +17,8 @@ makepkg -si
 Each tagged release publishes a pre-built `tap-<version>-1-x86_64.pkg.tar.zst` alongside the macOS and AppImage artifacts.
 
 ```bash
-curl -LO https://github.com/majesnix/tap/releases/latest/download/tap-1.8.2-1-x86_64.pkg.tar.zst
-sudo pacman -U tap-1.8.2-1-x86_64.pkg.tar.zst
+curl -LO https://github.com/majesnix/tap/releases/latest/download/tap-1.8.3-1-x86_64.pkg.tar.zst
+sudo pacman -U tap-1.8.3-1-x86_64.pkg.tar.zst
 ```
 
 ## Runtime dependencies

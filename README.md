@@ -92,8 +92,8 @@ Tap ships a native Arch package (`.pkg.tar.zst`) with every tagged release, alon
 **From a tagged release (recommended):**
 
 ```bash
-curl -LO https://github.com/majesnix/tap/releases/latest/download/tap-1.8.2-1-x86_64.pkg.tar.zst
-sudo pacman -U tap-1.8.2-1-x86_64.pkg.tar.zst
+curl -LO https://github.com/majesnix/tap/releases/latest/download/tap-1.8.3-1-x86_64.pkg.tar.zst
+sudo pacman -U tap-1.8.3-1-x86_64.pkg.tar.zst
 ```
 
 **From source (in-repo `makepkg`):**
@@ -131,4 +131,4 @@ docs/             Additional documentation
 
 ## Version
 
-v1.8.2
+v1.8.3
