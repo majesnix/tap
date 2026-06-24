@@ -3,13 +3,7 @@ import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Tooltip,
   TooltipContent,
@@ -149,18 +143,15 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
     <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
       {/* Live dropdown vs Manual text input */}
       {isLiveMode ? (
-        <Select value={selectedQueue} onValueChange={setSelectedQueue}>
-          <SelectTrigger className="w-48">
-            <SelectValue placeholder="Select queue…" />
-          </SelectTrigger>
-          <SelectContent position="popper" className="max-h-60">
-            {queueList.map((name) => (
-              <SelectItem key={name} value={name}>
-                {name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <SearchableSelect
+          className="w-48"
+          value={selectedQueue}
+          onChange={setSelectedQueue}
+          placeholder="Select queue…"
+          searchPlaceholder="Filter queues…"
+          emptyText="No queues found."
+          items={queueList.map((name) => ({ value: name }))}
+        />
       ) : (
         <Input
           placeholder="Queue name"

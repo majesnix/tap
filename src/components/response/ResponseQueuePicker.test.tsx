@@ -1,42 +1,32 @@
-import React from "react";
 import { describe, it, test, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useResponseStore } from "@/stores/useResponseStore";
 
-// Mock shadcn Select with a native <select> to avoid Radix UI portal/pointer-event issues in jsdom.
-// Pattern copied from src/components/publish/__tests__/PublishBar.test.tsx (lines 16-33).
-vi.mock("@/components/ui/select", () => ({
-  Select: ({
+// Mock SearchableSelect with a native <select> — cmdk/Radix portals don't work in jsdom.
+vi.mock("@/components/ui/searchable-select", () => ({
+  SearchableSelect: ({
     value,
-    onValueChange,
-    children,
+    onChange,
+    items,
   }: {
     value?: string;
-    onValueChange?: (v: string) => void;
-    children: React.ReactNode;
+    onChange: (v: string) => void;
+    items: { value: string }[];
   }) => (
     <select
-      value={value ?? ""}
-      onChange={(e) => onValueChange?.(e.target.value)}
       role="combobox"
       aria-label="queue select"
+      value={value ?? ""}
+      onChange={(e) => onChange(e.target.value)}
     >
-      {children}
+      {items.map((it) => (
+        <option key={it.value} value={it.value}>
+          {it.value}
+        </option>
+      ))}
     </select>
   ),
-  SelectTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectValue: ({ placeholder }: { placeholder?: string }) => (
-    <option value="">{placeholder}</option>
-  ),
-  SelectContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
-  SelectItem: ({
-    value,
-    children,
-  }: {
-    value: string;
-    children: React.ReactNode;
-  }) => <option value={value}>{children}</option>,
 }));
 
 const { mockFetchQueues, mockFetchQueueDepth } = vi.hoisted(() => ({
