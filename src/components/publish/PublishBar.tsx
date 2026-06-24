@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   Tooltip,
   TooltipContent,
@@ -415,38 +416,29 @@ export function PublishBar() {
       {/* Target picker + Management API status badge */}
       <div className="flex items-center gap-2">
         {managementStatus === "live" ? (
-          <Select
+          <SearchableSelect
+            className="w-48"
             value={mode === "queue" ? selectedQueue : selectedExchange}
-            onValueChange={mode === "queue" ? setSelectedQueue : setSelectedExchange}
-          >
-            <SelectTrigger className="w-48">
-              <SelectValue
-                placeholder={mode === "queue" ? "Select queue…" : "Select exchange…"}
-              />
-            </SelectTrigger>
-            <SelectContent position="popper" className="max-h-60">
-              {/* Queue list (plain) or exchange list with type badge per D-05 */}
-              {mode === "exchange"
-                ? exchanges.map((ex) => (
-                    <SelectItem key={ex.name} value={ex.name}>
-                      <span className="flex items-center gap-2">
-                        {ex.name}
-                        <Badge
-                          variant="outline"
-                          className="text-xs text-muted-foreground font-semibold"
-                        >
-                          [{ex.exchange_type}]
-                        </Badge>
-                      </span>
-                    </SelectItem>
-                  ))
-                : queues.map((name) => (
-                    <SelectItem key={name} value={name}>
-                      {name}
-                    </SelectItem>
-                  ))}
-            </SelectContent>
-          </Select>
+            onChange={mode === "queue" ? setSelectedQueue : setSelectedExchange}
+            placeholder={mode === "queue" ? "Select queue…" : "Select exchange…"}
+            searchPlaceholder={mode === "queue" ? "Filter queues…" : "Filter exchanges…"}
+            emptyText={mode === "queue" ? "No queues found." : "No exchanges found."}
+            items={
+              mode === "exchange"
+                ? exchanges.map((ex) => ({
+                    value: ex.name,
+                    badge: (
+                      <Badge
+                        variant="outline"
+                        className="text-xs text-muted-foreground font-semibold"
+                      >
+                        [{ex.exchange_type}]
+                      </Badge>
+                    ),
+                  }))
+                : queues.map((name) => ({ value: name }))
+            }
+          />
         ) : (
           <Input
             placeholder={mode === "queue" ? "Queue name" : "Exchange name"}
