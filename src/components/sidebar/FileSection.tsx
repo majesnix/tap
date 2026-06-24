@@ -183,17 +183,18 @@ export function FileSection() {
       addRecentFile(pendingFilePath);
       setParseError(null);
     } catch (err: unknown) {
+      // Surface the raw backend message verbatim. protox reports the exact
+      // problem (e.g. "fields must have a label with proto2 syntax...", or an
+      // unresolved import). Categorizing here only hid the real cause behind a
+      // useless generic string. For import errors we still append a hint.
       const message = err instanceof Error ? err.message : String(err);
-
-      if (message.includes("import") || message.includes("resolution")) {
-        setParseError(
-          `Import resolution failed. Add the containing directory to include paths.`
-        );
-      } else {
-        setParseError(
-          "Could not parse .proto file. Check include paths and file syntax."
-        );
-      }
+      const isImportError =
+        message.includes("import") || message.includes("resolution");
+      setParseError(
+        isImportError
+          ? `${message} — add the containing directory to include paths.`
+          : message
+      );
     }
   };
 
