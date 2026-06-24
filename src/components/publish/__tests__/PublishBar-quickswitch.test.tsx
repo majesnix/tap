@@ -71,6 +71,32 @@ vi.mock("@/components/ui/select", () => ({
   SelectValue: ({ placeholder }: { placeholder?: string }) => <span>{placeholder}</span>,
 }));
 
+// Mock SearchableSelect with a native <select> — cmdk/Radix portals don't work in jsdom.
+// Renders one <option> per item so fireEvent.change(value) works; keeps role="combobox"
+// so getTargetCombobox() (last combobox in the DOM) still resolves to the target picker.
+vi.mock("@/components/ui/searchable-select", () => ({
+  SearchableSelect: ({
+    value,
+    onChange,
+    placeholder,
+    items,
+  }: {
+    value?: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+    items: { value: string }[];
+  }) => (
+    <select role="combobox" value={value ?? ""} onChange={(e) => onChange(e.target.value)}>
+      <option value="">{placeholder}</option>
+      {items.map((it) => (
+        <option key={it.value} value={it.value}>
+          {it.value}
+        </option>
+      ))}
+    </select>
+  ),
+}));
+
 import { PublishBar } from "@/components/publish/PublishBar";
 
 beforeEach(() => {
