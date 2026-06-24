@@ -124,11 +124,13 @@ Replace the `<Select>` with `SearchableSelect`:
 
 - **New** `searchable-select.test.tsx` (AAA pattern):
   - renders all items
-  - typing filters the list
-  - selecting an item calls `onChange` with its value and closes
+  - selecting an item calls `onChange` with its exact value (adversarial casing preserved)
   - `Check` appears on the selected item
   - renders a `badge` when provided
-  - shows `emptyText` when nothing matches
+  - disabled state is applied to the trigger
+  - `emptyText` and `searchPlaceholder` props are wired through
+  - Note: cmdk and Radix are mocked in jsdom, so filter-as-you-type and keyboard
+    navigation cannot be unit-tested; those behaviors are verified manually.
 - **Update** existing tests that drive the old `Select` (open trigger → click
   `SelectItem`) to use the combobox interaction (open popover → optionally type →
   click `CommandItem`):
