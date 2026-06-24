@@ -24,7 +24,9 @@ vi.mock("@/components/ui/command", () => ({
     onSelect?: (v: string) => void;
     children: React.ReactNode;
   }) => (
-    <li role="option" onClick={() => onSelect?.(value)}>
+    // Intentionally pass lowercased value to onSelect — mirrors cmdk's real behaviour.
+    // The component must use item.value from its closure, not this callback argument.
+    <li role="option" onClick={() => onSelect?.(value.toLowerCase())}>
       {children}
     </li>
   ),
@@ -91,5 +93,32 @@ describe("SearchableSelect", () => {
   it("renders the search placeholder on the filter input", () => {
     render(<SearchableSelect {...defaultProps} searchPlaceholder="Filter queues…" />);
     expect(screen.getByPlaceholderText("Filter queues…")).toBeInTheDocument();
+  });
+
+  it("disables the trigger button when disabled prop is true", () => {
+    render(<SearchableSelect {...defaultProps} disabled />);
+    expect(screen.getByRole("combobox")).toBeDisabled();
+  });
+
+  it("trigger button is enabled by default", () => {
+    render(<SearchableSelect {...defaultProps} />);
+    expect(screen.getByRole("combobox")).not.toBeDisabled();
+  });
+
+  it("commits the item's exact value preserving original casing", () => {
+    // Item has mixed-case value. The mock calls onSelect with value.toLowerCase()
+    // ("myqueue"), so if the component relied on the callback arg it would call
+    // onChange("myqueue"). The component must ignore the arg and use item.value.
+    const onChange = vi.fn();
+    render(
+      <SearchableSelect
+        {...defaultProps}
+        items={[{ value: "MyQueue" }]}
+        onChange={onChange}
+      />
+    );
+    fireEvent.click(screen.getByRole("option", { name: /MyQueue/i }));
+    expect(onChange).toHaveBeenCalledWith("MyQueue");
+    expect(onChange).not.toHaveBeenCalledWith("myqueue");
   });
 });

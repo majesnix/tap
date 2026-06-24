@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ChevronsUpDown, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -16,7 +16,7 @@ export interface SearchableSelectItem {
   /** The queue/exchange name — also the cmdk filter key and the committed value. */
   value: string;
   /** Optional trailing element rendered after the label (e.g. an exchange [type] badge). */
-  badge?: React.ReactNode;
+  badge?: ReactNode;
 }
 
 interface SearchableSelectProps {
