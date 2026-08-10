@@ -35,7 +35,7 @@ lapin = { version = "4", features = ["tokio"] }
 uuid = { version = "1", features = ["v4"] }
 percent-encoding = "2"
 tracing = "0.1"
-base64 = "0.22"
+base64 = "0.23"
 keyring-core = "1"
 reqwest = { version = "0.13", features = ["json", "rustls"] }
 
