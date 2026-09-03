@@ -605,7 +605,7 @@ mod integration_tests {
         std::fs::create_dir_all(&tmp_dir).unwrap();
         let path = tmp_dir.join(file);
         std::fs::write(&path, proto).unwrap();
-        let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        let mut c = protox::Compiler::new([tmp_dir.to_str().unwrap()]).unwrap();
         c.include_imports(true);
         c.open_file(path.to_str().unwrap()).unwrap();
         let pool = DescriptorPool::from_file_descriptor_set(c.file_descriptor_set()).unwrap();

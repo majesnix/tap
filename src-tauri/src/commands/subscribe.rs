@@ -637,7 +637,7 @@ mod integration_tests {
         // Unique file per call: parallel tests must not truncate each other's proto.
         let path = tmp_dir.join(format!("ping-{}.proto", uuid::Uuid::new_v4().simple()));
         std::fs::write(&path, PROTO).unwrap();
-        let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        let mut c = protox::Compiler::new([tmp_dir.to_str().unwrap()]).unwrap();
         c.include_imports(true);
         c.open_file(path.to_str().unwrap()).unwrap();
         let pool = DescriptorPool::from_file_descriptor_set(c.file_descriptor_set()).unwrap();
