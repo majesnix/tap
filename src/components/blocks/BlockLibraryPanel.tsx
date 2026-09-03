@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { IconButton } from "@/components/common/IconButton";
 import { SectionLabel } from "@/components/common/SectionLabel";
+import { jsonEditorTheme } from "@/components/form/jsonEditorTheme";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,6 +30,11 @@ export function BlockLibraryPanel() {
   const { blocks, blocksLoaded, loadBlocks, addBlock, updateBlock, deleteBlock } =
     useBlockStore();
   const { resolvedTheme } = useTheme();
+  // Same design-system CodeMirror theme the request form's JSON editor uses.
+  const editorExtensions = useMemo(
+    () => [json(), ...jsonEditorTheme(resolvedTheme === "dark")],
+    [resolvedTheme]
+  );
   const selectedMessage = useProtoStore(
     (s) => s.schema?.message_map[s.selectedMessageType ?? ""] ?? null
   );
@@ -164,8 +170,8 @@ export function BlockLibraryPanel() {
                 <CodeMirror
                   value={contentDraft}
                   height="100%"
-                  theme={resolvedTheme === "dark" ? "dark" : "light"}
-                  extensions={[json()]}
+                  theme="none"
+                  extensions={editorExtensions}
                   onChange={setContentDraft}
                   className="flex-1 min-h-0"
                   basicSetup={{ lineNumbers: true, bracketMatching: true }}

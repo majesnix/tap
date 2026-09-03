@@ -196,6 +196,13 @@ export function formatClock(at: number): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.${pad(d.getMilliseconds(), 3)}`;
 }
 
+/** Local wall clock as HH:MM — the compact form used by plan rows and the run bar. */
+export function formatClockShort(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 const KB = 1024;
 const MB = 1024 * 1024;
 

@@ -3,8 +3,7 @@ import { Loader2, Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SearchableSelect } from "@/components/ui/searchable-select";
-import { StatusDot } from "@/components/common/StatusDot";
-import { Tag } from "@/components/common/Tag";
+import { CatalogStatus } from "@/components/compose/CatalogStatus";
 import {
   Tooltip,
   TooltipContent,
@@ -199,21 +198,10 @@ export function ResponseQueuePicker({
 
       {/* Catalog status — live listing, manual entry, or a rejected management login */}
       <div className="flex items-center gap-1.5 text-11 text-muted-foreground">
-        {managementAuthError ? (
-          <Tag tone="danger" size="xs" title={managementAuthError}>
-            Auth failed
-          </Tag>
-        ) : isLiveMode ? (
-          <>
-            <StatusDot tone="success" size={6} />
-            Live catalog
-          </>
-        ) : (
-          <>
-            <StatusDot tone="warning" size={6} />
-            Manual entry
-          </>
-        )}
+        <CatalogStatus
+          managementStatus={isLiveMode ? "live" : "manual"}
+          managementAuthError={managementAuthError}
+        />
         {!isLiveMode && depthMeta && <span className="font-mono text-ghost">· {depthMeta}</span>}
       </div>
 

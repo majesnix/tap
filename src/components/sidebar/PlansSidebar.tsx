@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from "react";
-import { getVersion } from "@tauri-apps/api/app";
 import { MoreVertical, Plus } from "lucide-react";
 import { IconButton } from "@/components/common/IconButton";
 import { SectionLabel } from "@/components/common/SectionLabel";
@@ -20,8 +19,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { RELEASE_NAME } from "@/lib/release";
-import { ClearLocalDataButton } from "@/components/sidebar/ClearLocalDataButton";
+import { SidebarFooter } from "@/components/sidebar/SidebarFooter";
+import { formatClockShort } from "@/components/activity/activityModel";
 import { usePlanStore } from "@/stores/usePlanStore";
 import type { Plan } from "@/lib/types";
 
@@ -31,14 +30,6 @@ interface PlansSidebarProps {
   /** Plan of the most recent run in this session — adds "· ran HH:MM" to its row. */
   lastRunPlanId: string | null;
   lastRunAt: number | null;
-}
-
-function formatClock(at: number): string {
-  return new Date(at).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 }
 
 // ── PlanRow ───────────────────────────────────────────────────────────────────
@@ -180,17 +171,12 @@ export function PlansSidebar({
   const [planToDelete, setPlanToDelete] = useState<Plan | null>(null); // controlled AlertDialog state
   const [renamingId, setRenamingId] = useState<string | null>(null); // which row is in inline-rename mode
   const [isCreating, setIsCreating] = useState(false); // inline create row visible
-  const [appVersion, setAppVersion] = useState("");
-
-  useEffect(() => {
-    getVersion().then(setAppVersion).catch(() => {});
-  }, []);
 
   // D-11: loadPlans() is called in App.tsx at mount — PlansSidebar does NOT call it.
   function metaFor(plan: Plan): string {
     const steps = `${plan.steps.length} steps`;
     return plan.id === lastRunPlanId && lastRunAt !== null
-      ? `${steps} · ran ${formatClock(lastRunAt)}`
+      ? `${steps} · ran ${formatClockShort(lastRunAt)}`
       : steps;
   }
 
@@ -267,13 +253,7 @@ export function PlansSidebar({
 
       <div className="flex-1" />
 
-      {/* Sidebar footer — mirrors Sidebar.tsx until the shared SidebarFooter lands */}
-      <div className="flex items-center justify-between px-2 text-11 whitespace-nowrap text-ghost">
-        <span>
-          {appVersion ? `v${appVersion}` : "v1.3.0"} · {RELEASE_NAME}
-        </span>
-        <ClearLocalDataButton />
-      </div>
+      <SidebarFooter />
 
       {/* AlertDialog rendered at component root — NEVER inside DropdownMenuItem (Pitfall 3) */}
       <AlertDialog

@@ -116,12 +116,12 @@ describe("StepReplyPanel", () => {
     expect(screen.getByText("Not decoded")).toBeInTheDocument();
   });
 
-  test("lists one row per reply feed entry", () => {
+  test("lists one ActivityRow per reply feed entry", () => {
     renderPanel({
       feed: [feedMessage(), feedMessage({ id: "f2", decodedAs: null, decoded: null })],
     });
     expect(screen.getByText("Reply feed · 2")).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+    expect(screen.getAllByRole("button", { expanded: false })).toHaveLength(2);
     expect(screen.getByText("DECODED")).toBeInTheDocument();
     expect(screen.getByText("NO DECODER")).toBeInTheDocument();
   });
@@ -133,6 +133,15 @@ describe("StepReplyPanel", () => {
 
   test("renders the feed row meta as routing key, time and size", () => {
     renderPanel({ feed: [feedMessage()] });
-    expect(screen.getByText("orders.reply · 14:02:11.025 · 2 B")).toBeInTheDocument();
+    expect(screen.getByText("orders.reply")).toBeInTheDocument();
+    expect(screen.getByText("14:02:11.025")).toBeInTheDocument();
+    expect(screen.getByText("2 B")).toBeInTheDocument();
+  });
+
+  test("expands a feed row to reveal its decoded payload", () => {
+    renderPanel({ feed: [feedMessage()] });
+    expect(screen.queryByText("ok")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { expanded: false }));
+    expect(screen.getByText("ok")).toBeInTheDocument();
   });
 });

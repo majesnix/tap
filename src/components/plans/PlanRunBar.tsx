@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/tooltip";
 import type { Plan, StepStatus } from "@/lib/types";
 import { findProfile, isReadOnly } from "@/lib/profileSafety";
+import { formatClockShort } from "@/components/activity/activityModel";
 
 // ── PlanRunBar ─────────────────────────────────────────────────────────────────
 
@@ -63,13 +64,7 @@ export function PlanRunBar({ plan, lastRunAt, lastRunMs }: PlanRunBarProps) {
 
   const subtitle = [
     `${plan.steps.length} steps`,
-    lastRunAt != null
-      ? `last run ${new Date(lastRunAt).toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        })}`
-      : null,
+    lastRunAt != null ? `last run ${formatClockShort(lastRunAt)}` : null,
     lastRunMs != null ? `${(lastRunMs / 1000).toFixed(1)} s` : null,
   ]
     .filter(Boolean)

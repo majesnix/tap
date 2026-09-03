@@ -3,7 +3,6 @@ import { ArrowLeft } from "lucide-react";
 import { SectionLabel } from "@/components/common/SectionLabel";
 import { DecodedTree } from "@/components/common/DecodedTree";
 import { HexDump } from "@/components/common/HexDump";
-import { Tag, type TagTone } from "@/components/common/Tag";
 import {
   Dialog,
   DialogContent,
@@ -11,32 +10,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ActivityRow } from "@/components/activity/ActivityRow";
+import { hexByteLength, receivedItem } from "@/components/activity/activityModel";
+import { useActivityActions } from "@/components/activity/useActivityActions";
 import type { FeedMessage, PlanStep, ReplyMessage } from "@/lib/types";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-/** Byte count of a spaced or unspaced hex string. */
-function hexByteLength(hex: string): number {
-  return Math.floor(hex.replace(/\s+/g, "").length / 2);
-}
-
-function formatClock(at: number): string {
-  if (!Number.isFinite(at)) return "—";
-  const d = new Date(at);
-  const base = d.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-  return `${base}.${String(d.getMilliseconds()).padStart(3, "0")}`;
-}
-
-function feedTag(message: FeedMessage): { tone: TagTone; label: string } {
-  if (message.error) return { tone: "danger", label: "ERROR" };
-  if (message.decoded === null) return { tone: "warning", label: "NO DECODER" };
-  return { tone: "teal", label: "DECODED" };
-}
 
 function TealTile() {
   return (
@@ -76,6 +55,9 @@ export function StepReplyPanel({
   durationMs,
 }: StepReplyPanelProps) {
   const [hexOpen, setHexOpen] = useState(false);
+  // The feed rows own their expand state here; the Activity panel keeps its own.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const actions = useActivityActions();
 
   const meta = reply
     ? [
@@ -141,32 +123,23 @@ export function StepReplyPanel({
         )}
 
         {feed.length > 0 && (
-          <ul className="mt-3 flex flex-col">
-            {feed.map((message) => {
-              const { tone, label } = feedTag(message);
-              return (
-                <li
-                  key={message.id}
-                  className="flex items-start gap-2.5 border-t border-hairline p-[10px_16px]"
-                >
-                  <TealTile />
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <span className="flex items-center gap-2">
-                      <span className="min-w-0 flex-1 truncate text-13 font-medium">
-                        {message.decodedAs ?? "(unknown)"}
-                      </span>
-                      <Tag tone={tone} size="xs">
-                        {label}
-                      </Tag>
-                    </span>
-                    <span className="font-mono text-11 text-ghost">
-                      {`${message.routingKey || "(none)"} · ${formatClock(message.receivedAt)} · ${hexByteLength(message.hexString)} B`}
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="mt-3 flex flex-col">
+            {feed.map((message) => (
+              <ActivityRow
+                key={message.id}
+                group={{ item: receivedItem(message), reply: null }}
+                expanded={expandedId === message.id}
+                replyExpanded={false}
+                highlighted={false}
+                slideIn={false}
+                onToggle={() =>
+                  setExpandedId((current) => (current === message.id ? null : message.id))
+                }
+                onToggleReply={() => {}}
+                actions={actions}
+              />
+            ))}
+          </div>
         )}
       </div>
 
