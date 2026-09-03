@@ -5,7 +5,7 @@ import { GripVertical } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { FilesSidebar } from "@/components/sidebar/FilesSidebar";
 import { FormPanel } from "@/components/form/FormPanel";
-import { RightPanel, type RightPanelTab } from "@/components/layout/RightPanel";
+import { ActivityPanel } from "@/components/activity/ActivityPanel";
 import { PublishBar } from "@/components/publish/PublishBar";
 import { BlockLibraryPanel } from "@/components/blocks/BlockLibraryPanel";
 import { useBlockStore } from "@/stores/useBlockStore";
@@ -18,9 +18,7 @@ interface ComposeViewProps {
 }
 
 /**
- * The three signal refs later Compose sub-components (Task 8) will bind to for
- * mod+1/2/3. For this task they exist alongside the legacy RightPanel tab
- * switching (setActiveTabRef) so the existing shortcut tests keep passing.
+ * The three signal refs Compose sub-components bind to for mod+1/2/3.
  */
 export interface ComposeSignals {
   focusFilter: MutableRefObject<(() => void) | null>;
@@ -37,14 +35,12 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
   const blocks = useBlockStore((s) => s.blocks);
   const activeDragBlock = activeDragId ? (blocks.find((b) => b.id === activeDragId) ?? null) : null;
 
-  const setActiveTabRef = useRef<((tab: RightPanelTab) => void) | null>(null);
-
   const focusFilter = useRef<(() => void) | null>(null);
   const toggleHex = useRef<(() => void) | null>(null);
   const toggleReadMode = useRef<(() => void) | null>(null);
-  // Stable identity across renders — later Compose sub-components (Task 8)
-  // will receive this object as a prop and should not re-run effects that
-  // depend on it every time ComposeView re-renders.
+  // Stable identity across renders — sub-components receive this object as a
+  // prop and must not re-run their registration effects on every ComposeView
+  // re-render.
   const signals: ComposeSignals = useMemo(
     () => ({ focusFilter, toggleHex, toggleReadMode }),
     []
@@ -54,7 +50,6 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
     "mod+1",
     (e) => {
       e.preventDefault();
-      setActiveTabRef.current?.("hex");
       signals.focusFilter.current?.();
     },
     { enableOnFormTags: true }
@@ -63,7 +58,6 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
     "mod+2",
     (e) => {
       e.preventDefault();
-      setActiveTabRef.current?.("history");
       signals.toggleHex.current?.();
     },
     { enableOnFormTags: true }
@@ -72,7 +66,6 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
     "mod+3",
     (e) => {
       e.preventDefault();
-      setActiveTabRef.current?.("response");
       signals.toggleReadMode.current?.();
     },
     { enableOnFormTags: true }
@@ -113,7 +106,7 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
             <FormPanel isBlockLibraryOpen={blocksOpen} onToggleBlockLibrary={onToggleBlocks} />
           </>
         }
-        aside={<RightPanel setActiveTabRef={setActiveTabRef} />}
+        aside={<ActivityPanel signals={signals} />}
       />
       <DragOverlay dropAnimation={null}>
         {activeDragBlock ? (

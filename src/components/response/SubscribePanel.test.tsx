@@ -187,12 +187,12 @@ describe("Status badge", () => {
     expect(screen.getByText("Stopping")).toBeInTheDocument();
   });
 
-  test("shows destructive Error badge when status is Error", () => {
+  test("shows a danger Error tag carrying the message as its tooltip", () => {
     useResponseStore.getState().setSubscribeStatus("Error", "connection failed");
     render(<SubscribePanel {...DEFAULT_PROPS} />);
-    const errorBadge = screen.getByText("Error");
-    // destructive variant uses data-variant attribute
-    expect(errorBadge.closest("[data-variant='destructive']")).not.toBeNull();
+    const errorTag = screen.getByText("Error");
+    expect(errorTag).toHaveClass("text-danger");
+    expect(errorTag).toHaveAttribute("title", "connection failed");
   });
 });
 

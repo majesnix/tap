@@ -87,7 +87,7 @@ describe("ResponseQueuePicker", () => {
     render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Live")).toBeInTheDocument();
+      expect(screen.getByText("Live catalog")).toBeInTheDocument();
     });
 
     // Queue options should be in the native <select>
@@ -101,7 +101,7 @@ describe("ResponseQueuePicker", () => {
     render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
     await waitFor(() => {
-      expect(screen.getByText("Manual")).toBeInTheDocument();
+      expect(screen.getByText("Manual entry")).toBeInTheDocument();
     });
 
     // Input field should be visible (no Select)
@@ -115,11 +115,14 @@ describe("ResponseQueuePicker", () => {
 
     render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
+    // The full error is the tag's tooltip; the tag itself stays short.
     await waitFor(() => {
-      expect(
-        screen.getByText("Management API authentication failed: wrong credentials (HTTP 401)")
-      ).toBeInTheDocument();
+      expect(screen.getByText("Auth failed")).toBeInTheDocument();
     });
+    expect(screen.getByText("Auth failed")).toHaveAttribute(
+      "title",
+      "Management API authentication failed: wrong credentials (HTTP 401)"
+    );
   });
 
   it("Test 4 (disabled consume + tooltip): Consume button is disabled when connectionStatus is disconnected", () => {

@@ -2,7 +2,7 @@ import { useRef, useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { Play, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Tag, type TagTone } from "@/components/common/Tag";
 import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
@@ -176,39 +176,23 @@ export function SubscribePanel({
   const isRunningOrStopping =
     subscribeStatus === "Running" || subscribeStatus === "Stopping";
 
-  // ── Status badge ─────────────────────────────────────────────────────────────
+  // ── Status tag ───────────────────────────────────────────────────────────────
 
-  const renderStatusBadge = () => {
-    switch (subscribeStatus) {
-      case "Idle":
-        return (
-          <Badge variant="outline">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-muted-foreground inline-block" />
-            Idle
-          </Badge>
-        );
-      case "Running":
-        return (
-          <Badge variant="outline">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-emerald-500 inline-block" />
-            Running
-          </Badge>
-        );
-      case "Stopping":
-        return (
-          <Badge variant="outline">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-amber-500 inline-block" />
-            Stopping
-          </Badge>
-        );
-      case "Error":
-        return (
-          <Badge variant="destructive" title={subscribeError ?? undefined}>
-            Error
-          </Badge>
-        );
-    }
+  const STATUS_TONE: Record<typeof subscribeStatus, TagTone> = {
+    Idle: "neutral",
+    Running: "teal",
+    Stopping: "warning",
+    Error: "danger",
   };
+
+  const renderStatusBadge = () => (
+    <Tag
+      tone={STATUS_TONE[subscribeStatus]}
+      title={subscribeStatus === "Error" ? (subscribeError ?? undefined) : undefined}
+    >
+      {subscribeStatus}
+    </Tag>
+  );
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -221,10 +205,11 @@ export function SubscribePanel({
       {!isRunningOrStopping && (
         <Button
           variant="default"
+          size="md"
           onClick={requestStart}
           disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current || blockedByReadOnly}
         >
-          <Play className="mr-2 h-4 w-4" />
+          <Play size={14} strokeWidth={1.5} />
           Start
         </Button>
       )}
@@ -233,19 +218,20 @@ export function SubscribePanel({
       {isRunningOrStopping && (
         <Button
           variant="outline"
+          size="md"
           onClick={() => void handleStop()}
           disabled={subscribeStatus === "Stopping"}
         >
           {subscribeStatus === "Stopping" ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Square className="mr-2 h-4 w-4" />
+            <Square size={14} strokeWidth={1.5} />
           )}
           Stop
         </Button>
       )}
 
-      <span className="text-xs text-muted-foreground basis-full">
+      <span className="basis-full text-11 text-ghost">
         {isTap
           ? "Non-destructive: Tap binds a private queue to the same exchanges, so the original queue is untouched. Needs the Management API and at least one exchange binding."
           : blockedByReadOnly
