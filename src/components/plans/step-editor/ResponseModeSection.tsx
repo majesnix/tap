@@ -112,9 +112,9 @@ export function useResponseMode({ step, planId, updateStep }: ResponseModeArgs):
 /** Response mode cell of grid 1. */
 export function ModeSelect({ state }: { state: ResponseModeState }) {
   return (
-    <EditorField label="Response mode">
+    <EditorField label="Response mode" htmlFor={`mode-${state.stepId}`}>
       <Select value={state.mode} onValueChange={state.changeMode}>
-        <SelectTrigger size="sm" className="w-full text-[12.5px]">
+        <SelectTrigger id={`mode-${state.stepId}`} size="sm" className="w-full text-[12.5px]">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>

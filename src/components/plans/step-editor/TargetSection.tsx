@@ -61,7 +61,12 @@ export function TargetSection({ step, planId, updateStep }: TargetSectionProps) 
   }
 
   return (
-    <EditorField label="Target">
+    <EditorField
+      label="Target"
+      htmlFor={
+        targetKind === "queue" ? `queue-name-${step.id}` : `exchange-${step.id}`
+      }
+    >
       <div className="flex items-center gap-2">
         <SegmentedControl
           aria-label="Target kind"

@@ -104,3 +104,67 @@ Deviations from the brief, all deliberate:
 Re-verified after the fixes: `pnpm test` 71 files / **791 tests passed**, `pnpm exec tsc --noEmit`
 clean, `pnpm lint` **0 errors / 23 warnings**, coverage **79.07 / 71.32 / 78.3 / 80.45**.
 This report is committed alongside the code in the amended commit.
+
+
+---
+
+## Fix round 1 (coordinator review findings)
+
+Committed on top of `d42eee5` as a second commit on the same branch.
+
+1. **Empty-field count was wrong on the default path (important).** `safeParseFieldValues("{}", message)`
+   returns `{}`, and the old `countEmptyValues` only inspected keys that were present, so a fresh step
+   read "6 fields · 0 empty". Replaced by `countEmptyFields(fields, values)` in
+   `step-editor/stepFields.tsx`: it walks `message.fields` and counts a field empty when its value is
+   **absent** or `""`, `null`, `[]` or `0` (the brief's definition + absent). `StepEditor` now passes
+   `message?.fields ?? []`.
+2. **Empty-plan copy (important, ruling applied).** `PlanEmptyState` takes optional `title`/`hint`
+   (defaults unchanged). `StepCardList` renders "No steps yet" / "Use the + button to add your first
+   step." above the add-step row; "Select a plan to get started" / "Choose a plan from the list…"
+   stays for the no-plan-selected state in `PlanView`.
+3. **Auto-scroll (minor).** `StepCard` now scrolls into view whenever it is the active step
+   (`usePlanExecutionStore(s => s.activeStepId === step.id)`), matching the old `StepListPanel`,
+   instead of only when `selected && status === "sending"`. The documented prop signature is
+   unchanged — the card reads the execution store the list already reads.
+4. **Rename selects first (minor).** The kebab's Rename calls `onSelect()` before entering the inline
+   rename, as the old list did.
+5. **Label association (minor).** `EditorField` already had `htmlFor`; ids are now passed for the
+   Target combobox (`queue-name-…`/`exchange-…`, and `LiveCombobox` forwards `id` to its popover
+   trigger too), the Response-mode select (`mode-…`) and, for consistency, the Proto file and
+   Message type selects.
+
+### Covering tests
+
+- **New `src/components/plans/__tests__/StepEditor.test.tsx`** (14 tests): "6 fields · 6 empty" for a
+  fresh `{}` step and "6 fields · 4 empty" once two values exist (finding 1 — the old code rendered
+  `0 empty`); `""`/`null`/`[]`/`0` all counted while real values are not; the label/`for` associations
+  (finding 5); plus grid behaviour that was previously untested — Edit-fields toggle, randomize,
+  "proto not open" note, queue/exchange target persistence with routing key, response-mode switch with
+  timeout and reply-queue persistence, delay persistence, proto-file change clearing the message type,
+  and the disabled fieldset.
+- **`StepCard.test.tsx`**: "scrolls into view when it becomes the active step" and "does not scroll a
+  card that is not the active step" (finding 3); the rename test now also asserts `onSelect` fires
+  (finding 4).
+- **`StepCardList.test.tsx`**: the empty-plan test asserts the "No steps yet" copy, the absence of the
+  plan-level copy and that the add-step row is still present (finding 2).
+
+### Commands and output
+
+```
+pnpm exec vitest run src/components/plans src/components/sidebar
+  Test Files  13 passed (13) · Tests  122 passed (122)
+pnpm test
+  Test Files  72 passed (72) · Tests  807 passed (807)
+pnpm exec tsc --noEmit
+  TypeScript: No errors found
+pnpm lint
+  23 problems (0 errors, 23 warnings)   # unchanged from the baseline
+pnpm exec vitest run --coverage
+  Statements 79.14 (≥78) · Branches 71.44 (≥70) · Functions 78.4 (≥76) · Lines 80.43 (≥79)
+```
+
+Note: pulling `StepEditor` and the `step-editor/*` modules into the tested set briefly pushed branch
+coverage to 69.44 %; the added grid tests brought it back to 71.44 %, above the 70 % threshold.
+
+Left for the controller's cleanup task as instructed: clock-formatter duplication, dead `paneMode`,
+the inline reply-feed rows, the reply-queue guidance tooltip.

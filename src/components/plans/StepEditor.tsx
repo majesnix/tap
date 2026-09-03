@@ -25,7 +25,7 @@ import {
 } from "./step-editor/ResponseModeSection";
 import { EditorField } from "./step-editor/EditorField";
 import {
-  countEmptyValues,
+  countEmptyFields,
   renderField,
   safeParseFieldValues,
 } from "./step-editor/stepFields";
@@ -162,7 +162,10 @@ function StepEditorInner({
   const responseMode = useResponseMode({ step, planId, updateStep });
 
   const fieldCount = message?.fields.length ?? 0;
-  const emptyCount = countEmptyValues((watchedValues ?? {}) as Record<string, unknown>);
+  const emptyCount = countEmptyFields(
+    message?.fields ?? [],
+    (watchedValues ?? {}) as Record<string, unknown>
+  );
   const shortType = step.message_type.split(".").pop() ?? step.message_type;
 
   return (
@@ -178,7 +181,7 @@ function StepEditorInner({
       >
         {/* Grid 1 — proto file, message type, response mode */}
         <div className="grid grid-cols-3 gap-3">
-          <EditorField label="Proto file">
+          <EditorField label="Proto file" htmlFor={`proto-file-${step.id}`}>
             <Select
               value={step.proto_path}
               onValueChange={(path) => {
@@ -190,7 +193,11 @@ function StepEditorInner({
                 updateStep(planId, step.id, changes).catch(console.error);
               }}
             >
-              <SelectTrigger size="sm" className="w-full text-[12.5px]">
+              <SelectTrigger
+                id={`proto-file-${step.id}`}
+                size="sm"
+                className="w-full text-[12.5px]"
+              >
                 <SelectValue placeholder="Select a .proto file" />
               </SelectTrigger>
               <SelectContent>
@@ -208,7 +215,7 @@ function StepEditorInner({
             </Select>
           </EditorField>
 
-          <EditorField label="Message type">
+          <EditorField label="Message type" htmlFor={`message-type-${step.id}`}>
             {schema ? (
               <Select
                 value={step.message_type}
@@ -218,7 +225,11 @@ function StepEditorInner({
                   }
                 }}
               >
-                <SelectTrigger size="sm" className="w-full text-[12.5px]">
+                <SelectTrigger
+                  id={`message-type-${step.id}`}
+                  size="sm"
+                  className="w-full text-[12.5px]"
+                >
                   <SelectValue placeholder="Select a message type" />
                 </SelectTrigger>
                 <SelectContent>

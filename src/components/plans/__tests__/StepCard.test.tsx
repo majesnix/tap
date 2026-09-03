@@ -49,6 +49,7 @@ vi.mock("../StepEditor", () => ({
 }));
 
 import { StepCard } from "@/components/plans/StepCard";
+import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
 
 const STEP: PlanStep = {
   id: "step-1",
@@ -95,6 +96,7 @@ function withMode(mode: ResponseMode): PlanStep {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  usePlanExecutionStore.setState({ activeStepId: null });
 });
 
 describe("StepCard", () => {
@@ -200,9 +202,10 @@ describe("StepCard", () => {
     expect(props.onDelete).toHaveBeenCalled();
   });
 
-  test("Rename commits the edited name on Enter", () => {
+  test("Rename selects the card and commits the edited name on Enter", () => {
     const props = renderCard();
     fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+    expect(props.onSelect).toHaveBeenCalled();
     const input = screen.getByLabelText("Step name");
     fireEvent.change(input, { target: { value: "Renamed step" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -246,6 +249,22 @@ describe("StepCard", () => {
       />
     );
     expect((container.firstElementChild as HTMLElement).className).toContain("border-border-strong");
+  });
+
+  test("scrolls into view when it becomes the active step", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    usePlanExecutionStore.setState({ activeStepId: STEP.id });
+    renderCard({ status: "waiting-response" });
+    expect(scrollIntoView).toHaveBeenCalled();
+  });
+
+  test("does not scroll a card that is not the active step", () => {
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+    usePlanExecutionStore.setState({ activeStepId: "another-step" });
+    renderCard();
+    expect(scrollIntoView).not.toHaveBeenCalled();
   });
 
   test("shows the error message in a tooltip for a failed step", () => {

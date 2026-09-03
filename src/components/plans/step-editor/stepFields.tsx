@@ -98,14 +98,23 @@ export function renderField(
   }
 }
 
-/** Top-level values that read as "not filled in": "", null, [] or 0. */
-export function countEmptyValues(values: Record<string, unknown>): number {
-  return Object.values(values).filter(
-    (v) =>
-      v === "" ||
-      v === null ||
-      v === undefined ||
-      v === 0 ||
-      (Array.isArray(v) && v.length === 0)
-  ).length;
+/**
+ * Top-level fields that read as "not filled in": absent from the values object,
+ * or set to "", null, [] or 0. Counted against the schema's fields so a step
+ * whose field_values is still "{}" reports every field as empty.
+ */
+export function countEmptyFields(
+  fields: FieldSchema[],
+  values: Record<string, unknown>
+): number {
+  return fields.filter((field) => {
+    const value = values[field.name];
+    return (
+      value === undefined ||
+      value === "" ||
+      value === null ||
+      value === 0 ||
+      (Array.isArray(value) && value.length === 0)
+    );
+  }).length;
 }

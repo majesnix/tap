@@ -100,11 +100,15 @@ describe("StepCardList", () => {
     expect(screen.getByText("Send payment")).toBeInTheDocument();
   });
 
-  test("shows the empty state for a plan without steps", () => {
+  test("shows the no-steps empty state for a plan without steps", () => {
     const empty: Plan = { ...PLAN, id: "plan-empty", steps: [] };
     usePlanStore.setState({ plansLoaded: true, plans: [empty] });
     renderList({ plan: empty });
-    expect(screen.getByText("Select a plan to get started")).toBeInTheDocument();
+    expect(screen.getByText("No steps yet")).toBeInTheDocument();
+    expect(screen.getByText("Use the + button to add your first step.")).toBeInTheDocument();
+    expect(screen.queryByText("Select a plan to get started")).not.toBeInTheDocument();
+    // the add-step row stays available beneath the empty state
+    expect(screen.getByRole("button", { name: /add step/i })).toBeInTheDocument();
   });
 
   test("offers the three add-step sources", () => {

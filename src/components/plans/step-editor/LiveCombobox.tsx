@@ -52,6 +52,7 @@ export function LiveCombobox({ value, onChange, onCommit, items, placeholder, id
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            id={id}
             variant="outline"
             role="combobox"
             aria-expanded={open}

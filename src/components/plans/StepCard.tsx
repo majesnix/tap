@@ -11,6 +11,7 @@ import {
 import { IconButton } from "@/components/common/IconButton";
 import { cn } from "@/lib/utils";
 import type { PlanStep, PublishTarget, ResponseMode, StepStatus } from "@/lib/types";
+import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
 import { StepStatusBadge } from "./StepStatusBadge";
 import { StepEditor } from "./StepEditor";
 
@@ -147,9 +148,9 @@ export function StepCard({
     isDragging,
   } = useSortable({ id: step.id });
 
-  // D-10: bring the running step into view when the runner reaches it.
+  // D-10: bring the running step into view whenever it becomes the active step.
   const cardRef = useRef<HTMLDivElement>(null);
-  const isActive = selected && status === "sending";
+  const isActive = usePlanExecutionStore((s) => s.activeStepId === step.id);
   useEffect(() => {
     if (isActive) {
       cardRef.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
@@ -261,7 +262,14 @@ export function StepCard({
           </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={() => setRenaming(true)}>Rename</DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={() => {
+              onSelect(); // renaming a step selects it first (old list behaviour)
+              setRenaming(true);
+            }}
+          >
+            Rename
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => onDuplicate()}>Duplicate</DropdownMenuItem>
           <DropdownMenuItem
             onSelect={(e) => {

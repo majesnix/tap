@@ -84,7 +84,12 @@ export function StepCardList({
 
   return (
     <div className="flex flex-col gap-2.5">
-      {steps.length === 0 && <PlanEmptyState />}
+      {steps.length === 0 && (
+        <PlanEmptyState
+          title="No steps yet"
+          hint="Use the + button to add your first step."
+        />
+      )}
 
       <SortableContext items={steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
         {steps.map((step, index) => (
