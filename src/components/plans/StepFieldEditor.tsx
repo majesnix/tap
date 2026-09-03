@@ -24,7 +24,7 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import { fetchQueues, fetchExchanges } from "@/lib/ipc";
+import { getExchanges, getQueues } from "@/lib/brokerCatalog";
 import { generateRandomValues } from "@/lib/randomizer";
 import {
   REPLY_TIMEOUT_MAX_MS,
@@ -266,8 +266,8 @@ function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
   // profile changes — independent of whether PublishBar has been visited.
   useEffect(() => {
     if (!activeProfileName) return;
-    fetchQueues(activeProfileName).then(setQueues).catch(() => {});
-    fetchExchanges(activeProfileName).then(setExchanges).catch(() => {});
+    getQueues(activeProfileName).then(setQueues).catch(() => {});
+    getExchanges(activeProfileName).then(setExchanges).catch(() => {});
   }, [activeProfileName, setQueues, setExchanges]);
 
   const exchangeNames = exchanges.map((e) => e.name);

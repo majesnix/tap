@@ -41,6 +41,10 @@ vi.mock("@/lib/ipc", () => ({
 }));
 
 import { ResponseQueuePicker } from "@/components/response/ResponseQueuePicker";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+// Listings are cached per profile across renders; start every test from an empty cache.
+beforeEach(() => invalidateCatalog());
 
 beforeEach(() => {
   vi.clearAllMocks();

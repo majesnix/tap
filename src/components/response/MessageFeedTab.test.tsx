@@ -79,6 +79,10 @@ import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { MessageFeedTab } from "./MessageFeedTab";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+// Listings are cached per profile across renders; start every test from an empty cache.
+beforeEach(() => invalidateCatalog());
 
 const LOCAL_PROFILE = {
   name: "test-profile",

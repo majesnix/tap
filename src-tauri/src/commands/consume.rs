@@ -6,7 +6,13 @@
 /// D-10 DEVIATION: Ack happens BEFORE decode — always. This prevents poison-pill
 /// messages from blocking the queue. Decode errors are shown inline; the message
 /// is removed from the queue regardless of decode outcome.
-use crate::profiles::{AmqpEndpoint, AMQP_CONNECT_TIMEOUT};
+use crate::profiles::{consumer_tag, AmqpEndpoint, AMQP_CONNECT_TIMEOUT};
+use futures_util::StreamExt;
+use std::time::Duration;
+
+/// How long a batch read waits for the next delivery before deciding the queue is drained.
+/// One consumer with prefetch = count replaces `count` sequential basic.get round trips.
+const BATCH_IDLE_TIMEOUT: Duration = Duration::from_millis(300);
 
 /// Result type returned to the frontend.
 #[derive(serde::Serialize)]
@@ -321,123 +327,152 @@ pub(crate) async fn drain_messages_core(
     // Peek: highest delivery tag read so far; one multiple-nack at the end requeues them all.
     let mut last_unacked_tag: Option<u64> = None;
 
-    // Read loop — basic_get up to count times (D-13/D-18/D-19)
-    for _ in 0..count {
-        let get_result = channel
-            .basic_get(queue_name.as_str().into(), lapin::options::BasicGetOptions::default())
-            .await;
+    // One consumer with prefetch = count: the broker pushes the batch in one go instead of
+    // answering `count` sequential basic.get round trips (D-13/D-18/D-19).
+    let prefetch = u16::try_from(count).unwrap_or(u16::MAX);
+    if let Err(e) = channel.basic_qos(prefetch, lapin::options::BasicQosOptions::default()).await {
+        tracing::warn!("drain_messages: basic_qos failed: {}", e);
+        let _ = conn.close(0, "".into()).await;
+        return Err(crate::error::AppError::AmqpError(
+            "Failed to set prefetch on the channel — check broker permissions".to_string(),
+        ));
+    }
+    let tag = consumer_tag(if requeue { "peek" } else { "consume" });
+    let mut consumer = match channel
+        .basic_consume(
+            queue_name.as_str().into(),
+            tag.as_str().into(),
+            lapin::options::BasicConsumeOptions::default(),
+            lapin::types::FieldTable::default(),
+        )
+        .await
+    {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("drain_messages: basic_consume failed: {}", e);
+            let _ = conn.close(0, "".into()).await;
+            return Err(crate::error::AppError::AmqpError(
+                "Failed to read from queue — queue may have been deleted or connection was interrupted".to_string(),
+            ));
+        }
+    };
 
-        match get_result {
-            Err(e) => {
-                // Mid-loop error — preserve already-acked messages (D-18)
-                tracing::warn!("drain_messages: basic_get failed mid-loop: {}", e);
+    while results.len() < count as usize {
+        let delivery = match tokio::time::timeout(BATCH_IDLE_TIMEOUT, consumer.next()).await {
+            // Nothing arrived for a while: the queue is drained (D-02).
+            Err(_) => break,
+            Ok(None) => {
                 partial_error = Some("Queue read interrupted — partial results returned".to_string());
                 break;
             }
-            Ok(None) => {
-                // Queue empty — stop silently (D-02)
+            Ok(Some(Err(e))) => {
+                // Mid-batch error — preserve already-read messages (D-18)
+                tracing::warn!("drain_messages: delivery failed mid-batch: {}", e);
+                partial_error = Some("Queue read interrupted — partial results returned".to_string());
                 break;
             }
-            Ok(Some(msg)) => {
-                // Extract AMQP metadata — ShortString.to_string() required (RESEARCH Pitfall 7)
-                let routing_key = msg.routing_key.to_string();
-                let exchange = msg.exchange.to_string();
-                let content_type = msg
-                    .properties
-                    .content_type()
-                    .as_ref()
-                    .map(|s| s.to_string());
-                let timestamp: Option<u64> = *msg.properties.timestamp();
-                let payload: Vec<u8> = msg.data.clone();
-                let delivery_tag = msg.delivery_tag;
-                let hex_string = bytes_to_hex(&payload);
+            Ok(Some(Ok(delivery))) => delivery,
+        };
 
-                if requeue {
-                    // Peek: leave it unacknowledged; it goes back in one nack after the loop.
-                    last_unacked_tag = Some(delivery_tag);
-                } else {
-                    // ACK BEFORE DECODE (D-14: ack-before-decode — critical order)
-                    if let Err(e) = channel
-                        .basic_ack(delivery_tag, lapin::options::BasicAckOptions::default())
-                        .await
-                    {
-                        tracing::warn!("drain_messages: ack failed mid-loop: {}", e);
-                        partial_error = Some("Failed to acknowledge a message — partial results returned, message may be requeued".to_string());
-                        break;
-                    }
-                }
+        // Extract AMQP metadata — ShortString.to_string() required (RESEARCH Pitfall 7)
+        let routing_key = delivery.routing_key.to_string();
+        let exchange = delivery.exchange.to_string();
+        let content_type = delivery
+            .properties
+            .content_type()
+            .as_ref()
+            .map(|s| s.to_string());
+        let timestamp: Option<u64> = *delivery.properties.timestamp();
+        let payload: Vec<u8> = delivery.data.clone();
+        let delivery_tag = delivery.delivery_tag;
+        let hex_string = bytes_to_hex(&payload);
 
-                // Decode: iterate message_type_names, first success wins (D-19)
-                let (decoded, decoded_as, error) = if let Some(pool) = &pool {
-                    let mut found_decoded: Option<serde_json::Value> = None;
-                    let mut found_decoded_as: Option<String> = None;
-                    let mut last_error: Option<String> = None;
-
-                    'candidates: for type_name in &message_type_names {
-                        let msg_desc = match pool.get_message_by_name(type_name) {
-                            Some(d) => d,
-                            None => {
-                                last_error = Some(format!(
-                                    "Message type '{}' not found in loaded schema",
-                                    type_name
-                                ));
-                                continue;
-                            }
-                        };
-                        match prost_reflect::DynamicMessage::decode(msg_desc, payload.as_ref()) {
-                            Ok(dyn_msg) => {
-                                let mut buf = Vec::new();
-                                let mut ser = serde_json::Serializer::new(&mut buf);
-                                let opts = prost_reflect::SerializeOptions::new()
-                                    .use_proto_field_name(true)
-                                    .stringify_64_bit_integers(true);
-                                if dyn_msg
-                                    .serialize_with_options(&mut ser, &opts)
-                                    .is_ok()
-                                {
-                                    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&buf) {
-                                        found_decoded = Some(v);
-                                        found_decoded_as = Some(type_name.clone());
-                                        last_error = None;
-                                        break 'candidates; // first success wins
-                                    }
-                                }
-                                last_error = Some(
-                                    "Decode failed: serialization error. Showing raw bytes.".to_string(),
-                                );
-                            }
-                            Err(e) => {
-                                last_error = Some(format!(
-                                    "Decode failed: {}. Showing raw bytes.",
-                                    e
-                                ));
-                            }
-                        }
-                    }
-
-                    (found_decoded, found_decoded_as, last_error)
-                } else {
-                    (
-                        None,
-                        None,
-                        Some("No proto schema loaded — cannot decode".to_string()),
-                    )
-                };
-
-                results.push(DrainResult {
-                    routing_key,
-                    exchange,
-                    content_type,
-                    timestamp,
-                    decoded,
-                    hex_string,
-                    error,
-                    decoded_as,
-                    is_terminal: false, // drain messages are never terminal
-                });
+        if requeue {
+            // Peek: leave it unacknowledged; it goes back in one nack after the loop.
+            last_unacked_tag = Some(delivery_tag);
+        } else {
+            // ACK BEFORE DECODE (D-14: ack-before-decode — critical order)
+            if let Err(e) = delivery.acker.ack(lapin::options::BasicAckOptions::default()).await {
+                tracing::warn!("drain_messages: ack failed mid-batch: {}", e);
+                partial_error = Some("Failed to acknowledge a message — partial results returned, message may be requeued".to_string());
+                break;
             }
         }
+
+        // Decode: iterate message_type_names, first success wins (D-19)
+        let (decoded, decoded_as, error) = if let Some(pool) = &pool {
+            let mut found_decoded: Option<serde_json::Value> = None;
+            let mut found_decoded_as: Option<String> = None;
+            let mut last_error: Option<String> = None;
+
+            'candidates: for type_name in &message_type_names {
+                let msg_desc = match pool.get_message_by_name(type_name) {
+                    Some(d) => d,
+                    None => {
+                        last_error = Some(format!(
+                            "Message type '{}' not found in loaded schema",
+                            type_name
+                        ));
+                        continue;
+                    }
+                };
+                match prost_reflect::DynamicMessage::decode(msg_desc, payload.as_ref()) {
+                    Ok(dyn_msg) => {
+                        let mut buf = Vec::new();
+                        let mut ser = serde_json::Serializer::new(&mut buf);
+                        let opts = prost_reflect::SerializeOptions::new()
+                            .use_proto_field_name(true)
+                            .stringify_64_bit_integers(true);
+                        if dyn_msg
+                            .serialize_with_options(&mut ser, &opts)
+                            .is_ok()
+                        {
+                            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&buf) {
+                                found_decoded = Some(v);
+                                found_decoded_as = Some(type_name.clone());
+                                last_error = None;
+                                break 'candidates; // first success wins
+                            }
+                        }
+                        last_error = Some(
+                            "Decode failed: serialization error. Showing raw bytes.".to_string(),
+                        );
+                    }
+                    Err(e) => {
+                        last_error = Some(format!(
+                            "Decode failed: {}. Showing raw bytes.",
+                            e
+                        ));
+                    }
+                }
+            }
+
+            (found_decoded, found_decoded_as, last_error)
+        } else {
+            (
+                None,
+                None,
+                Some("No proto schema loaded — cannot decode".to_string()),
+            )
+        };
+
+        results.push(DrainResult {
+            routing_key,
+            exchange,
+            content_type,
+            timestamp,
+            decoded,
+            hex_string,
+            error,
+            decoded_as,
+            is_terminal: false, // batch reads are never terminal
+        });
     }
+
+    // Stop the broker from pushing anything further before we hand back or close.
+    let _ = channel
+        .basic_cancel(tag.as_str().into(), lapin::options::BasicCancelOptions::default())
+        .await;
 
     // Peek: hand everything back to the queue before closing (closing would also requeue,
     // but an explicit nack makes the intent visible and keeps ordering deterministic).

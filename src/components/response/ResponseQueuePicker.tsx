@@ -23,7 +23,8 @@ import { cn } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useProtoStore } from "@/stores/useProtoStore";
-import { fetchQueues, fetchQueueDepth } from "@/lib/ipc";
+import { fetchQueueDepth } from "@/lib/ipc";
+import { getQueues } from "@/lib/brokerCatalog";
 import { findProfile, isReadOnly } from "@/lib/profileSafety";
 import type { FeedMode } from "@/lib/types";
 
@@ -65,7 +66,7 @@ export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePi
 
     const fetch = async () => {
       try {
-        const qs = await fetchQueues(activeProfileName);
+        const qs = await getQueues(activeProfileName);
         if (cancelled) return;
         setManagementAuthError(null);
         setQueueList(qs, true); // isLive = true

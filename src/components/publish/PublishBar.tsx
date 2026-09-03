@@ -24,7 +24,8 @@ import { useProtoStore } from "@/stores/useProtoStore";
 import { useAmqpStore } from "@/stores/useAmqpStore";
 import { useHistoryStore } from "@/stores/useHistoryStore";
 import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
-import { fetchExchanges, fetchQueues, publishMessage, fetchBindings, listProfiles, activateProfile, encodeMessage } from "@/lib/ipc";
+import { publishMessage, fetchBindings, listProfiles, activateProfile, encodeMessage } from "@/lib/ipc";
+import { getExchanges, getQueues } from "@/lib/brokerCatalog";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
 import type { ProfileEnvironment, PublishOutcome } from "@/lib/types";
@@ -147,13 +148,13 @@ export function PublishBar() {
     const fetchTargets = async () => {
       try {
         if (mode === "queue") {
-          const qs = await fetchQueues(activeProfileName);
+          const qs = await getQueues(activeProfileName);
           // Clear stale auth error only on successful fetch
           setManagementAuthError(null);
           setQueues(qs);
           setManagementStatus("live");
         } else {
-          const exs = await fetchExchanges(activeProfileName);
+          const exs = await getExchanges(activeProfileName);
           // Clear stale auth error only on successful fetch
           setManagementAuthError(null);
           setExchanges(exs);

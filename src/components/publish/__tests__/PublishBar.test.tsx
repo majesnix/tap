@@ -82,6 +82,10 @@ vi.mock("../RoutingKeyCombobox", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+// Listings are cached per profile across renders; start every test from an empty cache.
+beforeEach(() => invalidateCatalog());
 const mockInvoke = vi.mocked(invoke);
 
 function getTargetCombobox() {

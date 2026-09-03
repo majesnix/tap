@@ -98,6 +98,10 @@ vi.mock("@/components/ui/searchable-select", () => ({
 }));
 
 import { PublishBar } from "@/components/publish/PublishBar";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+// Listings are cached per profile across renders; start every test from an empty cache.
+beforeEach(() => invalidateCatalog());
 
 beforeEach(() => {
   useConnectionStore.setState({

@@ -27,6 +27,7 @@ import { ConnectionTestResult } from "@/components/connection/ConnectionTestResu
 import type { ConnectionProfile, ProfileEnvironment } from "@/lib/types";
 import { isLocalHost } from "@/lib/hosts";
 import { ENVIRONMENT_LABELS, profileEnvironment } from "@/lib/profileSafety";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
 
 const ENVIRONMENTS: ProfileEnvironment[] = ["local", "shared", "production"];
 
@@ -270,6 +271,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     try {
       // Step 1: persist profile + keychain password
       await saveProfile(profile, formValues.password);
+      invalidateCatalog(profile.name); // host or credentials may have changed
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -299,6 +301,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     if (!deleteTarget) return;
     try {
       await deleteProfile(deleteTarget);
+      invalidateCatalog(deleteTarget);
       const updated = await listProfiles();
       setProfiles(updated);
     } catch (err: unknown) {
