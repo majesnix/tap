@@ -13,7 +13,7 @@ export function PlanEmptyState({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
-      <ClipboardList size={40} className="text-ghost" aria-hidden="true" />
+      <ClipboardList strokeWidth={1.5} size={40} className="text-ghost" aria-hidden="true" />
       <p className="text-13 font-semibold">{title}</p>
       <p className="text-12 text-ghost">{hint}</p>
     </div>

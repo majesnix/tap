@@ -281,7 +281,7 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
               className="mt-1 shrink-0"
               onClick={() => remove(index)}
             >
-              <Trash2 size={13} />
+              <Trash2 strokeWidth={1.5} size={13} />
             </IconButton>
           </div>
         );
@@ -295,7 +295,7 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
         className="self-start text-violet-bright"
         onClick={handleAppend}
       >
-        <Plus size={13} className="mr-1" />
+        <Plus strokeWidth={1.5} size={13} className="mr-1" />
         Add entry
       </Button>
     </div>

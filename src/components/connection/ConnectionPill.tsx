@@ -109,7 +109,7 @@ export function ConnectionPill({ onOpenSheet }: { onOpenSheet: (s: Exclude<Sheet
               title={`Keychain unavailable: passwords are kept in memory for this session only (${keychainError})`}
               className="inline-flex"
             >
-              <TriangleAlert size={14} className="text-warning" />
+              <TriangleAlert strokeWidth={1.5} size={14} className="text-warning" />
             </span>
           )}
           <span className="inline-flex size-6 items-center justify-center text-muted-foreground">

@@ -85,7 +85,7 @@ export function FilesSidebar() {
         )}
         {parseError && (
           <p role="alert" className="flex items-start gap-1.5 px-2 text-12 text-danger">
-            <TriangleAlert size={13} className="mt-0.5 shrink-0" />
+            <TriangleAlert strokeWidth={1.5} size={13} className="mt-0.5 shrink-0" />
             {parseError}
           </p>
         )}

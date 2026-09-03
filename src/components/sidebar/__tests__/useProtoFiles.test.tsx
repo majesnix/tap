@@ -172,6 +172,21 @@ describe("reload", () => {
 });
 
 describe("parse errors", () => {
+  it("surfaces a failing store read from openFile as a parse error", async () => {
+    mockOpen.mockResolvedValue("/path/to/widget.proto");
+    mockGet.mockRejectedValue(new Error("store unavailable"));
+
+    render(<Harness />);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "open" }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert").textContent).toBe("Failed to open: store unavailable");
+    });
+    expect(screen.queryByText("Load file")).toBeNull();
+  });
+
   it("surfaces the raw protox message when parse fails", async () => {
     mockOpen.mockResolvedValue("/path/to/widget.proto");
     const real =

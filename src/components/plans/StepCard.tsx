@@ -202,7 +202,7 @@ export function StepCard({
             onClick={(e) => e.stopPropagation()}
             className="mt-1.5 inline-flex cursor-grab touch-none text-ghost"
           >
-            <GripVertical size={14} />
+            <GripVertical strokeWidth={1.5} size={14} />
           </span>
           <span
             data-testid="step-number"
@@ -258,7 +258,7 @@ export function StepCard({
             className="absolute top-2.5 right-2 opacity-0 group-hover:opacity-100 focus:opacity-100 aria-expanded:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <MoreVertical size={14} />
+            <MoreVertical strokeWidth={1.5} size={14} />
           </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">

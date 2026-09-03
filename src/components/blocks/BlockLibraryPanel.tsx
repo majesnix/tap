@@ -49,7 +49,7 @@ export function BlockLibraryPanel() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [filterText, setFilterText] = useState("");
 
-  // Lazy-load on mount — mirrors MessageHistoryPanel.tsx lines 19-23
+  // Lazy-load on mount so the drawer only reads the block store once it is opened.
   useEffect(() => {
     if (!blocksLoaded) {
       void loadBlocks();
@@ -151,7 +151,7 @@ export function BlockLibraryPanel() {
             {/* Header */}
             <div className="flex items-center gap-2 p-[14px_14px_10px]">
               <IconButton size={24} label="Back" onClick={handleBack}>
-                <ArrowLeft size={16} />
+                <ArrowLeft strokeWidth={1.5} size={16} />
               </IconButton>
               <h2 className="text-13 font-semibold">
                 {editingBlock ? "Edit block" : "New block"}
@@ -183,7 +183,7 @@ export function BlockLibraryPanel() {
                   className="rounded-md border border-destructive/40 bg-destructive/10 p-3"
                 >
                   <div className="flex items-start gap-2">
-                    <TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-1" />
+                    <TriangleAlertIcon strokeWidth={1.5} className="size-4 text-destructive shrink-0 mt-1" />
                     <div className="flex flex-col gap-1">
                       <span className="text-xs font-semibold text-destructive">
                         {saveErrorKind === "json-parse" ? "Invalid JSON" : saveError}
@@ -228,10 +228,10 @@ export function BlockLibraryPanel() {
               <SectionLabel>Blocks</SectionLabel>
               <div className="flex gap-0.5">
                 <IconButton size={24} label="Search blocks" onClick={handleToggleSearch}>
-                  <Search size={14} />
+                  <Search strokeWidth={1.5} size={14} />
                 </IconButton>
                 <IconButton size={24} tone="violet" label="New block" onClick={handleNewBlock}>
-                  <Plus size={15} />
+                  <Plus strokeWidth={1.5} size={15} />
                 </IconButton>
               </div>
             </div>

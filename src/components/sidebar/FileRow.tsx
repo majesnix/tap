@@ -36,6 +36,9 @@ export function FileRow({ file, active, onActivate, onClose }: FileRowProps) {
       title={file.filePath}
       onClick={onActivate}
       onKeyDown={(e) => {
+        // Enter/Space on the nested buttons (include paths, close) must not also
+        // activate the row — only keys aimed at the row itself count.
+        if (e.target !== e.currentTarget) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           onActivate();

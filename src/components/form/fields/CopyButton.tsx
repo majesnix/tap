@@ -30,9 +30,9 @@ export function CopyButton({ value }: CopyButtonProps) {
   return (
     <IconButton size={22} label="Copy value" onClick={handleCopy}>
       {copied ? (
-        <Check size={12} className="text-success" />
+        <Check strokeWidth={1.5} size={12} className="text-success" />
       ) : (
-        <Copy size={12} className="text-ghost hover:text-foreground" />
+        <Copy strokeWidth={1.5} size={12} className="text-ghost hover:text-foreground" />
       )}
     </IconButton>
   );

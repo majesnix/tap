@@ -27,8 +27,8 @@ interface TaggedValues {
 
 /**
  * Form state for the request card: the encode debounce, JSON mode, drafts, block drops and
- * the clear/randomize actions. Lifted out of FormPanel so the card can lay the pieces out
- * around a plain ProtoFormRenderer.
+ * the clear/randomize actions. Owned by RequestCard, which lays the pieces out around a
+ * plain ProtoFormRenderer.
  */
 export function useRequestForm(message: MessageSchema | null) {
   // Selectors, not the whole store: latestValues changes on every keystroke and this hook

@@ -11,7 +11,7 @@ interface AppShellProps {
 /**
  * The top-level workbench layout: a fixed-height header, a fixed-width sidebar,
  * an optional drawer (Blocks library), a flexible main area and a fixed-width
- * aside (Activity/RightPanel). Every view (Compose, Plans) renders through this.
+ * aside (ActivityPanel). Every view (Compose, Plans) renders through this.
  */
 export function AppShell({ header, sidebar, drawer, main, aside }: AppShellProps) {
   return (

@@ -4,8 +4,10 @@ import { toast } from "sonner";
 import { reloadProto } from "@/lib/ipc";
 import { useProtoStore } from "@/stores/useProtoStore";
 
-const STORE_PATH = "tap.json";
-const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
+/** tap.json — the single tauri-plugin-store file the app persists everything in. */
+export const STORE_PATH = "tap.json";
+/** Key prefix for a file's saved include paths: `include_paths:{filePath}`. */
+export const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
 
 // FileRow (for the row meta) and IncludePathManager (inside its popover) each
 // call useIncludePaths() for the same filePath — two independent useState

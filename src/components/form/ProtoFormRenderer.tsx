@@ -57,7 +57,7 @@ interface ProtoFormRendererProps {
   onValuesChange: (values: unknown) => void;
   /**
    * Optional ref that will be populated with a form.reset function once the
-   * form is mounted. FormPanel uses this to trigger replay without prop-drilling
+   * form is mounted. useRequestForm uses this to trigger replay without prop-drilling
    * all the way through the component tree.
    */
   resetRef?: React.MutableRefObject<
@@ -182,7 +182,7 @@ export const ProtoFormRenderer = memo(function ProtoFormRenderer({
     methods.reset(buildDefaultValues(message));
   }, [message.full_name, methods]);
 
-  // Wire up the resetRef so FormPanel can trigger form.reset() for replay (HIST-02).
+  // Wire up the resetRef so useRequestForm can trigger form.reset() for replay (HIST-02).
   // Dependency array [resetRef, methods] ensures the effect re-runs only when these
   // stable references change, and cleanup runs only on actual unmount (not every render).
   useEffect(() => {

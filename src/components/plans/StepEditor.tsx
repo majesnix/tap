@@ -151,7 +151,7 @@ function StepEditorInner({
   const handleRandomize = useCallback(() => {
     if (!schema || !message) return;
     // Preserve fields the user has edited in this session; randomize the rest.
-    // Mirrors FormPanel's randomize semantics (FormPanel.tsx:182).
+    // Mirrors the request card's randomize semantics (useRequestForm.ts).
     const dirtyFields = methods.formState.dirtyFields as Record<string, boolean>;
     const randomValues = generateRandomValues(message, schema.message_map, dirtyFields);
     // reset() pushes the new values through useWatch, which trips the debounced
@@ -279,7 +279,7 @@ function StepEditorInner({
               onClick={handleRandomize}
               disabled={disabled || !message}
             >
-              <Dices size={13} />
+              <Dices strokeWidth={1.5} size={13} />
             </IconButton>
             <button
               type="button"
@@ -287,7 +287,7 @@ function StepEditorInner({
               onClick={() => setFieldsOpen((open) => !open)}
               className="inline-flex items-center gap-1.5 rounded-sm text-12 font-medium text-violet-bright outline-none focus-visible:ring-3 focus-visible:ring-ring/35"
             >
-              <Pencil size={12} />
+              <Pencil strokeWidth={1.5} size={12} />
               Edit fields
             </button>
           </span>

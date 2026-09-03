@@ -53,11 +53,11 @@ interface ProfileFormProps {
 
 function tlsSummary(values: ProfileFormValues, exposedTransports: string[]) {
   if (values.amqpTls && values.managementSsl) {
-    return { icon: <Shield size={13} />, text: "Encrypted on both transports", className: "text-success" };
+    return { icon: <Shield strokeWidth={1.5} size={13} />, text: "Encrypted on both transports", className: "text-success" };
   }
   if (exposedTransports.length > 0) {
     return {
-      icon: <TriangleAlert size={13} />,
+      icon: <TriangleAlert strokeWidth={1.5} size={13} />,
       text: `Password travels unencrypted over ${exposedTransports.join(" and ")}`,
       className: "text-warning",
     };

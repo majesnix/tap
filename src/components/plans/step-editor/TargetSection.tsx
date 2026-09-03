@@ -36,7 +36,7 @@ export function TargetSection({ step, planId, updateStep }: TargetSectionProps) 
   const setExchanges = useConnectionStore((s) => s.setExchanges);
 
   // Populate queues + exchanges from the management API whenever the active
-  // profile changes — independent of whether PublishBar has been visited.
+  // profile changes — independent of whether the request card has been used.
   useEffect(() => {
     if (!activeProfileName) return;
     getQueues(activeProfileName).then(setQueues).catch(() => {});

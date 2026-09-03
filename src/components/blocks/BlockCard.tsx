@@ -25,11 +25,11 @@ export function BlockCard({ block, fit, onEdit }: BlockCardProps) {
         isDragging && "opacity-40"
       )}
     >
-      <div className="flex cursor-grab items-center gap-2 active:cursor-grabbing">
-        <GripVertical size={14} className="shrink-0 text-ghost" />
+      <div className="flex items-center gap-2">
+        <GripVertical strokeWidth={1.5} size={14} className="shrink-0 text-ghost" />
         <span className="flex-1 truncate text-13 font-medium">{block.name}</span>
         <IconButton size={22} label={`Edit ${block.name}`} onClick={() => onEdit(block)}>
-          <Pencil size={13} />
+          <Pencil strokeWidth={1.5} size={13} />
         </IconButton>
       </div>
       <div className="truncate pl-[22px] font-mono text-11 text-ghost">

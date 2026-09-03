@@ -4,11 +4,14 @@ import { load } from "@tauri-apps/plugin-store";
 import { toast } from "sonner";
 import { parseProto, reloadProto, checkPathsExist } from "@/lib/ipc";
 import { useProtoStore } from "@/stores/useProtoStore";
-import { loadIncludePathsOrDefault, parentDirOf } from "@/components/sidebar/useIncludePaths";
+import {
+  loadIncludePathsOrDefault,
+  parentDirOf,
+  STORE_PATH,
+  INCLUDE_PATH_KEY_PREFIX,
+} from "@/components/sidebar/useIncludePaths";
 import type { OpenFileEntry } from "@/stores/useProtoStore";
 
-const STORE_PATH = "tap.json";
-const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
 const RECENT_FILES_KEY = "recent_files";
 
 interface IncludeDialogState {
@@ -131,19 +134,27 @@ export function useProtoFiles(): UseProtoFilesResult {
   }, [openFiles, activeIndex, updateFileSchema]);
 
   const openFile = useCallback(async () => {
-    const selected = await open({
-      multiple: false,
-      filters: [{ name: "Proto files", extensions: ["proto"] }],
-    });
+    // openFile() is also fired from an effect (the ⌘O shortcut), so a rejected
+    // dialog or store read must land in parseError rather than as an unhandled
+    // rejection the user never sees.
+    try {
+      const selected = await open({
+        multiple: false,
+        filters: [{ name: "Proto files", extensions: ["proto"] }],
+      });
 
-    if (!selected || typeof selected !== "string") return;
+      if (!selected || typeof selected !== "string") return;
 
-    const initialPaths = await loadIncludePathsOrDefault(selected);
+      const initialPaths = await loadIncludePathsOrDefault(selected);
 
-    setPendingFilePath(selected);
-    setPendingIncludePaths(initialPaths);
-    setParseError(null);
-    setDialogOpen(true);
+      setPendingFilePath(selected);
+      setPendingIncludePaths(initialPaths);
+      setParseError(null);
+      setDialogOpen(true);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      setParseError(`Failed to open: ${message}`);
+    }
   }, []);
 
   const handleConfirm = useCallback(

@@ -7,17 +7,17 @@ import { Button } from "@/components/ui/button";
 import { jsonEditorTheme } from "./jsonEditorTheme";
 
 export interface JsonEditorProps {
-  /** Current JSON string displayed in the editor (controlled — from FormPanel state) */
+  /** Current JSON string displayed in the editor (controlled — from useRequestForm state) */
   value: string;
   /** Called on every keystroke with the new editor string */
   onChange: (value: string) => void;
-  /** "light" | "dark" — from next-themes resolvedTheme in FormPanel */
+  /** "light" | "dark" — from next-themes resolvedTheme in RequestCard */
   resolvedTheme: string | undefined;
   /** Non-null string means banner is shown; null means banner is hidden */
   parseError: string | null;
-  /** Called when user clicks "Fix JSON" — FormPanel clears parseError */
+  /** Called when user clicks "Fix JSON" — useRequestForm clears parseError */
   onFixJson: () => void;
-  /** Called when user clicks "Discard changes" — FormPanel restores entrySnapshot */
+  /** Called when user clicks "Discard changes" — useRequestForm restores entrySnapshot */
   onDiscard: () => void;
   /** Called on Cmd+Enter inside the CodeMirror editor */
   onSubmit?: () => void;
@@ -61,7 +61,7 @@ export function JsonEditor({
       {parseError && (
         <div className="mx-4 mt-2 mb-3 rounded-md border border-danger/40 bg-danger/10 p-3">
           <div className="flex items-start gap-2">
-            <TriangleAlertIcon size={14} className="text-danger shrink-0 mt-1" />
+            <TriangleAlertIcon strokeWidth={1.5} size={14} className="text-danger shrink-0 mt-1" />
             <div className="flex flex-col gap-1">
               <span className="text-13 font-semibold text-danger">
                 Invalid JSON

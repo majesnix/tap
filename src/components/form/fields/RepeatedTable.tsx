@@ -158,7 +158,7 @@ export function RepeatedTable({ field, path, message }: RepeatedTableProps) {
           })}
 
           <IconButton size={22} danger label="Remove item" onClick={() => remove(index)}>
-            <Trash2 size={13} />
+            <Trash2 strokeWidth={1.5} size={13} />
           </IconButton>
         </div>
       ))}
@@ -170,7 +170,7 @@ export function RepeatedTable({ field, path, message }: RepeatedTableProps) {
         className="self-start text-violet-bright"
         onClick={() => append(defaultRow(message))}
       >
-        <Plus size={13} className="mr-1" />
+        <Plus strokeWidth={1.5} size={13} className="mr-1" />
         Add item
       </Button>
     </div>

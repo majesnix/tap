@@ -76,7 +76,7 @@ function PlanRow({
             className="opacity-0 group-hover:opacity-100 focus:opacity-100 aria-expanded:opacity-100"
             onClick={(e) => e.stopPropagation()}
           >
-            <MoreVertical size={14} />
+            <MoreVertical strokeWidth={1.5} size={14} />
           </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
@@ -191,7 +191,7 @@ export function PlansSidebar({
           disabled={!plansLoaded}
           onClick={() => setIsCreating(true)}
         >
-          <Plus size={15} />
+          <Plus strokeWidth={1.5} size={15} />
         </IconButton>
       </div>
 

@@ -8,9 +8,10 @@ import { isAuthError, isHintExchange, type TargetMode } from "@/components/compo
  * Everything the destination strip needs: the chosen target, the broker catalog behind it
  * and the routing-key suggestions for the selected exchange.
  *
- * Moved out of PublishBar unchanged, including the 401 discrimination (a wrong password is
- * shown, an unreachable Management API falls back to manual entry) and the D-10 rule that a
- * failing bindings fetch reverts to a plain input without ever raising an auth error.
+ * Behaviour is unchanged from the pre-workbench publish bar: the 401 discrimination (a wrong
+ * password is shown, an unreachable Management API falls back to manual entry) and the D-10
+ * rule that a failing bindings fetch reverts to a plain input without ever raising an auth
+ * error.
  */
 export function useDestination() {
   const [mode, setMode] = useState<TargetMode>("queue");

@@ -85,6 +85,15 @@ describe("FilesSidebar", () => {
     expect(screen.queryByText("Recent")).not.toBeInTheDocument();
   });
 
+  it("renders the empty-state shortcut hint without the Kbd chip background", () => {
+    useProtoStore.setState({ openFiles: [], activeIndex: -1, recentFiles: [] });
+    const { container } = render(<FilesSidebar />);
+    const kbd = container.querySelector("kbd");
+    expect(kbd).not.toBeNull();
+    expect(kbd).toHaveClass("bg-transparent");
+    expect(kbd?.className).not.toContain("--kbd-bg");
+  });
+
   it("shows a Recent section listing recent files, with stale ones struck through", async () => {
     useProtoStore.setState({
       openFiles: [],

@@ -521,8 +521,9 @@ describe('Drag source', () => {
   test('block list row has cursor-grab class', () => {
     setupStore({ blocks: [makeBlock()] });
     render(<BlockLibraryPanel />);
-    const row = screen.getByText('My Block').closest('div')!;
-    expect(row).toHaveClass('cursor-grab');
+    // The draggable card itself carries the grab cursor; its inner rows inherit it.
+    const card = screen.getByText('My Block').closest('div')!.parentElement!;
+    expect(card).toHaveClass('cursor-grab');
   });
 
   test('useDraggable is called with the correct block id', () => {
