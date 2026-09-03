@@ -7,6 +7,7 @@ import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import type { DrainResult, SubscribeMode } from "@/lib/types";
+import { createDeliveryBatcher, type DeliveryBatcher } from "@/lib/feedBatcher";
 import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
 import { describeBroker, findProfile, isReadOnly, requiresConfirmation } from "@/lib/profileSafety";
 
@@ -42,6 +43,7 @@ export function SubscribePanel({
   const [confirmRequest, setConfirmRequest] = useState<BrokerConfirmRequest | null>(null);
 
   const channelRef = useRef<Channel<DrainResult> | null>(null);
+  const batcherRef = useRef<DeliveryBatcher | null>(null);
 
   // prevProfileRef tracks profile transitions (not a prop comparison — see D-11 / plan comment)
   // Initialized to activeProfileName on mount so the first render doesn't fire auto-stop
@@ -59,14 +61,18 @@ export function SubscribePanel({
     if (isStartingRef.current) return;
     isStartingRef.current = true;
 
-    const channel = new Channel<DrainResult>((msg) => {
-      appendMessages([msg]);
+    // Deliveries arrive one per IPC message; batch them so a busy queue costs a few
+    // store updates per second instead of one per message.
+    batcherRef.current?.dispose();
+    const batcher = createDeliveryBatcher({
+      // The feed shows newest first; the batch arrives oldest first.
+      onFlush: (batch) => appendMessages([...batch].reverse()),
       // CR-02: if the consumer self-terminated (e.g., broker closed, ack failure),
       // transition status back to Idle without requiring user to click Stop.
-      if (msg.isTerminal) {
-        setSubscribeStatus("Idle");
-      }
+      onTerminal: () => setSubscribeStatus("Idle"),
     });
+    batcherRef.current = batcher;
+    const channel = new Channel<DrainResult>((msg) => batcher.push(msg));
     channelRef.current = channel;
     try {
       await startSubscribe(profileName, selectedQueue, decodeTypes, channel, mode);
@@ -117,6 +123,7 @@ export function SubscribePanel({
 
   useEffect(() => {
     return () => {
+      batcherRef.current?.dispose();
       const { subscribeStatus: status, setSubscribeStatus: setStatus } =
         useResponseStore.getState();
       if (status === "Running" || status === "Stopping") {

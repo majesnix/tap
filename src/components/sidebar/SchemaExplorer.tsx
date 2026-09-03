@@ -281,7 +281,8 @@ function EnumNode({ enumDef }: { enumDef: EnumSchema }) {
 }
 
 export function SchemaExplorer() {
-  const { schema, setSelectedType } = useProtoStore();
+  const schema = useProtoStore((s) => s.schema);
+  const setSelectedType = useProtoStore((s) => s.setSelectedType);
 
   if (!schema || schema.messages.length === 0) return null;
 

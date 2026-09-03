@@ -57,7 +57,8 @@ export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePi
     setSelectedDecodeTypes,
   } = useResponseStore();
 
-  const { openFiles, selectedMessageType } = useProtoStore();
+  const openFiles = useProtoStore((s) => s.openFiles);
+  const selectedMessageType = useProtoStore((s) => s.selectedMessageType);
 
   // Queue fetch on tab focus — useEffect with [activeProfileName] dep (D-06: populates on tab focus)
   useEffect(() => {

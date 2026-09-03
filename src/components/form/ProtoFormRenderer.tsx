@@ -1,5 +1,5 @@
 import { FormProvider, useForm, useWatch } from "react-hook-form";
-import { useCallback, useEffect, useRef } from "react";
+import { memo, useCallback, useEffect, useRef } from "react";
 import type { FieldSchema, MessageSchema, RenderFieldFn } from "@/lib/types";
 import { buildApplyPlan } from "@/lib/blockApply";
 import type { ApplyBlockRef, ConflictChoices, ConflictItem } from "@/lib/blockApply";
@@ -94,11 +94,28 @@ export function buildDefaultValues(
 }
 
 /**
+ * Renderless subscriber that forwards every form value change to the parent.
+ *
+ * Keeping the root-level `useWatch` here, rather than in ProtoFormRenderer, means a
+ * keystroke re-renders this empty component instead of the whole field tree.
+ */
+function FormValuesBridge({ onValuesChange }: { onValuesChange: (values: unknown) => void }) {
+  const watchedValues = useWatch();
+  useEffect(() => {
+    onValuesChange(watchedValues);
+  }, [watchedValues, onValuesChange]);
+  return null;
+}
+
+/**
  * ProtoFormRenderer is the stable dispatch layer between the schema and
  * the field component implementations. It is NOT modified in Wave 2 —
  * Wave 2 only replaces the stub field components with real implementations.
+ *
+ * Memoized: its props (message from the store, stable callbacks and refs) rarely
+ * change, so parent re-renders do not rebuild the field tree.
  */
-export function ProtoFormRenderer({
+export const ProtoFormRenderer = memo(function ProtoFormRenderer({
   message,
   onValuesChange,
   resetRef,
@@ -123,12 +140,6 @@ export function ProtoFormRenderer({
     },
     [] // stable: mapReplaceRegistry.current is mutated in place, no reference change
   );
-
-  const watchedValues = useWatch({ control: methods.control });
-
-  useEffect(() => {
-    onValuesChange(watchedValues);
-  }, [watchedValues, onValuesChange]);
 
   // Reset form when message type changes
   useEffect(() => {
@@ -369,6 +380,7 @@ export function ProtoFormRenderer({
   return (
     <ProtoSchemaContext.Provider value={messageMap}>
       <FormProvider {...methods}>
+        <FormValuesBridge onValuesChange={onValuesChange} />
         <form className="flex flex-col gap-4 p-4" onSubmit={(e) => e.preventDefault()}>
           {message.fields.map((field) => {
             const path = field.name;
@@ -392,4 +404,4 @@ export function ProtoFormRenderer({
       </FormProvider>
     </ProtoSchemaContext.Provider>
   );
-}
+});

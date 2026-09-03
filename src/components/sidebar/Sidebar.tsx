@@ -27,7 +27,9 @@ interface SidebarProps {
 
 export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
   const { isMac } = usePlatformLabel();
-  const { schema, selectedMessageType, setSelectedType } = useProtoStore();
+  const schema = useProtoStore((s) => s.schema);
+  const selectedMessageType = useProtoStore((s) => s.selectedMessageType);
+  const setSelectedType = useProtoStore((s) => s.setSelectedType);
   const [appVersion, setAppVersion] = useState<string>("");
 
   useEffect(() => {

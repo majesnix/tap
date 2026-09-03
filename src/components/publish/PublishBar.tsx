@@ -136,7 +136,7 @@ export function PublishBar() {
   const isEligibleForCombobox =
     !isHintExchange && managementStatus === "live" && Boolean(selectedExchange);
 
-  const { encodeError } = useProtoStore();
+  const encodeError = useProtoStore((s) => s.encodeError);
   const sendRequested = useProtoStore((s) => s.sendRequested);
   const { modSymbol } = usePlatformLabel();
 

@@ -3,7 +3,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 export function HexPreviewPanel() {
-  const { hexPreview, isEncoding, encodeError } = useProtoStore();
+  const hexPreview = useProtoStore((s) => s.hexPreview);
+  const isEncoding = useProtoStore((s) => s.isEncoding);
+  const encodeError = useProtoStore((s) => s.encodeError);
 
   return (
     <div className="flex flex-col h-full">

@@ -503,3 +503,66 @@ describe("tap mode", () => {
     expect(screen.getByText(/non-destructive/i)).toBeInTheDocument();
   });
 });
+
+// ── Delivery batching ─────────────────────────────────────────────────────────
+
+import { Channel } from "@tauri-apps/api/core";
+import { FEED_FLUSH_MS } from "@/lib/feedBatcher";
+import type { DrainResult } from "@/lib/types";
+
+describe("delivery batching", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The callback handed to the (mocked) Channel by the most recent Start. */
+  function channelCallback(): (msg: DrainResult) => void {
+    const instances = vi.mocked(Channel).mock.instances as unknown as Array<{ cb: (msg: DrainResult) => void }>;
+    return instances[instances.length - 1].cb;
+  }
+
+  const delivery = (routingKey: string, isTerminal = false): DrainResult => ({
+    routingKey,
+    exchange: "",
+    contentType: null,
+    timestamp: null,
+    decoded: null,
+    hexString: "0a",
+    error: null,
+    decodedAs: null,
+    isTerminal,
+  });
+
+  test("applies a burst of deliveries to the store in one update", () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    const cb = channelCallback();
+    act(() => {
+      cb(delivery("a"));
+      cb(delivery("b"));
+      cb(delivery("c"));
+    });
+    expect(useResponseStore.getState().messages).toHaveLength(0);
+    act(() => {
+      vi.advanceTimersByTime(FEED_FLUSH_MS);
+    });
+    expect(useResponseStore.getState().messages.map((m) => m.routingKey)).toEqual(["c", "b", "a"]);
+  });
+
+  test("a terminal delivery lands immediately and returns the session to Idle", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    await act(async () => {}); // let the mocked startSubscribe resolve → Running
+    expect(useResponseStore.getState().subscribeStatus).toBe("Running");
+    const cb = channelCallback();
+    act(() => {
+      cb(delivery("a"));
+      cb(delivery("closed", true));
+    });
+    expect(useResponseStore.getState().messages).toHaveLength(2);
+    expect(useResponseStore.getState().subscribeStatus).toBe("Idle");
+  });
+});
