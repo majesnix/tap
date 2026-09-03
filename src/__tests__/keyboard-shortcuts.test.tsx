@@ -261,12 +261,20 @@ describe("Cmd+O open file shortcut", () => {
   });
 });
 
-// ─── Cmd+1/3: Activity panel signals ──────────────────────────────────────────
-//
-// mod+2 toggles the Request card's hex strip. Nothing in this view registers
-// signals.toggleHex yet — the Request card owns that assertion.
+// ─── Cmd+1/2/3: panel signals ─────────────────────────────────────────────────
 
-describe("Cmd+1/3 Activity panel signals", () => {
+describe("Cmd+1/2/3 panel signals", () => {
+  test("Cmd+2 toggles the Request card's hex dump", () => {
+    renderApp();
+    expect(screen.queryByText(/wire format/)).not.toBeInTheDocument();
+
+    act(() => { pressKey("2", { ctrlKey: true }); });
+    expect(screen.getByText(/wire format/)).toBeInTheDocument();
+
+    act(() => { pressKey("2", { ctrlKey: true }); });
+    expect(screen.queryByText(/wire format/)).not.toBeInTheDocument();
+  });
+
   test("Cmd+1 focuses the Activity filter input", () => {
     renderApp();
     const filter = screen.getByLabelText("Filter activity");

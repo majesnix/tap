@@ -39,8 +39,9 @@ interface UseProtoFilesResult {
 
 /**
  * All FILES-sidebar logic: recent-files persistence, stale-path checks,
- * open -> include-path dialog -> parse, reload and open-recent. Ported from
- * FileSection.tsx so it can be shared by FilesSidebar without any JSX.
+ * open -> include-path dialog -> parse, reload and open-recent. Kept free of
+ * JSX so `FilesSidebar` (src/components/sidebar/FilesSidebar.tsx), its only
+ * caller, owns the markup and this hook owns the behaviour.
  */
 export function useProtoFiles(): UseProtoFilesResult {
   const openFiles = useProtoStore((s) => s.openFiles);

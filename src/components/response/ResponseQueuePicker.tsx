@@ -54,21 +54,24 @@ export function ResponseQueuePicker({
   const [drainCount, setDrainCount] = useState<number>(DEFAULT_COUNT);
   const [decodeOpen, setDecodeOpen] = useState(false);
 
-  const { activeProfileName, connectionStatus, profiles } = useConnectionStore();
+  // Individual selectors: this picker is always mounted, so a whole-store
+  // subscription would re-render it on every unrelated store write.
+  const activeProfileName = useConnectionStore((s) => s.activeProfileName);
+  const connectionStatus = useConnectionStore((s) => s.connectionStatus);
+  const profiles = useConnectionStore((s) => s.profiles);
   const readOnly = isReadOnly(findProfile(profiles, activeProfileName));
-  const {
-    queueList,
-    isLiveMode,
-    selectedQueue,
-    isLoading,
-    lastReadAt,
-    queueDepth,
-    selectedDecodeTypes,
-    setQueueList,
-    setSelectedQueue,
-    setQueueDepth,
-    setSelectedDecodeTypes,
-  } = useResponseStore();
+
+  const queueList = useResponseStore((s) => s.queueList);
+  const isLiveMode = useResponseStore((s) => s.isLiveMode);
+  const selectedQueue = useResponseStore((s) => s.selectedQueue);
+  const isLoading = useResponseStore((s) => s.isLoading);
+  const lastReadAt = useResponseStore((s) => s.lastReadAt);
+  const queueDepth = useResponseStore((s) => s.queueDepth);
+  const selectedDecodeTypes = useResponseStore((s) => s.selectedDecodeTypes);
+  const setQueueList = useResponseStore((s) => s.setQueueList);
+  const setSelectedQueue = useResponseStore((s) => s.setSelectedQueue);
+  const setQueueDepth = useResponseStore((s) => s.setQueueDepth);
+  const setSelectedDecodeTypes = useResponseStore((s) => s.setSelectedDecodeTypes);
 
   const openFiles = useProtoStore((s) => s.openFiles);
   const selectedMessageType = useProtoStore((s) => s.selectedMessageType);

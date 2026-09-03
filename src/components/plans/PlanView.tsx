@@ -96,7 +96,7 @@ export function PlanView({ header }: PlanViewProps) {
     }
   }, [stepStatuses]);
 
-  // PointerSensor with distance: 4 per UI-SPEC (AppLayout uses 8 — intentionally different)
+  // PointerSensor with distance: 4 per UI-SPEC (ComposeView uses 8 — intentionally different)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
   );

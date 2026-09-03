@@ -11,7 +11,9 @@ const INCLUDE_PATH_KEY_PREFIX = "include_paths:";
 /**
  * When a plan is selected, auto-load any proto files referenced by its steps
  * that are not already open in the proto store. Uses saved include paths from
- * tap.json (same key as FileSection: "include_paths:{absoluteFilePath}").
+ * tap.json (the same key `useIncludePaths` writes:
+ * "include_paths:{absoluteFilePath}" — see
+ * src/components/sidebar/useIncludePaths.ts).
  *
  * Falls back to the file's parent directory as include path if none were saved.
  * Shows a warning toast if a file cannot be loaded (moved/deleted/inaccessible).
@@ -38,7 +40,8 @@ export function usePlanProtoAutoLoad(steps: PlanStep[]): void {
             `${INCLUDE_PATH_KEY_PREFIX}${filePath}`
           );
 
-          // Derive parent dir cross-platform (mirrors FileSection.tsx WR-04)
+          // Derive parent dir cross-platform (mirrors parentDirOf in
+          // src/components/sidebar/useIncludePaths.ts, WR-04)
           const sep = filePath.includes("\\") ? "\\" : "/";
           const parts = filePath.split(sep);
           parts.pop();

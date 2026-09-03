@@ -23,16 +23,16 @@ const DOT_TONE = {
 } as const;
 
 export function ConnectionPill({ onOpenSheet }: { onOpenSheet: (s: Exclude<SheetState, null>) => void }) {
-  const {
-    profiles,
-    activeProfileName,
-    connectionStatus,
-    keychainError,
-    setProfiles,
-    setActiveProfile,
-    setConnectionStatus,
-    setKeychainError,
-  } = useConnectionStore();
+  // Individual selectors (as ConnectionSheet does): the pill lives in the header
+  // on every view, so a whole-store subscription re-renders it constantly.
+  const profiles = useConnectionStore((s) => s.profiles);
+  const activeProfileName = useConnectionStore((s) => s.activeProfileName);
+  const connectionStatus = useConnectionStore((s) => s.connectionStatus);
+  const keychainError = useConnectionStore((s) => s.keychainError);
+  const setProfiles = useConnectionStore((s) => s.setProfiles);
+  const setActiveProfile = useConnectionStore((s) => s.setActiveProfile);
+  const setConnectionStatus = useConnectionStore((s) => s.setConnectionStatus);
+  const setKeychainError = useConnectionStore((s) => s.setKeychainError);
 
   useEffect(() => {
     listProfiles()

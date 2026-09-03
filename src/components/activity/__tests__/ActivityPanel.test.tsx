@@ -277,7 +277,10 @@ describe("expanded row", () => {
     expandSentRow();
     fireEvent.click(screen.getByRole("button", { name: /resend/i }));
     await waitFor(() =>
-      expect(mockPublishMessage).toHaveBeenCalledWith("dev", "", "orders", "CgU=")
+      expect(mockPublishMessage).toHaveBeenCalledWith("dev", "", "orders", "CgU=", {
+        correlationId: undefined,
+        replyTo: undefined,
+      })
     );
   });
 
@@ -352,15 +355,35 @@ describe("row animations", () => {
   }
 
   test("the newest sent row is highlighted after a send", async () => {
-    useHistoryStore.setState({ entries: [ENTRY], historyLoaded: true });
+    const sentAt = Date.now();
+    useHistoryStore.setState({
+      entries: [{ ...ENTRY, timestamp: new Date(sentAt).toISOString() }],
+      historyLoaded: true,
+    });
     renderPanel();
     expect(rowOf("Order")).not.toHaveClass("animate-row-highlight");
+
+    await act(async () => {
+      useProtoStore.setState({ lastSendAt: sentAt });
+    });
+
+    expect(rowOf("Order")).toHaveClass("animate-row-highlight");
+  });
+
+  test("a stale newest entry is not highlighted when history recording is off", async () => {
+    // Recording off: nothing is appended, so entries[0] is an older send that
+    // must not flash as though it were the message just sent.
+    useHistoryStore.setState({
+      entries: [{ ...ENTRY, timestamp: new Date(Date.now() - 60_000).toISOString() }],
+      historyLoaded: true,
+    });
+    renderPanel();
 
     await act(async () => {
       useProtoStore.setState({ lastSendAt: Date.now() });
     });
 
-    expect(rowOf("Order")).toHaveClass("animate-row-highlight");
+    expect(rowOf("Order")).not.toHaveClass("animate-row-highlight");
   });
 
   test("a received row that arrived after mount slides in", async () => {
@@ -384,10 +407,11 @@ describe("read mode button", () => {
     expect(screen.getByTitle("Read mode")).toHaveTextContent("Read queue");
   });
 
-  test("reads 'Tapping {queue}' while a tap runs", () => {
+  test("reads 'Tapping {queue}' while a tap runs, and warns about the view switch", () => {
     useResponseStore.setState({ subscribeStatus: "Running", selectedQueue: "orders" });
     renderPanel();
-    expect(screen.getByTitle("Read mode")).toHaveTextContent("Tapping orders");
+    const button = screen.getByTitle("Switching to Plans stops the tap");
+    expect(button).toHaveTextContent("Tapping orders");
   });
 });
 

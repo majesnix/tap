@@ -2,8 +2,8 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { useProtoStore } from "@/stores/useProtoStore";
 
 /**
- * Open-file / reload-schema shortcuts, extracted out of ComposeView (formerly
- * AppLayout) so the binding lives in one place.
+ * Open-file / reload-schema shortcuts, extracted out of ComposeView so the
+ * binding lives in one place.
  *
  * Call this once per *view* — `ComposeView` and `PlanView` each call it — so
  * mod+o/mod+r work everywhere. This is safe because `App` mounts exactly one
@@ -12,9 +12,9 @@ import { useProtoStore } from "@/stores/useProtoStore";
  * call it from both views' shared ancestor: `useHotkeys` binds a
  * document-level listener per call site, so two *simultaneously*-mounted
  * callers double-fire on every keypress — each requestOpenFile()/
- * requestReload() would run twice, and FileSection's request-counter effect
- * (FileSection.tsx) would open the native file dialog twice for a single
- * Cmd+O.
+ * requestReload() would run twice, and the request-counter effects in
+ * `useProtoFiles` (src/components/sidebar/useProtoFiles.ts, mounted by
+ * FilesSidebar) would open the native file dialog twice for a single Cmd+O.
  */
 export function useGlobalShortcuts(): void {
   const requestOpenFile = useProtoStore((s) => s.requestOpenFile);

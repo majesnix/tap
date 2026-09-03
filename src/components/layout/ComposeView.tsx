@@ -104,9 +104,10 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
         }
         aside={<ActivityPanel signals={signals} />}
       />
+      {/* Handoff §3 drag overlay treatment (matches PlanView's step overlay). */}
       <DragOverlay dropAnimation={null}>
         {activeDragBlock ? (
-          <div className="flex items-center gap-2 px-3 py-2 bg-popover border border-border rounded-md shadow-xl text-sm cursor-grabbing max-w-48">
+          <div className="flex max-w-48 cursor-grabbing items-center gap-2 rounded-lg border border-border-strong bg-surface-3 p-[10px_14px] text-13 shadow-lg -rotate-2">
             <GripVertical size={14} strokeWidth={1.5} className="text-muted-foreground shrink-0" />
             <span className="font-medium truncate">{activeDragBlock.name}</span>
           </div>

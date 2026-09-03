@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { IconButton } from "@/components/common/IconButton";
 import { RepeatedField } from "@/components/form/fields/RepeatedField";
+import { FieldDepthContext } from "@/components/form/fields/FieldDepthContext";
 import { generateRandomValues } from "@/lib/randomizer";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { useProtoStore } from "@/stores/useProtoStore";
@@ -295,31 +296,39 @@ function StepEditorInner({
 
         {fieldsOpen && (
           <FormProvider {...methods}>
-            <form onSubmit={(e) => e.preventDefault()}>
-              {!message ? (
-                <p className="text-12 text-ghost">No message type selected.</p>
-              ) : (
-                <div className="flex flex-col gap-4">
-                  {message.fields.map((field) => {
-                    const path = field.name;
-                    // Repeated fields dispatch to RepeatedField regardless of inner kind
-                    // (mirrors ProtoFormRenderer lines 260-277 — must precede renderField)
-                    if (field.repeated) {
-                      return (
-                        <RepeatedField
-                          key={path}
-                          field={field}
-                          path={path}
-                          depth={0}
-                          renderItem={renderField}
-                        />
-                      );
-                    }
-                    return renderField(field, path, 0);
-                  })}
-                </div>
-              )}
-            </form>
+            {/*
+              Handoff §5 puts the step's inline field form on h34 inputs and compact
+              labels, which is the depth-1 treatment. Start at depth 1 both in the
+              context (read by FieldLabel/ScalarField/...) and in the prop threaded
+              through renderField, so nested children keep alternating from there.
+            */}
+            <FieldDepthContext.Provider value={1}>
+              <form onSubmit={(e) => e.preventDefault()}>
+                {!message ? (
+                  <p className="text-12 text-ghost">No message type selected.</p>
+                ) : (
+                  <div className="flex flex-col gap-4">
+                    {message.fields.map((field) => {
+                      const path = field.name;
+                      // Repeated fields dispatch to RepeatedField regardless of inner kind
+                      // (mirrors ProtoFormRenderer lines 260-277 — must precede renderField)
+                      if (field.repeated) {
+                        return (
+                          <RepeatedField
+                            key={path}
+                            field={field}
+                            path={path}
+                            depth={1}
+                            renderItem={renderField}
+                          />
+                        );
+                      }
+                      return renderField(field, path, 1);
+                    })}
+                  </div>
+                )}
+              </form>
+            </FieldDepthContext.Provider>
           </FormProvider>
         )}
       </fieldset>

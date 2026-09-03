@@ -458,5 +458,17 @@ describe("ConnectionSheet", () => {
       expect(mockInvoke).not.toHaveBeenCalledWith("save_profile", expect.anything());
       expect(mockInvoke).not.toHaveBeenCalledWith("test_connection", expect.anything());
     });
+
+    it("falls back to the list when the edited profile is gone", async () => {
+      // Deleted (or renamed) elsewhere: the sheet must not render an edit form
+      // pre-filled with DEFAULT_FORM_VALUES for a profile that no longer exists.
+      setStore({ profiles: [PROFILE_B] });
+      const onStateChange = renderSheet({ mode: "edit", profile: "Profile A" });
+
+      await waitFor(() => {
+        expect(onStateChange).toHaveBeenCalledWith({ mode: "list" });
+      });
+      expect(screen.queryByRole("button", { name: /save & connect/i })).not.toBeInTheDocument();
+    });
   });
 });

@@ -27,10 +27,16 @@ export function ReadModeButton({
 }: ReadModeButtonProps) {
   const running = status === "Running" && (mode === "tap" || mode === "subscribe");
 
+  // Switching to Plans unmounts the Compose view and tears the live session down,
+  // so say that here rather than letting it surprise the user.
+  const title = running
+    ? `Switching to Plans stops the ${mode === "tap" ? "tap" : "subscription"}`
+    : "Read mode";
+
   return (
     <button
       type="button"
-      title="Read mode"
+      title={title}
       className={cn(
         "inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-md border bg-card px-2.5 text-12 whitespace-nowrap text-foreground transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/35",
         running ? "border-teal/35" : "border-border hover:border-border-strong",

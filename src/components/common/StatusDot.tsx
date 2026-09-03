@@ -11,13 +11,17 @@ const TONE_BG: Record<StatusDotTone, string> = {
   violet: "bg-violet-bright",
 };
 
+/**
+ * The glow is 60 % of the tone, not the flat colour: a fully opaque halo reads as a
+ * second ring around the dot rather than a bloom (handoff "Design tokens").
+ */
 const TONE_GLOW: Record<StatusDotTone, string> = {
-  success: "shadow-[0_0_8px_var(--success)]",
-  danger: "shadow-[0_0_8px_var(--danger)]",
-  ghost: "shadow-[0_0_8px_var(--ghost)]",
-  teal: "shadow-[0_0_8px_var(--teal)]",
-  warning: "shadow-[0_0_8px_var(--warning)]",
-  violet: "shadow-[0_0_8px_var(--violet-bright)]",
+  success: "shadow-[0_0_8px_color-mix(in_srgb,var(--success)_60%,transparent)]",
+  danger: "shadow-[0_0_8px_color-mix(in_srgb,var(--danger)_60%,transparent)]",
+  ghost: "shadow-[0_0_8px_color-mix(in_srgb,var(--ghost)_60%,transparent)]",
+  teal: "shadow-[0_0_8px_color-mix(in_srgb,var(--teal)_60%,transparent)]",
+  warning: "shadow-[0_0_8px_color-mix(in_srgb,var(--warning)_60%,transparent)]",
+  violet: "shadow-[0_0_8px_color-mix(in_srgb,var(--violet-bright)_60%,transparent)]",
 };
 
 export function StatusDot({

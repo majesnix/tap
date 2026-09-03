@@ -36,10 +36,9 @@
   --border-strong: rgba(106, 90, 230, 0.5);
   --input: rgba(20, 22, 38, 0.1);
   --ring: #6a5ae6;
-  --overlay: rgba(244, 245, 250, 0.7);
+  --overlay: rgba(20, 22, 38, 0.4);
   --shadow-lg: 0 8px 32px rgba(20, 22, 38, 0.18);
   --shadow-glow: 0 0 24px rgba(106, 90, 230, 0.25);
-  --kbd-bg: rgba(255, 255, 255, 0.25);
   --radius: 6px;
 }
 
@@ -76,7 +75,6 @@
   --overlay: rgba(12, 13, 18, 0.6);
   --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
   --shadow-glow: 0 0 24px rgba(123, 108, 246, 0.25);
-  --kbd-bg: rgba(255, 255, 255, 0.14);
 }
 
 @theme inline {

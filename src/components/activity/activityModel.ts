@@ -142,6 +142,9 @@ function isReplyTo(sent: SentItem, received: ReceivedItem, windowMs: number): bo
 }
 
 export function groupReplies(items: ActivityItem[], windowMs = REPLY_WINDOW_MS): ActivityGroup[] {
+  // O(n·m) by the nested find below, but bounded: history is capped at 100 entries
+  // (useHistoryStore MAX_ENTRIES) and the received feed at 500 (useResponseStore
+  // FEED_MAX_SIZE), so the worst case is a few tens of thousands of comparisons.
   const replies = new Map<string, ReceivedItem>(); // sent id → its reply
   const paired = new Set<string>();
   for (const received of items) {

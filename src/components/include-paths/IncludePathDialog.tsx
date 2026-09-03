@@ -21,7 +21,8 @@ interface IncludePathDialogProps {
 /**
  * Dialog for configuring include paths used by protox to resolve .proto imports.
  * The file's parent directory is pre-populated by default.
- * Paths are persisted per file via tauri-plugin-store (handled in FileSection.tsx).
+ * Paths are persisted per file via tauri-plugin-store (handled by `useIncludePaths`
+ * in src/components/sidebar/useIncludePaths.ts).
  *
  * Copywriting per UI-SPEC Copywriting Contract:
  *   Title:   "Configure include paths"

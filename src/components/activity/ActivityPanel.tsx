@@ -30,6 +30,12 @@ import {
 
 const FILTER_DEBOUNCE_MS = 150;
 const HIGHLIGHT_MS = 1500;
+/**
+ * How close the newest history entry must be to the send that just happened for the
+ * flash to be about that send. With "Record sent messages in history" off, nothing is
+ * appended and entries[0] is an older row that must not light up.
+ */
+const HIGHLIGHT_MATCH_WINDOW_MS = 2000;
 
 const FILTER_ITEMS = [
   { value: "all" as const, label: "All" },
@@ -94,6 +100,9 @@ export function ActivityPanel({ signals }: { signals: ComposeSignals }) {
     prevSendAt.current = lastSendAt;
     const newest = useHistoryStore.getState().entries[0];
     if (!newest) return;
+    // The entry is appended just before setLastSendAt, so compare in both directions.
+    const age = Math.abs(Date.parse(newest.timestamp) - lastSendAt);
+    if (!Number.isFinite(age) || age > HIGHLIGHT_MATCH_WINDOW_MS) return;
     setHighlightedId(newest.id);
     const timer = setTimeout(() => setHighlightedId(null), HIGHLIGHT_MS);
     return () => clearTimeout(timer);

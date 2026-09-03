@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { X, Plus, ChevronRight } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { IconButton } from "@/components/common/IconButton";
@@ -28,6 +28,15 @@ export function ConnectionSheet({ state, onStateChange }: ConnectionSheetProps) 
   const profiles = useConnectionStore((s) => s.profiles);
   const activeProfileName = useConnectionStore((s) => s.activeProfileName);
   const keychainError = useConnectionStore((s) => s.keychainError);
+
+  // A profile deleted (or renamed) elsewhere leaves the sheet pointing at nothing.
+  // Fall back to the list rather than showing an edit form full of defaults.
+  // Runs before the early return below so the hook order stays stable.
+  const editTargetMissing =
+    state?.mode === "edit" && findProfile(profiles, state.profile) === undefined;
+  useEffect(() => {
+    if (editTargetMissing) onStateChange({ mode: "list" });
+  }, [editTargetMissing, onStateChange]);
 
   if (state === null) return null;
 
@@ -97,11 +106,14 @@ export function ConnectionSheet({ state, onStateChange }: ConnectionSheetProps) 
     );
   } else {
     const profile = findProfile(profiles, state.profile);
+    // The effect above is already switching back to the list; render nothing
+    // for the one frame before it lands.
+    if (!profile) return null;
     content = (
       <ProfileForm
         key={state.profile}
         mode="edit"
-        initial={profile ? formFromProfile(profile) : DEFAULT_FORM_VALUES}
+        initial={formFromProfile(profile)}
         onBack={handleBackToList}
         onClose={handleClose}
         onSaved={handleClose}

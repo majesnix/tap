@@ -106,7 +106,7 @@ export function RequestFooter({
                     <Send size={15} strokeWidth={1.5} />
                   )}
                   {sendLabel}
-                  <Kbd>{modSymbol}↵</Kbd>
+                  <Kbd className="bg-white/15">{modSymbol}↵</Kbd>
                 </Button>
               </span>
             </TooltipTrigger>
