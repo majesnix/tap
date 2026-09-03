@@ -372,55 +372,6 @@ describe("stopRun", () => {
   });
 });
 
-// ── Phase 23: reply dispatch — setPaneMode before executeStep (D-04) ──────────
-
-describe("Phase 23 — setPaneMode('editor') before each executeStep", () => {
-  test("paneMode is 'editor' when executeStep is called (step that has no reply)", async () => {
-    const step1 = makeStep("s1", "Step 1");
-    const plan = makePlan([step1]);
-
-    const paneModeAtCall: string[] = [];
-    vi.mocked(ipc.executeStep).mockImplementation(async (_profile, _step) => {
-      paneModeAtCall.push(usePlanExecutionStore.getState().paneMode);
-      return makeSuccess("s1");
-    });
-
-    const { result } = renderHook(() => usePlanRunner());
-    await act(async () => {
-      await result.current.startRun(plan);
-    });
-
-    expect(paneModeAtCall[0]).toBe("editor");
-  });
-
-  test("paneMode resets to 'editor' before the second step even if first step set it to 'reply'", async () => {
-    const step1 = makeStep("s1", "Step 1");
-    const step2 = makeStep("s2", "Step 2");
-    const plan = makePlan([step1, step2]);
-
-    const paneModeAtCall: string[] = [];
-    vi.mocked(ipc.executeStep)
-      .mockImplementationOnce(async (_profile, _step) => {
-        paneModeAtCall.push(usePlanExecutionStore.getState().paneMode);
-        return makeSuccessWithReply("s1");
-      })
-      .mockImplementationOnce(async (_profile, _step) => {
-        paneModeAtCall.push(usePlanExecutionStore.getState().paneMode);
-        return makeSuccess("s2");
-      });
-
-    const { result } = renderHook(() => usePlanRunner());
-    await act(async () => {
-      await result.current.startRun(plan);
-    });
-
-    // step1 call: paneMode is 'editor' (before executeStep)
-    expect(paneModeAtCall[0]).toBe("editor");
-    // step2 call: paneMode is 'editor' again (reset before step2 executeStep)
-    expect(paneModeAtCall[1]).toBe("editor");
-  });
-});
-
 // ── Phase 23: reply dispatch — step with non-null reply ───────────────────────
 
 describe("Phase 23 — reply dispatch when result.reply !== null", () => {
@@ -437,20 +388,6 @@ describe("Phase 23 — reply dispatch when result.reply !== null", () => {
 
     const s = usePlanExecutionStore.getState();
     expect(s.stepReplies["s1"]).toEqual(makeReply());
-  });
-
-  test("paneMode is 'reply' after a step with non-null reply", async () => {
-    const step1 = makeStep("s1", "Step 1");
-    const plan = makePlan([step1]);
-
-    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccessWithReply("s1"));
-
-    const { result } = renderHook(() => usePlanRunner());
-    await act(async () => {
-      await result.current.startRun(plan);
-    });
-
-    expect(usePlanExecutionStore.getState().paneMode).toBe("reply");
   });
 
   test("planReplyFeed has one entry after a step with non-null reply", async () => {
@@ -517,21 +454,6 @@ describe("Phase 23 — no reply dispatch when result.reply === null", () => {
     });
 
     expect(usePlanExecutionStore.getState().planReplyFeed).toEqual([]);
-  });
-
-  test("paneMode stays 'editor' after a no-wait step completes", async () => {
-    const step1 = makeStep("s1", "Step 1");
-    const plan = makePlan([step1]);
-
-    vi.mocked(ipc.executeStep).mockResolvedValue(makeSuccess("s1"));
-
-    const { result } = renderHook(() => usePlanRunner());
-    await act(async () => {
-      await result.current.startRun(plan);
-    });
-
-    // paneMode should remain 'editor' since no reply
-    expect(usePlanExecutionStore.getState().paneMode).toBe("editor");
   });
 });
 

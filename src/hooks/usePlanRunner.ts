@@ -26,7 +26,6 @@ export function usePlanRunner() {
     finishRun,
     isRunning,
     setStepReply,
-    setPaneMode,
     setStepError,
     appendReplyFeedEntry,
   } = usePlanExecutionStore();
@@ -68,15 +67,12 @@ export function usePlanRunner() {
       }
 
       try {
-        // D-04: reset pane to editor before each step so the next step starts fresh
-        setPaneMode('editor');
         const result = await executeStep(activeProfileName, step);
 
         if (result.status === "done") {
           setStepStatus(step.id, "done");
           if (result.reply !== null) {
             setStepReply(step.id, result.reply);
-            setPaneMode('reply');
             appendReplyFeedEntry({
               id: crypto.randomUUID(),
               routingKey: result.reply.routingKey,
