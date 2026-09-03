@@ -26,6 +26,12 @@ import {
 import { cn } from "@/lib/utils";
 import { fetchQueues, fetchExchanges } from "@/lib/ipc";
 import { generateRandomValues } from "@/lib/randomizer";
+import {
+  REPLY_TIMEOUT_MAX_MS,
+  STEP_DELAY_MAX_MS,
+  clampReplyTimeout,
+  clampStepDelay,
+} from "@/lib/planTimings";
 import { buildDefaultValues } from "@/components/form/ProtoFormRenderer";
 import { ScalarField } from "@/components/form/fields/ScalarField";
 import { EnumField } from "@/components/form/fields/EnumField";
@@ -414,14 +420,14 @@ function ResponseModeSection({
 
   function buildResponseMode(currentMode: string, replyQueueOverride?: string): ResponseMode {
     if (currentMode === "no-wait") {
-      return { mode: "no-wait", delay_ms: parseInt(delayMs, 10) || 200 };
+      return { mode: "no-wait", delay_ms: clampStepDelay(delayMs) };
     }
     const rm =
       currentMode === "correlation-id" ? "correlation-id" : "first-arrival";
     return {
       mode: rm,
       reply_queue: replyQueueOverride ?? replyQueue,
-      timeout_ms: parseInt(timeoutMs, 10) || 10000,
+      timeout_ms: clampReplyTimeout(timeoutMs),
     };
   }
 
@@ -488,6 +494,7 @@ function ResponseModeSection({
               id={`delay-${step.id}`}
               type="number"
               min="0"
+              max={STEP_DELAY_MAX_MS}
               value={delayMs}
               onChange={(e) => setDelayMs(e.target.value)}
               onBlur={handleInputBlur}
@@ -515,8 +522,13 @@ function ResponseModeSection({
                   }).catch(console.error)
                 }
                 items={queues}
-                placeholder="reply-queue-name"
+                placeholder="empty = private reply queue"
               />
+              <p className="text-xs text-muted-foreground">
+                Leave empty and Tap creates a private reply queue for this step and passes it as
+                reply-to (recommended). Naming a shared queue makes Tap requeue other services&apos;
+                messages while it waits.
+              </p>
             </div>
             <div className="flex flex-col gap-1">
               <Label
@@ -528,7 +540,8 @@ function ResponseModeSection({
               <Input
                 id={`timeout-${step.id}`}
                 type="number"
-                min="0"
+                min="1"
+                max={REPLY_TIMEOUT_MAX_MS}
                 value={timeoutMs}
                 onChange={(e) => setTimeoutMs(e.target.value)}
                 onBlur={handleInputBlur}
