@@ -240,6 +240,7 @@ pub async fn drain_messages(
     queue_name: String,
     message_type_names: Vec<String>,
     count: u32,
+    requeue: bool,
     pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<DrainOutcome, crate::error::AppError> {
     // Clone pool BEFORE any .await (MutexGuard is not Send)
@@ -253,7 +254,10 @@ pub async fn drain_messages(
     // Load credentials (sync, no await) — same as consume_message
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
-    crate::profiles::ensure_writable(&profile)?;
+    // Peeking (requeue) leaves the queue as it was, so read-only profiles may do it.
+    if !requeue {
+        crate::profiles::ensure_writable(&profile)?;
+    }
     let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     drain_messages_core(
@@ -263,12 +267,19 @@ pub async fn drain_messages(
         queue_name,
         message_type_names,
         count,
+        requeue,
     )
     .await
 }
 
-/// Pure async core for [`drain_messages`]: drain up to `count` messages, ack-before-decode,
-/// first-candidate-decodes-wins. Decoupled from Tauri/keychain for integration testing.
+/// Pure async core for [`drain_messages`]: read up to `count` messages, first-candidate-decodes-wins.
+///
+/// `requeue = false` (Consume): each message is acked before decode and is gone.
+/// `requeue = true` (Peek): messages are left unacknowledged while they are read and handed
+/// back to the queue in one nack at the end, so the real consumer still gets them (they
+/// carry the redelivered flag afterwards).
+///
+/// Decoupled from Tauri/keychain for integration testing.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn drain_messages_core(
     pool: Option<prost_reflect::DescriptorPool>,
@@ -277,6 +288,7 @@ pub(crate) async fn drain_messages_core(
     queue_name: String,
     message_type_names: Vec<String>,
     count: u32,
+    requeue: bool,
 ) -> Result<DrainOutcome, crate::error::AppError> {
     // Validate inputs at system boundary (CLAUDE.md: validate at system boundaries)
     if message_type_names.is_empty() {
@@ -306,8 +318,10 @@ pub(crate) async fn drain_messages_core(
 
     let mut results: Vec<DrainResult> = Vec::new();
     let mut partial_error: Option<String> = None;
+    // Peek: highest delivery tag read so far; one multiple-nack at the end requeues them all.
+    let mut last_unacked_tag: Option<u64> = None;
 
-    // Drain loop — basic_get up to count times (D-13/D-18/D-19)
+    // Read loop — basic_get up to count times (D-13/D-18/D-19)
     for _ in 0..count {
         let get_result = channel
             .basic_get(queue_name.as_str().into(), lapin::options::BasicGetOptions::default())
@@ -338,14 +352,19 @@ pub(crate) async fn drain_messages_core(
                 let delivery_tag = msg.delivery_tag;
                 let hex_string = bytes_to_hex(&payload);
 
-                // ACK BEFORE DECODE (D-14: ack-before-decode — critical order)
-                if let Err(e) = channel
-                    .basic_ack(delivery_tag, lapin::options::BasicAckOptions::default())
-                    .await
-                {
-                    tracing::warn!("drain_messages: ack failed mid-loop: {}", e);
-                    partial_error = Some("Failed to acknowledge a message — partial results returned, message may be requeued".to_string());
-                    break;
+                if requeue {
+                    // Peek: leave it unacknowledged; it goes back in one nack after the loop.
+                    last_unacked_tag = Some(delivery_tag);
+                } else {
+                    // ACK BEFORE DECODE (D-14: ack-before-decode — critical order)
+                    if let Err(e) = channel
+                        .basic_ack(delivery_tag, lapin::options::BasicAckOptions::default())
+                        .await
+                    {
+                        tracing::warn!("drain_messages: ack failed mid-loop: {}", e);
+                        partial_error = Some("Failed to acknowledge a message — partial results returned, message may be requeued".to_string());
+                        break;
+                    }
                 }
 
                 // Decode: iterate message_type_names, first success wins (D-19)
@@ -417,6 +436,20 @@ pub(crate) async fn drain_messages_core(
                     is_terminal: false, // drain messages are never terminal
                 });
             }
+        }
+    }
+
+    // Peek: hand everything back to the queue before closing (closing would also requeue,
+    // but an explicit nack makes the intent visible and keeps ordering deterministic).
+    if let Some(tag) = last_unacked_tag {
+        if let Err(e) = channel
+            .basic_nack(
+                tag,
+                lapin::options::BasicNackOptions { multiple: true, requeue: true },
+            )
+            .await
+        {
+            tracing::warn!("drain_messages: requeue after peek failed: {}", e);
         }
     }
 
@@ -624,7 +657,7 @@ mod integration_tests {
     async fn drain_rejects_empty_type_names() {
         let res = drain_messages_core(
             None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
-            "q".to_string(), vec![], 10,
+            "q".to_string(), vec![], 10, false,
         )
         .await;
         assert!(matches!(res, Err(crate::error::AppError::InvalidInput(_))));
@@ -634,7 +667,7 @@ mod integration_tests {
     async fn drain_rejects_invalid_count() {
         let res = drain_messages_core(
             None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
-            "q".to_string(), vec!["Item".to_string()], 0,
+            "q".to_string(), vec!["Item".to_string()], 0, false,
         )
         .await;
         assert!(matches!(res, Err(crate::error::AppError::InvalidInput(_))));
@@ -650,7 +683,7 @@ mod integration_tests {
         seed_queue(&b, queue, &[b1, b2, b3]).await;
         let outcome = drain_messages_core(
             Some(pool), &b.endpoint(), b.password.clone(),
-            queue.to_string(), vec!["Item".to_string()], 10,
+            queue.to_string(), vec!["Item".to_string()], 10, false,
         )
         .await
         .unwrap();
@@ -667,12 +700,41 @@ mod integration_tests {
         seed_queue(&b, queue, &[bytes]).await;
         let outcome = drain_messages_core(
             None, &b.endpoint(), b.password.clone(),
-            queue.to_string(), vec!["Item".to_string()], 10,
+            queue.to_string(), vec!["Item".to_string()], 10, false,
         )
         .await
         .unwrap();
         assert_eq!(outcome.messages.len(), 1);
         assert!(outcome.messages[0].decoded.is_none());
         assert!(outcome.messages[0].error.as_ref().unwrap().contains("No proto schema"));
+    }
+
+    #[tokio::test]
+    async fn peek_returns_messages_and_leaves_them_on_the_queue() {
+        let Some(b) = broker_or_skip("peek").await else { return };
+        let queue = "tap-it-peek";
+        let (pool, b1) = encode(PROTO, "peek1.proto", "Item", serde_json::json!({ "name": "a", "qty": 1 }));
+        let (_, b2) = encode(PROTO, "peek2.proto", "Item", serde_json::json!({ "name": "b", "qty": 2 }));
+        let (_, b3) = encode(PROTO, "peek3.proto", "Item", serde_json::json!({ "name": "c", "qty": 3 }));
+        seed_queue(&b, queue, &[b1, b2, b3]).await;
+
+        let peeked = drain_messages_core(
+            Some(pool.clone()), &b.endpoint(), b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 2, true,
+        )
+        .await
+        .unwrap();
+        assert_eq!(peeked.messages.len(), 2);
+        assert_eq!(peeked.messages[0].decoded.as_ref().unwrap()["name"], "a");
+        assert_eq!(peeked.messages[1].decoded.as_ref().unwrap()["name"], "b");
+
+        // Everything is still on the queue for the real consumer.
+        let all = drain_messages_core(
+            Some(pool), &b.endpoint(), b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 10, false,
+        )
+        .await
+        .unwrap();
+        assert_eq!(all.messages.len(), 3, "peek must requeue what it read");
     }
 }

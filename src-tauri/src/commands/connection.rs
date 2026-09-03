@@ -356,6 +356,35 @@ struct BindingApiInfo {
     routing_key: String,
 }
 
+/// One exchange → queue binding, as needed to reproduce it on a tap queue.
+#[derive(Debug, Clone, Deserialize)]
+pub struct QueueBinding {
+    /// Source exchange. Empty for the implicit default-exchange binding.
+    pub source: String,
+    pub routing_key: String,
+    /// Binding arguments (headers exchanges use them for x-match rules).
+    #[serde(default)]
+    pub arguments: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Bindings that feed `queue_name` from exchanges, for tap mode. The implicit
+/// default-exchange binding (source "") is left out: it cannot be copied.
+pub(crate) async fn fetch_queue_bindings_core(
+    endpoint: &ManagementEndpoint,
+    password: &str,
+    queue_name: &str,
+) -> Result<Vec<QueueBinding>, AppError> {
+    let encoded_queue =
+        percent_encoding::utf8_percent_encode(queue_name, percent_encoding::NON_ALPHANUMERIC);
+    let path = format!(
+        "/api/queues/{}/{}/bindings?columns=source,routing_key,arguments",
+        endpoint.encoded_vhost(),
+        encoded_queue
+    );
+    let bindings: Vec<QueueBinding> = management_get(endpoint, &path, password).await?;
+    Ok(bindings.into_iter().filter(|b| !b.source.is_empty()).collect())
+}
+
 /// Fetch routing keys from exchange bindings via the RabbitMQ Management API.
 ///
 /// Returns deduplicated, non-empty routing key strings for a named exchange.
@@ -518,6 +547,21 @@ mod tests {
         assert!(exchanges.iter().any(|e| e.name == "test-direct"));
         assert!(exchanges.iter().all(|e| !e.name.starts_with("amq.")));
         assert!(exchanges.iter().all(|e| !e.name.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn fetch_queue_bindings_core_lists_exchange_bindings_only() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_queue_bindings").await else { return };
+        // definitions.json: test-direct → test-queue with routing key "proto.test". The implicit
+        // default-exchange binding (source "") cannot be copied and must be filtered out.
+        let bindings = fetch_queue_bindings_core(&b.management_endpoint(), &b.password, "test-queue")
+            .await
+            .unwrap();
+        assert!(
+            bindings.iter().any(|x| x.source == "test-direct" && x.routing_key == "proto.test"),
+            "got {bindings:?}"
+        );
+        assert!(bindings.iter().all(|x| !x.source.is_empty()));
     }
 
     #[tokio::test]

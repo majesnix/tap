@@ -102,6 +102,15 @@ export type ManagementStatus = "live" | "manual" | "unknown";
 
 export type SubscribeStatus = "Idle" | "Running" | "Stopping" | "Error";
 
+/** How a subscription reads a queue: a non-destructive tap copy, or a competing consumer. */
+export type SubscribeMode = "tap" | "competing";
+
+/**
+ * Response-panel reading modes. Tap and Peek leave the queue as it was; Subscribe and
+ * Consume remove what Tap receives for every other consumer.
+ */
+export type FeedMode = "tap" | "subscribe" | "peek" | "drain";
+
 // ── Phase 4: Response queue reader types ─────────────────────────────────────
 
 export interface ConsumeResult {

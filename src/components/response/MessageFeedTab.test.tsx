@@ -133,6 +133,11 @@ const MESSAGE_B = {
   decodedAs: null,
 };
 
+/** Pick a feed mode on the Tap / Subscribe / Peek / Consume toggle. */
+function selectMode(label: RegExp) {
+  fireEvent.click(screen.getByRole("radio", { name: label }));
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   useResponseStore.setState(FEED_STATE);
@@ -184,7 +189,8 @@ describe("MessageFeedTab", () => {
   test("calls drainMessages with selectedDecodeTypes on Consume", async () => {
     mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
     render(<MessageFeedTab />);
-    // The Drain button is rendered by ResponseQueuePicker; find it
+    selectMode(/^consume$/i);
+    // The Consume button is rendered by ResponseQueuePicker; find it
     const drainButton = screen.getByRole("button", { name: /^consume$/i });
     fireEvent.click(drainButton);
     await waitFor(() => {
@@ -193,6 +199,7 @@ describe("MessageFeedTab", () => {
         "test-queue",
         ["MyMessage"],
         expect.any(Number),
+        false,
       );
     });
   });
@@ -200,6 +207,7 @@ describe("MessageFeedTab", () => {
   test("shows toast.info when drain returns 0 messages", async () => {
     mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
     render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
     fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     await waitFor(() => {
       expect(mockToastInfo).toHaveBeenCalledWith("Queue is empty");
@@ -212,6 +220,7 @@ describe("MessageFeedTab", () => {
       partialError: "connection reset",
     });
     render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
     fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
@@ -428,6 +437,7 @@ describe("consume confirmation on non-local hosts", () => {
 
   test("asks for confirmation instead of consuming immediately", async () => {
     render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
     fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent("rabbit.staging.internal");
@@ -437,6 +447,7 @@ describe("consume confirmation on non-local hosts", () => {
 
   test("consumes after the user confirms", async () => {
     render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
     fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     fireEvent.click(await screen.findByRole("button", { name: /consume 10 messages/i }));
     await waitFor(() => {
@@ -445,12 +456,14 @@ describe("consume confirmation on non-local hosts", () => {
         "test-queue",
         ["MyMessage"],
         10,
+        false,
       );
     });
   });
 
   test("does nothing when the user cancels", async () => {
     render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
     fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     fireEvent.click(await screen.findByRole("button", { name: /cancel/i }));
     await waitFor(() => {
@@ -467,6 +480,7 @@ describe("environment tags and read-only profiles", () => {
       profiles: [{ ...LOCAL_PROFILE, environment: "production" }],
     });
     render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
     fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     const dialog = await screen.findByRole("alertdialog");
     expect(dialog).toHaveTextContent(/production/i);
@@ -479,7 +493,65 @@ describe("environment tags and read-only profiles", () => {
       profiles: [{ ...LOCAL_PROFILE, read_only: true }],
     });
     render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
     expect(screen.getByRole("button", { name: /^consume$/i })).toBeDisabled();
     expect(screen.getByText(/read-only/i)).toBeInTheDocument();
+  });
+});
+
+describe("tap and peek modes", () => {
+  test("Tap is the default mode and Peek and Consume are offered", () => {
+    render(<MessageFeedTab />);
+    expect(screen.getByRole("radio", { name: /^tap$/i })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /^peek$/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^consume$/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^subscribe$/i })).toBeInTheDocument();
+  });
+
+  test("Peek requeues what it reads and needs no confirmation on a remote host", async () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+    mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
+    render(<MessageFeedTab />);
+    selectMode(/^peek$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^peek$/i }));
+    await waitFor(() => {
+      expect(mockDrainMessages).toHaveBeenCalledWith(
+        "test-profile",
+        "test-queue",
+        ["MyMessage"],
+        10,
+        true,
+      );
+    });
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  test("Peek stays available on a read-only profile", () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<MessageFeedTab />);
+    selectMode(/^peek$/i);
+    expect(screen.getByRole("button", { name: /^peek$/i })).not.toBeDisabled();
+  });
+
+  test("Consume passes requeue=false", async () => {
+    mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
+    render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    await waitFor(() => {
+      expect(mockDrainMessages).toHaveBeenCalledWith(
+        "test-profile",
+        "test-queue",
+        ["MyMessage"],
+        10,
+        false,
+      );
+    });
   });
 });

@@ -1,5 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome, DrainResult, PlanStep, StepResult, ReplyMessage } from "./types";
+import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome, DrainResult, PlanStep, StepResult, ReplyMessage, SubscribeMode } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -127,8 +127,9 @@ export async function consumeMessage(
 }
 
 /**
- * Drain up to count messages from queueName in one shot.
+ * Read up to count messages from queueName in one shot.
  * messageTypeNames: ordered candidate list — Rust tries each in order, first success wins (D-19).
+ * requeue=false consumes (acks) them; requeue=true peeks and hands them back to the queue.
  * Returns DrainOutcome { messages: DrainResult[], partialError: string | null }.
  */
 export async function drainMessages(
@@ -136,12 +137,14 @@ export async function drainMessages(
   queueName: string,
   messageTypeNames: string[],
   count: number,
+  requeue = false,
 ): Promise<DrainOutcome> {
   return invoke<DrainOutcome>("drain_messages", {
     profileName,
     queueName,
     messageTypeNames,
     count,
+    requeue,
   });
 }
 
@@ -158,8 +161,9 @@ export function startSubscribe(
   queueName: string,
   decodeTypes: string[],
   channel: Channel<DrainResult>,
+  mode: SubscribeMode,
 ): Promise<void> {
-  return invoke("start_subscribe", { profileName, queueName, decodeTypes, channel });
+  return invoke("start_subscribe", { profileName, queueName, decodeTypes, mode, channel });
 }
 
 /**

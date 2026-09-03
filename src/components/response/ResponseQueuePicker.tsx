@@ -25,13 +25,17 @@ import { useResponseStore } from "@/stores/useResponseStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { fetchQueues, fetchQueueDepth } from "@/lib/ipc";
 import { findProfile, isReadOnly } from "@/lib/profileSafety";
+import type { FeedMode } from "@/lib/types";
 
 interface ResponseQueuePickerProps {
   onDrain: (count: number) => void;
-  mode?: "drain" | "subscribe";
+  mode?: FeedMode;
 }
 
-export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps) {
+export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePickerProps) {
+  const isBatchMode = mode === "peek" || mode === "drain";
+  const isPeek = mode === "peek";
+  const verb = isPeek ? "Peek" : "Consume";
   const [managementAuthError, setManagementAuthError] = useState<string | null>(null);
   const [drainCount, setDrainCount] = useState<number>(10);
   const [decodeOpen, setDecodeOpen] = useState(false);
@@ -135,12 +139,13 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
       ? selectedDecodeTypes[0]
       : `${selectedDecodeTypes.length} types`;
 
+  // Peek leaves the queue as it was, so read-only profiles may peek but not consume.
   const canDrain =
     connectionStatus === "connected" &&
     selectedQueue.trim().length > 0 &&
     !isLoading &&
     selectedDecodeTypes.length > 0 &&
-    !readOnly;
+    !(readOnly && !isPeek);
 
   return (
     <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
@@ -228,8 +233,8 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
         </PopoverContent>
       </Popover>
 
-      {/* Consume-specific controls — hidden when mode is "subscribe" */}
-      {mode !== "subscribe" && (
+      {/* Batch controls — Peek and Consume only; live modes have their own panel */}
+      {isBatchMode && (
         <>
           {/* Consume count input */}
           <input
@@ -251,7 +256,7 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
               setDrainCount(clamped);
             }}
             className="w-12 h-9 text-sm text-center rounded-md border border-input bg-background px-1"
-            aria-label="Consume count"
+            aria-label={`${verb} count`}
           />
 
           {/* Consume button — disabled+tooltip when disconnected. "Consume" rather than
@@ -266,11 +271,15 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
                 if (safe !== drainCount) setDrainCount(safe);
                 onDrain(safe);
               }}
-              aria-label="Consume"
-              title="Takes messages off the queue and acknowledges them. Other consumers will not receive them."
+              aria-label={verb}
+              title={
+                isPeek
+                  ? "Reads messages and hands them back to the queue (they show as redelivered)."
+                  : "Takes messages off the queue and acknowledges them. Other consumers will not receive them."
+              }
             >
               {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Consume
+              {verb}
             </Button>
           ) : (
             <TooltipProvider>
@@ -278,16 +287,20 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
                 <TooltipTrigger asChild>
                   <span>
                     <Button variant="default" disabled>
-                      Consume
+                      {verb}
                     </Button>
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Connect to a RabbitMQ profile to consume.</TooltipContent>
+                <TooltipContent>Connect to a RabbitMQ profile to {verb.toLowerCase()}.</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
           <span className="text-xs text-muted-foreground">
-            {readOnly ? "Read-only profile: consuming is disabled" : "removes messages"}
+            {isPeek
+              ? "hands messages back to the queue"
+              : readOnly
+                ? "Read-only profile: consuming is disabled"
+                : "removes messages"}
           </span>
         </>
       )}

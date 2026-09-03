@@ -36,6 +36,7 @@ const DEFAULT_PROPS = {
   selectedQueue: "my-queue",
   decodeTypes: ["MyMessage"],
   profileName: "test-profile",
+  mode: "competing" as const,
 };
 
 const LOCAL_PROFILE = {
@@ -80,11 +81,17 @@ describe("Start button", () => {
     expect(screen.queryByRole("button", { name: /start/i })).not.toBeInTheDocument();
   });
 
-  test("clicking Start calls startSubscribe", async () => {
+  test("clicking Start calls startSubscribe as a competing consumer", async () => {
     render(<SubscribePanel {...DEFAULT_PROPS} />);
     fireEvent.click(screen.getByRole("button", { name: /start/i }));
     await waitFor(() => {
-      expect(mockStartSubscribe).toHaveBeenCalledTimes(1);
+      expect(mockStartSubscribe).toHaveBeenCalledWith(
+        "test-profile",
+        "my-queue",
+        ["MyMessage"],
+        expect.anything(),
+        "competing",
+      );
     });
   });
 
@@ -463,5 +470,36 @@ describe("environment tags and read-only profiles", () => {
     });
     render(<SubscribePanel {...DEFAULT_PROPS} />);
     expect(screen.getByRole("button", { name: /^start$/i })).toBeDisabled();
+  });
+});
+
+// ── Tap mode (non-destructive) ────────────────────────────────────────────────
+
+describe("tap mode", () => {
+  test("starts a tap without confirmation, even on a remote host", async () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} mode="tap" />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    await waitFor(() => {
+      expect(mockStartSubscribe).toHaveBeenCalledWith(
+        "test-profile",
+        "my-queue",
+        ["MyMessage"],
+        expect.anything(),
+        "tap",
+      );
+    });
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  test("stays available on a read-only profile", () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} mode="tap" />);
+    expect(screen.getByRole("button", { name: /^start$/i })).not.toBeDisabled();
+    expect(screen.getByText(/non-destructive/i)).toBeInTheDocument();
   });
 });

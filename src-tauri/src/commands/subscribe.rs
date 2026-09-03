@@ -12,14 +12,99 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use futures_util::StreamExt;
-use tauri::Manager;
 use lapin::{
-    options::{BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicQosOptions},
-    types::FieldTable,
+    options::{
+        BasicAckOptions, BasicCancelOptions, BasicConsumeOptions, BasicQosOptions,
+        QueueBindOptions, QueueDeclareOptions,
+    },
+    types::{AMQPValue, FieldTable, LongString},
 };
+use tauri::Manager;
 use tokio_util::sync::CancellationToken;
 
+use crate::commands::connection::{fetch_queue_bindings_core, QueueBinding};
 use crate::commands::consume::DrainResult;
+use crate::error::AppError;
+use crate::profiles::{consumer_tag, ManagementEndpoint};
+
+/// How a subscription reads the queue.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SubscribeMode {
+    /// Non-destructive: bind a private queue to the same exchanges and consume the copy.
+    Tap,
+    /// Join the queue's consumer pool; every delivery Tap receives is acked and gone.
+    Competing,
+}
+
+/// Convert Management API binding arguments to an AMQP field table so a tap queue can be
+/// bound exactly like the original (headers exchanges need `x-match` and friends).
+/// Nested objects and arrays are not used by RabbitMQ bindings and are skipped.
+pub(crate) fn json_to_field_table(args: &serde_json::Map<String, serde_json::Value>) -> FieldTable {
+    let mut table = FieldTable::default();
+    for (key, value) in args {
+        let amqp = match value {
+            serde_json::Value::String(s) => AMQPValue::LongString(LongString::from(s.clone().into_bytes())),
+            serde_json::Value::Bool(b) => AMQPValue::Boolean(*b),
+            serde_json::Value::Number(n) => match (n.as_i64(), n.as_f64()) {
+                (Some(i), _) => AMQPValue::LongLongInt(i),
+                (None, Some(f)) => AMQPValue::Double(f),
+                (None, None) => continue,
+            },
+            _ => continue,
+        };
+        table.insert(key.as_str().into(), amqp);
+    }
+    table
+}
+
+/// Tap mode can only copy traffic that reaches the queue through an exchange.
+pub(crate) fn ensure_tappable(queue_name: &str, bindings: &[QueueBinding]) -> Result<(), AppError> {
+    if bindings.is_empty() {
+        return Err(AppError::InvalidInput(format!(
+            "Tap mode cannot copy '{}': it only receives messages through the default exchange, \
+             which has no bindings to mirror. Use Peek to look without consuming, or Subscribe \
+             to join its consumers.",
+            queue_name
+        )));
+    }
+    Ok(())
+}
+
+/// Declare a private (exclusive, auto-delete, server-named) queue and bind it exactly like
+/// the tapped queue, so the broker delivers a copy of every routed message to both.
+pub(crate) async fn prepare_tap_queue(
+    channel: &lapin::Channel,
+    bindings: &[QueueBinding],
+) -> Result<String, AppError> {
+    let queue = channel
+        .queue_declare(
+            "".into(),
+            QueueDeclareOptions { exclusive: true, auto_delete: true, ..Default::default() },
+            FieldTable::default(),
+        )
+        .await
+        .map_err(|e| AppError::AmqpError(format!("Could not declare the tap queue: {}", e)))?;
+    let name = queue.name().to_string();
+    for binding in bindings {
+        channel
+            .queue_bind(
+                name.as_str().into(),
+                binding.source.as_str().into(),
+                binding.routing_key.as_str().into(),
+                QueueBindOptions::default(),
+                json_to_field_table(&binding.arguments),
+            )
+            .await
+            .map_err(|e| {
+                AppError::AmqpError(format!(
+                    "Could not bind the tap queue to exchange '{}' (routing key '{}'): {}",
+                    binding.source, binding.routing_key, e
+                ))
+            })?;
+    }
+    Ok(name)
+}
 
 /// Holds the state for an active subscribe session.
 /// Stored in Tauri managed state as `Mutex<Option<SubscribeState>>`.
@@ -65,12 +150,14 @@ fn error_drain_result(message: String) -> DrainResult {
 /// - Uses `Result<(), crate::error::AppError>` instead of `Result<(), String>` to match
 ///   all other commands and allow `?`-propagation of AppError from load_profile_with_password.
 /// - Adds `pool_state` parameter (required for decode — DrainResult.decoded field).
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn start_subscribe(
     app: tauri::AppHandle,
     profile_name: String,
     queue_name: String,
     decode_types: Vec<String>,
+    mode: SubscribeMode,
     channel: tauri::ipc::Channel<DrainResult>,
     subscribe_state: tauri::State<'_, Mutex<Option<SubscribeState>>>,
     pool_state: tauri::State<'_, Mutex<Option<prost_reflect::DescriptorPool>>>,
@@ -123,9 +210,34 @@ pub async fn start_subscribe(
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)
             .inspect_err(|_| { if let Ok(mut g) = subscribe_state.lock() { *g = None; } })?;
-    if let Err(e) = crate::profiles::ensure_writable(&profile) {
-        clear_slot_and_return!(e);
+    // Competing consumers remove messages; tap mode only reads a copy and is fine for
+    // read-only profiles.
+    if mode == SubscribeMode::Competing {
+        if let Err(e) = crate::profiles::ensure_writable(&profile) {
+            clear_slot_and_return!(e);
+        }
     }
+
+    // Tap mode: discover the bindings first (needs the password, which connect() consumes).
+    let tap_bindings = if mode == SubscribeMode::Tap {
+        let management = match ManagementEndpoint::from_profile(&profile) {
+            Ok(m) => m,
+            Err(e) => clear_slot_and_return!(e),
+        };
+        let bindings = match fetch_queue_bindings_core(&management, &password, &queue_name).await {
+            Ok(b) => b,
+            Err(e) => clear_slot_and_return!(AppError::AmqpError(format!(
+                "Tap mode needs the Management API to discover the queue's bindings: {}",
+                e
+            ))),
+        };
+        if let Err(e) = ensure_tappable(&queue_name, &bindings) {
+            clear_slot_and_return!(e);
+        }
+        Some(bindings)
+    } else {
+        None
+    };
 
     // SECURITY: the URI is built and dropped inside `connect`; the password is consumed
     // there, so neither reaches the spawn closure below.
@@ -153,12 +265,23 @@ pub async fn start_subscribe(
         }
     };
 
+    // Tap mode consumes from a private copy of the queue; competing mode from the queue itself.
+    let (consume_queue, consumer_tag) = match &tap_bindings {
+        Some(bindings) => match prepare_tap_queue(&amqp_channel, bindings).await {
+            Ok(tap_queue) => (tap_queue, consumer_tag("tap")),
+            Err(e) => {
+                let _ = conn.close(0, "".into()).await;
+                clear_slot_and_return!(e);
+            }
+        },
+        // Unique, attributable tag ("tap:subscribe:<user>:<id>") so broker operators can
+        // see whose Tap holds a consumer on a shared queue.
+        None => (queue_name.clone(), consumer_tag("subscribe")),
+    };
+
     // Move all captured values into the spawn closure.
     // CRITICAL: URI and password are NOT captured here (dropped above).
-    let queue_name_clone = queue_name.clone();
-    // Unique, attributable tag ("tap:subscribe:<user>:<id>") so broker operators can
-    // see whose Tap holds a consumer on a shared queue.
-    let consumer_tag = crate::profiles::consumer_tag("subscribe");
+    let queue_name_clone = consume_queue;
 
     // Clone app handle for use inside the spawn closure to clear state on self-termination.
     let app_handle_clone = app.clone();
@@ -546,6 +669,27 @@ mod integration_tests {
         assert!(validate_subscribe_inputs("p", "q", &["T".into()]).is_ok());
     }
 
+    // ---- tap mode helpers (pure) ----
+
+    #[test]
+    fn json_to_field_table_maps_scalar_binding_arguments() {
+        let args = serde_json::json!({ "x-match": "all", "flag": true, "count": 3, "ratio": 0.5 });
+        let table = json_to_field_table(args.as_object().unwrap());
+        let get = |k: &str| table.inner().iter().find(|(key, _)| key.as_str() == k).map(|(_, v)| v);
+        assert!(matches!(get("x-match"), Some(lapin::types::AMQPValue::LongString(s)) if s.as_bytes() == b"all"));
+        assert!(matches!(get("flag"), Some(lapin::types::AMQPValue::Boolean(true))));
+        assert!(matches!(get("count"), Some(lapin::types::AMQPValue::LongLongInt(3))));
+        assert!(matches!(get("ratio"), Some(lapin::types::AMQPValue::Double(r)) if (r - 0.5).abs() < f64::EPSILON));
+    }
+
+    #[test]
+    fn tap_requires_at_least_one_exchange_binding() {
+        let err = ensure_tappable("orders", &[]).unwrap_err();
+        assert!(matches!(err, crate::error::AppError::InvalidInput(_)), "got {err:?}");
+        assert!(err.to_string().contains("default exchange"), "got {err}");
+        assert!(err.to_string().contains("orders"), "got {err}");
+    }
+
     // ---- decode_delivery (pure) ----
 
     #[test]
@@ -626,6 +770,73 @@ mod integration_tests {
 
         // Cancel path must NOT clear state (stop_subscribe owns that) — CR-01/BUG-2 invariant.
         assert!(!terminated.load(Ordering::SeqCst), "on_terminate must not run on cancel");
+    }
+
+    #[tokio::test]
+    async fn tap_queue_receives_a_copy_and_leaves_the_original_untouched() {
+        let Some(b) = broker_or_skip("tap_copy").await else { return };
+        let exchange = "tap-it-tap-ex";
+        let queue = "tap-it-tap-q";
+        let (conn, ch) = test_connection_and_channel(&b).await;
+        ch.exchange_declare(
+            exchange.into(),
+            lapin::ExchangeKind::Direct,
+            lapin::options::ExchangeDeclareOptions { durable: true, ..Default::default() },
+            FieldTable::default(),
+        )
+        .await
+        .unwrap();
+        ch.queue_declare(queue.into(), QueueDeclareOptions { durable: true, ..Default::default() }, FieldTable::default())
+            .await
+            .unwrap();
+        ch.queue_purge(queue.into(), QueuePurgeOptions::default()).await.unwrap();
+        ch.queue_bind(queue.into(), exchange.into(), "k".into(), lapin::options::QueueBindOptions::default(), FieldTable::default())
+            .await
+            .unwrap();
+
+        let bindings = vec![crate::commands::connection::QueueBinding {
+            source: exchange.to_string(),
+            routing_key: "k".to_string(),
+            arguments: serde_json::Map::new(),
+        }];
+        let tap_queue = prepare_tap_queue(&ch, &bindings).await.unwrap();
+        assert!(tap_queue.starts_with("amq.gen-"), "expected a server-named queue, got {tap_queue}");
+
+        let (pool, bytes) = encode(serde_json::json!({ "msg": "copy" }));
+        ch.confirm_select(ConfirmSelectOptions::default()).await.unwrap();
+        ch.basic_publish(exchange.into(), "k".into(), BasicPublishOptions::default(), &bytes, BasicProperties::default())
+            .await
+            .unwrap()
+            .await
+            .unwrap();
+
+        // The copy arrives through the normal loop, consuming from the tap queue …
+        let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel::<DrainResult>();
+        let token = CancellationToken::new();
+        let handle = tokio::spawn(run_subscribe_loop(
+            conn,
+            ch.clone(),
+            tap_queue,
+            "tap-test-tap".to_string(),
+            Some(pool),
+            vec!["Ping".to_string()],
+            token.clone(),
+            move |r| { let _ = tx.send(r); },
+            || {},
+        ));
+        let r = tokio::time::timeout(Duration::from_secs(5), rx.recv())
+            .await
+            .expect("timed out waiting for the tapped copy")
+            .expect("sink closed");
+        assert_eq!(r.decoded.as_ref().unwrap()["msg"], "copy");
+        token.cancel();
+        let _ = tokio::time::timeout(Duration::from_secs(5), handle).await;
+
+        // … and the original queue still holds its message for the real consumer.
+        let ch2 = test_channel(&b).await;
+        let original = ch2.basic_get(queue.into(), lapin::options::BasicGetOptions::default()).await.unwrap();
+        assert!(original.is_some(), "tap mode must not consume from the original queue");
+        original.unwrap().ack(BasicAckOptions::default()).await.unwrap();
     }
 
     #[tokio::test]

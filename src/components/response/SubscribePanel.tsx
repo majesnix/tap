@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
-import type { DrainResult } from "@/lib/types";
+import type { DrainResult, SubscribeMode } from "@/lib/types";
 import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
 import { describeBroker, findProfile, isReadOnly, requiresConfirmation } from "@/lib/profileSafety";
 
@@ -17,12 +17,15 @@ interface SubscribePanelProps {
   selectedQueue: string;
   decodeTypes: string[];
   profileName: string;
+  /** "tap" copies traffic through a private queue; "competing" joins the consumer pool. */
+  mode: SubscribeMode;
 }
 
 export function SubscribePanel({
   selectedQueue,
   decodeTypes,
   profileName,
+  mode,
 }: SubscribePanelProps) {
   const { subscribeStatus, subscribeError, setSubscribeStatus, appendMessages } =
     useResponseStore();
@@ -31,7 +34,9 @@ export function SubscribePanel({
   const profiles = useConnectionStore((s) => s.profiles);
 
   const activeProfile = findProfile(profiles, profileName || activeProfileName);
-  const readOnly = isReadOnly(activeProfile);
+  const isTap = mode === "tap";
+  // A tap only reads a copy, so read-only profiles may use it.
+  const blockedByReadOnly = isReadOnly(activeProfile) && !isTap;
 
   // Subscribe is a competing consumer; on a non-local broker ask before joining.
   const [confirmRequest, setConfirmRequest] = useState<BrokerConfirmRequest | null>(null);
@@ -64,7 +69,7 @@ export function SubscribePanel({
     });
     channelRef.current = channel;
     try {
-      await startSubscribe(profileName, selectedQueue, decodeTypes, channel);
+      await startSubscribe(profileName, selectedQueue, decodeTypes, channel, mode);
       setSubscribeStatus("Running");
     } catch (e) {
       // WR-04: clear stale channel ref on failure so handleStop / cleanup never sees
@@ -82,7 +87,7 @@ export function SubscribePanel({
   };
 
   const requestStart = () => {
-    if (!requiresConfirmation(activeProfile, "subscribe")) {
+    if (isTap || !requiresConfirmation(activeProfile, "subscribe")) {
       void handleStart();
       return;
     }
@@ -210,7 +215,7 @@ export function SubscribePanel({
         <Button
           variant="default"
           onClick={requestStart}
-          disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current || readOnly}
+          disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current || blockedByReadOnly}
         >
           <Play className="mr-2 h-4 w-4" />
           Start
@@ -234,9 +239,11 @@ export function SubscribePanel({
       )}
 
       <span className="text-xs text-muted-foreground basis-full">
-        {readOnly
-          ? "Read-only profile: subscribing is disabled"
-          : "Competing consumer: messages Tap receives are acknowledged and removed from the queue."}
+        {isTap
+          ? "Non-destructive: Tap binds a private queue to the same exchanges, so the original queue is untouched. Needs the Management API and at least one exchange binding."
+          : blockedByReadOnly
+            ? "Read-only profile: subscribing is disabled"
+            : "Competing consumer: messages Tap receives are acknowledged and removed from the queue."}
       </span>
 
       <BrokerConfirmDialog

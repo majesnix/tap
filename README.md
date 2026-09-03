@@ -131,9 +131,17 @@ trust store are accepted without a CA bundle.
 
 ## Reading queues safely
 
-Consume and Subscribe are competing consumers: every message Tap receives is acknowledged
-and removed from the queue, so services consuming the same queue never see it. Tap asks for
-confirmation before either runs against a broker that is not on your own machine.
+The Response panel offers four ways to read a queue:
+
+| Mode | What happens on the broker | Effect on other consumers |
+|------|----------------------------|---------------------------|
+| **Tap** (default) | Declares a private, auto-delete queue bound to the same exchanges and routing keys as the target, and streams that copy | None. Needs the Management API to discover bindings; queues fed only through the default exchange cannot be tapped |
+| **Peek** | Reads a batch with `basic.get` and hands it back with one requeue | None, apart from the `redelivered` flag on those messages |
+| **Subscribe** | Joins the queue's consumer pool and acknowledges every delivery it receives | Removes roughly every other message from the real service |
+| **Consume** | Reads a batch and acknowledges it | Removes those messages |
+
+Subscribe and Consume ask for confirmation on profiles tagged Shared or Production (and on
+any remote host), and are disabled on read-only profiles. Tap and Peek always stay available.
 
 ## RabbitMQ quick-start (Docker)
 
