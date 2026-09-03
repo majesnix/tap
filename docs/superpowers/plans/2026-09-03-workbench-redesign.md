@@ -1647,17 +1647,17 @@ git commit -m "feat(plans): step cards, run bar card and reply panel"
 - Delete: any `src/components/ui/*.tsx` no longer imported (`toggle-group.tsx`, `table.tsx`, `accordion.tsx`, `input-group.tsx` are the likely ones — check with `grep -rln "ui/<name>" src`), `src/components/history/HexViewDialog.tsx` if a stale copy remains, `src/components/preview/`, `src/components/publish/` directories when empty
 - Test: full suite with coverage
 
-- [ ] **Step 1: Merge the parallel branches** into `feat/workbench-redesign` in the order 4, 5, 7, 6, 8, 9, 10; resolve conflicts (expected only in `ComposeView.tsx`, `App.tsx` and `PlanView.tsx` slot lines) and run `pnpm test` after each merge.
+- [x] **Step 1: Merge the parallel branches** into `feat/workbench-redesign` in the order 4, 5, 7, 6, 8, 9, 10; resolve conflicts (expected only in `ComposeView.tsx`, `App.tsx` and `PlanView.tsx` slot lines) and run `pnpm test` after each merge.
 
-- [ ] **Step 2: Remove dead code**
+- [x] **Step 2: Remove dead code**
 
 For each candidate: `grep -rn "from \"@/components/ui/toggle-group\"" src` (etc.) → delete when unused. Delete empty directories. `pnpm exec tsc --noEmit` and `pnpm lint` must stay clean.
 
-- [ ] **Step 3: Docs**
+- [x] **Step 3: Docs**
 
 `README.md`: under "Reading queues safely" replace "The Response panel offers four ways to read a queue" with "The read-mode button in the Activity panel offers four ways to read a queue"; add a short "Workbench layout" paragraph after the install section: header (view switch, connection pill), files sidebar, Request card (destination strip, properties, form, hex strip, Send), Activity timeline (sent + received, replies grouped under their request), blocks drawer, connection sheet, shortcuts (⌘O, ⌘R, ⌘↵, ⌘⇧R, ⌘1/2/3). Update the "Local data" sentence "the trash icon in the sidebar footer" (still true). Add `docs/design/workbench-handoff/README.md` as the design reference link.
 
-- [ ] **Step 4: Full verification**
+- [x] **Step 4: Full verification**
 
 Run, in order, and record the output in the final report:
 ```bash
@@ -1670,11 +1670,11 @@ pnpm build
 ```
 Expected: 0 type errors, 0 lint errors, all tests green with coverage ≥ 78/70/76/79, Rust green (Docker broker running), Vite build exit 0.
 
-- [ ] **Step 5: Visual pass**
+- [x] **Step 5: Visual pass**
 
 `pnpm dev` + the browser pane at http://localhost:1420 (IPC is unavailable there — profiles/catalog stay empty, which exercises the empty and manual states); then `pnpm dev:app` for the real thing with the Docker broker (`docker compose up -d`, profile `localhost:5672 guest/guest`): open `examples/order.proto`, send to a queue, tap it, check the Activity row + reply grouping, open the connection sheet, switch to Plans, toggle the light theme once (readable, no missing colors). Fix visible defects only; no polish loops.
 
-- [ ] **Step 6: Commit and report**
+- [x] **Step 6: Commit and report**
 
 ```bash
 git add -A
