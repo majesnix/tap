@@ -103,10 +103,13 @@ export function ConnectionPill({ onOpenSheet }: { onOpenSheet: (s: Exclude<Sheet
           {activeProfile && <EnvironmentPill environment={profileEnvironment(activeProfile)} />}
           {keychainError && (
             <span
+              role="img"
+              aria-label="Keychain unavailable"
+              tabIndex={0}
               title={`Keychain unavailable: passwords are kept in memory for this session only (${keychainError})`}
               className="inline-flex"
             >
-              <TriangleAlert size={14} className="text-warning" aria-label="Keychain unavailable" />
+              <TriangleAlert size={14} className="text-warning" />
             </span>
           )}
           <span className="inline-flex size-6 items-center justify-center text-muted-foreground">

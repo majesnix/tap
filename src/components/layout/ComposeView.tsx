@@ -1,4 +1,4 @@
-import { useState, useRef, type ReactNode, type MutableRefObject } from "react";
+import { useState, useRef, useMemo, type ReactNode, type MutableRefObject } from "react";
 import { useHotkeys } from "react-hotkeys-hook";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
@@ -29,8 +29,8 @@ export interface ComposeSignals {
 }
 
 export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewProps) {
-  // mod+o / mod+r only make sense while a .proto file can be loaded, so they are
-  // bound here (Compose's lifetime) rather than in App — see useGlobalShortcuts.ts.
+  // Bound here — see useGlobalShortcuts.ts for why App mounts exactly one of
+  // ComposeView/PlanView (never both), so this is safe.
   useGlobalShortcuts();
 
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -39,11 +39,16 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
 
   const setActiveTabRef = useRef<((tab: RightPanelTab) => void) | null>(null);
 
-  const signals: ComposeSignals = {
-    focusFilter: useRef<(() => void) | null>(null),
-    toggleHex: useRef<(() => void) | null>(null),
-    toggleReadMode: useRef<(() => void) | null>(null),
-  };
+  const focusFilter = useRef<(() => void) | null>(null);
+  const toggleHex = useRef<(() => void) | null>(null);
+  const toggleReadMode = useRef<(() => void) | null>(null);
+  // Stable identity across renders — later Compose sub-components (Task 8)
+  // will receive this object as a prop and should not re-run effects that
+  // depend on it every time ComposeView re-renders.
+  const signals: ComposeSignals = useMemo(
+    () => ({ focusFilter, toggleHex, toggleReadMode }),
+    []
+  );
 
   useHotkeys(
     "mod+1",
