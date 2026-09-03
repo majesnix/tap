@@ -622,3 +622,73 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
     expect(screen.queryByText("ACK")).not.toBeInTheDocument();
   });
 });
+
+describe("environment and read-only profiles", () => {
+  const PROFILE = {
+    name: "test-profile",
+    host: "rabbit.prod.internal",
+    port: 5672,
+    vhost: "/",
+    username: "dev",
+    management_port: 15672,
+    management_ssl: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [PROFILE],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "live",
+      managementAuthError: null,
+      queues: ["test-queue"],
+      exchanges: [],
+    });
+    useProtoStore.setState({
+      hexPreview: "0a 05",
+      encodeError: null,
+      latestValues: {},
+      selectedMessageType: "TestMessage",
+    });
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "encode_message") return Promise.resolve([10, 5]);
+      if (cmd === "publish_message") return Promise.resolve({ status: "ack" });
+      return Promise.resolve([]);
+    });
+  });
+
+  it("shows the host and environment of the active profile", () => {
+    render(<PublishBar />);
+    expect(screen.getByText("rabbit.prod.internal")).toBeInTheDocument();
+    expect(screen.getByTestId("environment-badge")).toHaveTextContent("Shared");
+  });
+
+  it("disables Send for a read-only profile", async () => {
+    useConnectionStore.setState({ profiles: [{ ...PROFILE, read_only: true }] });
+    render(<PublishBar />);
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
+    expect(screen.getByRole("button", { name: /^send$/i })).toBeDisabled();
+  });
+
+  it("asks for confirmation before publishing to a production profile", async () => {
+    useConnectionStore.setState({ profiles: [{ ...PROFILE, environment: "production" }] });
+    render(<PublishBar />);
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/production/i);
+    expect(mockInvoke).not.toHaveBeenCalledWith("publish_message", expect.anything());
+    fireEvent.click(screen.getByRole("button", { name: /^publish$/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "publish_message",
+        expect.objectContaining({ routingKey: "test-queue" })
+      );
+    });
+  });
+});

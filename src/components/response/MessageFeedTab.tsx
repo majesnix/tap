@@ -27,8 +27,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ResponseQueuePicker } from "./ResponseQueuePicker";
 import { SubscribePanel } from "./SubscribePanel";
 import { MessageFeedRow } from "./MessageFeedRow";
-import { ConsumeConfirmDialog, type ConsumeConfirmRequest } from "./ConsumeConfirmDialog";
-import { isLocalHost, profileHost } from "@/lib/hosts";
+import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
+import { describeBroker, findProfile, requiresConfirmation } from "@/lib/profileSafety";
 
 /**
  * Replaces ResponseTab. Renders the queue picker toolbar + FIFO-500 accordion feed.
@@ -44,8 +44,10 @@ export function MessageFeedTab() {
 
   const { connectionStatus, activeProfileName, profiles } = useConnectionStore();
 
+  const activeProfile = findProfile(profiles, activeProfileName);
+
   // A consume request waiting for confirmation because the broker is not local.
-  const [pendingConsume, setPendingConsume] = useState<ConsumeConfirmRequest | null>(null);
+  const [pendingConsume, setPendingConsume] = useState<BrokerConfirmRequest | null>(null);
   const {
     selectedQueue,
     messages,
@@ -131,15 +133,14 @@ export function MessageFeedTab() {
   // Consume removes messages for every other consumer of the queue. On the
   // developer's own machine that is what they asked for; anywhere else, ask first.
   const requestConsume = (count: number) => {
-    const host = profileHost(profiles, activeProfileName);
-    if (isLocalHost(host)) {
+    if (!requiresConfirmation(activeProfile, "consume")) {
       void handleDrain(count);
       return;
     }
     setPendingConsume({
       kind: "consume",
       queue: selectedQueue,
-      host: host ?? "an unknown host",
+      broker: describeBroker(activeProfile),
       count,
     });
   };
@@ -212,7 +213,7 @@ export function MessageFeedTab() {
       {/* Toolbar — queue picker shared between modes; drain controls hidden in subscribe mode */}
       <ResponseQueuePicker onDrain={requestConsume} mode={mode} />
 
-      <ConsumeConfirmDialog
+      <BrokerConfirmDialog
         request={pendingConsume}
         onConfirm={() => {
           const request = pendingConsume;

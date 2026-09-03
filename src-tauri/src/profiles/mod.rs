@@ -48,6 +48,25 @@ pub struct ConnectionProfile {
     /// Applies to both the AMQP and the Management API connection.
     #[serde(default)]
     pub ca_cert_path: Option<String>,
+    /// "local" | "shared" | "production". Interpreted by the frontend; stored verbatim.
+    #[serde(default)]
+    pub environment: Option<String>,
+    /// Read-only profiles may list and inspect but never publish, consume, subscribe or run plans.
+    /// The frontend hides those actions; this flag is also enforced in every command.
+    #[serde(default)]
+    pub read_only: bool,
+}
+
+/// Refuse mutating broker operations for read-only profiles (defense in depth: the
+/// frontend disables the buttons, the commands still check).
+pub fn ensure_writable(profile: &ConnectionProfile) -> Result<(), AppError> {
+    if profile.read_only {
+        return Err(AppError::InvalidInput(format!(
+            "Profile '{}' is read-only: sending, consuming, subscribing and plan runs are disabled",
+            profile.name
+        )));
+    }
+    Ok(())
 }
 
 /// Everything needed to reach one broker over AMQP, minus the password.
@@ -342,6 +361,8 @@ mod tests {
             management_ssl: false,
             amqp_tls: false,
             ca_cert_path: None,
+            environment: None,
+            read_only: false,
         };
         let json = serde_json::to_string(&profile).unwrap();
         assert!(!json.contains("password"), "password must never appear in serialized ConnectionProfile");
@@ -389,6 +410,8 @@ mod endpoint_tests {
             management_ssl: false,
             amqp_tls: tls,
             ca_cert_path: ca.map(|s| s.to_string()),
+            environment: None,
+            read_only: false,
         }
     }
 
@@ -467,5 +490,47 @@ mod endpoint_tests {
     fn plain_constructor_matches_from_profile() {
         let ep = AmqpEndpoint::plain("localhost", 5672, "/", "guest");
         assert_eq!(ep.uri("guest"), build_amqp_uri("localhost", 5672, "/", "guest", "guest", false));
+    }
+}
+
+#[cfg(test)]
+mod writable_tests {
+    use super::*;
+
+    fn profile(read_only: bool) -> ConnectionProfile {
+        ConnectionProfile {
+            name: "ops".into(),
+            host: "h".into(),
+            port: 5672,
+            vhost: "/".into(),
+            username: "u".into(),
+            management_port: 15672,
+            management_ssl: false,
+            amqp_tls: false,
+            ca_cert_path: None,
+            environment: Some("production".into()),
+            read_only,
+        }
+    }
+
+    #[test]
+    fn writable_profile_passes() {
+        assert!(ensure_writable(&profile(false)).is_ok());
+    }
+
+    #[test]
+    fn read_only_profile_is_refused_with_its_name() {
+        let err = ensure_writable(&profile(true)).unwrap_err();
+        assert!(matches!(err, AppError::InvalidInput(_)), "got {err:?}");
+        assert!(err.to_string().contains("ops"), "message should name the profile: {err}");
+        assert!(err.to_string().contains("read-only"), "got {err}");
+    }
+
+    #[test]
+    fn environment_and_read_only_default_when_absent() {
+        let json = r#"{"name":"a","host":"h","port":5672,"vhost":"/","username":"u","management_port":15672}"#;
+        let p: ConnectionProfile = serde_json::from_str(json).unwrap();
+        assert!(p.environment.is_none());
+        assert!(!p.read_only);
     }
 }

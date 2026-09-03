@@ -511,3 +511,70 @@ describe("transport security", () => {
     );
   });
 });
+
+describe("environment and read-only", () => {
+  async function openCreateForm() {
+    render(<ProfileManagementModal open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByText(/\+ new profile/i));
+    fireEvent.click(screen.getByText(/\+ new profile/i));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: null,
+      connectionStatus: "disconnected",
+      connectionError: null,
+      managementStatus: "unknown",
+      queues: [],
+      exchanges: [],
+    });
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_profiles") return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+  });
+
+  it("follows the host: localhost defaults to Local, a remote host to Shared", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "localhost" },
+    });
+    expect(screen.getByRole("radio", { name: /^local$/i })).toHaveAttribute("aria-checked", "true");
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "rabbit.staging.internal" },
+    });
+    expect(screen.getByRole("radio", { name: /^shared$/i })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("saves the chosen environment and the read-only flag", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/e.g. local rabbitmq/i), {
+      target: { value: "Prod" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "rabbit.prod.internal" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /^production$/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /read-only/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "save_profile",
+        expect.objectContaining({
+          profile: expect.objectContaining({ environment: "production", read_only: true }),
+        })
+      );
+    });
+  });
+
+  it("keeps a manually chosen environment when the host changes afterwards", async () => {
+    await openCreateForm();
+    fireEvent.click(screen.getByRole("radio", { name: /^production$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "localhost" },
+    });
+    expect(screen.getByRole("radio", { name: /^production$/i })).toHaveAttribute("aria-checked", "true");
+  });
+});

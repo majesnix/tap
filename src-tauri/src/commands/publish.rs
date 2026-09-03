@@ -44,6 +44,7 @@ pub async fn publish_message(
     // Load profile credentials
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    crate::profiles::ensure_writable(&profile)?;
     let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     publish_message_core(

@@ -444,3 +444,24 @@ describe("confirmation on non-local hosts", () => {
     expect(mockStartSubscribe).not.toHaveBeenCalled();
   });
 });
+
+describe("environment tags and read-only profiles", () => {
+  test("a production tag forces confirmation even on localhost", async () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, environment: "production" }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/production/i);
+    expect(mockStartSubscribe).not.toHaveBeenCalled();
+  });
+
+  test("a read-only profile disables Start", () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    expect(screen.getByRole("button", { name: /^start$/i })).toBeDisabled();
+  });
+});

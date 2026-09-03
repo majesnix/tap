@@ -24,6 +24,7 @@ import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { fetchQueues, fetchQueueDepth } from "@/lib/ipc";
+import { findProfile, isReadOnly } from "@/lib/profileSafety";
 
 interface ResponseQueuePickerProps {
   onDrain: (count: number) => void;
@@ -35,7 +36,8 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
   const [drainCount, setDrainCount] = useState<number>(10);
   const [decodeOpen, setDecodeOpen] = useState(false);
 
-  const { activeProfileName, connectionStatus } = useConnectionStore();
+  const { activeProfileName, connectionStatus, profiles } = useConnectionStore();
+  const readOnly = isReadOnly(findProfile(profiles, activeProfileName));
   const {
     queueList,
     isLiveMode,
@@ -137,7 +139,8 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
     connectionStatus === "connected" &&
     selectedQueue.trim().length > 0 &&
     !isLoading &&
-    selectedDecodeTypes.length > 0;
+    selectedDecodeTypes.length > 0 &&
+    !readOnly;
 
   return (
     <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
@@ -283,7 +286,9 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
               </Tooltip>
             </TooltipProvider>
           )}
-          <span className="text-xs text-muted-foreground">removes messages</span>
+          <span className="text-xs text-muted-foreground">
+            {readOnly ? "Read-only profile: consuming is disabled" : "removes messages"}
+          </span>
         </>
       )}
     </div>

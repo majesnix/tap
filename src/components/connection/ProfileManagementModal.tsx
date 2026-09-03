@@ -20,11 +20,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { saveProfile, listProfiles, deleteProfile, testConnection } from "@/lib/ipc";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { ConnectionTestResult } from "@/components/connection/ConnectionTestResult";
-import type { ConnectionProfile } from "@/lib/types";
+import type { ConnectionProfile, ProfileEnvironment } from "@/lib/types";
 import { isLocalHost } from "@/lib/hosts";
+import { ENVIRONMENT_LABELS, profileEnvironment } from "@/lib/profileSafety";
+
+const ENVIRONMENTS: ProfileEnvironment[] = ["local", "shared", "production"];
 
 /** Standard AMQP TLS port: choosing it is a strong hint that the broker expects amqps. */
 const AMQP_TLS_PORT = "5671";
@@ -42,6 +46,10 @@ interface ProfileFormValues {
   managementSsl: boolean;
   amqpTls: boolean;
   caCertPath: string;
+  environment: ProfileEnvironment;
+  /** True once the user picked an environment; the host no longer overrides it. */
+  environmentTouched: boolean;
+  readOnly: boolean;
 }
 
 const DEFAULT_FORM_VALUES: ProfileFormValues = {
@@ -55,6 +63,9 @@ const DEFAULT_FORM_VALUES: ProfileFormValues = {
   managementSsl: false,
   amqpTls: false,
   caCertPath: "",
+  environment: "local",
+  environmentTouched: false,
+  readOnly: false,
 };
 
 /**
@@ -72,6 +83,8 @@ function profileFromForm(values: ProfileFormValues): ConnectionProfile {
     management_ssl: values.managementSsl,
     amqp_tls: values.amqpTls,
     ca_cert_path: values.caCertPath.trim() || null,
+    environment: values.environment,
+    read_only: values.readOnly,
   };
 }
 
@@ -123,6 +136,9 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
       managementSsl: profile.management_ssl ?? false,
       amqpTls: profile.amqp_tls ?? false,
       caCertPath: profile.ca_cert_path ?? "",
+      environment: profileEnvironment(profile),
+      environmentTouched: true, // editing: never silently retag an existing profile
+      readOnly: profile.read_only ?? false,
     });
     setError(null);
     setTestState("idle");
@@ -139,6 +155,20 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
 
   const handleFieldChange = (field: keyof ProfileFormValues, value: string) => {
     setFormValues((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Until the user picks an environment, follow the host: a local address is
+  // "local", anything else is "shared". Production is always an explicit choice.
+  const handleHostChange = (value: string) => {
+    setFormValues((prev) => ({
+      ...prev,
+      host: value,
+      environment: prev.environmentTouched
+        ? prev.environment
+        : isLocalHost(value)
+          ? "local"
+          : "shared",
+    }));
   };
 
   // Picking the standard TLS port is the clearest signal a user gives about the
@@ -352,8 +382,46 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   <Input
                     placeholder="localhost"
                     value={formValues.host}
-                    onChange={(e) => handleFieldChange("host", e.target.value)}
+                    onChange={(e) => handleHostChange(e.target.value)}
                   />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Environment</label>
+                  <RadioGroup
+                    value={formValues.environment}
+                    onValueChange={(value) =>
+                      setFormValues((prev) => ({
+                        ...prev,
+                        environment: value as ProfileEnvironment,
+                        environmentTouched: true,
+                      }))
+                    }
+                    className="flex gap-4"
+                  >
+                    {ENVIRONMENTS.map((env) => (
+                      <div key={env} className="flex items-center gap-2">
+                        <RadioGroupItem value={env} id={`env-${env}`} />
+                        <label htmlFor={`env-${env}`} className="text-sm cursor-pointer">
+                          {ENVIRONMENT_LABELS[env]}
+                        </label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                  <p className="text-xs text-muted-foreground">
+                    Shared and Production ask before consuming or subscribing; Production also asks before sending.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="read-only"
+                    checked={formValues.readOnly}
+                    onCheckedChange={(checked) =>
+                      setFormValues((prev) => ({ ...prev, readOnly: checked === true }))
+                    }
+                  />
+                  <label htmlFor="read-only" className="text-sm font-semibold cursor-pointer">
+                    Read-only profile (no Send, Consume, Subscribe or plan runs)
+                  </label>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-semibold">Port</label>

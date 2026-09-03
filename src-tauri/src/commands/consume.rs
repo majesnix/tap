@@ -50,6 +50,7 @@ pub async fn consume_message(
     // Load credentials (sync, no await)
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    crate::profiles::ensure_writable(&profile)?;
     let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     consume_message_core(
@@ -252,6 +253,7 @@ pub async fn drain_messages(
     // Load credentials (sync, no await) — same as consume_message
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    crate::profiles::ensure_writable(&profile)?;
     let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     drain_messages_core(

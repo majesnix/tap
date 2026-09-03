@@ -70,6 +70,9 @@ export type RenderFieldFn = (
 
 // ── Phase 2: Connection types ────────────────────────────────────────────────
 
+/** Where a broker lives. Drives confirmations and the badge in the publish bar. */
+export type ProfileEnvironment = "local" | "shared" | "production";
+
 /**
  * Non-secret connection profile. Password is stored in the OS keychain
  * by the Rust backend only — never included here.
@@ -86,6 +89,10 @@ export interface ConnectionProfile {
   amqp_tls?: boolean;
   /** Optional PEM bundle the broker certificate must chain to (internal PKI). */
   ca_cert_path?: string | null;
+  /** Explicit environment tag; inferred from the host when absent (see profileSafety). */
+  environment?: ProfileEnvironment;
+  /** Read-only profiles cannot send, consume, subscribe or run plans. */
+  read_only?: boolean;
 }
 
 export type ConnectionStatus = "connected" | "error" | "disconnected";

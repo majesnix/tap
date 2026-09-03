@@ -123,6 +123,9 @@ pub async fn start_subscribe(
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)
             .inspect_err(|_| { if let Ok(mut g) = subscribe_state.lock() { *g = None; } })?;
+    if let Err(e) = crate::profiles::ensure_writable(&profile) {
+        clear_slot_and_return!(e);
+    }
 
     // SECURITY: the URI is built and dropped inside `connect`; the password is consumed
     // there, so neither reaches the spawn closure below.
@@ -505,7 +508,8 @@ mod integration_tests {
     fn encode(values: serde_json::Value) -> (DescriptorPool, Vec<u8>) {
         let tmp_dir = std::env::temp_dir().join("tap_subscribe_it");
         std::fs::create_dir_all(&tmp_dir).unwrap();
-        let path = tmp_dir.join("ping.proto");
+        // Unique file per call: parallel tests must not truncate each other's proto.
+        let path = tmp_dir.join(format!("ping-{}.proto", uuid::Uuid::new_v4().simple()));
         std::fs::write(&path, PROTO).unwrap();
         let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
         c.include_imports(true);

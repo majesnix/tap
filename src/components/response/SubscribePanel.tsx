@@ -7,8 +7,8 @@ import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import type { DrainResult } from "@/lib/types";
-import { ConsumeConfirmDialog, type ConsumeConfirmRequest } from "./ConsumeConfirmDialog";
-import { isLocalHost, profileHost } from "@/lib/hosts";
+import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
+import { describeBroker, findProfile, isReadOnly, requiresConfirmation } from "@/lib/profileSafety";
 
 // ── useEffect must be imported from React (not globals) in this codebase ───────
 import { useEffect } from "react";
@@ -30,8 +30,11 @@ export function SubscribePanel({
   const connectionStatus = useConnectionStore((s) => s.connectionStatus);
   const profiles = useConnectionStore((s) => s.profiles);
 
+  const activeProfile = findProfile(profiles, profileName || activeProfileName);
+  const readOnly = isReadOnly(activeProfile);
+
   // Subscribe is a competing consumer; on a non-local broker ask before joining.
-  const [confirmRequest, setConfirmRequest] = useState<ConsumeConfirmRequest | null>(null);
+  const [confirmRequest, setConfirmRequest] = useState<BrokerConfirmRequest | null>(null);
 
   const channelRef = useRef<Channel<DrainResult> | null>(null);
 
@@ -79,15 +82,14 @@ export function SubscribePanel({
   };
 
   const requestStart = () => {
-    const host = profileHost(profiles, profileName || activeProfileName);
-    if (isLocalHost(host)) {
+    if (!requiresConfirmation(activeProfile, "subscribe")) {
       void handleStart();
       return;
     }
     setConfirmRequest({
       kind: "subscribe",
       queue: selectedQueue,
-      host: host ?? "an unknown host",
+      broker: describeBroker(activeProfile),
     });
   };
 
@@ -208,7 +210,7 @@ export function SubscribePanel({
         <Button
           variant="default"
           onClick={requestStart}
-          disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current}
+          disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current || readOnly}
         >
           <Play className="mr-2 h-4 w-4" />
           Start
@@ -232,10 +234,12 @@ export function SubscribePanel({
       )}
 
       <span className="text-xs text-muted-foreground basis-full">
-        Competing consumer: messages Tap receives are acknowledged and removed from the queue.
+        {readOnly
+          ? "Read-only profile: subscribing is disabled"
+          : "Competing consumer: messages Tap receives are acknowledged and removed from the queue."}
       </span>
 
-      <ConsumeConfirmDialog
+      <BrokerConfirmDialog
         request={confirmRequest}
         onConfirm={() => {
           setConfirmRequest(null);

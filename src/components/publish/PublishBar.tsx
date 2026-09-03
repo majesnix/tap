@@ -27,8 +27,23 @@ import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
 import { fetchExchanges, fetchQueues, publishMessage, fetchBindings, listProfiles, activateProfile, encodeMessage } from "@/lib/ipc";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
-import type { PublishOutcome } from "@/lib/types";
+import type { ProfileEnvironment, PublishOutcome } from "@/lib/types";
 import { usePlatformLabel } from "@/hooks/usePlatformLabel";
+import { BrokerConfirmDialog, type BrokerConfirmRequest } from "@/components/response/BrokerConfirmDialog";
+import {
+  ENVIRONMENT_LABELS,
+  describeBroker,
+  findProfile,
+  isReadOnly,
+  profileEnvironment,
+  requiresConfirmation,
+} from "@/lib/profileSafety";
+
+const ENVIRONMENT_BADGE_CLASS: Record<ProfileEnvironment, string> = {
+  local: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
+  shared: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+  production: "bg-destructive/10 text-destructive border-destructive/20",
+};
 
 type Mode = "queue" | "exchange";
 
@@ -65,6 +80,8 @@ export function PublishBar() {
 
   // Phase 10: Delivery outcome badge state (D-06, D-07, D-08)
   const [outcome, setOutcome] = useState<PublishOutcome | null>(null);
+  // A send waiting for confirmation because the profile is tagged production.
+  const [pendingPublish, setPendingPublish] = useState<BrokerConfirmRequest | null>(null);
   // D-08: ref holds the active auto-dismiss timer ID; null means no timer pending
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -212,9 +229,13 @@ export function PublishBar() {
     };
   }, []);
 
+  const activeProfile = findProfile(profiles, activeProfileName);
+  const environment = profileEnvironment(activeProfile);
+  const readOnly = isReadOnly(activeProfile);
+
   const isConnected = connectionStatus === "connected";
   const hasTarget = mode === "queue" ? Boolean(selectedQueue) : Boolean(selectedExchange);
-  const canSend = isConnected && hasTarget && !encodeError;
+  const canSend = isConnected && hasTarget && !encodeError && !readOnly;
 
   const handleSendRef = useRef<() => void>(() => {});
 
@@ -336,7 +357,21 @@ export function PublishBar() {
     }
   }, [activeProfileName, canSend, mode, selectedQueue, selectedExchange, routingKey]);
 
-  handleSendRef.current = handleSend;
+  // Production profiles get a confirmation before anything leaves the machine.
+  const requestSend = () => {
+    if (!canSend) return;
+    if (!requiresConfirmation(activeProfile, "publish")) {
+      void handleSend();
+      return;
+    }
+    setPendingPublish({
+      kind: "publish",
+      target: mode === "queue" ? selectedQueue : `${selectedExchange} with routing key "${routingKey}"`,
+      broker: describeBroker(activeProfile),
+    });
+  };
+
+  handleSendRef.current = requestSend;
 
   return (
     <div className="flex items-center gap-4 flex-wrap bg-card border-b border-border px-4 py-2">
@@ -367,6 +402,23 @@ export function PublishBar() {
             ))}
           </SelectContent>
         </Select>
+        {activeProfile && (
+          <>
+            <span
+              className="text-xs text-muted-foreground truncate max-w-44"
+              title={activeProfile.host}
+            >
+              {activeProfile.host}
+            </span>
+            <Badge
+              variant="outline"
+              className={`text-xs ${ENVIRONMENT_BADGE_CLASS[environment]}`}
+              data-testid="environment-badge"
+            >
+              {ENVIRONMENT_LABELS[environment]}
+            </Badge>
+          </>
+        )}
       </div>
 
       {/* Mode toggle: Queue | Exchange */}
@@ -555,7 +607,7 @@ export function PublishBar() {
               <Button
                 variant="default"
                 disabled={!canSend || isSending}
-                onClick={handleSend}
+                onClick={requestSend}
               >
                 {isSending ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -565,7 +617,7 @@ export function PublishBar() {
                 Send
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{modSymbol}+Enter</TooltipContent>
+            <TooltipContent>{readOnly ? "Profile is read-only" : `${modSymbol}+Enter`}</TooltipContent>
           </Tooltip>
         </TooltipProvider>
       ) : (
@@ -587,6 +639,14 @@ export function PublishBar() {
       )}
 
       <AmqpPropertiesSheet open={propertiesOpen} onOpenChange={setPropertiesOpen} />
+      <BrokerConfirmDialog
+        request={pendingPublish}
+        onConfirm={() => {
+          setPendingPublish(null);
+          void handleSend();
+        }}
+        onCancel={() => setPendingPublish(null)}
+      />
     </div>
   );
 }

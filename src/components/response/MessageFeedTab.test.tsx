@@ -459,3 +459,27 @@ describe("consume confirmation on non-local hosts", () => {
     expect(mockDrainMessages).not.toHaveBeenCalled();
   });
 });
+
+describe("environment tags and read-only profiles", () => {
+  test("a production tag forces confirmation even on localhost", async () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, environment: "production" }],
+    });
+    render(<MessageFeedTab />);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/production/i);
+    expect(mockDrainMessages).not.toHaveBeenCalled();
+  });
+
+  test("a read-only profile disables Consume", () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<MessageFeedTab />);
+    expect(screen.getByRole("button", { name: /^consume$/i })).toBeDisabled();
+    expect(screen.getByText(/read-only/i)).toBeInTheDocument();
+  });
+});

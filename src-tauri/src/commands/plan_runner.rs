@@ -138,6 +138,7 @@ pub async fn execute_step(
     // ── 1. Load connection credentials ───────────────────────────────────────
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    crate::profiles::ensure_writable(&profile)?;
 
     // ── 2. Acquire/create CancellationToken BEFORE any .await ────────────────
     let token = {
@@ -830,7 +831,9 @@ mod integration_tests {
     fn pool_and_bytes(values: serde_json::Value) -> (DescriptorPool, Vec<u8>) {
         let tmp_dir = std::env::temp_dir().join("tap_plan_it");
         std::fs::create_dir_all(&tmp_dir).unwrap();
-        let path = tmp_dir.join("cmd.proto");
+        // Unique file per call: tests run in parallel and fs::write truncates first, so a
+        // shared file name let one test compile another test's half-written (empty) proto.
+        let path = tmp_dir.join(format!("cmd-{}.proto", Uuid::new_v4().simple()));
         std::fs::write(&path, PROTO).unwrap();
         let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
         c.include_imports(true);
