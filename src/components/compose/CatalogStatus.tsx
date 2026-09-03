@@ -14,7 +14,7 @@ interface CatalogStatusProps {
 export function CatalogStatus({ managementStatus, managementAuthError }: CatalogStatusProps) {
   if (managementAuthError) {
     return (
-      <Tag tone="danger" title={managementAuthError}>
+      <Tag tone="danger" size="xs" title={managementAuthError}>
         Auth failed
       </Tag>
     );

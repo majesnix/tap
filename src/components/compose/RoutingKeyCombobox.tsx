@@ -74,8 +74,8 @@ export function RoutingKeyCombobox({
                   }}
                 >
                   <Check
-                    strokeWidth={1.5}
                     className={cn("mr-2 size-4", value === key ? "opacity-100" : "opacity-0")}
+                    strokeWidth={1.5}
                   />
                   <span className="flex-1 truncate font-mono text-12">{key}</span>
                   {isWildcard(key) && (

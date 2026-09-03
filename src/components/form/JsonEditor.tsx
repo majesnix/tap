@@ -61,7 +61,7 @@ export function JsonEditor({
       {parseError && (
         <div className="mx-4 mt-2 mb-3 rounded-md border border-danger/40 bg-danger/10 p-3">
           <div className="flex items-start gap-2">
-            <TriangleAlertIcon strokeWidth={1.5} size={14} className="text-danger shrink-0 mt-1" />
+            <TriangleAlertIcon size={14} strokeWidth={1.5} className="text-danger shrink-0 mt-1" />
             <div className="flex flex-col gap-1">
               <span className="text-13 font-semibold text-danger">
                 Invalid JSON

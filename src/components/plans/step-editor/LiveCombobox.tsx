@@ -61,7 +61,7 @@ export function LiveCombobox({ value, onChange, onCommit, items, placeholder, id
             <span className="flex-1 truncate text-left">
               {value || <span className="text-ghost">{placeholder}</span>}
             </span>
-            <ChevronsUpDown strokeWidth={1.5} className="ml-auto size-3.5 shrink-0 text-ghost" />
+            <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-ghost" strokeWidth={1.5} />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="p-0 min-w-[12rem]">
@@ -84,8 +84,9 @@ export function LiveCombobox({ value, onChange, onCommit, items, placeholder, id
                       setOpen(false);
                     }}
                   >
-                    <Check strokeWidth={1.5}
+                    <Check
                       className={cn("mr-2 h-4 w-4", value === item ? "opacity-100" : "opacity-0")}
+                      strokeWidth={1.5}
                     />
                     {item}
                   </CommandItem>

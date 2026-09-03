@@ -26,10 +26,10 @@ export function BlockCard({ block, fit, onEdit }: BlockCardProps) {
       )}
     >
       <div className="flex items-center gap-2">
-        <GripVertical strokeWidth={1.5} size={14} className="shrink-0 text-ghost" />
+        <GripVertical size={14} strokeWidth={1.5} className="shrink-0 text-ghost" />
         <span className="flex-1 truncate text-13 font-medium">{block.name}</span>
         <IconButton size={22} label={`Edit ${block.name}`} onClick={() => onEdit(block)}>
-          <Pencil strokeWidth={1.5} size={13} />
+          <Pencil size={13} strokeWidth={1.5} />
         </IconButton>
       </div>
       <div className="truncate pl-[22px] font-mono text-11 text-ghost">

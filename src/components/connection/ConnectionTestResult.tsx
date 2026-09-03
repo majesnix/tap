@@ -15,7 +15,7 @@ export function ConnectionTestResult({ state, errorMessage, latencyMs }: Connect
   if (state === "testing") {
     return (
       <span className="flex items-center gap-1.5 text-12 text-muted-foreground">
-        <LoaderCircle strokeWidth={1.5} size={13} className="animate-spin" />
+        <LoaderCircle size={13} strokeWidth={1.5} className="animate-spin" />
         Testing…
       </span>
     );
@@ -24,7 +24,7 @@ export function ConnectionTestResult({ state, errorMessage, latencyMs }: Connect
   if (state === "success") {
     return (
       <span className="flex items-center gap-1.5 text-12 text-success">
-        <CircleCheck strokeWidth={1.5} size={13} />
+        <CircleCheck size={13} strokeWidth={1.5} />
         {typeof latencyMs === "number" ? `Reachable · ${latencyMs} ms` : "Reachable"}
       </span>
     );
@@ -32,7 +32,7 @@ export function ConnectionTestResult({ state, errorMessage, latencyMs }: Connect
 
   return (
     <span className="flex items-center gap-1.5 text-12 text-danger">
-      <CircleAlert strokeWidth={1.5} size={13} />
+      <CircleAlert size={13} strokeWidth={1.5} />
       {errorMessage ?? "Connection failed"}
     </span>
   );

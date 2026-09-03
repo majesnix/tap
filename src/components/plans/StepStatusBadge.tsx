@@ -41,7 +41,7 @@ export function StepStatusBadge({ status, errorMsg }: StepStatusBadgeProps) {
 
   const badge = (
     <Tag tone={tone} size="xs" className="gap-1">
-      {showSpinner && <Loader2 strokeWidth={1.5} size={9} className="animate-spin" />}
+      {showSpinner && <Loader2 size={9} strokeWidth={1.5} className="animate-spin" />}
       {text}
     </Tag>
   );

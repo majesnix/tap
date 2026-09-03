@@ -28,7 +28,7 @@ export function AddStepButton({
           disabled={disabled}
           className="flex h-11 items-center justify-center gap-2 rounded-lg border border-dashed border-foreground/12 text-12 text-muted-foreground transition-colors outline-none hover:border-border-strong hover:text-violet-bright focus-visible:ring-3 focus-visible:ring-ring/35 disabled:pointer-events-none disabled:opacity-50"
         >
-          <Plus strokeWidth={1.5} size={14} />
+          <Plus size={14} strokeWidth={1.5} />
           Add step
           <span className="text-ghost">— blank · from history · from block</span>
         </button>

@@ -20,7 +20,7 @@ import type { FeedMessage, PlanStep, ReplyMessage } from "@/lib/types";
 function TealTile() {
   return (
     <span className="inline-flex size-[22px] shrink-0 items-center justify-center rounded-md bg-teal/12 text-teal">
-      <ArrowLeft strokeWidth={1.5} size={13} />
+      <ArrowLeft size={13} strokeWidth={1.5} />
     </span>
   );
 }

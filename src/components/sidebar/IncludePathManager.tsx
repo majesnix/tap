@@ -50,7 +50,7 @@ export function IncludePathManager({ filePath }: IncludePathManagerProps) {
               aria-label={`Remove include path ${p}`}
               className="rounded-sm text-ghost hover:bg-surface-2 hover:text-foreground"
             >
-              <X strokeWidth={1.5} size={10} />
+              <X size={10} strokeWidth={1.5} />
             </button>
           </span>
         ))}

@@ -62,8 +62,9 @@ export function NestedMessageField({
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 text-left cursor-pointer"
       >
-        <ChevronDown strokeWidth={1.5}
+        <ChevronDown
           size={14}
+          strokeWidth={1.5}
           className={cn(
             "text-muted-foreground transition-transform duration-150",
             !open && "-rotate-90"

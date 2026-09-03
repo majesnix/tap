@@ -97,7 +97,7 @@ export function PlanRunBar({ plan, lastRunAt, lastRunMs }: PlanRunBarProps) {
           isSuccess ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
         }`}
       >
-        {isSuccess ? <CircleCheck strokeWidth={1.5} size={13} /> : <CircleAlert strokeWidth={1.5} size={13} />}
+        {isSuccess ? <CircleCheck size={13} strokeWidth={1.5} /> : <CircleAlert size={13} strokeWidth={1.5} />}
         {summary.succeeded} / {summary.total} succeeded
       </span>
     );
@@ -117,7 +117,7 @@ export function PlanRunBar({ plan, lastRunAt, lastRunMs }: PlanRunBarProps) {
           stopRun().catch(console.error);
         }}
       >
-        <Square strokeWidth={1.5} size={14} />
+        <Square size={14} strokeWidth={1.5} />
         Stop
       </Button>
     );
@@ -132,7 +132,7 @@ export function PlanRunBar({ plan, lastRunAt, lastRunMs }: PlanRunBarProps) {
           startRun(plan).catch(console.error);
         }}
       >
-        <Play strokeWidth={1.5} size={14} />
+        <Play size={14} strokeWidth={1.5} />
         {showSummary ? "Run again" : "Run plan"}
       </Button>
     );

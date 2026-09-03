@@ -49,7 +49,7 @@ export function RepeatedField({ field, path, depth, renderItem }: RepeatedFieldP
             className="text-violet-bright"
             onClick={() => append(getDefaultItem())}
           >
-            <Plus strokeWidth={1.5} size={13} className="mr-1" />
+            <Plus size={13} strokeWidth={1.5} className="mr-1" />
             Add item
           </Button>
         )}
@@ -74,7 +74,7 @@ export function RepeatedField({ field, path, depth, renderItem }: RepeatedFieldP
                 )}
               </div>
               <IconButton size={22} danger label="Remove item" onClick={() => remove(index)}>
-                <Trash2 strokeWidth={1.5} size={13} />
+                <Trash2 size={13} strokeWidth={1.5} />
               </IconButton>
             </div>
           ))}

@@ -279,7 +279,7 @@ function StepEditorInner({
               onClick={handleRandomize}
               disabled={disabled || !message}
             >
-              <Dices strokeWidth={1.5} size={13} />
+              <Dices size={13} strokeWidth={1.5} />
             </IconButton>
             <button
               type="button"
@@ -287,7 +287,7 @@ function StepEditorInner({
               onClick={() => setFieldsOpen((open) => !open)}
               className="inline-flex items-center gap-1.5 rounded-sm text-12 font-medium text-violet-bright outline-none focus-visible:ring-3 focus-visible:ring-ring/35"
             >
-              <Pencil strokeWidth={1.5} size={12} />
+              <Pencil size={12} strokeWidth={1.5} />
               Edit fields
             </button>
           </span>
