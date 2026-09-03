@@ -100,6 +100,9 @@ jobs:
       - name: Type-check frontend
         run: pnpm build
 
+      - name: Lint frontend
+        run: pnpm lint
+
       - name: Import RabbitMQ topology
         # Service containers can't mount ./docker/definitions.json, so import it via
         # the Management API once the broker is reachable. This creates the queues,

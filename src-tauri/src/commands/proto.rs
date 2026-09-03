@@ -35,7 +35,7 @@ pub(crate) fn parse_proto_core(
     // loaded files. Re-loading a changed .proto won't update pool types;
     // restart the app if you change a .proto during a session.
     let fds_for_merge = compiler.file_descriptor_set();
-    let mut guard = pool_state.lock().unwrap();
+    let mut guard = crate::commands::lock_state(pool_state)?;
     match guard.as_mut() {
         None => {
             *guard = Some(new_pool);
@@ -117,7 +117,7 @@ pub(crate) fn reload_proto_core(
         }
     }
 
-    let mut guard = pool_state.lock().unwrap();
+    let mut guard = crate::commands::lock_state(pool_state)?;
     *guard = merged_pool;
 
     Ok(schemas)

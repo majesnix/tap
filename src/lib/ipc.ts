@@ -42,6 +42,16 @@ export async function saveProfile(
   return invoke<void>("save_profile", { profile, password });
 }
 
+/** Whether the OS keychain opened at startup; when it did not, passwords live in memory only. */
+export interface KeychainStatus {
+  available: boolean;
+  error: string | null;
+}
+
+export async function keychainStatus(): Promise<KeychainStatus> {
+  return invoke<KeychainStatus>("keychain_status");
+}
+
 export async function listProfiles(): Promise<ConnectionProfile[]> {
   return invoke<ConnectionProfile[]>("list_profiles");
 }

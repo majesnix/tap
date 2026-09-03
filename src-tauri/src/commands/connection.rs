@@ -7,9 +7,23 @@ use tauri_plugin_store::StoreExt;
 
 use crate::error::AppError;
 use crate::profiles::{
-    delete_password, get_password, store_password, AmqpEndpoint, ConnectionProfile,
-    ManagementEndpoint, AMQP_CONNECT_TIMEOUT, PROFILES_STORE_KEY,
+    delete_password, get_password, store_password, validate_profile, AmqpEndpoint,
+    ConnectionProfile, ManagementEndpoint, AMQP_CONNECT_TIMEOUT, PROFILES_STORE_KEY,
 };
+
+/// Whether the OS keychain could be opened at startup. When it could not, Tap runs on an
+/// in-memory store: profiles work for the session but passwords are not persisted.
+#[derive(Debug, Clone, Serialize)]
+pub struct KeychainStatus {
+    pub available: bool,
+    pub error: Option<String>,
+}
+
+/// Report the keychain status so the frontend can warn the user.
+#[tauri::command]
+pub fn keychain_status(status: tauri::State<'_, KeychainStatus>) -> KeychainStatus {
+    status.inner().clone()
+}
 
 /// TCP connect budget for the Management API; a stalled port must not hang the UI.
 const MANAGEMENT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -78,8 +92,8 @@ pub async fn save_profile(
     profile: ConnectionProfile,
     password: String,
 ) -> Result<(), AppError> {
-    // 1. Store password in OS keychain
-    store_password(&profile.name, &password)?;
+    // 1. Validate at the boundary before anything is written anywhere
+    validate_profile(&profile)?;
     tracing::debug!("Saving profile: {}", profile.name);
 
     // 2. Load existing profiles from store
@@ -87,27 +101,40 @@ pub async fn save_profile(
         .store("tap.json")
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
-    let mut profiles: Vec<ConnectionProfile> = store
+    let previous: Vec<ConnectionProfile> = store
         .get(PROFILES_STORE_KEY)
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
 
     // 3. Upsert: replace existing profile with same name or append
+    let profile_name = profile.name.clone();
+    let mut profiles = previous.clone();
     if let Some(existing) = profiles.iter_mut().find(|p| p.name == profile.name) {
         *existing = profile;
     } else {
         profiles.push(profile);
     }
 
-    // 4. Persist non-secret fields (no password in JSON)
-    let profiles_value = serde_json::to_value(&profiles)
-        .map_err(|e| AppError::StoreError(e.to_string()))?;
-    store.set(PROFILES_STORE_KEY, profiles_value);
-    store
-        .save()
-        .map_err(|e| AppError::StoreError(e.to_string()))?;
+    // 4. Persist non-secret fields first (no password in JSON) …
+    persist_profiles(&store, &profiles)?;
+
+    // 5. … then the secret. If the keychain refuses, roll the store back so no profile
+    //    exists without a password (or with a stale one).
+    if let Err(e) = store_password(&profile_name, &password) {
+        let _ = persist_profiles(&store, &previous);
+        return Err(e);
+    }
 
     Ok(())
+}
+
+fn persist_profiles(
+    store: &tauri_plugin_store::Store<tauri::Wry>,
+    profiles: &[ConnectionProfile],
+) -> Result<(), AppError> {
+    let value = serde_json::to_value(profiles).map_err(|e| AppError::StoreError(e.to_string()))?;
+    store.set(PROFILES_STORE_KEY, value);
+    store.save().map_err(|e| AppError::StoreError(e.to_string()))
 }
 
 /// Return all saved profiles (no passwords — retrieved from keychain separately).
@@ -147,8 +174,9 @@ pub async fn delete_profile(app: AppHandle, profile_name: String) -> Result<(), 
         .save()
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
-    // 2. Delete password from OS keychain (best-effort — ignore if not found)
-    let _ = delete_password(&profile_name);
+    // 2. Delete password from OS keychain. A missing entry is fine; any other failure
+    //    is reported so the user knows a secret may be left behind.
+    delete_password(&profile_name)?;
 
     Ok(())
 }

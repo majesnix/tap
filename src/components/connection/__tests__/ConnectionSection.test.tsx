@@ -281,3 +281,42 @@ describe("ConnectionSection", () => {
     });
   });
 });
+
+describe("keychain status banner", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: null,
+      connectionStatus: "disconnected",
+      connectionError: null,
+      managementStatus: "unknown",
+      queues: [],
+      exchanges: [],
+    });
+  });
+
+  it("warns when the OS keychain could not be opened", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_profiles") return Promise.resolve([]);
+      if (cmd === "keychain_status")
+        return Promise.resolve({ available: false, error: "org.freedesktop.secrets not found" });
+      return Promise.resolve(undefined);
+    });
+    render(<ConnectionSection />);
+    const banner = await screen.findByRole("alert");
+    expect(banner).toHaveTextContent(/keychain unavailable/i);
+    expect(banner).toHaveTextContent("org.freedesktop.secrets not found");
+  });
+
+  it("shows nothing when the keychain is available", async () => {
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_profiles") return Promise.resolve([]);
+      if (cmd === "keychain_status") return Promise.resolve({ available: true, error: null });
+      return Promise.resolve(undefined);
+    });
+    render(<ConnectionSection />);
+    await waitFor(() => expect(mockInvoke).toHaveBeenCalledWith("keychain_status"));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});

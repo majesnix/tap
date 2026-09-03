@@ -29,6 +29,31 @@ pub fn ensure_crypto_provider() {
 pub const KEYRING_SERVICE: &str = "dev.majesnix.tap";
 pub const PROFILES_STORE_KEY: &str = "connection-profiles";
 
+static KEYRING_SERVICE_OVERRIDE: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Keychain service name used for all entries.
+pub fn keyring_service() -> &'static str {
+    KEYRING_SERVICE_OVERRIDE
+        .get()
+        .map(String::as_str)
+        .unwrap_or(KEYRING_SERVICE)
+}
+
+/// Development builds (bundle identifier ending in ".dev", see tauri.dev.conf.json) get
+/// their own keychain namespace so they never read or overwrite the installed app's secrets.
+pub fn keyring_service_for_identifier(identifier: &str) -> String {
+    if identifier.ends_with(".dev") {
+        format!("{}.dev", KEYRING_SERVICE)
+    } else {
+        KEYRING_SERVICE.to_string()
+    }
+}
+
+/// Select the keychain service once at startup; later calls are ignored.
+pub fn set_keyring_service(service: String) {
+    let _ = KEYRING_SERVICE_OVERRIDE.set(service);
+}
+
 /// Non-secret connection profile fields stored in tauri-plugin-store JSON.
 /// Password is NEVER included — it lives in the OS keychain only.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -55,6 +80,55 @@ pub struct ConnectionProfile {
     /// The frontend hides those actions; this flag is also enforced in every command.
     #[serde(default)]
     pub read_only: bool,
+}
+
+/// Validate a profile at the command boundary: the form checks too, but the command
+/// must not trust its caller.
+pub fn validate_profile(profile: &ConnectionProfile) -> Result<(), AppError> {
+    if profile.name.trim().is_empty() {
+        return Err(AppError::InvalidInput("Profile name must not be empty".to_string()));
+    }
+    let host = profile.host.trim();
+    if host.is_empty() {
+        return Err(AppError::InvalidInput("Host must not be empty".to_string()));
+    }
+    if host
+        .chars()
+        .any(|c| c.is_whitespace() || matches!(c, '/' | '@' | '?' | '#'))
+    {
+        return Err(AppError::InvalidInput(format!(
+            "Host '{}' must be a bare host name or IP address, without paths, credentials or spaces",
+            host
+        )));
+    }
+    if host.contains(':') {
+        let bare = host.trim_start_matches('[').trim_end_matches(']');
+        if bare.parse::<std::net::Ipv6Addr>().is_err() {
+            return Err(AppError::InvalidInput(format!(
+                "Host '{}' looks like an IPv6 address but does not parse as one",
+                host
+            )));
+        }
+    }
+    if profile.port == 0 {
+        return Err(AppError::InvalidInput("AMQP port must be between 1 and 65535".to_string()));
+    }
+    if profile.management_port == 0 {
+        return Err(AppError::InvalidInput(
+            "Management API port must be between 1 and 65535".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// A host as it must appear inside a URI: IPv6 literals need brackets.
+pub(crate) fn uri_host(host: &str) -> String {
+    let host = host.trim();
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{}]", host)
+    } else {
+        host.to_string()
+    }
 }
 
 /// Refuse mutating broker operations for read-only profiles (defense in depth: the
@@ -214,7 +288,7 @@ impl ManagementEndpoint {
     /// `http(s)://host:port` — no credentials, those travel in the Authorization header.
     pub fn base_url(&self) -> String {
         let scheme = if self.ssl { "https" } else { "http" };
-        format!("{}://{}:{}", scheme, self.host, self.port)
+        format!("{}://{}:{}", scheme, uri_host(&self.host), self.port)
     }
 
     /// Percent-encoded vhost for use in Management API paths (`/` becomes `%2F`).
@@ -260,7 +334,7 @@ fn read_ca_bundle(path: &str) -> Result<String, AppError> {
 /// Store the password in the OS keychain. Service = KEYRING_SERVICE, username = profile name.
 /// SECURITY: never log the password or the profile name alongside it in tracing.
 pub fn store_password(profile_name: &str, password: &str) -> Result<(), AppError> {
-    let entry = Entry::new(KEYRING_SERVICE, profile_name)
+    let entry = Entry::new(keyring_service(), profile_name)
         .map_err(|e| AppError::KeyringError(e.to_string()))?;
     entry
         .set_password(password)
@@ -271,7 +345,7 @@ pub fn store_password(profile_name: &str, password: &str) -> Result<(), AppError
 /// Retrieve the password from the OS keychain.
 /// SECURITY: the returned String is cleartext — use immediately, do not store in any struct or log.
 pub fn get_password(profile_name: &str) -> Result<String, AppError> {
-    let entry = Entry::new(KEYRING_SERVICE, profile_name)
+    let entry = Entry::new(keyring_service(), profile_name)
         .map_err(|e| AppError::KeyringError(e.to_string()))?;
     entry
         .get_password()
@@ -293,19 +367,28 @@ pub fn build_amqp_uri(
     let enc_user = utf8_percent_encode(user, NON_ALPHANUMERIC);
     let enc_pass = utf8_percent_encode(pass, NON_ALPHANUMERIC);
     let scheme = if tls { "amqps" } else { "amqp" };
-    // "/" vhost → "%2F"; "@" in password/username → "%40"
-    format!("{}://{}:{}@{}:{}/{}", scheme, enc_user, enc_pass, host, port, enc_vhost)
+    // "/" vhost → "%2F"; "@" in password/username → "%40"; IPv6 hosts get brackets
+    format!(
+        "{}://{}:{}@{}:{}/{}",
+        scheme,
+        enc_user,
+        enc_pass,
+        uri_host(host),
+        port,
+        enc_vhost
+    )
 }
 
 /// Delete the password from the OS keychain. Called on profile delete.
 pub fn delete_password(profile_name: &str) -> Result<(), AppError> {
-    let entry = Entry::new(KEYRING_SERVICE, profile_name)
+    let entry = Entry::new(keyring_service(), profile_name)
         .map_err(|e| AppError::KeyringError(e.to_string()))?;
-    // keyring-core 1.x uses delete_credential (not delete_password from v3)
-    entry
-        .delete_credential()
-        .map_err(|e| AppError::KeyringError(e.to_string()))?;
-    Ok(())
+    // keyring-core 1.x uses delete_credential (not delete_password from v3).
+    // A profile whose secret is already gone is not an error worth stopping for.
+    match entry.delete_credential() {
+        Ok(()) | Err(keyring_core::Error::NoEntry) => Ok(()),
+        Err(e) => Err(AppError::KeyringError(e.to_string())),
+    }
 }
 
 #[cfg(test)]
@@ -335,6 +418,12 @@ mod keychain_tests {
 
         delete_password(profile).unwrap();
         assert!(get_password(profile).is_err(), "password must be gone after delete");
+    }
+
+    #[test]
+    fn deleting_a_missing_password_is_not_an_error() {
+        init_mock_store();
+        assert!(delete_password("tap-test-profile-never-stored-delete").is_ok());
     }
 
     #[test]
@@ -385,6 +474,48 @@ mod uri_tests {
     fn special_chars_in_password_encoded() {
         let uri = build_amqp_uri("localhost", 5672, "/", "user", "p@ss:w0rd#", false);
         assert!(!uri.contains("@p"), "bare '@' in password would break URI parsing");
+    }
+
+    #[test]
+    fn ipv6_hosts_are_bracketed_in_uris_and_urls() {
+        let uri = build_amqp_uri("::1", 5672, "/", "u", "p", false);
+        assert_eq!(uri, "amqp://u:p@[::1]:5672/%2F");
+        let already = build_amqp_uri("[::1]", 5672, "/", "u", "p", true);
+        assert_eq!(already, "amqps://u:p@[::1]:5672/%2F");
+        assert_eq!(ManagementEndpoint::plain("::1", 15672, "/", "u").base_url(), "http://[::1]:15672");
+        assert_eq!(ManagementEndpoint::plain("localhost", 15672, "/", "u").base_url(), "http://localhost:15672");
+    }
+
+    #[test]
+    fn validate_profile_rejects_unusable_names_hosts_and_ports() {
+        let ok = ConnectionProfile {
+            name: "dev".into(),
+            host: "rabbit.example.internal".into(),
+            port: 5672,
+            vhost: "/".into(),
+            username: "u".into(),
+            management_port: 15672,
+            management_ssl: false,
+            amqp_tls: false,
+            ca_cert_path: None,
+            environment: None,
+            read_only: false,
+        };
+        assert!(validate_profile(&ok).is_ok());
+        for host in ["localhost", "10.0.0.5", "::1", "[fe80::1]", "broker-1.example.com"] {
+            let p = ConnectionProfile { host: host.into(), ..ok.clone() };
+            assert!(validate_profile(&p).is_ok(), "host {host} should be accepted");
+        }
+        for host in ["", "  ", "host/with/path", "user@host", "host?x=1", "host#frag", "two words"] {
+            let p = ConnectionProfile { host: host.into(), ..ok.clone() };
+            assert!(matches!(validate_profile(&p), Err(AppError::InvalidInput(_))), "host {host:?} should be rejected");
+        }
+        let unnamed = ConnectionProfile { name: "   ".into(), ..ok.clone() };
+        assert!(matches!(validate_profile(&unnamed), Err(AppError::InvalidInput(_))));
+        let no_port = ConnectionProfile { port: 0, ..ok.clone() };
+        assert!(matches!(validate_profile(&no_port), Err(AppError::InvalidInput(_))));
+        let no_mgmt_port = ConnectionProfile { management_port: 0, ..ok.clone() };
+        assert!(matches!(validate_profile(&no_mgmt_port), Err(AppError::InvalidInput(_))));
     }
 
     #[test]
@@ -465,6 +596,12 @@ mod endpoint_tests {
         assert!(!p.amqp_tls);
         assert!(p.ca_cert_path.is_none());
         assert!(!p.management_ssl);
+    }
+
+    #[test]
+    fn dev_identifiers_get_their_own_keyring_namespace() {
+        assert_eq!(keyring_service_for_identifier("com.tap.app"), KEYRING_SERVICE);
+        assert_eq!(keyring_service_for_identifier("com.tap.dev"), format!("{}.dev", KEYRING_SERVICE));
     }
 
     #[test]

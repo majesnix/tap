@@ -157,7 +157,7 @@ pub struct StepResult {
 pub fn cancel_plan_run(
     run_state: tauri::State<'_, Mutex<Option<PlanRunState>>>,
 ) -> Result<(), AppError> {
-    let mut guard = run_state.lock().unwrap();
+    let mut guard = crate::commands::lock_state(&run_state)?;
     if let Some(ref state) = *guard {
         state.token.cancel();
     }
@@ -184,11 +184,9 @@ pub async fn execute_step(
 
     // ── 2. Acquire/create CancellationToken BEFORE any .await ────────────────
     let token = {
-        let mut guard = run_state.lock().unwrap();
-        if guard.is_none() {
-            *guard = Some(PlanRunState { token: CancellationToken::new() });
-        }
-        guard.as_ref().unwrap().token.clone()
+        let mut guard = crate::commands::lock_state(&run_state)?;
+        let state = guard.get_or_insert_with(|| PlanRunState { token: CancellationToken::new() });
+        state.token.clone()
     };
     // Guard dropped here — before first .await
 
@@ -207,9 +205,7 @@ pub async fn execute_step(
 
     // ── 3b. Ensure pool contains the step's message type; compile if needed ──
     {
-        let has_type = pool_state
-            .lock()
-            .unwrap()
+        let has_type = crate::commands::lock_state(&pool_state)?
             .as_ref()
             .map(|p| p.get_message_by_name(&step.message_type).is_some())
             .unwrap_or(false);
@@ -242,7 +238,7 @@ pub async fn execute_step(
 
     // ── 4. Clone DescriptorPool BEFORE any .await (MutexGuard not Send) ──────
     let pool = {
-        let guard = pool_state.lock().unwrap();
+        let guard = crate::commands::lock_state(&pool_state)?;
         guard
             .as_ref()
             .ok_or_else(|| AppError::AmqpError("descriptor pool not initialized".into()))?
@@ -552,7 +548,7 @@ fn compile_and_merge_proto(
         .map_err(|e| AppError::ParseError(e.to_string()))?;
     let fds = compiler.file_descriptor_set();
 
-    let mut guard = pool.lock().unwrap();
+    let mut guard = crate::commands::lock_state(pool)?;
     match guard.as_mut() {
         None => {
             let new_pool = DescriptorPool::from_file_descriptor_set(fds)
@@ -575,6 +571,11 @@ fn compile_and_merge_proto(
 
 // ─── Reply decoding helper ────────────────────────────────────────────────────
 
+/// Hex in the same spaced format as the feed, so replies and feed rows look alike.
+fn reply_hex(bytes: &[u8]) -> String {
+    crate::commands::consume::bytes_to_hex(bytes)
+}
+
 /// Build a ReplyMessage from a lapin delivery.
 /// Decode failure sets decoded/decoded_as to None — it is NOT a step error.
 /// hex_string is always populated regardless of decode outcome.
@@ -595,11 +596,7 @@ fn build_reply_message(
         .correlation_id()
         .as_ref()
         .map(|s| s.to_string());
-    let hex_string = delivery
-        .data
-        .iter()
-        .map(|b| format!("{:02x}", b))
-        .collect::<String>();
+    let hex_string = reply_hex(&delivery.data);
 
     // Decode attempt using pool (D-03 + Q4 resolution)
     let (decoded, decoded_as) = match pool.get_message_by_name(message_type) {
@@ -859,6 +856,13 @@ mod tests {
         assert_eq!(json["stepId"], "s1");
         assert_eq!(json["status"], "done");
         assert!(json.get("step_id").is_none(), "snake_case key must not be emitted");
+    }
+
+    #[test]
+    fn reply_hex_uses_the_spaced_format_of_the_feed() {
+        // Same convention as consume::bytes_to_hex, so replies and feed rows look alike.
+        assert_eq!(reply_hex(&[0x0a, 0x05, 0x68]), "0a 05 68");
+        assert_eq!(reply_hex(&[]), "");
     }
 
     #[test]

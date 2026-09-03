@@ -1,5 +1,69 @@
 use std::sync::Mutex;
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
+
+use commands::connection::KeychainStatus;
+
+/// Keeps the non-blocking log writer alive for the life of the app.
+struct LogGuard(#[allow(dead_code)] tracing_appender::non_blocking::WorkerGuard);
+
+/// Open the platform keychain. When that fails (no Secret Service on Linux, for example),
+/// fall back to an in-memory store so the app still starts; the frontend shows the status.
+fn init_keychain_store() -> KeychainStatus {
+    let opened: Result<(), String> = {
+        #[cfg(target_os = "linux")]
+        {
+            dbus_secret_service_keyring_store::Store::new()
+                .map(|store| keyring_core::set_default_store(store))
+                .map_err(|e| e.to_string())
+        }
+        #[cfg(target_os = "macos")]
+        {
+            apple_native_keyring_store::keychain::Store::new()
+                .map(|store| keyring_core::set_default_store(store))
+                .map_err(|e| e.to_string())
+        }
+        #[cfg(target_os = "windows")]
+        {
+            windows_native_keyring_store::Store::new()
+                .map(|store| keyring_core::set_default_store(store))
+                .map_err(|e| e.to_string())
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+        {
+            Err("no keychain backend for this platform".to_string())
+        }
+    };
+    match opened {
+        Ok(()) => KeychainStatus { available: true, error: None },
+        Err(error) => {
+            tracing::error!("keychain unavailable, using an in-memory store for this session: {}", error);
+            if let Ok(store) = keyring_core::mock::Store::new() {
+                keyring_core::set_default_store(store);
+            }
+            KeychainStatus { available: false, error: Some(error) }
+        }
+    }
+}
+
+/// Write tracing output to a daily rolling file in the app log directory.
+/// SECURITY: log lines carry profile and queue names only; URIs and passwords never reach
+/// tracing (see the connect helpers in profiles.rs).
+fn init_logging(app: &tauri::App) {
+    let Ok(dir) = app.path().app_log_dir() else { return };
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let appender = tracing_appender::rolling::daily(&dir, "tap.log");
+    let (writer, guard) = tracing_appender::non_blocking(appender);
+    let filter = tracing_subscriber::EnvFilter::try_from_env("TAP_LOG")
+        .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"));
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(writer)
+        .with_ansi(false)
+        .try_init();
+    app.manage(LogGuard(guard));
+}
 
 mod commands;
 mod error;
@@ -16,30 +80,19 @@ pub fn run() {
     // Platform-specific keyring store initialization — must run before any Entry operations.
     // keyring-core 1.x requires explicit store registration; see keyring-core README.
     // SECURITY: do not log password or AMQP URI
-    #[cfg(target_os = "linux")]
-    {
-        use dbus_secret_service_keyring_store::Store as DbusStore;
-        let store = DbusStore::new().expect("Failed to create DBus secret service store");
-        keyring_core::set_default_store(store);
-    }
-    #[cfg(target_os = "macos")]
-    {
-        use apple_native_keyring_store::keychain::Store as AppleStore;
-        let store = AppleStore::new().expect("Failed to create macOS keychain store");
-        keyring_core::set_default_store(store);
-    }
-    #[cfg(target_os = "windows")]
-    {
-        use windows_native_keyring_store::Store as WindowsStore;
-        let store = WindowsStore::new().expect("Failed to create Windows credential store");
-        keyring_core::set_default_store(store);
-    }
+    let keychain_status = init_keychain_store();
 
     tauri::Builder::default()
+        .manage(keychain_status)
         .manage(Mutex::new(Option::<prost_reflect::DescriptorPool>::None))
         .manage(Mutex::new(Option::<commands::subscribe::SubscribeState>::None))
         .manage(Mutex::new(Option::<commands::plan_runner::PlanRunState>::None))
-        .setup(|#[allow(unused_variables)] app| {
+        .setup(|app| {
+            init_logging(app);
+            // Dev builds (tauri.dev.conf.json) use their own keychain namespace.
+            profiles::set_keyring_service(profiles::keyring_service_for_identifier(
+                &app.config().identifier,
+            ));
             #[cfg(target_os = "macos")]
             {
                 use tauri::menu::{MenuBuilder, MenuItem, PredefinedMenuItem, SubmenuBuilder};
@@ -99,6 +152,7 @@ pub fn run() {
             commands::connection::fetch_queue_depth,
             commands::connection::fetch_exchanges,
             commands::connection::fetch_bindings,
+            commands::connection::keychain_status,
             commands::publish::publish_message,
             commands::consume::consume_message,
             commands::consume::drain_messages,

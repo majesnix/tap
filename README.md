@@ -49,8 +49,12 @@ Teams that ship protobuf-based services and want a fast, code-free way to craft 
 
 ```bash
 pnpm install
-pnpm tauri dev
+pnpm dev:app      # tauri dev with src-tauri/tauri.dev.conf.json
 ```
+
+`pnpm dev:app` runs the app under the identifier `com.tap.dev` with its own data directory
+and keychain namespace, so a development build never reads or overwrites the installed Tap's
+profiles, history and drafts. Plain `pnpm tauri dev` shares the installed app's data.
 
 **Run tests:**
 
@@ -83,11 +87,11 @@ TAP_INTEGRATION=1 cargo llvm-cov --manifest-path src-tauri/Cargo.toml \
 pnpm tauri build
 ```
 
-The release configuration always produces signed updater artifacts, which needs
-`TAURI_SIGNING_PRIVATE_KEY`. For a local build without the key, switch them off:
+Updater artifacts (which need `TAURI_SIGNING_PRIVATE_KEY`) are only produced by the release
+workflow, so a local build needs no signing key. A debug bundle without the DMG step:
 
 ```bash
-pnpm tauri build --debug --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
+pnpm tauri build --debug --bundles app
 ```
 
 ---

@@ -1,10 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { ThemeProvider, useTheme } from "next-themes";
 import { load } from "@tauri-apps/plugin-store";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { useDraftStore } from "@/stores/useDraftStore";
-import { PlanView } from "@/components/plans/PlanView";
+
+// The plan editor (with its own form tree and step editor) is only needed when the
+// user opens Plans; keep it out of the chunk that every launch parses.
+const PlanView = lazy(() =>
+  import("@/components/plans/PlanView").then((m) => ({ default: m.PlanView }))
+);
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateChecker } from "./UpdateChecker";
 
@@ -69,7 +74,11 @@ export default function App() {
       <UpdateChecker />
       {viewMode === "main"
         ? <AppLayout viewMode={viewMode} onViewChange={setViewMode} />
-        : <PlanView onViewChange={setViewMode} />
+        : (
+          <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading plans…</div>}>
+            <PlanView onViewChange={setViewMode} />
+          </Suspense>
+        )
       }
       <Toaster />
     </ThemeProvider>
