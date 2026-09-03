@@ -3,7 +3,7 @@ import { ThemeProvider, useTheme } from "next-themes";
 import { load } from "@tauri-apps/plugin-store";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { ComposeView } from "@/components/layout/ComposeView";
-import { ProfileManagementModal } from "@/components/connection/ProfileManagementModal";
+import { ConnectionSheet } from "@/components/connection/ConnectionSheet";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { useDraftStore } from "@/stores/useDraftStore";
 import type { WorkbenchView, SheetState } from "@/lib/workbench";
@@ -99,7 +99,7 @@ export default function App() {
           </Suspense>
         )
       }
-      <ProfileManagementModal open={sheet !== null} onClose={() => setSheet(null)} />
+      <ConnectionSheet state={sheet} onStateChange={setSheet} />
       <Toaster />
     </ThemeProvider>
   );

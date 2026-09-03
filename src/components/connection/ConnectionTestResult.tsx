@@ -1,35 +1,39 @@
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { CircleCheck, CircleAlert, LoaderCircle } from "lucide-react";
 
 type TestState = "idle" | "testing" | "success" | "error";
 
 interface ConnectionTestResultProps {
   state: TestState;
   errorMessage?: string | null;
+  /** Round-trip time measured around the test_connection call, when known. */
+  latencyMs?: number;
 }
 
-export function ConnectionTestResult({ state, errorMessage }: ConnectionTestResultProps) {
+export function ConnectionTestResult({ state, errorMessage, latencyMs }: ConnectionTestResultProps) {
   if (state === "idle") return null;
 
+  if (state === "testing") {
+    return (
+      <span className="flex items-center gap-1.5 text-12 text-muted-foreground">
+        <LoaderCircle size={13} className="animate-spin" />
+        Testing…
+      </span>
+    );
+  }
+
+  if (state === "success") {
+    return (
+      <span className="flex items-center gap-1.5 text-12 text-success">
+        <CircleCheck size={13} />
+        {typeof latencyMs === "number" ? `Reachable · ${latencyMs} ms` : "Reachable"}
+      </span>
+    );
+  }
+
   return (
-    <div className="flex items-center gap-2 text-sm">
-      {state === "testing" && (
-        <>
-          <Loader2 className="animate-spin w-4 h-4" />
-          <span className="text-muted-foreground">Testing connection…</span>
-        </>
-      )}
-      {state === "success" && (
-        <>
-          <CheckCircle2 className="text-emerald-500 w-4 h-4" />
-          <span className="text-emerald-500">Connected</span>
-        </>
-      )}
-      {state === "error" && (
-        <>
-          <XCircle className="text-destructive w-4 h-4" />
-          <span className="text-destructive">{errorMessage ?? "Connection failed"}</span>
-        </>
-      )}
-    </div>
+    <span className="flex items-center gap-1.5 text-12 text-danger">
+      <CircleAlert size={13} />
+      {errorMessage ?? "Connection failed"}
+    </span>
   );
 }
