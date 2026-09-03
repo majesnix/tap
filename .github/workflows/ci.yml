@@ -7,6 +7,12 @@ on:
   pull_request:
     branches:
       - main
+  # Dependabot auto-merges are performed with the workflow's GITHUB_TOKEN, and
+  # pushes made with that token do not trigger `push` workflows. Without this
+  # schedule, main can sit unverified for weeks after a run of bot merges.
+  schedule:
+    - cron: "0 6 * * 1-5"
+  workflow_dispatch:
 
 jobs:
   test:
@@ -51,10 +57,10 @@ jobs:
         with:
           components: clippy, llvm-tools-preview
 
-      - name: Install cargo-llvm-cov
+      - name: Install cargo-llvm-cov and cargo-audit
         uses: taiki-e/install-action@v2
         with:
-          tool: cargo-llvm-cov
+          tool: cargo-llvm-cov,cargo-audit
 
       - name: Cache Rust build artifacts
         uses: Swatinem/rust-cache@v2
@@ -72,6 +78,21 @@ jobs:
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Audit npm production dependencies
+        # Development-only advisories (jsdom, the shadcn CLI, ...) never ship in
+        # the bundle; the production tree must stay clean at high and above.
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Audit Rust dependencies
+        # Unmaintained notices (gtk-rs GTK3 bindings used by Tauri on Linux) are
+        # warnings and do not fail the step. RUSTSEC-2026-0194/0195 (quick-xml)
+        # arrive through tauri -> plist, which pins quick-xml 0.39; drop the
+        # ignores once plist moves to quick-xml >= 0.41.
+        run: |
+          cargo audit -f src-tauri/Cargo.lock \
+            --ignore RUSTSEC-2026-0194 \
+            --ignore RUSTSEC-2026-0195
 
       - name: Run frontend tests with coverage
         run: pnpm exec vitest run --coverage --reporter=verbose
