@@ -6,6 +6,7 @@ const delivery = (routingKey: string, isTerminal = false): DrainResult => ({
   routingKey,
   exchange: "",
   contentType: null,
+  correlationId: null,
   timestamp: null,
   decoded: null,
   hexString: "0a",

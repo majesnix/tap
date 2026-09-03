@@ -13,7 +13,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn().mockResolvedValue(mockStore),
 }));
 
-import { useHistoryStore, MAX_HISTORY_AGE_DAYS, type HistoryEntry } from "./useHistoryStore";
+import { useHistoryStore, MAX_HISTORY_AGE_DAYS, normalizeHistoryEntry, type HistoryEntry } from "./useHistoryStore";
 
 function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
   return {
@@ -210,4 +210,15 @@ describe("loadHistory retention", () => {
     await useHistoryStore.getState().loadHistory();
     expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["recent"]);
   });
+});
+
+// ── normalizeHistoryEntry: correlationId, replyTo, outcome ────────────────────
+
+test("normalizeHistoryEntry keeps correlationId, replyTo and outcome when present", () => {
+  const entry = normalizeHistoryEntry({
+    id: "1", timestamp: new Date().toISOString(), messageTypeName: "pkg.Order",
+    exchange: "", routingKey: "orders", status: "sent", fieldValues: {},
+    payloadBase64: "CgU=", correlationId: "req-1", replyTo: "orders.reply", outcome: "ack",
+  });
+  expect(entry).toMatchObject({ correlationId: "req-1", replyTo: "orders.reply", outcome: "ack" });
 });

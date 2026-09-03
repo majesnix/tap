@@ -78,3 +78,19 @@ describe("reset", () => {
     expect(s.subscribeError).toBeNull();
   });
 });
+
+// ── appendMessages: correlationId + receivedAt ────────────────────────────────
+
+test("appendMessages keeps the correlation id and stamps a client receipt time", () => {
+  const before = Date.now();
+  useResponseStore.getState().appendMessages([
+    {
+      routingKey: "orders.reply", exchange: "", contentType: null, timestamp: null,
+      correlationId: "req-7c1e", decoded: { ok: true }, hexString: "0a 01",
+      error: null, decodedAs: "Reply", isTerminal: false,
+    },
+  ]);
+  const [msg] = useResponseStore.getState().messages;
+  expect(msg.correlationId).toBe("req-7c1e");
+  expect(msg.receivedAt).toBeGreaterThanOrEqual(before);
+});

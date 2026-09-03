@@ -219,6 +219,7 @@ pub struct DrainResult {
     pub routing_key: String,
     pub exchange: String,
     pub content_type: Option<String>,
+    pub correlation_id: Option<String>, // AMQP correlation_id property, None when the publisher did not set one
     pub timestamp: Option<u64>,       // seconds since epoch; None if publisher did not set it
     pub decoded: Option<serde_json::Value>,
     pub hex_string: String,
@@ -382,6 +383,7 @@ pub(crate) async fn drain_messages_core(
             .content_type()
             .as_ref()
             .map(|s| s.to_string());
+        let correlation_id = delivery.properties.correlation_id().as_ref().map(|s| s.to_string());
         let timestamp: Option<u64> = *delivery.properties.timestamp();
         let payload: Vec<u8> = delivery.data.clone();
         let delivery_tag = delivery.delivery_tag;
@@ -460,6 +462,7 @@ pub(crate) async fn drain_messages_core(
             routing_key,
             exchange,
             content_type,
+            correlation_id,
             timestamp,
             decoded,
             hex_string,
@@ -539,6 +542,7 @@ mod tests {
             routing_key: "test.key".to_string(),
             exchange: "my-exchange".to_string(),
             content_type: Some("application/protobuf".to_string()),
+            correlation_id: None,
             timestamp: Some(1_700_000_000u64),
             decoded: None,
             hex_string: "0a 05".to_string(),
@@ -568,6 +572,7 @@ mod tests {
             routing_key: String::new(),
             exchange: String::new(),
             content_type: None,
+            correlation_id: None,
             timestamp: None,
             decoded: None,
             hex_string: String::new(),

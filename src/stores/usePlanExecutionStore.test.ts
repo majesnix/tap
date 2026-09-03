@@ -315,6 +315,7 @@ const makeFeedEntry = (id = "entry-1"): FeedMessage => ({
   contentType: "application/protobuf",
   correlationId: null,
   timestamp: 1234567890,
+  receivedAt: 0,
   decoded: { field: "value" },
   hexString: "deadbeef",
   error: null,
