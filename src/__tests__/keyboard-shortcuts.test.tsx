@@ -82,7 +82,7 @@ vi.mock("@dnd-kit/core", () => ({
   })),
 }));
 
-import { AppLayout } from "@/components/layout/AppLayout";
+import { ComposeView } from "@/components/layout/ComposeView";
 
 const MINIMAL_SCHEMA: ProtoSchema = {
   messages: [
@@ -147,7 +147,7 @@ afterEach(async () => {
 
 function renderApp() {
   return render(
-    <AppLayout viewMode="main" onViewChange={vi.fn()} />
+    <ComposeView header={<div />} blocksOpen={false} onToggleBlocks={vi.fn()} />
   );
 }
 

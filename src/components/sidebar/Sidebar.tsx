@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { FileSection } from "@/components/sidebar/FileSection";
-import { ConnectionSection } from "@/components/sidebar/ConnectionSection";
 import {
   Select,
   SelectContent,
@@ -11,22 +10,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { ThemeToggle } from "@/components/sidebar/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, ListChecks } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { RefreshCw } from "lucide-react";
 import { RELEASE_NAME } from "@/lib/release";
 import { runUpdateCheck } from "@/UpdateChecker";
 import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 import { SchemaExplorer } from "@/components/sidebar/SchemaExplorer";
 import { ClearLocalDataButton } from "@/components/sidebar/ClearLocalDataButton";
 
-interface SidebarProps {
-  viewMode?: "main" | "plans";
-  onViewChange?: (mode: "main" | "plans") => void;
-}
-
-export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
+export function Sidebar() {
   const { isMac } = usePlatformLabel();
   const schema = useProtoStore((s) => s.schema);
   const selectedMessageType = useProtoStore((s) => s.selectedMessageType);
@@ -45,19 +37,6 @@ export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
           Load a .proto file to get started
         </p>
       </div>
-
-      {/* Plans nav button — toggle: active state when viewMode === "plans", click toggles to main or plans */}
-      <Button
-        variant="ghost"
-        className={cn(
-          "w-full justify-start gap-2",
-          viewMode === "plans" && "bg-accent text-accent-foreground"
-        )}
-        onClick={() => onViewChange?.(viewMode === "plans" ? "main" : "plans")}
-      >
-        <ListChecks size={16} />
-        Plans
-      </Button>
 
       <Separator />
 
@@ -89,10 +68,6 @@ export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
 
       {schema && schema.messages.length > 0 && <SchemaExplorer />}
 
-      {/* Connection panel: profile dropdown + status dot + manage button */}
-      <Separator />
-      <ConnectionSection />
-
       <div className="flex-1" />
       <div className="flex items-center justify-between">
         <div className="text-xs text-muted-foreground">
@@ -112,7 +87,6 @@ export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
             </Button>
           )}
           <ClearLocalDataButton />
-          <ThemeToggle />
         </div>
       </div>
     </div>

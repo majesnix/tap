@@ -10,6 +10,8 @@ interface ConnectionStore {
   managementAuthError: string | null;
   queues: string[];
   exchanges: ExchangeSummary[];
+  /** Set when the OS keychain could not be opened; passwords are session-only then. */
+  keychainError: string | null;
 
   setProfiles: (profiles: ConnectionProfile[]) => void;
   setActiveProfile: (name: string | null) => void;
@@ -18,6 +20,7 @@ interface ConnectionStore {
   setManagementAuthError: (err: string | null) => void;
   setQueues: (queues: string[]) => void;
   setExchanges: (exchanges: ExchangeSummary[]) => void;
+  setKeychainError: (err: string | null) => void;
   reset: () => void;
 }
 
@@ -30,6 +33,7 @@ const INITIAL_STATE = {
   managementAuthError: null as string | null,
   queues: [] as string[],
   exchanges: [] as ExchangeSummary[],
+  keychainError: null as string | null,
 } as const;
 
 export const useConnectionStore = create<ConnectionStore>((set) => ({
@@ -43,5 +47,6 @@ export const useConnectionStore = create<ConnectionStore>((set) => ({
   setManagementAuthError: (err) => set({ managementAuthError: err }),
   setQueues: (queues) => set({ queues }),
   setExchanges: (exchanges) => set({ exchanges }),
+  setKeychainError: (err) => set({ keychainError: err }),
   reset: () => set({ ...INITIAL_STATE }),
 }));

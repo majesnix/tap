@@ -1,9 +1,12 @@
 import { useState, useEffect, lazy, Suspense } from "react";
 import { ThemeProvider, useTheme } from "next-themes";
 import { load } from "@tauri-apps/plugin-store";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AppHeader } from "@/components/layout/AppHeader";
+import { ComposeView } from "@/components/layout/ComposeView";
+import { ProfileManagementModal } from "@/components/connection/ProfileManagementModal";
 import { usePlanStore } from "@/stores/usePlanStore";
 import { useDraftStore } from "@/stores/useDraftStore";
+import type { WorkbenchView, SheetState } from "@/lib/workbench";
 
 // The plan editor (with its own form tree and step editor) is only needed when the
 // user opens Plans; keep it out of the chunk that every launch parses.
@@ -12,6 +15,8 @@ const PlanView = lazy(() =>
 );
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateChecker } from "./UpdateChecker";
+
+export type { WorkbenchView, SheetState } from "@/lib/workbench";
 
 const THEME_STORE_PATH = "tap.json";
 const THEME_MODE_KEY = "theme-mode";
@@ -58,8 +63,11 @@ export function ThemeBootstrap() {
 }
 
 export default function App() {
-  // D-10: viewMode is local state in App.tsx — NOT in any Zustand store
-  const [viewMode, setViewMode] = useState<"main" | "plans">("main");
+  const [view, setView] = useState<WorkbenchView>("compose");
+  const [blocksOpen, setBlocksOpen] = useState(false);
+  const [sheet, setSheet] = useState<SheetState>(null);
+
+  const toggleBlocks = () => setBlocksOpen((v) => !v);
 
   // D-11: loadPlans() called at App mount so plan data is available immediately
   // on first navigation to the plan view. Pattern mirrors existing store loads.
@@ -68,18 +76,30 @@ export default function App() {
     void useDraftStore.getState().loadDrafts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const header = (
+    <AppHeader
+      view={view}
+      onViewChange={setView}
+      blocksOpen={blocksOpen}
+      onToggleBlocks={toggleBlocks}
+      blocksDisabled={view !== "compose"}
+      onOpenSheet={setSheet}
+    />
+  );
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <ThemeBootstrap />
       <UpdateChecker />
-      {viewMode === "main"
-        ? <AppLayout viewMode={viewMode} onViewChange={setViewMode} />
+      {view === "compose"
+        ? <ComposeView header={header} blocksOpen={blocksOpen} onToggleBlocks={toggleBlocks} />
         : (
           <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Loading plans…</div>}>
-            <PlanView onViewChange={setViewMode} />
+            <PlanView header={header} />
           </Suspense>
         )
       }
+      <ProfileManagementModal open={sheet !== null} onClose={() => setSheet(null)} />
       <Toaster />
     </ThemeProvider>
   );

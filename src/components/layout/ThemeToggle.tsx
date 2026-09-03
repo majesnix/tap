@@ -1,16 +1,16 @@
 import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Monitor } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/common/IconButton";
 
 type ThemeMode = "system" | "light" | "dark";
 
 const CYCLE_ORDER: ThemeMode[] = ["system", "light", "dark"];
 
 const ICONS: Record<ThemeMode, React.ReactNode> = {
-  system: <Monitor className="size-4" />,
-  light: <Sun className="size-4" />,
-  dark: <Moon className="size-4" />,
+  system: <Monitor size={17} strokeWidth={1.5} />,
+  light: <Sun size={17} strokeWidth={1.5} />,
+  dark: <Moon size={17} strokeWidth={1.5} />,
 };
 
 const LABELS: Record<ThemeMode, string> = {
@@ -27,7 +27,7 @@ export function ThemeToggle() {
 
   // Return same-size placeholder before mount to avoid layout shift (Pitfall 1)
   if (!mounted) {
-    return <Button variant="ghost" size="icon" className="size-8" disabled />;
+    return <IconButton size={32} label="Theme" disabled />;
   }
 
   const raw = theme ?? "system";
@@ -38,15 +38,8 @@ export function ThemeToggle() {
   const nextMode = CYCLE_ORDER[nextIndex];
 
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="size-8"
-      onClick={() => setTheme(nextMode)}
-      aria-label={LABELS[current]}
-      title={LABELS[current]}
-    >
+    <IconButton size={32} label={LABELS[current]} onClick={() => setTheme(nextMode)}>
       {ICONS[current]}
-    </Button>
+    </IconButton>
   );
 }
