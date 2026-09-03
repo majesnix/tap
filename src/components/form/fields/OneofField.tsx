@@ -1,9 +1,9 @@
 import { useEffect, useMemo } from "react";
 import { Controller, useWatch, useFormContext } from "react-hook-form";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import type { FieldSchema, RenderFieldFn } from "@/lib/types";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
+import { useMessageMap } from "@/components/form/ProtoSchemaContext";
+import type { FieldSchema, MessageSchema, RenderFieldFn } from "@/lib/types";
+import { fieldMeta, typeLabel } from "./fieldMeta";
 import { FieldTooltip } from "./FieldTooltip";
 
 export interface OneofFieldProps {
@@ -13,8 +13,26 @@ export interface OneofFieldProps {
   renderBranchField: RenderFieldFn;
 }
 
+/** "card_number" → "Card Number" — used for the segmented-control label and branch header. */
+function titleCase(name: string): string {
+  return name
+    .split("_")
+    .filter(Boolean)
+    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
+/** Resolves the message schema for a message-kind branch field, or undefined otherwise. */
+function resolveBranchMessage(
+  branchField: FieldSchema | undefined,
+  messageMap: Record<string, MessageSchema> | null
+): MessageSchema | undefined {
+  if (!branchField || branchField.kind.type !== "message") return undefined;
+  return messageMap?.[branchField.kind.full_name];
+}
+
 /**
- * Renders a oneof group field as a RadioGroup with conditional branch mounting.
+ * Renders a oneof group field as a SegmentedControl with conditional branch mounting.
  *
  * Branch field path convention: `${path}.${branchField.name}` (flat — not double-nested).
  * This matches the Rust encoder's expected oneof form shape:
@@ -22,11 +40,16 @@ export interface OneofFieldProps {
  * NOT:
  *   { payment: { _selected: "card_number", card_number: { card_number: "" } } }
  *
+ * A message-kind branch's own fields are flattened into the branch container
+ * (`${path}.${branchField.name}.${childField.name}`) so the selected-branch UI reads as one
+ * container of fields rather than a doubly-nested message chrome.
+ *
  * On branch switch, sibling branch paths are unregistered (proto wire semantics:
  * only one oneof field may be set at a time).
  */
 export function OneofField({ field, path, depth, renderBranchField }: OneofFieldProps) {
   const { control, unregister } = useFormContext();
+  const messageMap = useMessageMap();
 
   // Hooks run unconditionally; the "not a oneof" early return comes after them.
   const branches = field.kind.type === "oneof" ? field.kind.branches : [];
@@ -57,47 +80,64 @@ export function OneofField({ field, path, depth, renderBranchField }: OneofField
 
   if (field.kind.type !== "oneof") return null;
 
+  const selectedBranchField = branches[branchNames.indexOf(selected)]?.[0];
+  const selectedMessageSchema = resolveBranchMessage(selectedBranchField, messageMap);
+
+  const branchTypeLabel = !selectedBranchField
+    ? ""
+    : selectedMessageSchema
+      ? `${typeLabel(selectedBranchField)} · ${selectedMessageSchema.fields.length} fields`
+      : typeLabel(selectedBranchField);
+
+  // Message branch → flatten the resolved message's own fields; anything else → the single branch field.
+  const branchFields: { field: FieldSchema; path: string }[] = selectedMessageSchema
+    ? selectedMessageSchema.fields.map((childField) => ({
+        field: childField,
+        path: `${path}.${selectedBranchField!.name}.${childField.name}`,
+      }))
+    : selectedBranchField
+      ? [{ field: selectedBranchField, path: `${path}.${selectedBranchField.name}` }]
+      : [];
+
   return (
-    <div className="flex flex-col gap-2 mb-3">
+    <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         <FieldTooltip field={field}>
-          <Label className="text-xs font-semibold">{field.label}</Label>
+          <span className="text-13 font-medium">{field.label}</span>
         </FieldTooltip>
-        <Badge variant="outline" className="text-xs px-1.5 py-0">
-          oneof
-        </Badge>
+        <span className="font-mono text-11 text-ghost whitespace-nowrap">{fieldMeta(field)}</span>
       </div>
+
       <Controller
         name={`${path}._selected`}
         control={control}
         defaultValue={firstBranch}
         render={({ field: rhfField }) => (
-          <RadioGroup
+          <SegmentedControl
+            variant="choice"
+            mono
+            stretch
+            aria-label={field.label}
             value={rhfField.value}
-            onValueChange={rhfField.onChange}
-            className="flex flex-col gap-1"
-          >
-            {branchNames.map((name) => (
-              <div key={name} className="flex items-center gap-2">
-                <RadioGroupItem value={name} id={`${path}._${name}`} />
-                <Label htmlFor={`${path}._${name}`} className="text-sm">
-                  {name}
-                </Label>
-              </div>
-            ))}
-          </RadioGroup>
+            onChange={rhfField.onChange}
+            items={branchNames.map((name) => ({ value: name, label: titleCase(name) }))}
+          />
         )}
       />
-      {/* Conditional branch mount — not CSS-hidden: actually unmounted from DOM.
-          Path convention: ${path}.${branchField.name} — flat, matches Rust encoder shape. */}
-      {branchNames.map((name, idx) =>
-        selected === name ? (
-          <div key={name} className="ml-4 border-l border-border pl-3">
-            {branches[idx]?.map((branchField) =>
-              renderBranchField(branchField, `${path}.${branchField.name}`, depth)
+
+      {/* Conditional branch mount — not CSS-hidden: actually unmounted from DOM. */}
+      {selectedBranchField && (
+        <div className="flex flex-col gap-2.5 rounded-lg border border-border p-3.5">
+          <div className="flex items-center gap-2">
+            <span className="text-13 font-medium">{titleCase(selected)}</span>
+            <span className="font-mono text-11 text-ghost whitespace-nowrap">{branchTypeLabel}</span>
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {branchFields.map(({ field: branchField, path: branchPath }) =>
+              renderBranchField(branchField, branchPath, depth)
             )}
           </div>
-        ) : null
+        </div>
       )}
     </div>
   );

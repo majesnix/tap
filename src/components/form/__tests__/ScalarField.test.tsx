@@ -34,7 +34,7 @@ test("bool field renders checkbox", () => {
     repeated: false,
     default_value: false,
   });
-  expect(screen.getByRole("checkbox")).toBeInTheDocument();
+  expect(screen.getByRole("switch")).toBeInTheDocument();
 });
 
 // ─── string ──────────────────────────────────────────────────────────────────
@@ -296,5 +296,5 @@ test("bool field pre-populates as checked when default_value is true", () => {
     repeated: false,
     default_value: true,
   });
-  expect(screen.getByRole("checkbox")).toBeChecked();
+  expect(screen.getByRole("switch")).toBeChecked();
 });

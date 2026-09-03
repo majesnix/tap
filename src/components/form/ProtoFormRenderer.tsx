@@ -16,6 +16,42 @@ import { ProtoSchemaContext } from "./ProtoSchemaContext";
 
 const MAX_DEPTH = 5;
 
+type TopLevelGroup =
+  | { kind: "grid"; fields: FieldSchema[] }
+  | { kind: "full"; field: FieldSchema };
+
+/** Non-repeated scalar/enum/well_known fields pack two-up into the top-level grid. */
+function isGridEligible(field: FieldSchema): boolean {
+  return (
+    !field.repeated &&
+    (field.kind.type === "scalar" || field.kind.type === "enum" || field.kind.type === "well_known")
+  );
+}
+
+/**
+ * Groups consecutive top-level fields eligible for the 2-column grid; message, oneof, map
+ * and repeated fields break the run and render full width between grid chunks.
+ */
+function groupTopLevelFields(fields: FieldSchema[]): TopLevelGroup[] {
+  const groups: TopLevelGroup[] = [];
+  let run: FieldSchema[] = [];
+
+  for (const field of fields) {
+    if (isGridEligible(field)) {
+      run.push(field);
+      continue;
+    }
+    if (run.length > 0) {
+      groups.push({ kind: "grid", fields: run });
+      run = [];
+    }
+    groups.push({ kind: "full", field });
+  }
+  if (run.length > 0) groups.push({ kind: "grid", fields: run });
+
+  return groups;
+}
+
 interface ProtoFormRendererProps {
   message: MessageSchema;
   onValuesChange: (values: unknown) => void;
@@ -381,8 +417,17 @@ export const ProtoFormRenderer = memo(function ProtoFormRenderer({
     <ProtoSchemaContext.Provider value={messageMap}>
       <FormProvider {...methods}>
         <FormValuesBridge onValuesChange={onValuesChange} />
-        <form className="flex flex-col gap-4 p-4" onSubmit={(e) => e.preventDefault()}>
-          {message.fields.map((field) => {
+        <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
+          {groupTopLevelFields(message.fields).map((group) => {
+            if (group.kind === "grid") {
+              return (
+                <div key={group.fields[0].name} className="grid grid-cols-2 gap-4">
+                  {group.fields.map((field) => renderField(field, field.name, 0))}
+                </div>
+              );
+            }
+
+            const field = group.field;
             const path = field.name;
 
             // Repeated fields are dispatched to RepeatedField regardless of inner kind

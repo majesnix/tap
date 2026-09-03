@@ -1,12 +1,11 @@
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { z } from "zod";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import type { FieldSchema, ScalarKind } from "@/lib/types";
-import { CopyButton } from "./CopyButton";
-import { FieldTooltip } from "./FieldTooltip";
+import { FieldLabel } from "./FieldLabel";
+import { useFieldDepth } from "./FieldDepthContext";
 
 interface ScalarFieldProps {
   field: FieldSchema;
@@ -110,6 +109,7 @@ function getFallbackDefault(inputType: "text" | "number" | "checkbox"): unknown 
 export function ScalarField({ field, path }: ScalarFieldProps) {
   const { control } = useFormContext();
   const watchedValue = useWatch({ control, name: path });
+  const depth = useFieldDepth();
 
   if (field.kind.type !== "scalar") return null;
 
@@ -130,23 +130,14 @@ export function ScalarField({ field, path }: ScalarFieldProps) {
     return true;
   };
 
+  // Depth 0 (top level) uses the Input default (h-9, bg-background); nested inputs
+  // shrink to 34px and alternate background by depth parity (FieldDepthContext).
+  const depthClassName =
+    depth === 0 ? "" : cn("h-[34px]", depth % 2 === 1 ? "bg-card" : "bg-background");
+
   return (
-    <div className="flex flex-col gap-1 mb-3 group">
-      {/* Label row with scalar type badge */}
-      <div className="flex items-center gap-2">
-        <FieldTooltip field={field}>
-          <Label
-            className="text-xs font-semibold text-foreground"
-            htmlFor={path}
-          >
-            {field.label}
-          </Label>
-        </FieldTooltip>
-        <Badge variant="outline" className="text-xs px-1.5 py-0 w-fit">
-          {scalar}
-        </Badge>
-        <CopyButton value={String(watchedValue ?? "")} />
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <FieldLabel field={field} htmlFor={path} copyValue={String(watchedValue ?? "")} />
 
       {/* Single Controller wraps both the input and the error display */}
       <Controller
@@ -157,10 +148,11 @@ export function ScalarField({ field, path }: ScalarFieldProps) {
         render={({ field: rhfField, fieldState }) => (
           <>
             {inputType === "checkbox" ? (
-              <Checkbox
+              <Switch
                 id={path}
                 checked={!!rhfField.value}
                 onCheckedChange={rhfField.onChange}
+                aria-label={field.label}
               />
             ) : (
               <Input
@@ -177,13 +169,13 @@ export function ScalarField({ field, path }: ScalarFieldProps) {
                 }}
                 onBlur={rhfField.onBlur}
                 aria-invalid={!!fieldState.error}
-                className={fieldState.error ? "border-destructive" : ""}
+                className={cn("font-mono text-13", depthClassName)}
               />
             )}
 
             {/* Inline validation error (FORM-06) */}
             {fieldState.error && (
-              <p className="text-xs text-destructive" role="alert">
+              <p className="text-12 text-danger" role="alert">
                 {field.label}: {fieldState.error.message}
               </p>
             )}

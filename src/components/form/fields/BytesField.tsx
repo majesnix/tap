@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Controller, useFormContext, useWatch } from "react-hook-form";
 import { z } from "zod";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -12,8 +11,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import type { FieldSchema } from "@/lib/types";
-import { CopyButton } from "./CopyButton";
-import { FieldTooltip } from "./FieldTooltip";
+import { FieldLabel } from "./FieldLabel";
+import { useFieldDepth } from "./FieldDepthContext";
 
 interface BytesFieldProps {
   field: FieldSchema;
@@ -80,6 +79,7 @@ export function BytesField({ field, path }: BytesFieldProps) {
   const watchedValue = useWatch({ control, name: path });
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [utf8Input, setUtf8Input] = useState("");
+  const depth = useFieldDepth();
 
   const validate = (value: unknown) => {
     const result = base64Schema.safeParse(value);
@@ -89,20 +89,12 @@ export function BytesField({ field, path }: BytesFieldProps) {
     return true;
   };
 
+  const depthClassName =
+    depth === 0 ? "" : cn("h-[34px]", depth % 2 === 1 ? "bg-card" : "bg-background");
+
   return (
-    <div className="flex flex-col gap-1 mb-3 group">
-      {/* Label row */}
-      <div className="flex items-center gap-2">
-        <FieldTooltip field={field}>
-          <Label className="text-xs font-semibold text-foreground" htmlFor={path}>
-            {field.label}
-          </Label>
-        </FieldTooltip>
-        <Badge variant="outline" className="text-xs px-1.5 py-0 w-fit">
-          bytes
-        </Badge>
-        <CopyButton value={String(watchedValue ?? "")} />
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <FieldLabel field={field} htmlFor={path} copyValue={String(watchedValue ?? "")} />
 
       {/* Single Controller — wraps input, byte count, error, and popover trigger */}
       <Controller
@@ -119,7 +111,7 @@ export function BytesField({ field, path }: BytesFieldProps) {
               onChange={(e) => rhfField.onChange(e.target.value)}
               onBlur={rhfField.onBlur}
               aria-invalid={!!fieldState.error}
-              className={fieldState.error ? "border-destructive" : ""}
+              className={cn("font-mono text-13", depthClassName)}
               placeholder="base64 encoded value"
             />
 
@@ -130,13 +122,13 @@ export function BytesField({ field, path }: BytesFieldProps) {
             {!fieldState.error &&
               rhfField.value !== "" &&
               base64Schema.safeParse(rhfField.value).success && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-11 text-ghost">
                   {atob(rhfField.value).length} bytes
                 </p>
               )}
 
             {fieldState.error && (
-              <p className="text-xs text-destructive" role="alert">
+              <p className="text-12 text-danger" role="alert">
                 {field.label}: {fieldState.error.message}
               </p>
             )}
@@ -144,7 +136,7 @@ export function BytesField({ field, path }: BytesFieldProps) {
             {/* "From text" helper — below input, left-aligned (D-05) */}
             <Popover open={popoverOpen} onOpenChange={(open) => { setPopoverOpen(open); if (!open) setUtf8Input(""); }}>
               <PopoverTrigger asChild>
-                <Button type="button" variant="outline" size="sm" className="text-xs w-fit">
+                <Button type="button" variant="outline" size="xs" className="w-fit">
                   From text
                 </Button>
               </PopoverTrigger>

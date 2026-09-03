@@ -315,20 +315,20 @@ describe("CopyButton integration", () => {
     renderApp();
 
     const copyBtn = screen.getByRole("button", { name: "Copy value" });
-    expect(copyBtn.querySelector(".text-green-500")).toBeNull();
+    expect(copyBtn.querySelector(".text-success")).toBeNull();
 
     await act(async () => {
       fireEvent.click(copyBtn);
       await Promise.resolve();
     });
 
-    expect(copyBtn.querySelector(".text-green-500")).not.toBeNull();
+    expect(copyBtn.querySelector(".text-success")).not.toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(1500);
     });
 
-    expect(copyBtn.querySelector(".text-green-500")).toBeNull();
+    expect(copyBtn.querySelector(".text-success")).toBeNull();
   });
 });
 

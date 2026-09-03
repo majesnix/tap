@@ -33,19 +33,19 @@ test("swaps to check icon after copy and reverts after timeout", async () => {
 
   const button = screen.getByRole("button", { name: "Copy value" });
 
-  expect(button.querySelector(".text-green-500")).toBeNull();
+  expect(button.querySelector(".text-success")).toBeNull();
 
   await act(async () => {
     fireEvent.click(button);
     await Promise.resolve();
   });
 
-  expect(button.querySelector(".text-green-500")).not.toBeNull();
+  expect(button.querySelector(".text-success")).not.toBeNull();
 
   act(() => {
     vi.advanceTimersByTime(1500);
   });
-  expect(button.querySelector(".text-green-500")).toBeNull();
+  expect(button.querySelector(".text-success")).toBeNull();
 
   vi.useRealTimers();
 });

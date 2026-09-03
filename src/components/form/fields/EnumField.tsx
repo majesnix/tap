@@ -6,11 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import type { FieldSchema } from "@/lib/types";
-import { CopyButton } from "./CopyButton";
-import { FieldTooltip } from "./FieldTooltip";
+import { FieldLabel } from "./FieldLabel";
 
 export interface EnumFieldProps {
   field: FieldSchema;
@@ -33,18 +30,8 @@ export function EnumField({ field, path }: EnumFieldProps) {
   const resolvedEnumName = values.find((v) => v.number === watchedValue)?.name ?? "";
 
   return (
-    <div className="flex flex-col gap-1 mb-3 group">
-      <div className="flex items-center gap-2">
-        <FieldTooltip field={field}>
-          <Label className="text-xs font-semibold" htmlFor={path}>
-            {field.label}
-          </Label>
-        </FieldTooltip>
-        <Badge variant="outline" className="text-xs px-1.5 py-0">
-          enum
-        </Badge>
-        <CopyButton value={resolvedEnumName} />
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <FieldLabel field={field} htmlFor={path} copyValue={resolvedEnumName} />
       <Controller
         name={path}
         control={control}
@@ -54,13 +41,13 @@ export function EnumField({ field, path }: EnumFieldProps) {
             value={String(rhfField.value)}
             onValueChange={(strVal) => rhfField.onChange(Number(strVal))}
           >
-            <SelectTrigger id={path}>
+            <SelectTrigger id={path} className="font-mono text-13">
               <SelectValue placeholder="Select value" />
             </SelectTrigger>
             <SelectContent>
               {values.map((v) => (
                 <SelectItem key={v.number} value={String(v.number)}>
-                  {v.name}
+                  {v.name} <span className="text-ghost">= {v.number}</span>
                 </SelectItem>
               ))}
             </SelectContent>

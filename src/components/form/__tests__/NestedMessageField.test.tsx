@@ -59,7 +59,9 @@ function renderNested(depth: number) {
 
 test("renders collapsible with field label", () => {
   renderNested(0);
-  expect(screen.getByText(/inner/i)).toBeInTheDocument();
+  // Exact match: the label span text is "Inner" — the adjacent mono meta span
+  // reads "Inner · 2" and would also match a case-insensitive /inner/i query.
+  expect(screen.getByText("Inner")).toBeInTheDocument();
 });
 
 test("renders DepthCapPlaceholder at depth 5", () => {

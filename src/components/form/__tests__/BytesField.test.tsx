@@ -44,10 +44,10 @@ test("BytesField renders a textbox with placeholder 'base64 encoded value'", () 
 
 // ─── badge ───────────────────────────────────────────────────────────────────
 
-test("BytesField renders a 'bytes' badge (NOT 'bytes (base64)')", () => {
+test("BytesField renders a 'bytes · 1' type/number meta (NOT 'bytes (base64)')", () => {
   renderField(bytesSchema);
-  // Should have exactly "bytes" badge (outline variant)
-  expect(screen.getByText("bytes")).toBeInTheDocument();
+  // fieldMeta renders "{type} · {field_number}" in the label row
+  expect(screen.getByText("bytes · 1")).toBeInTheDocument();
   // Must NOT have the old "bytes (base64)" label
   expect(screen.queryByText("bytes (base64)")).not.toBeInTheDocument();
 });

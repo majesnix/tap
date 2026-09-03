@@ -7,7 +7,6 @@ import {
 } from "react-hook-form";
 import { Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -16,8 +15,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { IconButton } from "@/components/common/IconButton";
 import type { FieldKind, FieldSchema, RenderFieldFn, ScalarKind } from "@/lib/types";
 import { FieldTooltip } from "./FieldTooltip";
+import { fieldMeta } from "./fieldMeta";
 
 // ---- Types ----------------------------------------------------------------
 
@@ -166,33 +167,18 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
     };
   }, [path, replace, onRegisterReplace]);
 
-  // Build badge label — e.g. "map<string, int32>"
-  const valueSummary =
-    value_kind.type === "scalar"
-      ? value_kind.scalar
-      : value_kind.type === "message"
-        ? value_kind.full_name
-        : value_kind.type === "enum"
-          ? "enum"
-          : value_kind.type === "well_known"
-            ? value_kind.wkt
-            : "map";
-  const badgeLabel = `map<${key_type}, ${valueSummary}>`;
-
   function handleAppend() {
     append({ key: defaultKeyValue(key_type), value: defaultValueForKind(value_kind) });
   }
 
   return (
-    <div className="mb-3">
+    <div className="flex flex-col gap-2">
       {/* Field header */}
-      <div className="flex items-center gap-2 mb-2">
-        <Badge variant="secondary" className="text-xs">
-          {badgeLabel}
-        </Badge>
+      <div className="flex items-center gap-2">
         <FieldTooltip field={field}>
-          <span className="text-sm font-semibold">{field.label}</span>
+          <span className="text-13 font-medium">{field.label}</span>
         </FieldTooltip>
+        <span className="font-mono text-11 text-ghost whitespace-nowrap">{fieldMeta(field)}</span>
       </div>
 
       {/* Row list */}
@@ -217,7 +203,7 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
         return (
           <div
             key={rhfField.id}
-            className="flex items-start gap-2 p-2 border rounded mb-2"
+            className="flex items-start gap-2 rounded-md border border-border bg-background p-[6px_12px]"
           >
             {/* Key column */}
             <div className="w-1/3">
@@ -270,7 +256,7 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
                       {(isDupe || fieldState.error) && (
                         <p
                           id={`${keyPath}-error`}
-                          className="text-xs text-destructive mt-1"
+                          className="text-12 text-danger mt-1"
                           role="alert"
                         >
                           {isDupe ? "Duplicate key" : fieldState.error?.message}
@@ -288,16 +274,15 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
             </div>
 
             {/* Remove button */}
-            <Button
-              type="button"
-              variant="destructive"
-              size="icon"
-              aria-label="Remove entry"
-              className="shrink-0 mt-1"
+            <IconButton
+              size={22}
+              danger
+              label="Remove entry"
+              className="mt-1 shrink-0"
               onClick={() => remove(index)}
             >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+              <Trash2 size={13} />
+            </IconButton>
           </div>
         );
       })}
@@ -305,12 +290,12 @@ export function MapField({ field, path, depth, renderValue, onRegisterReplace }:
       {/* Add entry button */}
       <Button
         type="button"
-        variant="outline"
-        size="sm"
-        className="self-start"
+        variant="ghost"
+        size="xs"
+        className="self-start text-violet-bright"
         onClick={handleAppend}
       >
-        <Plus className="w-4 h-4 mr-1" />
+        <Plus size={13} className="mr-1" />
         Add entry
       </Button>
     </div>

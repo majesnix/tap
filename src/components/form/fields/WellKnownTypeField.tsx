@@ -1,9 +1,9 @@
 import { Controller, useFormContext } from "react-hook-form";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import type { FieldSchema } from "@/lib/types";
-import { FieldTooltip } from "./FieldTooltip";
+import { FieldLabel } from "./FieldLabel";
+import { useFieldDepth } from "./FieldDepthContext";
 
 const DURATION_PATTERN = /^(\d+h)?(\d+m)?(\d+(\.\d+)?s)?$/;
 
@@ -16,10 +16,11 @@ interface WellKnownTypeFieldProps {
  * Renders a WellKnownType field.
  * - Timestamp → datetime-local input (ISO 8601 string sent to Rust)
  * - Duration  → text input with placeholder "e.g. 1h30m" and regex validation
- * - All other WKTs → plain text input with badge showing the WKT name (G-8)
+ * - All other WKTs → plain text input, type name shown via FieldLabel's fieldMeta (G-8)
  */
 export function WellKnownTypeField({ field, path }: WellKnownTypeFieldProps) {
   const { control } = useFormContext();
+  const depth = useFieldDepth();
 
   if (field.kind.type !== "well_known") return null;
 
@@ -29,26 +30,13 @@ export function WellKnownTypeField({ field, path }: WellKnownTypeFieldProps) {
   const isDuration = wkt === "Duration";
   const isFallback = !isTimestamp && !isDuration;
 
+  const depthClassName =
+    depth === 0 ? "" : cn("h-[34px]", depth % 2 === 1 ? "bg-card" : "bg-background");
+  const inputClassName = cn("font-mono text-13", depthClassName);
+
   return (
-    <div className="flex flex-col gap-1 mb-3">
-      <div className="flex items-center gap-2">
-        <FieldTooltip field={field}>
-          <Label className="text-xs font-semibold" htmlFor={path}>
-            {field.label}
-          </Label>
-        </FieldTooltip>
-        <Badge variant="outline" className="text-xs px-1.5 py-0">
-          wkt
-        </Badge>
-        {isFallback && (
-          <Badge
-            variant="secondary"
-            className="text-xs px-1.5 py-0 max-w-[200px] truncate"
-          >
-            {wkt}
-          </Badge>
-        )}
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <FieldLabel field={field} htmlFor={path} />
 
       {isTimestamp && (
         <Controller
@@ -56,13 +44,13 @@ export function WellKnownTypeField({ field, path }: WellKnownTypeFieldProps) {
           control={control}
           defaultValue=""
           render={({ field: rhfField }) => (
-            <input
+            <Input
               id={path}
               type="datetime-local"
               value={rhfField.value as string}
               onChange={rhfField.onChange}
               onBlur={rhfField.onBlur}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+              className={inputClassName}
             />
           )}
         />
@@ -92,10 +80,10 @@ export function WellKnownTypeField({ field, path }: WellKnownTypeFieldProps) {
                 onChange={rhfField.onChange}
                 onBlur={rhfField.onBlur}
                 aria-invalid={!!fieldState.error}
-                className={fieldState.error ? "border-destructive" : ""}
+                className={inputClassName}
               />
               {fieldState.error && (
-                <p className="text-xs text-destructive" role="alert">
+                <p className="text-12 text-danger" role="alert">
                   {field.label}: {fieldState.error.message}
                 </p>
               )}
@@ -125,6 +113,7 @@ export function WellKnownTypeField({ field, path }: WellKnownTypeFieldProps) {
                 onChange={rhfField.onChange}
                 onBlur={rhfField.onBlur}
                 placeholder={placeholder}
+                className={inputClassName}
               />
             );
           }}
