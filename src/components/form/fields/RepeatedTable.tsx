@@ -14,6 +14,7 @@ import {
 import { IconButton } from "@/components/common/IconButton";
 import type { FieldSchema, MessageSchema, ScalarKind } from "@/lib/types";
 import { tableColumns } from "./fieldMeta";
+import { validateScalar } from "./scalarRules";
 
 interface RepeatedTableProps {
   field: FieldSchema;
@@ -129,7 +130,7 @@ export function RepeatedTable({ field, path, message }: RepeatedTableProps) {
               );
             }
 
-            const scalar = childField.kind.type === "scalar" ? childField.kind.scalar : "string";
+            const scalar: ScalarKind = childField.kind.type === "scalar" ? childField.kind.scalar : "string";
             const isNumber = !TEXT_SCALARS.includes(scalar);
 
             return (
@@ -137,7 +138,8 @@ export function RepeatedTable({ field, path, message }: RepeatedTableProps) {
                 key={childField.name}
                 name={cellPath}
                 control={control}
-                render={({ field: rhf }) => (
+                rules={{ validate: (v) => validateScalar(scalar, v) }}
+                render={({ field: rhf, fieldState }) => (
                   <Input
                     type={isNumber ? "number" : "text"}
                     value={rhf.value ?? ""}
@@ -145,7 +147,10 @@ export function RepeatedTable({ field, path, message }: RepeatedTableProps) {
                       const raw = e.target.value;
                       rhf.onChange(isNumber ? (raw === "" ? "" : Number(raw)) : raw);
                     }}
-                    className={CELL_INPUT_CLASSNAME}
+                    onBlur={rhf.onBlur}
+                    aria-invalid={!!fieldState.error}
+                    title={fieldState.error?.message}
+                    className={cn(CELL_INPUT_CLASSNAME, fieldState.error && "border-danger")}
                   />
                 )}
               />

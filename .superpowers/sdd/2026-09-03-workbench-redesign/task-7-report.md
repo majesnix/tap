@@ -83,7 +83,44 @@ See `git status` in the worktree; summary:
 
 ## Commits
 
-1. `feat(form): workbench field styles, repeated tables, oneof segments and nested containers` — the full task.
-2. `test(form): cover the RepeatedField → RepeatedTable wiring end-to-end` — fix round, added after self-review/advisor caught that no test exercised `RepeatedField`'s table-vs-stacked switch through the real `ProtoSchemaContext` lookup (every prior test rendered `RepeatedTable` directly).
+1. `feat(form): workbench field styles, repeated tables, oneof segments and nested containers` (`312e553`) — the full task, including the RepeatedField → RepeatedTable wiring test from self-review (squashed into this single commit before reporting, per the brief's "one commit" instruction — the wiring test was originally a second commit, folded back in).
+2. Fix round 1 (below) — a second commit on top, per the coordinator's instruction to commit the fix round separately.
 
-No attribution trailers on either.
+No attribution trailers.
+
+---
+
+## Fix round 1 (review findings)
+
+Findings from the coordinator's review, addressed in commit order:
+
+1. **RepeatedTable cells had no validation/error display.** Extracted `getZodSchema`, `getInputType`, and a new `validateScalar(scalar, value)` wrapper out of `ScalarField.tsx` into `src/components/form/fields/scalarRules.ts`. `ScalarField`'s `validate` is now `(value) => validateScalar(scalar, value)`. `RepeatedTable`'s per-cell `Controller` (the generic, non-enum/non-bool cell) now carries `rules={{ validate: (v) => validateScalar(scalar, v) }}`, wires `onBlur={rhf.onBlur}` (previously missing — validation on blur needs the RHF blur handler attached), and marks invalid cells with `aria-invalid={!!fieldState.error}`, an explicit `border-danger` class (`cn(CELL_INPUT_CLASSNAME, fieldState.error && "border-danger")`, on top of `Input`'s own `aria-invalid:border-danger` base rule, since there's no room for a text error line in a table row), and `title={fieldState.error?.message}` for a hover tooltip. Left the bool/enum cells unvalidated (a `Switch` and a constrained `Select` can't produce an invalid value).
+   - Kept the existing local `TEXT_SCALARS`-based text/number split in `RepeatedTable` for the cell's `<input type>` rather than switching to `scalarRules.ts`'s `getInputType`: `getInputType("bytes")` returns `"number"` (bytes never reaches it via `ScalarField`, which routes bytes to `BytesField` before `getInputType` is called), but a flat message can legally have a `bytes` field per `isFlatMessage`, and `RepeatedTable` has no per-type dispatch for bytes — using `getInputType` there would have turned a bytes cell into a number input. Flagging this as a pre-existing gap (no base64-specific validation/UI for a bytes cell in the table), not something this round's ask covered.
+   - Tests added to `RepeatedTable.test.tsx`: `amountMessage` (int32 `qty` + uint64 `total`) rendered with `mode: "onBlur"` (matches production's `ProtoFormRenderer` form mode — the isolated test harnesses elsewhere in this file don't set it, so a new render helper, `renderAmountsTable`, sets it explicitly) — one test types an out-of-range int32 and asserts `aria-invalid="true"` after tab-blur, another types `"-1"` into the uint64 cell and asserts the same.
+
+2. **`EnumField` didn't read `FieldDepthContext`.** Added `useFieldDepth()`; `SelectTrigger` now gets `size={depth === 0 ? "default" : "sm"}` (`size="sm"` on `select.tsx`'s trigger maps to `data-[size=sm]:h-[34px]`) and, when `depth > 0`, the same `bg-card`/`bg-background` depth-parity class `ScalarField` computes — via a `cn()`'d `className` on the trigger, same pattern as `ScalarField`'s `depthClassName`.
+
+3. **Compact label treatment for nested/oneof children.** Implemented inside `FieldLabel` itself (not per-field-component prop threading): reads `useFieldDepth()`; when `depth > 0`, the `Label` drops to `text-12 text-muted-foreground` (was `text-13 font-medium text-foreground`) and the mono meta span drops to `text-[10.5px]` (was `text-11`), both still `text-ghost`/`font-mono` as before. Since every field component's own label row already goes through `FieldLabel`, this reaches `ScalarField`, `BytesField`, `EnumField`, and `WellKnownTypeField` with no changes to those files. `OneofField` now wraps its selected-branch fields grid in `<FieldDepthContext.Provider value={depth + 1}>` (previously it provided no depth context at all — branch fields inherited whatever ambient depth was already in scope, same as the raw `depth` prop, so a top-level oneof's branch fields saw depth 0, not depth 1), mirroring `NestedMessageField`. The raw `depth` prop passed to `renderBranchField` is intentionally left unchanged — that only affects `MAX_DEPTH`/recursion bookkeeping for message-kind fields elsewhere, orthogonal to the FieldDepthContext-driven visual depth, and touching it was out of scope for this round.
+   - Test added to `NestedMessageField.test.tsx`: a new case renders `NestedMessageField` with a real `ScalarField` (not the usual bare-`<input>` stub) as `renderChildField`, and asserts the rendered child label (`screen.getByText("title")`) `toHaveClass("text-12")`.
+
+4. **`fieldMeta.ts`: folded `mapValueLabel` into `typeLabel`'s own switch.** Replaced the two near-identical switches (`typeLabel`'s per-`FieldSchema` switch, and the separate `mapValueLabel` per-`FieldKind` switch used only for a map's value side) with one `kindLabel(kind: FieldKind)` that recurses on `map` (so map-of-map works, same as before); `typeLabel(field)` is now a one-line `kindLabel(field.kind)`. No behavior change — `fieldMeta.test.ts`'s map-of-message and map-of-scalar cases still pass unchanged.
+
+### Tests + verification (fix round 1)
+
+```
+pnpm exec vitest run src/components/form src/__tests__   → 18 files, 145 tests passed
+pnpm test                                                 → 70 files, 756 tests passed
+pnpm exec tsc --noEmit                                    → clean
+pnpm lint                                                  → 0 errors, 23 warnings (same pre-existing baseline)
+```
+
+### Files changed (fix round 1)
+
+- New: `src/components/form/fields/scalarRules.ts`.
+- Modified: `src/components/form/fields/{ScalarField,EnumField,FieldLabel,OneofField,RepeatedTable,fieldMeta}.ts(x)`, `src/components/form/__tests__/{RepeatedTable,NestedMessageField}.test.tsx`.
+- No change needed to `MapField.tsx`, `BytesField.tsx`, `WellKnownTypeField.tsx`, `ProtoFormRenderer.tsx`, `JsonEditor.tsx`, `jsonEditorTheme.ts`, or `package.json`/`pnpm-lock.yaml` (the dependency additions were explicitly signed off by the controller as accepted, no action needed).
+
+### Concerns carried over / new
+
+- The bytes-cell gap in `RepeatedTable` noted under finding 1 above: a flat message with a `bytes` field renders that cell as a plain text input with generic `z.string()` validation (via `getZodSchema`'s default case) — no base64 charset/structural validation, no byte-count hint, unlike the dedicated `BytesField`. Not part of this round's ask; flagging for a follow-up.
+- Previously flagged items (oneof message-branch path has no dedicated render test; the dispatch-through-vs-compact-row decision) still stand — unchanged this round.

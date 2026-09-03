@@ -4,6 +4,7 @@ import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { useMessageMap } from "@/components/form/ProtoSchemaContext";
 import type { FieldSchema, MessageSchema, RenderFieldFn } from "@/lib/types";
 import { fieldMeta, typeLabel } from "./fieldMeta";
+import { FieldDepthContext } from "./FieldDepthContext";
 import { FieldTooltip } from "./FieldTooltip";
 
 export interface OneofFieldProps {
@@ -133,9 +134,11 @@ export function OneofField({ field, path, depth, renderBranchField }: OneofField
             <span className="font-mono text-11 text-ghost whitespace-nowrap">{branchTypeLabel}</span>
           </div>
           <div className="grid grid-cols-4 gap-3">
-            {branchFields.map(({ field: branchField, path: branchPath }) =>
-              renderBranchField(branchField, branchPath, depth)
-            )}
+            <FieldDepthContext.Provider value={depth + 1}>
+              {branchFields.map(({ field: branchField, path: branchPath }) =>
+                renderBranchField(branchField, branchPath, depth)
+              )}
+            </FieldDepthContext.Provider>
           </div>
         </div>
       )}

@@ -168,3 +168,57 @@ test("renders an enum cell as a select and a bool cell as a switch", async () =>
   expect(screen.getByTestId("native-select")).toBeInTheDocument();
   expect(screen.getByRole("switch")).toBeInTheDocument();
 });
+
+// ─── per-cell scalar validation (shared scalarRules) ─────────────────────────
+
+const amountMessage: MessageSchema = {
+  name: "Amount",
+  full_name: "p.Amount",
+  fields: [
+    { name: "qty", label: "qty", field_number: 1, kind: { type: "scalar", scalar: "int32" }, repeated: false },
+    { name: "total", label: "total", field_number: 2, kind: { type: "scalar", scalar: "uint64" }, repeated: false },
+  ],
+};
+
+const amountsField: FieldSchema = {
+  name: "amounts",
+  label: "Amounts",
+  field_number: 5,
+  kind: { type: "message", full_name: "p.Amount" },
+  repeated: true,
+};
+
+function renderAmountsTable() {
+  const Wrapper = () => {
+    // mode: "onBlur" — matches production (ProtoFormRenderer's useForm), and is what
+    // makes the Controller's validate rule run on blur rather than only on submit.
+    const methods = useForm({ defaultValues: { amounts: [] }, mode: "onBlur" });
+    return (
+      <FormProvider {...methods}>
+        <RepeatedTable field={amountsField} path="amounts" message={amountMessage} />
+      </FormProvider>
+    );
+  };
+  return render(<Wrapper />);
+}
+
+test("an int32 cell with an out-of-range value shows aria-invalid after blur", async () => {
+  const user = userEvent.setup();
+  renderAmountsTable();
+  await user.click(screen.getByText(/Add item/i));
+  const qtyInput = screen.getByRole("spinbutton");
+  await user.type(qtyInput, "9999999999");
+  await user.tab();
+  expect(await screen.findByRole("spinbutton")).toHaveAttribute("aria-invalid", "true");
+});
+
+test("a uint64 cell rejects a negative value", async () => {
+  const user = userEvent.setup();
+  renderAmountsTable();
+  await user.click(screen.getByText(/Add item/i));
+  // qty (int32 → spinbutton) + total (uint64 → text) in the same row
+  const totalInput = screen.getAllByRole("textbox")[0];
+  await user.type(totalInput, "-1");
+  await user.tab();
+  expect(totalInput).toHaveAttribute("aria-invalid", "true");
+});

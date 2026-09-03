@@ -8,11 +8,11 @@ function shortName(fullName: string): string {
 }
 
 /**
- * Human-readable type label for a field's kind — no field number, no cardinality.
- * Used standalone (oneof branch header) and composed into `fieldMeta` (label row).
+ * Human-readable type label for a bare `FieldKind` — no field wrapper, no field number.
+ * Recurses for `map` so a map's value side (itself a `FieldKind`, not a `FieldSchema`) gets
+ * the same labeling rules, including a map-of-map.
  */
-export function typeLabel(field: FieldSchema): string {
-  const { kind } = field;
+function kindLabel(kind: FieldKind): string {
   switch (kind.type) {
     case "scalar":
       return kind.scalar;
@@ -25,30 +25,18 @@ export function typeLabel(field: FieldSchema): string {
     case "well_known":
       return kind.wkt;
     case "map":
-      return `map<${kind.key_type}, ${mapValueLabel(kind.value_kind)}>`;
+      return `map<${kind.key_type}, ${kindLabel(kind.value_kind)}>`;
     default:
       return "unknown";
   }
 }
 
-/** Value-side label for a map<K, V> — reuses typeLabel's per-kind switch without a field wrapper. */
-function mapValueLabel(kind: FieldKind): string {
-  switch (kind.type) {
-    case "scalar":
-      return kind.scalar;
-    case "enum":
-      return "enum";
-    case "message":
-      return shortName(kind.full_name);
-    case "oneof":
-      return "oneof";
-    case "well_known":
-      return kind.wkt;
-    case "map":
-      return `map<${kind.key_type}, ${mapValueLabel(kind.value_kind)}>`;
-    default:
-      return "unknown";
-  }
+/**
+ * Human-readable type label for a field's kind — no field number, no cardinality.
+ * Used standalone (oneof branch header) and composed into `fieldMeta` (label row).
+ */
+export function typeLabel(field: FieldSchema): string {
+  return kindLabel(field.kind);
 }
 
 /**
