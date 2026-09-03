@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Tag, type TagTone } from "@/components/common/Tag";
 import {
   Tooltip,
   TooltipContent,
@@ -11,40 +11,17 @@ import type { StepStatus } from "@/lib/types";
 // ── Badge config map ──────────────────────────────────────────────────────────
 
 interface BadgeConfig {
-  className: string;
+  tone: TagTone;
   text: string;
   showSpinner: boolean;
 }
 
 const BADGE_CONFIG: Record<StepStatus, BadgeConfig> = {
-  pending: {
-    className: "",
-    text: "Pending",
-    showSpinner: false,
-  },
-  sending: {
-    className:
-      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
-    text: "Sending",
-    showSpinner: false,
-  },
-  "waiting-response": {
-    className:
-      "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
-    text: "Waiting…",
-    showSpinner: true,
-  },
-  done: {
-    className:
-      "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
-    text: "Done",
-    showSpinner: false,
-  },
-  error: {
-    className: "bg-destructive/10 text-destructive border-destructive/20",
-    text: "Error",
-    showSpinner: false,
-  },
+  pending: { tone: "neutral", text: "PENDING", showSpinner: false },
+  sending: { tone: "warning", text: "SENDING", showSpinner: false },
+  "waiting-response": { tone: "warning", text: "WAITING", showSpinner: true },
+  done: { tone: "success", text: "DONE", showSpinner: false },
+  error: { tone: "danger", text: "ERROR", showSpinner: false },
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -55,20 +32,18 @@ interface StepStatusBadgeProps {
 }
 
 /**
- * Renders a shadcn Badge for the given step execution status.
- * When status is 'error' and errorMsg is provided, wraps the badge in a
- * Tooltip so the user can inspect the failure reason after the toast is gone.
+ * Status pill for a plan step (handoff §5: h18 px7 radius 999, 10/700 caps).
+ * When status is 'error' and errorMsg is provided, wraps the pill in a Tooltip
+ * so the user can inspect the failure reason after the toast is gone.
  */
 export function StepStatusBadge({ status, errorMsg }: StepStatusBadgeProps) {
-  const { className, text, showSpinner } = BADGE_CONFIG[status];
+  const { tone, text, showSpinner } = BADGE_CONFIG[status];
 
   const badge = (
-    <Badge variant="outline" className={className}>
-      {showSpinner && (
-        <Loader2 size={14} className="animate-spin mr-1" />
-      )}
+    <Tag tone={tone} size="xs" className="gap-1">
+      {showSpinner && <Loader2 size={9} className="animate-spin" />}
       {text}
-    </Badge>
+    </Tag>
   );
 
   if (status === "error" && errorMsg) {

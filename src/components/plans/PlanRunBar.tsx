@@ -1,4 +1,4 @@
-import { Play, Square } from "lucide-react";
+import { CircleAlert, CircleCheck, Play, Square } from "lucide-react";
 import { usePlanRunner } from "@/hooks/usePlanRunner";
 import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
 import { usePlanStore } from "@/stores/usePlanStore";
@@ -12,18 +12,29 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import type { Plan } from "@/lib/types";
+import type { Plan, StepStatus } from "@/lib/types";
 import { findProfile, isReadOnly } from "@/lib/profileSafety";
 
 // ── PlanRunBar ─────────────────────────────────────────────────────────────────
 
 interface PlanRunBarProps {
   plan: Plan;
+  /** Clock time the last run in this session started. */
+  lastRunAt?: number | null;
+  /** Wall time the last run took, in ms. */
+  lastRunMs?: number | null;
 }
 
-export function PlanRunBar({ plan }: PlanRunBarProps) {
+const RUNNING_LABEL: Partial<Record<StepStatus, string>> = {
+  sending: "sending",
+  "waiting-response": "waiting",
+  pending: "pending",
+};
+
+/** The run bar card above the step list (handoff §5 "Run bar card"). */
+export function PlanRunBar({ plan, lastRunAt, lastRunMs }: PlanRunBarProps) {
   const { startRun, stopRun, isRunning } = usePlanRunner();
-  const { summary } = usePlanExecutionStore();
+  const { summary, stepStatuses, activeStepId } = usePlanExecutionStore();
   const { updatePlan } = usePlanStore();
   const activeProfileName = useConnectionStore((s) => s.activeProfileName);
   const profiles = useConnectionStore((s) => s.profiles);
@@ -36,7 +47,7 @@ export function PlanRunBar({ plan }: PlanRunBarProps) {
   const hasProfile = activeProfileName !== null;
   const canRun = hasSteps && hasProfile && !readOnly && !isRunning;
 
-  // Tooltip message for disabled run button
+  // Tooltip message for the disabled run button
   let disableReason: string | null = null;
   if (!hasSteps) {
     disableReason = "Add at least one step to run this plan";
@@ -46,79 +57,98 @@ export function PlanRunBar({ plan }: PlanRunBarProps) {
     disableReason = "Profile is read-only";
   }
 
-  // Summary display — shown when run completed (isRunning is false, summary is set)
+  // Summary display — shown when a run completed (isRunning false, summary set)
   const showSummary = summary !== null && !isRunning;
   const isSuccess = showSummary && summary.succeeded === summary.total;
+
+  const subtitle = [
+    `${plan.steps.length} steps`,
+    lastRunAt != null
+      ? `last run ${new Date(lastRunAt).toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })}`
+      : null,
+    lastRunMs != null ? `${(lastRunMs / 1000).toFixed(1)} s` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   function handleToggleStopOnError(checked: boolean) {
     updatePlan(plan.id, { stop_on_error: checked }).catch(console.error);
   }
 
-  // ── Run button slot ───────────────────────────────────────────────────────────
-  // Three states: running (Stop Run), post-run (Re-run Plan + summary), idle (Run Plan)
+  // ── Status slot: progress chip while running, result pill after a run ───────
+
+  let statusSlot: React.ReactNode = null;
+
+  if (isRunning) {
+    const finished = plan.steps.filter((s) => {
+      const status = stepStatuses[s.id];
+      return status === "done" || status === "error";
+    }).length;
+    const activeStatus = activeStepId ? stepStatuses[activeStepId] : undefined;
+    const activeLabel = (activeStatus && RUNNING_LABEL[activeStatus]) ?? "running";
+    statusSlot = (
+      <span className="inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-full bg-warning/10 px-2.5 font-mono text-11 font-semibold text-warning">
+        {finished} / {plan.steps.length} · {activeLabel}
+      </span>
+    );
+  } else if (showSummary) {
+    statusSlot = (
+      <span
+        className={`inline-flex h-[26px] shrink-0 items-center gap-1.5 rounded-full px-2.5 text-12 font-semibold ${
+          isSuccess ? "bg-success/10 text-success" : "bg-danger/10 text-danger"
+        }`}
+      >
+        {isSuccess ? <CircleCheck size={13} /> : <CircleAlert size={13} />}
+        {summary.succeeded} / {summary.total} succeeded
+      </span>
+    );
+  }
+
+  // ── Run button slot: Stop while running, Run plan / Run again otherwise ─────
 
   let runSlot: React.ReactNode;
 
   if (isRunning) {
-    // Running: destructive Stop Run button
     runSlot = (
       <Button
         variant="destructive"
-        size="sm"
-        className="gap-1.5 shrink-0"
-        onClick={() => { stopRun().catch(console.error); }}
+        size="md"
+        className="shrink-0"
+        onClick={() => {
+          stopRun().catch(console.error);
+        }}
       >
         <Square size={14} />
-        Stop Run
+        Stop
       </Button>
     );
-  } else if (showSummary) {
-    // Post-run: summary line + Re-run Plan button
-    runSlot = (
-      <div className="flex items-center gap-3 shrink-0">
-        {isSuccess ? (
-          <span className="text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
-            ✓ {summary.succeeded}/{summary.total} succeeded
-          </span>
-        ) : (
-          <span className="text-destructive font-semibold text-sm">
-            ✗ {summary.succeeded}/{summary.total} succeeded
-          </span>
-        )}
-        <Button
-          variant="outline"
-          size="sm"
-          className="shrink-0"
-          onClick={() => { startRun(plan).catch(console.error); }}
-        >
-          Re-run Plan
-        </Button>
-      </div>
-    );
   } else {
-    // Idle: Run Plan button (possibly disabled with tooltip)
     const runButton = (
       <Button
         variant="default"
-        size="sm"
-        className="gap-1.5 shrink-0"
+        size="md"
+        className="shrink-0"
         disabled={!canRun}
-        onClick={() => { startRun(plan).catch(console.error); }}
+        onClick={() => {
+          startRun(plan).catch(console.error);
+        }}
       >
         <Play size={14} />
-        Run Plan
+        {showSummary ? "Run again" : "Run plan"}
       </Button>
     );
 
     if (!canRun && disableReason) {
-      // Wrap in Tooltip using <span> to handle disabled button (shadcn Tooltip + disabled pattern)
+      // Wrap in Tooltip using <span> to handle the disabled button (shadcn pattern)
       runSlot = (
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="shrink-0">
-                {runButton}
-              </span>
+              <span className="shrink-0">{runButton}</span>
             </TooltipTrigger>
             <TooltipContent>{disableReason}</TooltipContent>
           </Tooltip>
@@ -130,12 +160,17 @@ export function PlanRunBar({ plan }: PlanRunBarProps) {
   }
 
   return (
-    <div className="flex items-center gap-4 bg-card border-b border-border px-4 py-2 shrink-0">
-      {/* Plan name — truncated, takes remaining space */}
-      <span className="text-sm font-medium truncate flex-1">{plan.name}</span>
+    <div className="flex shrink-0 items-center gap-3 rounded-xl border border-border bg-card p-[14px_18px]">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="truncate text-16 font-semibold tracking-[-.01em]">{plan.name}</span>
+        <span className="text-12 text-ghost">{subtitle}</span>
+      </div>
 
-      {/* Stop on error toggle */}
-      <div className="flex items-center gap-2 shrink-0">
+      <div className="flex-1" />
+
+      {statusSlot}
+
+      <div className="flex shrink-0 items-center gap-2">
         <Switch
           id={`stop-on-error-${plan.id}`}
           checked={stopOnError}
@@ -144,13 +179,12 @@ export function PlanRunBar({ plan }: PlanRunBarProps) {
         />
         <Label
           htmlFor={`stop-on-error-${plan.id}`}
-          className="text-sm cursor-pointer"
+          className="cursor-pointer text-12 text-muted-foreground"
         >
           Stop on error
         </Label>
       </div>
 
-      {/* Run / Stop / Re-run slot */}
       {runSlot}
     </div>
   );

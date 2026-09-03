@@ -1,4 +1,4 @@
-import { render, act } from "@testing-library/react";
+import { render, act, screen } from "@testing-library/react";
 import { describe, it, expect, vi } from "vitest";
 import { useProtoStore } from "@/stores/useProtoStore";
 
@@ -10,12 +10,20 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   }),
 }));
 
-vi.mock("./PlanListPanel", () => ({
-  PlanListPanel: () => <div data-testid="plan-list-stub" />,
+vi.mock("@/components/sidebar/PlansSidebar", () => ({
+  PlansSidebar: () => <div data-testid="plans-sidebar-stub" />,
 }));
 
-vi.mock("./PlanDetailPanel", () => ({
-  PlanDetailPanel: () => <div data-testid="plan-detail-stub" />,
+vi.mock("./PlanRunBar", () => ({
+  PlanRunBar: () => <div data-testid="plan-run-bar-stub" />,
+}));
+
+vi.mock("./StepCardList", () => ({
+  StepCardList: () => <div data-testid="step-card-list-stub" />,
+}));
+
+vi.mock("./StepReplyPanel", () => ({
+  StepReplyPanel: () => <div data-testid="step-reply-panel-stub" />,
 }));
 
 import { PlanView } from "@/components/plans/PlanView";
@@ -39,5 +47,11 @@ describe("PlanView", () => {
     });
 
     expect(useProtoStore.getState().openFileRequested).toBe(before + 1);
+  });
+
+  it("shows the plans empty state until a plan is selected", () => {
+    render(<PlanView header={<div />} />);
+    expect(screen.getByText("Select a plan to get started")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-run-bar-stub")).not.toBeInTheDocument();
   });
 });

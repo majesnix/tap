@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, test, expect, vi, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { useConnectionStore } from "@/stores/useConnectionStore";
@@ -15,6 +16,13 @@ vi.mock("@tauri-apps/plugin-store", () => ({
     set: vi.fn().mockResolvedValue(undefined),
     save: vi.fn().mockResolvedValue(undefined),
   }),
+}));
+
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 import { PlanRunBar } from "@/components/plans/PlanRunBar";
@@ -48,10 +56,28 @@ const PLAN: Plan = {
 
 beforeEach(() => {
   useConnectionStore.setState({ activeProfileName: "dev", profiles: [PROFILE] });
-  usePlanExecutionStore.setState({ isRunning: false, runningPlanId: null, summary: null });
+  usePlanExecutionStore.setState({
+    isRunning: false,
+    runningPlanId: null,
+    summary: null,
+    stepStatuses: {},
+    activeStepId: null,
+  });
 });
 
-describe("PlanRunBar and read-only profiles", () => {
+describe("PlanRunBar", () => {
+  test("shows the plan name and the step count", () => {
+    render(<PlanRunBar plan={PLAN} />);
+    expect(screen.getByText("Smoke plan")).toBeInTheDocument();
+    expect(screen.getByText(/1 steps/)).toBeInTheDocument();
+  });
+
+  test("adds the last run time and duration when they are known", () => {
+    const at = new Date(2026, 0, 2, 14, 2, 0).getTime();
+    render(<PlanRunBar plan={PLAN} lastRunAt={at} lastRunMs={3900} />);
+    expect(screen.getByText("1 steps · last run 14:02 · 3.9 s")).toBeInTheDocument();
+  });
+
   test("Run is enabled for a writable profile", () => {
     render(<PlanRunBar plan={PLAN} />);
     expect(screen.getByRole("button", { name: /run plan/i })).not.toBeDisabled();
@@ -61,5 +87,48 @@ describe("PlanRunBar and read-only profiles", () => {
     useConnectionStore.setState({ profiles: [{ ...PROFILE, read_only: true }] });
     render(<PlanRunBar plan={PLAN} />);
     expect(screen.getByRole("button", { name: /run plan/i })).toBeDisabled();
+  });
+
+  test("Run is disabled when the plan has no steps", () => {
+    render(<PlanRunBar plan={{ ...PLAN, steps: [] }} />);
+    expect(screen.getByRole("button", { name: /run plan/i })).toBeDisabled();
+  });
+
+  test("Run is disabled without an active profile", () => {
+    useConnectionStore.setState({ activeProfileName: null });
+    render(<PlanRunBar plan={PLAN} />);
+    expect(screen.getByRole("button", { name: /run plan/i })).toBeDisabled();
+  });
+
+  test("after a run the button reads 'Run again' and shows the result pill", () => {
+    usePlanExecutionStore.setState({ summary: { succeeded: 1, total: 1 } });
+    render(<PlanRunBar plan={PLAN} />);
+    expect(screen.getByRole("button", { name: /run again/i })).toBeInTheDocument();
+    expect(screen.getByText("1 / 1 succeeded")).toBeInTheDocument();
+  });
+
+  test("a read-only profile also blocks 'Run again'", () => {
+    usePlanExecutionStore.setState({ summary: { succeeded: 0, total: 1 } });
+    useConnectionStore.setState({ profiles: [{ ...PROFILE, read_only: true }] });
+    render(<PlanRunBar plan={PLAN} />);
+    expect(screen.getByRole("button", { name: /run again/i })).toBeDisabled();
+  });
+
+  test("while running it offers Stop and a progress chip", () => {
+    usePlanExecutionStore.setState({
+      isRunning: true,
+      runningPlanId: "plan-1",
+      activeStepId: "step-1",
+      stepStatuses: { "step-1": "waiting-response" },
+    });
+    render(<PlanRunBar plan={PLAN} />);
+    expect(screen.getByRole("button", { name: /stop/i })).toBeInTheDocument();
+    expect(screen.getByText("0 / 1 · waiting")).toBeInTheDocument();
+  });
+
+  test("renders the stop-on-error switch", () => {
+    render(<PlanRunBar plan={PLAN} />);
+    expect(screen.getByText("Stop on error")).toBeInTheDocument();
+    expect(screen.getByRole("switch")).toBeChecked();
   });
 });

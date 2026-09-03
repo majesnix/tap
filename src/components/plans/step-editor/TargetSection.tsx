@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { SegmentedControl } from "@/components/common/SegmentedControl";
 import { getExchanges, getQueues } from "@/lib/brokerCatalog";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import type { PlanStep, PublishTarget } from "@/lib/types";
 import { LiveCombobox } from "./LiveCombobox";
+import { EditorField } from "./EditorField";
 
 interface TargetSectionProps {
   step: PlanStep;
@@ -17,10 +17,9 @@ interface TargetSectionProps {
   ) => Promise<void>;
 }
 
+/** Target cell of the expanded step's second grid: Queue|Exchange + combobox. */
 export function TargetSection({ step, planId, updateStep }: TargetSectionProps) {
-  const [targetKind, setTargetKind] = useState<"queue" | "exchange">(
-    step.target.kind
-  );
+  const [targetKind, setTargetKind] = useState<"queue" | "exchange">(step.target.kind);
   const [queueName, setQueueName] = useState(
     step.target.kind === "queue" ? step.target.queue : ""
   );
@@ -57,102 +56,65 @@ export function TargetSection({ step, planId, updateStep }: TargetSectionProps) 
 
   function handleRoutingKeyBlur() {
     updateStep(planId, step.id, {
-      target: {
-        kind: "exchange",
-        exchange: exchangeName,
-        routing_key: routingKey,
-      },
+      target: { kind: "exchange", exchange: exchangeName, routing_key: routingKey },
     }).catch(console.error);
   }
 
   return (
-    <div className="px-4 py-3 border-b border-border">
-      <h3 className="text-sm font-semibold mb-3">Target</h3>
-      <div className="flex flex-col gap-3">
-        {/* RadioGroup: Queue vs Exchange — mirror PublishBar sr-only pattern */}
-        <RadioGroup
+    <EditorField label="Target">
+      <div className="flex items-center gap-2">
+        <SegmentedControl
+          aria-label="Target kind"
+          variant="choice"
+          size="sm"
           value={targetKind}
-          onValueChange={(v) => handleKindChange(v as "queue" | "exchange")}
-          className="flex gap-1"
-        >
-          {(["queue", "exchange"] as const).map((kind) => (
-            <div key={kind} className="flex items-center">
-              <RadioGroupItem
-                value={kind}
-                id={`target-${kind}-${step.id}`}
-                className="sr-only"
-              />
-              <label
-                htmlFor={`target-${kind}-${step.id}`}
-                className={`cursor-pointer rounded border px-3 py-1 text-sm font-semibold transition-colors ${
-                  targetKind === kind
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-foreground border-input hover:bg-muted"
-                }`}
-              >
-                {kind === "queue" ? "Queue" : "Exchange"}
-              </label>
-            </div>
-          ))}
-        </RadioGroup>
-
-        {targetKind === "queue" ? (
-          <div className="flex flex-col gap-1">
-            <Label
-              htmlFor={`queue-name-${step.id}`}
-              className="text-xs text-muted-foreground"
-            >
-              Queue name
-            </Label>
+          onChange={handleKindChange}
+          items={[
+            { value: "queue", label: "Queue" },
+            { value: "exchange", label: "Exchange" },
+          ]}
+        />
+        <div className="min-w-0 flex-1">
+          {targetKind === "queue" ? (
             <LiveCombobox
               id={`queue-name-${step.id}`}
               value={queueName}
               onChange={setQueueName}
               onCommit={(val) =>
-                updateStep(planId, step.id, { target: { kind: "queue", queue: val } }).catch(console.error)
+                updateStep(planId, step.id, {
+                  target: { kind: "queue", queue: val },
+                }).catch(console.error)
               }
               items={queues}
               placeholder="queue-name"
             />
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs text-muted-foreground">Exchange</Label>
-              <LiveCombobox
-                id={`exchange-${step.id}`}
-                value={exchangeName}
-                onChange={setExchangeName}
-                onCommit={(val) =>
-                  updateStep(planId, step.id, {
-                    target: { kind: "exchange", exchange: val, routing_key: routingKey },
-                  }).catch(console.error)
-                }
-                items={exchangeNames}
-                placeholder="exchange-name"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <Label
-                htmlFor={`routing-key-${step.id}`}
-                className="text-xs text-muted-foreground"
-              >
-                Routing key
-              </Label>
-              <Input
-                id={`routing-key-${step.id}`}
-                value={routingKey}
-                onChange={(e) => setRoutingKey(e.target.value)}
-                onBlur={handleRoutingKeyBlur}
-                placeholder="routing.key"
-                className="text-sm"
-              />
-            </div>
-          </div>
-        )}
+          ) : (
+            <LiveCombobox
+              id={`exchange-${step.id}`}
+              value={exchangeName}
+              onChange={setExchangeName}
+              onCommit={(val) =>
+                updateStep(planId, step.id, {
+                  target: { kind: "exchange", exchange: val, routing_key: routingKey },
+                }).catch(console.error)
+              }
+              items={exchangeNames}
+              placeholder="exchange-name"
+            />
+          )}
+        </div>
       </div>
-    </div>
+      {targetKind === "exchange" && (
+        <Input
+          id={`routing-key-${step.id}`}
+          aria-label="Routing key"
+          value={routingKey}
+          onChange={(e) => setRoutingKey(e.target.value)}
+          onBlur={handleRoutingKeyBlur}
+          placeholder="routing.key"
+          className="h-[34px] font-mono text-[12.5px]"
+        />
+      )}
+    </EditorField>
   );
 }
-
-// ── ResponseModeSection ───────────────────────────────────────────────────────
