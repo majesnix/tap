@@ -422,7 +422,7 @@ describe("ConnectionSheet", () => {
       });
     });
 
-    it("Test on an existing profile without a password saves, tests and shows Reachable", async () => {
+    it("Test on an existing profile with a password saves, tests and shows Reachable", async () => {
       mockInvoke.mockImplementation((cmd: string) => {
         if (cmd === "save_profile") return Promise.resolve(undefined);
         if (cmd === "test_connection") return Promise.resolve(undefined);
@@ -436,6 +436,27 @@ describe("ConnectionSheet", () => {
       await waitFor(() => {
         expect(screen.getByText(/reachable/i)).toBeInTheDocument();
       });
+      expect(mockInvoke).toHaveBeenCalledWith("save_profile", expect.anything());
+      expect(mockInvoke).toHaveBeenCalledWith("test_connection", expect.anything());
+    });
+
+    it("Test on an existing profile with a blank password shows the existing message and does not save or test", async () => {
+      mockInvoke.mockImplementation((cmd: string) => {
+        if (cmd === "save_profile") return Promise.resolve(undefined);
+        if (cmd === "test_connection") return Promise.resolve(undefined);
+        if (cmd === "list_profiles") return Promise.resolve([PROFILE_A]);
+        return Promise.resolve(undefined);
+      });
+      renderSheet({ mode: "edit", profile: "Profile A" });
+      // Leave the password field blank.
+      fireEvent.click(screen.getByRole("button", { name: /^test$/i }));
+      await waitFor(() => {
+        expect(
+          screen.getByText(/password is required to save changes/i)
+        ).toBeInTheDocument();
+      });
+      expect(mockInvoke).not.toHaveBeenCalledWith("save_profile", expect.anything());
+      expect(mockInvoke).not.toHaveBeenCalledWith("test_connection", expect.anything());
     });
   });
 });

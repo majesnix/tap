@@ -66,7 +66,9 @@ function tlsSummary(values: ProfileFormValues, exposedTransports: string[]) {
 }
 
 export function ProfileForm({ mode, initial, onBack, onClose, onSaved, onDeleted }: ProfileFormProps) {
-  const { setProfiles, setActiveProfile, setConnectionStatus } = useConnectionStore();
+  const setProfiles = useConnectionStore((s) => s.setProfiles);
+  const setActiveProfile = useConnectionStore((s) => s.setActiveProfile);
+  const setConnectionStatus = useConnectionStore((s) => s.setConnectionStatus);
   const [values, setValues] = useState<ProfileFormValues>(initial);
   const [error, setError] = useState<string | null>(null);
   const [testState, setTestState] = useState<TestState>("idle");
@@ -216,7 +218,10 @@ export function ProfileForm({ mode, initial, onBack, onClose, onSaved, onDeleted
             </label>
             <Input
               id="profile-name"
-              className="h-[30px] bg-card text-12"
+              className={cn(
+                "h-[30px] bg-card text-12",
+                mode === "edit" && "opacity-60 cursor-not-allowed"
+              )}
               placeholder="e.g. Local RabbitMQ"
               value={values.name}
               readOnly={mode === "edit"}

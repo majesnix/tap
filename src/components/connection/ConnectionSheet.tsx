@@ -25,7 +25,9 @@ function profileUrl(profile: ConnectionProfile): string {
 }
 
 export function ConnectionSheet({ state, onStateChange }: ConnectionSheetProps) {
-  const { profiles, activeProfileName, keychainError } = useConnectionStore();
+  const profiles = useConnectionStore((s) => s.profiles);
+  const activeProfileName = useConnectionStore((s) => s.activeProfileName);
+  const keychainError = useConnectionStore((s) => s.keychainError);
 
   if (state === null) return null;
 
