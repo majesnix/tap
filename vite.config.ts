@@ -37,6 +37,8 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // Agent worktrees live under .claude/worktrees inside the repo; never collect their tests.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.claude/**", "**/src-tauri/**"],
     coverage: {
       // Ratchet: set just below the measured coverage so it can only go up.
       // Raise these as the plan and history UIs gain tests.
