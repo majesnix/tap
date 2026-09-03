@@ -9,8 +9,10 @@ vi.mock("@/components/sidebar/FilesSidebar", () => ({
   FilesSidebar: () => <div data-testid="sidebar-stub" />,
 }));
 
-vi.mock("@/components/publish/PublishBar", () => ({
-  PublishBar: () => <div data-testid="publishbar-stub" />,
+// The destination strip owns the target picker, which renders a text input of its own when
+// the Management API is unavailable; stub it so getByRole("textbox") stays the form field.
+vi.mock("@/components/compose/DestinationStrip", () => ({
+  DestinationStrip: () => <div data-testid="destination-strip-stub" />,
 }));
 
 vi.mock("@/components/blocks/BlockLibraryPanel", () => ({

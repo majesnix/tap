@@ -4,9 +4,8 @@ import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type Dra
 import { GripVertical } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
 import { FilesSidebar } from "@/components/sidebar/FilesSidebar";
-import { FormPanel } from "@/components/form/FormPanel";
+import { RequestCard } from "@/components/compose/RequestCard";
 import { ActivityPanel } from "@/components/activity/ActivityPanel";
-import { PublishBar } from "@/components/publish/PublishBar";
 import { BlockLibraryPanel } from "@/components/blocks/BlockLibraryPanel";
 import { useBlockStore } from "@/stores/useBlockStore";
 import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
@@ -101,10 +100,7 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
           )
         }
         main={
-          <>
-            <PublishBar />
-            <FormPanel isBlockLibraryOpen={blocksOpen} onToggleBlockLibrary={onToggleBlocks} />
-          </>
+          <RequestCard signals={signals} blocksOpen={blocksOpen} onToggleBlocks={onToggleBlocks} />
         }
         aside={<ActivityPanel signals={signals} />}
       />

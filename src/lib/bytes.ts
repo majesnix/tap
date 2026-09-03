@@ -29,6 +29,14 @@ export function base64ToHex(base64: string): string {
   return Array.from(base64ToBytes(base64), (b) => b.toString(16).padStart(2, "0")).join(" ");
 }
 
+/** Inverse of base64ToHex: spaced or unspaced hex → bytes. */
+export function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.replace(/\s+/g, "");
+  const out = new Uint8Array(Math.floor(clean.length / 2));
+  for (let i = 0; i < out.length; i++) out[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
+  return out;
+}
+
 /** Decoded length of a base64 string without decoding it. */
 export function base64ByteLength(base64: string): number {
   if (base64.length === 0) return 0;
