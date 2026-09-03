@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { Play, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
-import type { DrainResult } from "@/lib/types";
+import type { DrainResult, SubscribeMode } from "@/lib/types";
+import { createDeliveryBatcher, type DeliveryBatcher } from "@/lib/feedBatcher";
+import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
+import { describeBroker, findProfile, isReadOnly, requiresConfirmation } from "@/lib/profileSafety";
 
 // ── useEffect must be imported from React (not globals) in this codebase ───────
 import { useEffect } from "react";
@@ -15,19 +18,32 @@ interface SubscribePanelProps {
   selectedQueue: string;
   decodeTypes: string[];
   profileName: string;
+  /** "tap" copies traffic through a private queue; "competing" joins the consumer pool. */
+  mode: SubscribeMode;
 }
 
 export function SubscribePanel({
   selectedQueue,
   decodeTypes,
   profileName,
+  mode,
 }: SubscribePanelProps) {
   const { subscribeStatus, subscribeError, setSubscribeStatus, appendMessages } =
     useResponseStore();
   const activeProfileName = useConnectionStore((s) => s.activeProfileName);
   const connectionStatus = useConnectionStore((s) => s.connectionStatus);
+  const profiles = useConnectionStore((s) => s.profiles);
+
+  const activeProfile = findProfile(profiles, profileName || activeProfileName);
+  const isTap = mode === "tap";
+  // A tap only reads a copy, so read-only profiles may use it.
+  const blockedByReadOnly = isReadOnly(activeProfile) && !isTap;
+
+  // Subscribe is a competing consumer; on a non-local broker ask before joining.
+  const [confirmRequest, setConfirmRequest] = useState<BrokerConfirmRequest | null>(null);
 
   const channelRef = useRef<Channel<DrainResult> | null>(null);
+  const batcherRef = useRef<DeliveryBatcher | null>(null);
 
   // prevProfileRef tracks profile transitions (not a prop comparison — see D-11 / plan comment)
   // Initialized to activeProfileName on mount so the first render doesn't fire auto-stop
@@ -45,17 +61,21 @@ export function SubscribePanel({
     if (isStartingRef.current) return;
     isStartingRef.current = true;
 
-    const channel = new Channel<DrainResult>((msg) => {
-      appendMessages([msg]);
+    // Deliveries arrive one per IPC message; batch them so a busy queue costs a few
+    // store updates per second instead of one per message.
+    batcherRef.current?.dispose();
+    const batcher = createDeliveryBatcher({
+      // The feed shows newest first; the batch arrives oldest first.
+      onFlush: (batch) => appendMessages([...batch].reverse()),
       // CR-02: if the consumer self-terminated (e.g., broker closed, ack failure),
       // transition status back to Idle without requiring user to click Stop.
-      if (msg.isTerminal) {
-        setSubscribeStatus("Idle");
-      }
+      onTerminal: () => setSubscribeStatus("Idle"),
     });
+    batcherRef.current = batcher;
+    const channel = new Channel<DrainResult>((msg) => batcher.push(msg));
     channelRef.current = channel;
     try {
-      await startSubscribe(profileName, selectedQueue, decodeTypes, channel);
+      await startSubscribe(profileName, selectedQueue, decodeTypes, channel, mode);
       setSubscribeStatus("Running");
     } catch (e) {
       // WR-04: clear stale channel ref on failure so handleStop / cleanup never sees
@@ -70,6 +90,18 @@ export function SubscribePanel({
       // CR-03: always reset the guard so subsequent clicks work after the IPC resolves
       isStartingRef.current = false;
     }
+  };
+
+  const requestStart = () => {
+    if (isTap || !requiresConfirmation(activeProfile, "subscribe")) {
+      void handleStart();
+      return;
+    }
+    setConfirmRequest({
+      kind: "subscribe",
+      queue: selectedQueue,
+      broker: describeBroker(activeProfile),
+    });
   };
 
   const handleStop = async () => {
@@ -91,6 +123,7 @@ export function SubscribePanel({
 
   useEffect(() => {
     return () => {
+      batcherRef.current?.dispose();
       const { subscribeStatus: status, setSubscribeStatus: setStatus } =
         useResponseStore.getState();
       if (status === "Running" || status === "Stopping") {
@@ -188,8 +221,8 @@ export function SubscribePanel({
       {!isRunningOrStopping && (
         <Button
           variant="default"
-          onClick={() => void handleStart()}
-          disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current}
+          onClick={requestStart}
+          disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current || blockedByReadOnly}
         >
           <Play className="mr-2 h-4 w-4" />
           Start
@@ -211,6 +244,23 @@ export function SubscribePanel({
           Stop
         </Button>
       )}
+
+      <span className="text-xs text-muted-foreground basis-full">
+        {isTap
+          ? "Non-destructive: Tap binds a private queue to the same exchanges, so the original queue is untouched. Needs the Management API and at least one exchange binding."
+          : blockedByReadOnly
+            ? "Read-only profile: subscribing is disabled"
+            : "Competing consumer: messages Tap receives are acknowledged and removed from the queue."}
+      </span>
+
+      <BrokerConfirmDialog
+        request={confirmRequest}
+        onConfirm={() => {
+          setConfirmRequest(null);
+          void handleStart();
+        }}
+        onCancel={() => setConfirmRequest(null)}
+      />
     </div>
   );
 }

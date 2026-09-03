@@ -4,12 +4,14 @@ use prost_reflect::{DynamicMessage, FieldDescriptor, Kind, MapKey, MessageDescri
 use serde_json::Value as JsonValue;
 use std::sync::Mutex;
 
+/// Encode form values to protobuf wire bytes, returned as standard base64.
+/// Base64 is ~1.33x the payload over IPC; a JSON array of numbers is ~3.5x.
 #[tauri::command]
 pub async fn encode_message(
     message_type: String,
     form_values: JsonValue,
     pool_state: tauri::State<'_, Mutex<Option<prost_reflect::DescriptorPool>>>,
-) -> Result<Vec<u8>, AppError> {
+) -> Result<String, AppError> {
     let pool_guard = pool_state
         .lock()
         .map_err(|_| AppError::EncodeError {
@@ -39,7 +41,8 @@ pub async fn encode_message(
             message: e.to_string(),
         })?;
 
-    Ok(buf)
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    Ok(STANDARD.encode(buf))
 }
 
 /// Encode a message using a pre-resolved pool reference.

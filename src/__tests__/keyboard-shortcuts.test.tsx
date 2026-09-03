@@ -129,7 +129,7 @@ beforeEach(() => {
   });
   vi.clearAllMocks();
   vi.useFakeTimers();
-  vi.mocked(ipc.encodeMessage).mockResolvedValue([0x0a, 0x05]);
+  vi.mocked(ipc.encodeMessage).mockResolvedValue("CgU=");
   Object.defineProperty(navigator, "clipboard", {
     value: { writeText: writeTextMock },
     writable: true,

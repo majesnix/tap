@@ -49,8 +49,12 @@ Teams that ship protobuf-based services and want a fast, code-free way to craft 
 
 ```bash
 pnpm install
-pnpm tauri dev
+pnpm dev:app      # tauri dev with src-tauri/tauri.dev.conf.json
 ```
+
+`pnpm dev:app` runs the app under the identifier `com.tap.dev` with its own data directory
+and keychain namespace, so a development build never reads or overwrites the installed Tap's
+profiles, history and drafts. Plain `pnpm tauri dev` shares the installed app's data.
 
 **Run tests:**
 
@@ -83,6 +87,13 @@ TAP_INTEGRATION=1 cargo llvm-cov --manifest-path src-tauri/Cargo.toml \
 pnpm tauri build
 ```
 
+Updater artifacts (which need `TAURI_SIGNING_PRIVATE_KEY`) are only produced by the release
+workflow, so a local build needs no signing key. A debug bundle without the DMG step:
+
+```bash
+pnpm tauri build --debug --bundles app
+```
+
 ---
 
 ## Install on Arch Linux
@@ -108,6 +119,64 @@ See [`packaging/arch/README.md`](packaging/arch/README.md) for details on the PK
 
 ---
 
+## Connecting over TLS
+
+Profiles have two transport switches and an optional CA bundle:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| AMQP over TLS | Connects with `amqps://` instead of `amqp://` | Off; switches on when the AMQP port is set to 5671 |
+| Management API SSL | Uses `https://` for queue and exchange discovery | Off; switches on when the management port is set to 15671 |
+| CA certificate | PEM bundle the broker certificate must chain to, for internal PKIs the OS trust store does not know | None |
+
+Without TLS the AMQP password travels in cleartext, so the profile dialog warns when a
+remote host is configured with either switch off. Certificates issued by a CA in the OS
+trust store are accepted without a CA bundle.
+
+## Broker user for Tap
+
+Tap needs one RabbitMQ user for both AMQP and the Management API. On a shared broker, give it
+the least it needs instead of the `administrator` tag used by the local Docker setup:
+
+```bash
+rabbitmqctl add_user tap 'choose-a-password'
+rabbitmqctl set_user_tags tap monitoring          # read-only Management API: queues, exchanges, bindings, depth
+rabbitmqctl set_permissions -p / tap \
+  '^amq\.gen-.*$' \
+  '^(orders|events\..*)$' \
+  '^(orders|orders\.reply|amq\.gen-.*)$'
+```
+
+The three permission patterns are *configure*, *write* and *read*:
+
+- **configure** `^amq\.gen-.*$` lets Tap declare its own private reply and tap queues and nothing else.
+- **write** lists the exchanges (or queues, through the default exchange) developers may publish to.
+- **read** lists the queues they may consume or tap, plus the private `amq.gen-*` queues.
+
+When listing is denied, Tap switches its pickers to manual entry; when a publish or consume is
+denied, the broker error is shown as-is.
+
+## Reading queues safely
+
+The Response panel offers four ways to read a queue:
+
+| Mode | What happens on the broker | Effect on other consumers |
+|------|----------------------------|---------------------------|
+| **Tap** (default) | Declares a private, auto-delete queue bound to the same exchanges and routing keys as the target, and streams that copy | None. Needs the Management API to discover bindings; queues fed only through the default exchange cannot be tapped |
+| **Peek** | Reads a batch with `basic.get` and hands it back with one requeue | None, apart from the `redelivered` flag on those messages |
+| **Subscribe** | Joins the queue's consumer pool and acknowledges every delivery it receives | Removes roughly every other message from the real service |
+| **Consume** | Reads a batch and acknowledges it | Removes those messages |
+
+Subscribe and Consume ask for confirmation on profiles tagged Shared or Production (and on
+any remote host), and are disabled on read-only profiles. Tap and Peek always stay available.
+
+## Local data
+
+History (sent payloads, capped at 64 KB each and 30 days), drafts, plans and blocks live in the
+app data directory in cleartext. Profiles can switch off history recording, which is the right
+setting for anything pointed at production, and the trash icon in the sidebar footer clears all
+local data except connection profiles.
+
 ## RabbitMQ quick-start (Docker)
 
 ```bash
@@ -131,4 +200,4 @@ docs/             Additional documentation
 
 ## Version
 
-v1.8.3
+v1.9.0

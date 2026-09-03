@@ -70,6 +70,9 @@ export type RenderFieldFn = (
 
 // ── Phase 2: Connection types ────────────────────────────────────────────────
 
+/** Where a broker lives. Drives confirmations and the badge in the publish bar. */
+export type ProfileEnvironment = "local" | "shared" | "production";
+
 /**
  * Non-secret connection profile. Password is stored in the OS keychain
  * by the Rust backend only — never included here.
@@ -82,6 +85,16 @@ export interface ConnectionProfile {
   username: string;
   management_port: number; // default 15672
   management_ssl: boolean; // default false — set true to use HTTPS for Management API
+  /** Use amqps:// (TLS) for the AMQP connection. Absent in profiles saved before 1.10. */
+  amqp_tls?: boolean;
+  /** Optional PEM bundle the broker certificate must chain to (internal PKI). */
+  ca_cert_path?: string | null;
+  /** Explicit environment tag; inferred from the host when absent (see profileSafety). */
+  environment?: ProfileEnvironment;
+  /** Read-only profiles cannot send, consume, subscribe or run plans. */
+  read_only?: boolean;
+  /** Keep sent messages in the local history (default true). Turn off for production data. */
+  record_history?: boolean;
 }
 
 export type ConnectionStatus = "connected" | "error" | "disconnected";
@@ -90,6 +103,15 @@ export type ManagementStatus = "live" | "manual" | "unknown";
 // ── Phase 14: Live subscribe status ──────────────────────────────────────────
 
 export type SubscribeStatus = "Idle" | "Running" | "Stopping" | "Error";
+
+/** How a subscription reads a queue: a non-destructive tap copy, or a competing consumer. */
+export type SubscribeMode = "tap" | "competing";
+
+/**
+ * Response-panel reading modes. Tap and Peek leave the queue as it was; Subscribe and
+ * Consume remove what Tap receives for every other consumer.
+ */
+export type FeedMode = "tap" | "subscribe" | "peek" | "drain";
 
 // ── Phase 4: Response queue reader types ─────────────────────────────────────
 

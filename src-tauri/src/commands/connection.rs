@@ -1,5 +1,5 @@
-use lapin::{Connection, ConnectionProperties};
 use reqwest::Client;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
 use tauri::AppHandle;
@@ -7,9 +7,28 @@ use tauri_plugin_store::StoreExt;
 
 use crate::error::AppError;
 use crate::profiles::{
-    build_amqp_uri, delete_password, get_password, store_password, ConnectionProfile,
-    PROFILES_STORE_KEY,
+    delete_password, get_password, store_password, validate_profile, AmqpEndpoint,
+    ConnectionProfile, ManagementEndpoint, AMQP_CONNECT_TIMEOUT, PROFILES_STORE_KEY,
 };
+
+/// Whether the OS keychain could be opened at startup. When it could not, Tap runs on an
+/// in-memory store: profiles work for the session but passwords are not persisted.
+#[derive(Debug, Clone, Serialize)]
+pub struct KeychainStatus {
+    pub available: bool,
+    pub error: Option<String>,
+}
+
+/// Report the keychain status so the frontend can warn the user.
+#[tauri::command]
+pub fn keychain_status(status: tauri::State<'_, KeychainStatus>) -> KeychainStatus {
+    status.inner().clone()
+}
+
+/// TCP connect budget for the Management API; a stalled port must not hang the UI.
+const MANAGEMENT_CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
+/// Whole-request budget for one Management API call.
+const MANAGEMENT_REQUEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 /// Intermediate struct for deserializing Management API /api/queues response.
 /// Uses serde to ignore all fields except name — the Management API returns 50+ fields.
@@ -73,8 +92,8 @@ pub async fn save_profile(
     profile: ConnectionProfile,
     password: String,
 ) -> Result<(), AppError> {
-    // 1. Store password in OS keychain
-    store_password(&profile.name, &password)?;
+    // 1. Validate at the boundary before anything is written anywhere
+    validate_profile(&profile)?;
     tracing::debug!("Saving profile: {}", profile.name);
 
     // 2. Load existing profiles from store
@@ -82,27 +101,40 @@ pub async fn save_profile(
         .store("tap.json")
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
-    let mut profiles: Vec<ConnectionProfile> = store
+    let previous: Vec<ConnectionProfile> = store
         .get(PROFILES_STORE_KEY)
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
 
     // 3. Upsert: replace existing profile with same name or append
+    let profile_name = profile.name.clone();
+    let mut profiles = previous.clone();
     if let Some(existing) = profiles.iter_mut().find(|p| p.name == profile.name) {
         *existing = profile;
     } else {
         profiles.push(profile);
     }
 
-    // 4. Persist non-secret fields (no password in JSON)
-    let profiles_value = serde_json::to_value(&profiles)
-        .map_err(|e| AppError::StoreError(e.to_string()))?;
-    store.set(PROFILES_STORE_KEY, profiles_value);
-    store
-        .save()
-        .map_err(|e| AppError::StoreError(e.to_string()))?;
+    // 4. Persist non-secret fields first (no password in JSON) …
+    persist_profiles(&store, &profiles)?;
+
+    // 5. … then the secret. If the keychain refuses, roll the store back so no profile
+    //    exists without a password (or with a stale one).
+    if let Err(e) = store_password(&profile_name, &password) {
+        let _ = persist_profiles(&store, &previous);
+        return Err(e);
+    }
 
     Ok(())
+}
+
+fn persist_profiles(
+    store: &tauri_plugin_store::Store<tauri::Wry>,
+    profiles: &[ConnectionProfile],
+) -> Result<(), AppError> {
+    let value = serde_json::to_value(profiles).map_err(|e| AppError::StoreError(e.to_string()))?;
+    store.set(PROFILES_STORE_KEY, value);
+    store.save().map_err(|e| AppError::StoreError(e.to_string()))
 }
 
 /// Return all saved profiles (no passwords — retrieved from keychain separately).
@@ -142,8 +174,9 @@ pub async fn delete_profile(app: AppHandle, profile_name: String) -> Result<(), 
         .save()
         .map_err(|e| AppError::StoreError(e.to_string()))?;
 
-    // 2. Delete password from OS keychain (best-effort — ignore if not found)
-    let _ = delete_password(&profile_name);
+    // 2. Delete password from OS keychain. A missing entry is fine; any other failure
+    //    is reported so the user knows a secret may be left behind.
+    delete_password(&profile_name)?;
 
     Ok(())
 }
@@ -172,15 +205,9 @@ pub async fn test_connection(app: AppHandle, profile_name: String) -> Result<(),
 
     // Load password from OS keychain (NOT from store JSON)
     let password = get_password(&profile_name)?;
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
-    test_connection_core(
-        &profile.host,
-        profile.port,
-        &profile.vhost,
-        &profile.username,
-        password,
-    )
-    .await?;
+    test_connection_core(&endpoint, password).await?;
 
     tracing::debug!("Connection test passed for profile: {}", profile_name);
     Ok(())
@@ -193,30 +220,10 @@ pub async fn test_connection(app: AppHandle, profile_name: String) -> Result<(),
 /// dropped before the connect attempt. Connect errors are sanitized — never propagate
 /// the raw error (it may contain the cleartext URI).
 pub(crate) async fn test_connection_core(
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
 ) -> Result<(), AppError> {
-    let conn = {
-        let uri = build_amqp_uri(host, port, vhost, username, &password);
-        // password is no longer needed; drop before connect attempt
-        drop(password);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            Connection::connect(&uri, ConnectionProperties::default()),
-        )
-        .await;
-        result
-            .map_err(|_| AppError::AmqpError("Connection timed out (10s)".to_string()))?
-            .map_err(|_| {
-                AppError::AmqpError(
-                    "AMQP connection failed — check host, port, vhost, and credentials"
-                        .to_string(),
-                )
-            })?
-    };
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Connection").await?;
 
     // Open a channel to verify credentials and vhost access
     conn.create_channel().await.map_err(|_| {
@@ -237,80 +244,86 @@ pub async fn activate_profile(app: AppHandle, profile_name: String) -> Result<()
     test_connection(app, profile_name).await
 }
 
-/// Fetch queue names from the RabbitMQ Management API.
-/// Returns Vec<String> of queue names for the profile's vhost.
+/// One authenticated GET against the Management API, decoded as JSON.
 ///
 /// Error disambiguation (CRITICAL — per Pitfall 7):
-/// - reqwest connect error (is_connect=true) → ManagementApiUnavailable(0)  — frontend shows Manual badge
-/// - HTTP 401 → ManagementApiAuthFailed — surface as error (NOT silent fallback)
+/// - connect error or timeout → ManagementApiUnavailable(0) — frontend shows Manual badge
+/// - HTTP 401 → ManagementApiAuthFailed — surfaced as an error (NOT silent fallback)
 /// - HTTP 404 → ManagementApiUnavailable(404) — plugin not enabled, silent fallback
 /// - Other HTTP → ManagementApiUnavailable(status)
 ///
-/// SECURITY: Uses reqwest basic_auth (Authorization header), NOT URL-embedded credentials.
-#[tauri::command]
-pub async fn fetch_queues(
-    app: AppHandle,
-    profile_name: String,
-) -> Result<Vec<String>, AppError> {
-    let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-    fetch_queues_core(
-        &profile.host,
-        profile.management_port,
-        profile.management_ssl,
-        &profile.vhost,
-        &profile.username,
-        &password,
-    )
-    .await
-}
-
-/// Pure async core for [`fetch_queues`] — decoupled from Tauri/keychain for integration testing.
-pub(crate) async fn fetch_queues_core(
-    host: &str,
-    management_port: u16,
-    management_ssl: bool,
-    vhost: &str,
-    username: &str,
+/// SECURITY: credentials go in the Authorization header via basic_auth, never in the URL.
+/// The profile's CA bundle, if any, is added to the trust store for HTTPS.
+async fn management_get<T: DeserializeOwned>(
+    endpoint: &ManagementEndpoint,
+    path: &str,
     password: &str,
-) -> Result<Vec<String>, AppError> {
-    let encoded_vhost =
-        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
-    let scheme = if management_ssl { "https" } else { "http" };
-    let url = format!("{}://{}:{}/api/queues/{}", scheme, host, management_port, encoded_vhost);
+) -> Result<T, AppError> {
+    crate::profiles::ensure_crypto_provider();
+    let mut builder = Client::builder()
+        .connect_timeout(MANAGEMENT_CONNECT_TIMEOUT)
+        .timeout(MANAGEMENT_REQUEST_TIMEOUT);
+    if let Some(pem) = &endpoint.ca_cert_pem {
+        let certs = reqwest::Certificate::from_pem_bundle(pem.as_bytes()).map_err(|e| {
+            AppError::InvalidInput(format!("CA certificate is not a valid PEM bundle: {}", e))
+        })?;
+        for cert in certs {
+            builder = builder.add_root_certificate(cert);
+        }
+    }
+    let client = builder
+        .build()
+        .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
 
-    let client = Client::new();
+    let url = format!("{}{}", endpoint.base_url(), path);
     let resp = client
         .get(&url)
-        .basic_auth(username, Some(password))
-        // SECURITY: basic_auth sets Authorization header — credentials NOT in URL
+        .basic_auth(&endpoint.username, Some(password))
         .send()
         .await
         .map_err(|e| {
-            if e.is_connect() {
-                AppError::ManagementApiUnavailable(0) // port unreachable
+            if e.is_connect() || e.is_timeout() {
+                AppError::ManagementApiUnavailable(0) // port unreachable or stalled
             } else {
                 AppError::ManagementApiError(e.to_string())
             }
         })?;
 
     match resp.status().as_u16() {
-        200 => {
-            let queues: Vec<QueueApiInfo> = resp
-                .json()
-                .await
-                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
-            Ok(queues.into_iter().map(|q| q.name).collect())
-        }
+        200 => resp
+            .json::<T>()
+            .await
+            .map_err(|e| AppError::ManagementApiError(e.to_string())),
         401 => Err(AppError::ManagementApiAuthFailed),
         404 => Err(AppError::ManagementApiUnavailable(404)),
         other => Err(AppError::ManagementApiUnavailable(other)),
     }
 }
 
+/// Fetch queue names from the RabbitMQ Management API for the profile's vhost.
+#[tauri::command]
+pub async fn fetch_queues(
+    app: AppHandle,
+    profile_name: String,
+) -> Result<Vec<String>, AppError> {
+    let (profile, password) = load_profile_with_password(&app, &profile_name)?;
+    let endpoint = ManagementEndpoint::from_profile(&profile)?;
+    fetch_queues_core(&endpoint, &password).await
+}
+
+/// Pure async core for [`fetch_queues`] — decoupled from Tauri/keychain for integration testing.
+/// Requests only the `name` column: the default response carries dozens of fields per queue.
+pub(crate) async fn fetch_queues_core(
+    endpoint: &ManagementEndpoint,
+    password: &str,
+) -> Result<Vec<String>, AppError> {
+    let path = format!("/api/queues/{}?columns=name", endpoint.encoded_vhost());
+    let queues: Vec<QueueApiInfo> = management_get(endpoint, &path, password).await?;
+    Ok(queues.into_iter().map(|q| q.name).collect())
+}
+
 /// Fetch the ready+unacknowledged message count for a single queue.
 /// Returns u64 — callers treat None (Management API unavailable) as a silent no-op.
-///
-/// SECURITY: credentials passed via Authorization header, not URL.
 #[tauri::command]
 pub async fn fetch_queue_depth(
     app: AppHandle,
@@ -318,139 +331,86 @@ pub async fn fetch_queue_depth(
     queue_name: String,
 ) -> Result<u64, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-    fetch_queue_depth_core(
-        &profile.host,
-        profile.management_port,
-        profile.management_ssl,
-        &profile.vhost,
-        &profile.username,
-        &password,
-        &queue_name,
-    )
-    .await
+    let endpoint = ManagementEndpoint::from_profile(&profile)?;
+    fetch_queue_depth_core(&endpoint, &password, &queue_name).await
 }
 
 /// Pure async core for [`fetch_queue_depth`] — decoupled from Tauri/keychain for integration testing.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn fetch_queue_depth_core(
-    host: &str,
-    management_port: u16,
-    management_ssl: bool,
-    vhost: &str,
-    username: &str,
+    endpoint: &ManagementEndpoint,
     password: &str,
     queue_name: &str,
 ) -> Result<u64, AppError> {
-    let encoded_vhost =
-        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
     let encoded_queue =
         percent_encoding::utf8_percent_encode(queue_name, percent_encoding::NON_ALPHANUMERIC);
-    let scheme = if management_ssl { "https" } else { "http" };
-    let url = format!(
-        "{}://{}:{}/api/queues/{}/{}",
-        scheme, host, management_port, encoded_vhost, encoded_queue
-    );
-
-    let client = Client::new();
-    let resp = client
-        .get(&url)
-        .basic_auth(username, Some(password))
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_connect() {
-                AppError::ManagementApiUnavailable(0)
-            } else {
-                AppError::ManagementApiError(e.to_string())
-            }
-        })?;
-
-    match resp.status().as_u16() {
-        200 => {
-            let info: QueueDepthApiInfo = resp
-                .json()
-                .await
-                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
-            Ok(info.messages)
-        }
-        401 => Err(AppError::ManagementApiAuthFailed),
-        404 => Err(AppError::ManagementApiUnavailable(404)),
-        other => Err(AppError::ManagementApiUnavailable(other)),
-    }
+    let path = format!("/api/queues/{}/{}", endpoint.encoded_vhost(), encoded_queue);
+    let info: QueueDepthApiInfo = management_get(endpoint, &path, password).await?;
+    Ok(info.messages)
 }
 
 /// Fetch exchange names from the RabbitMQ Management API.
 /// Filters out: internal exchanges, system exchanges (name starts with "amq."),
 /// and the empty-name default exchange.
-///
-/// Same error disambiguation as fetch_queues.
 #[tauri::command]
 pub async fn fetch_exchanges(
     app: AppHandle,
     profile_name: String,
 ) -> Result<Vec<ExchangeSummary>, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-    fetch_exchanges_core(
-        &profile.host,
-        profile.management_port,
-        profile.management_ssl,
-        &profile.vhost,
-        &profile.username,
-        &password,
-    )
-    .await
+    let endpoint = ManagementEndpoint::from_profile(&profile)?;
+    fetch_exchanges_core(&endpoint, &password).await
 }
 
 /// Pure async core for [`fetch_exchanges`] — decoupled from Tauri/keychain for integration testing.
 pub(crate) async fn fetch_exchanges_core(
-    host: &str,
-    management_port: u16,
-    management_ssl: bool,
-    vhost: &str,
-    username: &str,
+    endpoint: &ManagementEndpoint,
     password: &str,
 ) -> Result<Vec<ExchangeSummary>, AppError> {
-    let encoded_vhost =
-        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
-    let scheme = if management_ssl { "https" } else { "http" };
-    let url = format!("{}://{}:{}/api/exchanges/{}", scheme, host, management_port, encoded_vhost);
-
-    let client = Client::new();
-    let resp = client
-        .get(&url)
-        .basic_auth(username, Some(password))
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_connect() {
-                AppError::ManagementApiUnavailable(0)
-            } else {
-                AppError::ManagementApiError(e.to_string())
-            }
-        })?;
-
-    match resp.status().as_u16() {
-        200 => {
-            let exchanges: Vec<ExchangeApiInfo> = resp
-                .json()
-                .await
-                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
-            Ok(exchanges
-                .into_iter()
-                .filter(|e| !e.internal && !e.name.starts_with("amq.") && !e.name.is_empty())
-                .map(|e| ExchangeSummary { name: e.name, exchange_type: e.exchange_type })
-                .collect())
-        }
-        401 => Err(AppError::ManagementApiAuthFailed),
-        404 => Err(AppError::ManagementApiUnavailable(404)),
-        other => Err(AppError::ManagementApiUnavailable(other)),
-    }
+    let path = format!(
+        "/api/exchanges/{}?columns=name,type,internal",
+        endpoint.encoded_vhost()
+    );
+    let exchanges: Vec<ExchangeApiInfo> = management_get(endpoint, &path, password).await?;
+    Ok(exchanges
+        .into_iter()
+        .filter(|e| !e.internal && !e.name.starts_with("amq.") && !e.name.is_empty())
+        .map(|e| ExchangeSummary { name: e.name, exchange_type: e.exchange_type })
+        .collect())
 }
 
 /// Intermediate struct for deserializing exchange binding entries from the Management API.
 #[derive(Deserialize)]
 struct BindingApiInfo {
     routing_key: String,
+}
+
+/// One exchange → queue binding, as needed to reproduce it on a tap queue.
+#[derive(Debug, Clone, Deserialize)]
+pub struct QueueBinding {
+    /// Source exchange. Empty for the implicit default-exchange binding.
+    pub source: String,
+    pub routing_key: String,
+    /// Binding arguments (headers exchanges use them for x-match rules).
+    #[serde(default)]
+    pub arguments: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Bindings that feed `queue_name` from exchanges, for tap mode. The implicit
+/// default-exchange binding (source "") is left out: it cannot be copied.
+pub(crate) async fn fetch_queue_bindings_core(
+    endpoint: &ManagementEndpoint,
+    password: &str,
+    queue_name: &str,
+) -> Result<Vec<QueueBinding>, AppError> {
+    let encoded_queue =
+        percent_encoding::utf8_percent_encode(queue_name, percent_encoding::NON_ALPHANUMERIC);
+    let path = format!(
+        "/api/queues/{}/{}/bindings?columns=source,routing_key,arguments",
+        endpoint.encoded_vhost(),
+        encoded_queue
+    );
+    let bindings: Vec<QueueBinding> = management_get(endpoint, &path, password).await?;
+    Ok(bindings.into_iter().filter(|b| !b.source.is_empty()).collect())
 }
 
 /// Fetch routing keys from exchange bindings via the RabbitMQ Management API.
@@ -468,74 +428,34 @@ pub async fn fetch_bindings(
     exchange_name: String,
 ) -> Result<Vec<String>, AppError> {
     let (profile, password) = load_profile_with_password(&app, &profile_name)?;
-    fetch_bindings_core(
-        &profile.host,
-        profile.management_port,
-        profile.management_ssl,
-        &profile.vhost,
-        &profile.username,
-        &password,
-        &exchange_name,
-    )
-    .await
+    let endpoint = ManagementEndpoint::from_profile(&profile)?;
+    fetch_bindings_core(&endpoint, &password, &exchange_name).await
 }
 
 /// Pure async core for [`fetch_bindings`] — decoupled from Tauri/keychain for integration testing.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn fetch_bindings_core(
-    host: &str,
-    management_port: u16,
-    management_ssl: bool,
-    vhost: &str,
-    username: &str,
+    endpoint: &ManagementEndpoint,
     password: &str,
     exchange_name: &str,
 ) -> Result<Vec<String>, AppError> {
-    let encoded_vhost =
-        percent_encoding::utf8_percent_encode(vhost, percent_encoding::NON_ALPHANUMERIC);
     let encoded_exchange =
         percent_encoding::utf8_percent_encode(exchange_name, percent_encoding::NON_ALPHANUMERIC);
-    let scheme = if management_ssl { "https" } else { "http" };
-    let url = format!(
-        "{}://{}:{}/api/exchanges/{}/{}/bindings/source",
-        scheme, host, management_port, encoded_vhost, encoded_exchange
+    let path = format!(
+        "/api/exchanges/{}/{}/bindings/source?columns=routing_key",
+        endpoint.encoded_vhost(),
+        encoded_exchange
     );
-
-    let client = Client::new();
-    let resp = client
-        .get(&url)
-        .basic_auth(username, Some(password))
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_connect() {
-                AppError::ManagementApiUnavailable(0)
-            } else {
-                AppError::ManagementApiError(e.to_string())
-            }
-        })?;
-
-    match resp.status().as_u16() {
-        200 => {
-            let bindings: Vec<BindingApiInfo> = resp
-                .json()
-                .await
-                .map_err(|e| AppError::ManagementApiError(e.to_string()))?;
-            // Filter empty keys (default-exchange bindings have empty routing_key).
-            // sort() MUST precede dedup() in Rust — dedup only removes consecutive duplicates.
-            let mut keys: Vec<String> = bindings
-                .into_iter()
-                .map(|b| b.routing_key)
-                .filter(|k| !k.is_empty())
-                .collect();
-            keys.sort();
-            keys.dedup();
-            Ok(keys)
-        }
-        401 => Err(AppError::ManagementApiAuthFailed),
-        404 => Err(AppError::ManagementApiUnavailable(404)),
-        other => Err(AppError::ManagementApiUnavailable(other)),
-    }
+    let bindings: Vec<BindingApiInfo> = management_get(endpoint, &path, password).await?;
+    // Filter empty keys (default-exchange bindings have empty routing_key).
+    // sort() MUST precede dedup() in Rust — dedup only removes consecutive duplicates.
+    let mut keys: Vec<String> = bindings
+        .into_iter()
+        .map(|b| b.routing_key)
+        .filter(|k| !k.is_empty())
+        .collect();
+    keys.sort();
+    keys.dedup();
+    Ok(keys)
 }
 
 // ─── Tests ─────────────────────────────────────────────────────────────────────
@@ -549,9 +469,21 @@ mod tests {
         else {
             return;
         };
-        let res =
-            test_connection_core(&b.host, b.port, &b.vhost, &b.username, b.password.clone()).await;
+        let res = test_connection_core(&b.endpoint(), b.password.clone()).await;
         assert!(res.is_ok(), "expected successful connection, got {res:?}");
+    }
+
+    #[tokio::test]
+    async fn test_connection_core_tls_against_plaintext_port_fails_cleanly() {
+        let Some(b) = crate::test_support::broker_or_skip("test_connection_core_tls").await
+        else {
+            return;
+        };
+        let mut endpoint = b.endpoint();
+        endpoint.tls = true;
+        let err = test_connection_core(&endpoint, b.password.clone()).await.unwrap_err();
+        assert!(matches!(err, AppError::AmqpError(_)), "got {err:?}");
+        assert!(err.to_string().contains("TLS"), "message should mention TLS: {err}");
     }
 
     #[tokio::test]
@@ -560,16 +492,22 @@ mod tests {
         else {
             return;
         };
-        let res =
-            test_connection_core(&b.host, b.port, &b.vhost, "wrong-user", "wrong-pass".to_string())
-                .await;
+        let res = test_connection_core(
+            &AmqpEndpoint::plain(&b.host, b.port, &b.vhost, "wrong-user"),
+            "wrong-pass".to_string(),
+        )
+        .await;
         assert!(res.is_err(), "bad credentials must fail");
     }
 
     #[tokio::test]
     async fn test_connection_core_fails_on_unreachable_host() {
         // No broker needed — port 1 is refused fast, exercising the connect-error arm.
-        let res = test_connection_core("127.0.0.1", 1, "/", "dev", "dev".to_string()).await;
+        let res = test_connection_core(
+            &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"),
+            "dev".to_string(),
+        )
+        .await;
         assert!(res.is_err(), "unreachable host must error");
     }
 
@@ -578,11 +516,7 @@ mod tests {
     #[tokio::test]
     async fn fetch_queues_core_lists_predeclared_queues() {
         let Some(b) = crate::test_support::broker_or_skip("fetch_queues").await else { return };
-        let queues = fetch_queues_core(
-            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password,
-        )
-        .await
-        .unwrap();
+        let queues = fetch_queues_core(&b.management_endpoint(), &b.password).await.unwrap();
         // definitions.json pre-declares these.
         assert!(queues.iter().any(|q| q == "test-queue"));
         assert!(queues.iter().any(|q| q == "proto-test"));
@@ -592,7 +526,8 @@ mod tests {
     async fn fetch_queues_core_bad_credentials_is_auth_failed() {
         let Some(b) = crate::test_support::broker_or_skip("fetch_queues_401").await else { return };
         let err = fetch_queues_core(
-            &b.host, b.management_port, false, &b.vhost, "wrong", "wrong",
+            &ManagementEndpoint::plain(&b.host, b.management_port, &b.vhost, "wrong"),
+            "wrong",
         )
         .await
         .unwrap_err();
@@ -602,7 +537,7 @@ mod tests {
     #[tokio::test]
     async fn fetch_queues_core_unreachable_is_unavailable_zero() {
         // No broker needed — connect failure maps to ManagementApiUnavailable(0).
-        let err = fetch_queues_core("127.0.0.1", 1, false, "/", "dev", "dev")
+        let err = fetch_queues_core(&ManagementEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev")
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::ManagementApiUnavailable(0)), "got {err:?}");
@@ -611,11 +546,9 @@ mod tests {
     #[tokio::test]
     async fn fetch_queue_depth_core_returns_count_for_existing_queue() {
         let Some(b) = crate::test_support::broker_or_skip("fetch_depth").await else { return };
-        let depth = fetch_queue_depth_core(
-            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password, "proto-test",
-        )
-        .await
-        .unwrap();
+        let depth = fetch_queue_depth_core(&b.management_endpoint(), &b.password, "proto-test")
+            .await
+            .unwrap();
         let _ = depth; // count varies; just assert the 200/parse path works
     }
 
@@ -623,7 +556,8 @@ mod tests {
     async fn fetch_queue_depth_core_missing_queue_is_404() {
         let Some(b) = crate::test_support::broker_or_skip("fetch_depth_404").await else { return };
         let err = fetch_queue_depth_core(
-            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password,
+            &b.management_endpoint(),
+            &b.password,
             "no-such-queue-zzz-404",
         )
         .await
@@ -634,11 +568,9 @@ mod tests {
     #[tokio::test]
     async fn fetch_exchanges_core_filters_system_exchanges() {
         let Some(b) = crate::test_support::broker_or_skip("fetch_exchanges").await else { return };
-        let exchanges = fetch_exchanges_core(
-            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password,
-        )
-        .await
-        .unwrap();
+        let exchanges = fetch_exchanges_core(&b.management_endpoint(), &b.password)
+            .await
+            .unwrap();
         // User exchanges present; amq.* / internal / default ("") filtered out.
         assert!(exchanges.iter().any(|e| e.name == "test-direct"));
         assert!(exchanges.iter().all(|e| !e.name.starts_with("amq.")));
@@ -646,14 +578,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn fetch_queue_bindings_core_lists_exchange_bindings_only() {
+        let Some(b) = crate::test_support::broker_or_skip("fetch_queue_bindings").await else { return };
+        // definitions.json: test-direct → test-queue with routing key "proto.test". The implicit
+        // default-exchange binding (source "") cannot be copied and must be filtered out.
+        let bindings = fetch_queue_bindings_core(&b.management_endpoint(), &b.password, "test-queue")
+            .await
+            .unwrap();
+        assert!(
+            bindings.iter().any(|x| x.source == "test-direct" && x.routing_key == "proto.test"),
+            "got {bindings:?}"
+        );
+        assert!(bindings.iter().all(|x| !x.source.is_empty()));
+    }
+
+    #[tokio::test]
     async fn fetch_bindings_core_returns_sorted_dedup_keys() {
         let Some(b) = crate::test_support::broker_or_skip("fetch_bindings").await else { return };
         // test-direct → test-queue with routing key "proto.test" (definitions.json).
-        let keys = fetch_bindings_core(
-            &b.host, b.management_port, false, &b.vhost, &b.username, &b.password, "test-direct",
-        )
-        .await
-        .unwrap();
+        let keys = fetch_bindings_core(&b.management_endpoint(), &b.password, "test-direct")
+            .await
+            .unwrap();
         assert!(keys.contains(&"proto.test".to_string()));
         // Non-empty keys only, sorted+deduped (no consecutive dupes).
         assert!(keys.iter().all(|k| !k.is_empty()));

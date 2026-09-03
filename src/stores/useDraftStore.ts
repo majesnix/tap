@@ -17,6 +17,8 @@ interface DraftStore {
   saveDraft: (filePath: string, messageType: string, values: Record<string, unknown>) => Promise<void>;
   getDraft: (filePath: string, messageType: string) => DraftEntry | undefined;
   clearDraft: (filePath: string, messageType: string) => Promise<void>;
+  /** Remove every draft (Clear local data). */
+  clearAllDrafts: () => Promise<void>;
 }
 
 function draftKey(filePath: string, messageType: string): string {
@@ -78,6 +80,11 @@ export const useDraftStore = create<DraftStore>((set, get) => ({
     };
     set({ drafts: updated });
     return entry;
+  },
+
+  clearAllDrafts: async () => {
+    set({ drafts: {} });
+    await persistDrafts({});
   },
 
   clearDraft: async (filePath, messageType) => {

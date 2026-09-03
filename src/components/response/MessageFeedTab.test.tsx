@@ -79,10 +79,25 @@ import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { MessageFeedTab } from "./MessageFeedTab";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+// Listings are cached per profile across renders; start every test from an empty cache.
+beforeEach(() => invalidateCatalog());
+
+const LOCAL_PROFILE = {
+  name: "test-profile",
+  host: "localhost",
+  port: 5672,
+  vhost: "/",
+  username: "dev",
+  management_port: 15672,
+  management_ssl: false,
+};
 
 const CONNECTED_STATE = {
   connectionStatus: "connected" as const,
   activeProfileName: "test-profile",
+  profiles: [LOCAL_PROFILE],
 };
 
 const FEED_STATE = {
@@ -121,6 +136,11 @@ const MESSAGE_B = {
   error: null,
   decodedAs: null,
 };
+
+/** Pick a feed mode on the Tap / Subscribe / Peek / Consume toggle. */
+function selectMode(label: RegExp) {
+  fireEvent.click(screen.getByRole("radio", { name: label }));
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -170,11 +190,12 @@ describe("MessageFeedTab", () => {
     expect(screen.getByText("1 message")).toBeInTheDocument();
   });
 
-  test("calls drainMessages with selectedDecodeTypes on Drain", async () => {
+  test("calls drainMessages with selectedDecodeTypes on Consume", async () => {
     mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
     render(<MessageFeedTab />);
-    // The Drain button is rendered by ResponseQueuePicker; find it
-    const drainButton = screen.getByRole("button", { name: /drain/i });
+    selectMode(/^consume$/i);
+    // The Consume button is rendered by ResponseQueuePicker; find it
+    const drainButton = screen.getByRole("button", { name: /^consume$/i });
     fireEvent.click(drainButton);
     await waitFor(() => {
       expect(mockDrainMessages).toHaveBeenCalledWith(
@@ -182,6 +203,7 @@ describe("MessageFeedTab", () => {
         "test-queue",
         ["MyMessage"],
         expect.any(Number),
+        false,
       );
     });
   });
@@ -189,7 +211,8 @@ describe("MessageFeedTab", () => {
   test("shows toast.info when drain returns 0 messages", async () => {
     mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
     render(<MessageFeedTab />);
-    fireEvent.click(screen.getByRole("button", { name: /drain/i }));
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     await waitFor(() => {
       expect(mockToastInfo).toHaveBeenCalledWith("Queue is empty");
     });
@@ -201,10 +224,11 @@ describe("MessageFeedTab", () => {
       partialError: "connection reset",
     });
     render(<MessageFeedTab />);
-    fireEvent.click(screen.getByRole("button", { name: /drain/i }));
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        "Drain stopped early: connection reset"
+        "Consume stopped early: connection reset"
       );
     });
   });
@@ -403,5 +427,135 @@ describe("Filter and Export", () => {
     const parsed = JSON.parse(jsonStr) as { messageCount: number; messages: unknown[] };
     expect(parsed.messageCount).toBe(1);
     expect(parsed.messages).toHaveLength(1);
+  });
+});
+
+describe("consume confirmation on non-local hosts", () => {
+  beforeEach(() => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+    mockDrainMessages.mockResolvedValue({ messages: [], partialError: null });
+  });
+
+  test("asks for confirmation instead of consuming immediately", async () => {
+    render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("rabbit.staging.internal");
+    expect(dialog).toHaveTextContent("test-queue");
+    expect(mockDrainMessages).not.toHaveBeenCalled();
+  });
+
+  test("consumes after the user confirms", async () => {
+    render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /consume 10 messages/i }));
+    await waitFor(() => {
+      expect(mockDrainMessages).toHaveBeenCalledWith(
+        "test-profile",
+        "test-queue",
+        ["MyMessage"],
+        10,
+        false,
+      );
+    });
+  });
+
+  test("does nothing when the user cancels", async () => {
+    render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /cancel/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+    expect(mockDrainMessages).not.toHaveBeenCalled();
+  });
+});
+
+describe("environment tags and read-only profiles", () => {
+  test("a production tag forces confirmation even on localhost", async () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, environment: "production" }],
+    });
+    render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/production/i);
+    expect(mockDrainMessages).not.toHaveBeenCalled();
+  });
+
+  test("a read-only profile disables Consume", () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
+    expect(screen.getByRole("button", { name: /^consume$/i })).toBeDisabled();
+    expect(screen.getByText(/read-only/i)).toBeInTheDocument();
+  });
+});
+
+describe("tap and peek modes", () => {
+  test("Tap is the default mode and Peek and Consume are offered", () => {
+    render(<MessageFeedTab />);
+    expect(screen.getByRole("radio", { name: /^tap$/i })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("radio", { name: /^peek$/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^consume$/i })).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: /^subscribe$/i })).toBeInTheDocument();
+  });
+
+  test("Peek requeues what it reads and needs no confirmation on a remote host", async () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+    mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
+    render(<MessageFeedTab />);
+    selectMode(/^peek$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^peek$/i }));
+    await waitFor(() => {
+      expect(mockDrainMessages).toHaveBeenCalledWith(
+        "test-profile",
+        "test-queue",
+        ["MyMessage"],
+        10,
+        true,
+      );
+    });
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  test("Peek stays available on a read-only profile", () => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<MessageFeedTab />);
+    selectMode(/^peek$/i);
+    expect(screen.getByRole("button", { name: /^peek$/i })).not.toBeDisabled();
+  });
+
+  test("Consume passes requeue=false", async () => {
+    mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
+    render(<MessageFeedTab />);
+    selectMode(/^consume$/i);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    await waitFor(() => {
+      expect(mockDrainMessages).toHaveBeenCalledWith(
+        "test-profile",
+        "test-queue",
+        ["MyMessage"],
+        10,
+        false,
+      );
+    });
   });
 });

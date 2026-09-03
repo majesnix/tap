@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, FolderOpen } from "lucide-react";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import {
   Dialog,
   DialogContent,
@@ -19,10 +20,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { saveProfile, listProfiles, deleteProfile, testConnection } from "@/lib/ipc";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { ConnectionTestResult } from "@/components/connection/ConnectionTestResult";
-import type { ConnectionProfile } from "@/lib/types";
+import type { ConnectionProfile, ProfileEnvironment } from "@/lib/types";
+import { isLocalHost } from "@/lib/hosts";
+import { ENVIRONMENT_LABELS, profileEnvironment } from "@/lib/profileSafety";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+const ENVIRONMENTS: ProfileEnvironment[] = ["local", "shared", "production"];
+
+/** Standard AMQP TLS port: choosing it is a strong hint that the broker expects amqps. */
+const AMQP_TLS_PORT = "5671";
+/** Standard RabbitMQ Management HTTPS port. */
+const MANAGEMENT_TLS_PORT = "15671";
 
 interface ProfileFormValues {
   name: string;
@@ -33,6 +45,13 @@ interface ProfileFormValues {
   password: string;
   managementPort: string;
   managementSsl: boolean;
+  amqpTls: boolean;
+  caCertPath: string;
+  environment: ProfileEnvironment;
+  /** True once the user picked an environment; the host no longer overrides it. */
+  environmentTouched: boolean;
+  readOnly: boolean;
+  recordHistory: boolean;
 }
 
 const DEFAULT_FORM_VALUES: ProfileFormValues = {
@@ -44,7 +63,46 @@ const DEFAULT_FORM_VALUES: ProfileFormValues = {
   password: "",
   managementPort: "15672",
   managementSsl: false,
+  amqpTls: false,
+  caCertPath: "",
+  environment: "local",
+  environmentTouched: false,
+  readOnly: false,
+  recordHistory: true,
 };
+
+/**
+ * Build the profile object sent to the backend from the form state.
+ * Ports fall back to the AMQP / Management defaults when unparsable.
+ */
+function profileFromForm(values: ProfileFormValues): ConnectionProfile {
+  return {
+    name: values.name.trim(),
+    host: values.host.trim(),
+    port: Number(values.port) || 5672,
+    vhost: values.vhost.trim() || "/",
+    username: values.username.trim(),
+    management_port: Number(values.managementPort) || 15672,
+    management_ssl: values.managementSsl,
+    amqp_tls: values.amqpTls,
+    ca_cert_path: values.caCertPath.trim() || null,
+    environment: values.environment,
+    read_only: values.readOnly,
+    record_history: values.recordHistory,
+  };
+}
+
+/**
+ * Which transports would carry the password in cleartext to a remote host.
+ * Empty when the host is local or everything is encrypted.
+ */
+function cleartextTransports(values: ProfileFormValues): string[] {
+  if (isLocalHost(values.host)) return [];
+  const exposed: string[] = [];
+  if (!values.amqpTls) exposed.push("AMQP");
+  if (!values.managementSsl) exposed.push("Management API");
+  return exposed;
+}
 
 interface ProfileManagementModalProps {
   open: boolean;
@@ -80,6 +138,12 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
       password: "",             // intentionally blank — user must re-enter to change
       managementPort: String(profile.management_port ?? 15672),
       managementSsl: profile.management_ssl ?? false,
+      amqpTls: profile.amqp_tls ?? false,
+      caCertPath: profile.ca_cert_path ?? "",
+      environment: profileEnvironment(profile),
+      environmentTouched: true, // editing: never silently retag an existing profile
+      readOnly: profile.read_only ?? false,
+      recordHistory: profile.record_history !== false,
     });
     setError(null);
     setTestState("idle");
@@ -98,20 +162,57 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Until the user picks an environment, follow the host: a local address is
+  // "local", anything else is "shared". Production is always an explicit choice.
+  const handleHostChange = (value: string) => {
+    setFormValues((prev) => ({
+      ...prev,
+      host: value,
+      environment: prev.environmentTouched
+        ? prev.environment
+        : isLocalHost(value)
+          ? "local"
+          : "shared",
+    }));
+  };
+
+  // Picking the standard TLS port is the clearest signal a user gives about the
+  // transport; follow it, but leave the checkbox editable afterwards.
+  const handlePortChange = (value: string) => {
+    setFormValues((prev) => ({
+      ...prev,
+      port: value,
+      amqpTls: value === AMQP_TLS_PORT ? true : value === "5672" ? false : prev.amqpTls,
+    }));
+  };
+
+  const handleManagementPortChange = (value: string) => {
+    setFormValues((prev) => ({
+      ...prev,
+      managementPort: value,
+      managementSsl:
+        value === MANAGEMENT_TLS_PORT ? true : value === "15672" ? false : prev.managementSsl,
+    }));
+  };
+
+  const handleBrowseCaCert = async () => {
+    const selected = await openFileDialog({
+      multiple: false,
+      filters: [{ name: "PEM certificate", extensions: ["pem", "crt", "cer"] }],
+    });
+    if (selected && typeof selected === "string") {
+      setFormValues((prev) => ({ ...prev, caCertPath: selected }));
+    }
+  };
+
+  const exposedTransports = cleartextTransports(formValues);
+
   const handleTestOnly = async () => {
     setError(null);
     setTestState("idle");
     setTestError(null);
 
-    const profile: ConnectionProfile = {
-      name: formValues.name.trim(),
-      host: formValues.host.trim(),
-      port: Number(formValues.port) || 5672,
-      vhost: formValues.vhost.trim() || "/",
-      username: formValues.username.trim(),
-      management_port: Number(formValues.managementPort) || 15672,
-      management_ssl: formValues.managementSsl,
-    };
+    const profile = profileFromForm(formValues);
 
     if (!profile.name) {
       setError("Profile name is required.");
@@ -154,15 +255,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     setTestState("idle");
     setTestError(null);
 
-    const profile: ConnectionProfile = {
-      name: formValues.name.trim(),
-      host: formValues.host.trim(),
-      port: Number(formValues.port) || 5672,
-      vhost: formValues.vhost.trim() || "/",
-      username: formValues.username.trim(),
-      management_port: Number(formValues.managementPort) || 15672,
-      management_ssl: formValues.managementSsl,
-    };
+    const profile = profileFromForm(formValues);
 
     if (!profile.name) {
       setError("Profile name is required.");
@@ -182,6 +275,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     try {
       // Step 1: persist profile + keychain password
       await saveProfile(profile, formValues.password);
+      invalidateCatalog(profile.name); // host or credentials may have changed
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       setError(message);
@@ -211,6 +305,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     if (!deleteTarget) return;
     try {
       await deleteProfile(deleteTarget);
+      invalidateCatalog(deleteTarget);
       const updated = await listProfiles();
       setProfiles(updated);
     } catch (err: unknown) {
@@ -294,16 +389,78 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   <Input
                     placeholder="localhost"
                     value={formValues.host}
-                    onChange={(e) => handleFieldChange("host", e.target.value)}
+                    onChange={(e) => handleHostChange(e.target.value)}
                   />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">Environment</label>
+                  <RadioGroup
+                    value={formValues.environment}
+                    onValueChange={(value) =>
+                      setFormValues((prev) => ({
+                        ...prev,
+                        environment: value as ProfileEnvironment,
+                        environmentTouched: true,
+                      }))
+                    }
+                    className="flex gap-4"
+                  >
+                    {ENVIRONMENTS.map((env) => (
+                      <div key={env} className="flex items-center gap-2">
+                        <RadioGroupItem value={env} id={`env-${env}`} />
+                        <label htmlFor={`env-${env}`} className="text-sm cursor-pointer">
+                          {ENVIRONMENT_LABELS[env]}
+                        </label>
+                      </div>
+                    ))}
+                  </RadioGroup>
+                  <p className="text-xs text-muted-foreground">
+                    Shared and Production ask before consuming or subscribing; Production also asks before sending.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="read-only"
+                    checked={formValues.readOnly}
+                    onCheckedChange={(checked) =>
+                      setFormValues((prev) => ({ ...prev, readOnly: checked === true }))
+                    }
+                  />
+                  <label htmlFor="read-only" className="text-sm font-semibold cursor-pointer">
+                    Read-only profile (no Send, Consume, Subscribe or plan runs)
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="record-history"
+                    checked={formValues.recordHistory}
+                    onCheckedChange={(checked) =>
+                      setFormValues((prev) => ({ ...prev, recordHistory: checked === true }))
+                    }
+                  />
+                  <label htmlFor="record-history" className="text-sm font-semibold cursor-pointer">
+                    Record sent messages in history (off keeps production payloads off this machine)
+                  </label>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-semibold">Port</label>
                   <Input
                     type="number"
                     value={formValues.port}
-                    onChange={(e) => handleFieldChange("port", e.target.value)}
+                    onChange={(e) => handlePortChange(e.target.value)}
                   />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="amqp-tls"
+                    checked={formValues.amqpTls}
+                    onCheckedChange={(checked) =>
+                      setFormValues((prev) => ({ ...prev, amqpTls: checked === true }))
+                    }
+                  />
+                  <label htmlFor="amqp-tls" className="text-sm font-semibold cursor-pointer">
+                    AMQP over TLS (amqps, port 5671)
+                  </label>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-semibold">Virtual Host</label>
@@ -339,7 +496,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   <Input
                     type="number"
                     value={formValues.managementPort}
-                    onChange={(e) => handleFieldChange("managementPort", e.target.value)}
+                    onChange={(e) => handleManagementPortChange(e.target.value)}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -354,6 +511,35 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                     Management API SSL (HTTPS)
                   </label>
                 </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">CA certificate</label>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      placeholder="CA certificate (PEM), optional"
+                      value={formValues.caCertPath}
+                      onChange={(e) => handleFieldChange("caCertPath", e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => void handleBrowseCaCert()}
+                      aria-label="Browse for CA certificate"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Only needed when the broker uses an internal PKI that the OS trust store does not know.
+                  </p>
+                </div>
+
+                {exposedTransports.length > 0 && (
+                  <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+                    The password will travel unencrypted to {formValues.host.trim()} over{" "}
+                    {exposedTransports.join(" and ")}. Enable TLS before using this profile on a shared broker.
+                  </p>
+                )}
 
                 {error && (
                   <p className="text-sm text-destructive">{error}</p>

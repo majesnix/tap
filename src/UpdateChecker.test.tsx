@@ -100,13 +100,17 @@ describe("UpdateChecker", () => {
     expect(mockRelaunch).toHaveBeenCalledOnce();
   });
 
-  test("check() rejection is swallowed silently — no toast shown", async () => {
+  test("check() rejection is logged, not toasted", async () => {
     mockCheck.mockRejectedValue(new Error("Network error"));
+    // The component logs the failure; assert it instead of letting it leak into the output.
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await act(async () => {
       render(<UpdateChecker />);
     });
 
     expect(mockToast).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith("Update check failed:", expect.any(Error));
+    errorSpy.mockRestore();
   });
 });

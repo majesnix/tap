@@ -1,14 +1,31 @@
 use crate::error::AppError;
 use crate::schema::{extractor, types::ProtoSchema};
 use std::sync::Mutex;
+use tauri::Manager;
+
+type PoolState = Mutex<Option<prost_reflect::DescriptorPool>>;
+
+/// Run a synchronous compile on the blocking pool: protox reads and parses whole
+/// import trees, which must not stall the async runtime that drives live consumers.
+async fn on_blocking_pool<T: Send + 'static>(
+    job: impl FnOnce() -> Result<T, AppError> + Send + 'static,
+) -> Result<T, AppError> {
+    tauri::async_runtime::spawn_blocking(job)
+        .await
+        .map_err(|e| AppError::ParseError(format!("proto compile task failed: {}", e)))?
+}
 
 #[tauri::command]
 pub async fn parse_proto(
+    app: tauri::AppHandle,
     file_path: String,
     include_paths: Vec<String>,
-    pool_state: tauri::State<'_, Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<ProtoSchema, AppError> {
-    parse_proto_core(&file_path, &include_paths, &pool_state)
+    on_blocking_pool(move || {
+        let pool_state = app.state::<PoolState>();
+        parse_proto_core(&file_path, &include_paths, &pool_state)
+    })
+    .await
 }
 
 /// Pure core for [`parse_proto`]: compile one file, extract its schema, merge into the pool.
@@ -35,7 +52,7 @@ pub(crate) fn parse_proto_core(
     // loaded files. Re-loading a changed .proto won't update pool types;
     // restart the app if you change a .proto during a session.
     let fds_for_merge = compiler.file_descriptor_set();
-    let mut guard = pool_state.lock().unwrap();
+    let mut guard = crate::commands::lock_state(pool_state)?;
     match guard.as_mut() {
         None => {
             *guard = Some(new_pool);
@@ -57,11 +74,15 @@ pub(crate) fn parse_proto_core(
 
 #[tauri::command]
 pub async fn reload_proto(
+    app: tauri::AppHandle,
     file_paths: Vec<String>,
     include_paths: Vec<Vec<String>>,
-    pool_state: tauri::State<'_, Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<Vec<ProtoSchema>, AppError> {
-    reload_proto_core(&file_paths, &include_paths, &pool_state)
+    on_blocking_pool(move || {
+        let pool_state = app.state::<PoolState>();
+        reload_proto_core(&file_paths, &include_paths, &pool_state)
+    })
+    .await
 }
 
 /// Pure core for [`reload_proto`]: recompile a set of files into a fresh merged pool.
@@ -117,7 +138,7 @@ pub(crate) fn reload_proto_core(
         }
     }
 
-    let mut guard = pool_state.lock().unwrap();
+    let mut guard = crate::commands::lock_state(pool_state)?;
     *guard = merged_pool;
 
     Ok(schemas)

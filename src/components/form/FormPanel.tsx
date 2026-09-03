@@ -3,8 +3,8 @@ import { useDroppable, useDndMonitor } from "@dnd-kit/core";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useDraftStore } from "@/stores/useDraftStore";
 import { encodeMessage } from "@/lib/ipc";
+import { base64ToHex } from "@/lib/bytes";
 import { generateRandomValues } from "@/lib/randomizer";
-import { useDebounce } from "@/hooks/useDebounce";
 import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
 import { JsonEditor } from "./JsonEditor";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -29,43 +29,45 @@ import { Badge } from "@/components/ui/badge";
 import { useHotkeys } from "react-hotkeys-hook";
 import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 
-/**
- * Converts a byte array to a formatted hex string.
- * Example: [0x0a, 0x05] → "0a 05"
- */
-function bytesToHex(bytes: number[]): string {
-  return bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ");
-}
-
 interface FormPanelProps {
   isBlockLibraryOpen?: boolean;
   onToggleBlockLibrary?: () => void;
 }
 
+/** Pause after the last form change before encoding and saving a draft. */
+const FORM_DEBOUNCE_MS = 200;
+
 export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: FormPanelProps = {}) {
-  const {
-    schema,
-    selectedMessageType,
-    setHexPreview,
-    setEncoding,
-    setEncodeError,
-    pendingReplayValues,
-    setPendingReplayValues,
-  } = useProtoStore();
+  // Selectors, not the whole store: latestValues changes on every keystroke and
+  // this panel must not re-render for it (only for the debounced value below).
+  const schema = useProtoStore((s) => s.schema);
+  const selectedMessageType = useProtoStore((s) => s.selectedMessageType);
+  const setHexPreview = useProtoStore((s) => s.setHexPreview);
+  const setEncoding = useProtoStore((s) => s.setEncoding);
+  const setEncodeError = useProtoStore((s) => s.setEncodeError);
+  const pendingReplayValues = useProtoStore((s) => s.pendingReplayValues);
+  const setPendingReplayValues = useProtoStore((s) => s.setPendingReplayValues);
 
   const activeFilePath = useProtoStore((s) => s.activeFilePath);
-  const { draftsLoaded, saveDraft, getDraft, clearDraft } = useDraftStore();
+  const draftsLoaded = useDraftStore((s) => s.draftsLoaded);
+  const saveDraft = useDraftStore((s) => s.saveDraft);
+  const getDraft = useDraftStore((s) => s.getDraft);
+  const clearDraft = useDraftStore((s) => s.clearDraft);
 
   const { resolvedTheme } = useTheme();
 
-  // latestValues is now in Zustand store (D-07 / advisor Option A)
-  const latestValues = useProtoStore((s) => s.latestValues);
-
   // BUG-5 fix: tagged values capture (filePath, messageType) at watch time to prevent
   // stale debounced values from contaminating draft saves after a type switch.
+  // The debounce is timer-based on a ref: only the settled value becomes state, so a
+  // burst of keystrokes causes one re-render here instead of one per key.
   type TaggedValues = { filePath: string; messageType: string; values: Record<string, unknown> };
-  const [taggedValues, setTaggedValues] = useState<TaggedValues | null>(null);
-  const debouncedTagged = useDebounce(taggedValues, 200);
+  const [debouncedTagged, setDebouncedTagged] = useState<TaggedValues | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
+    };
+  }, []);
 
   // Keep a plain debounced alias for the encode effect (same 200ms, same behavior)
   const debouncedValues = debouncedTagged?.values ?? null;
@@ -138,11 +140,16 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
   const handleValuesChange = useCallback((values: unknown) => {
     const { activeFilePath: fp, selectedMessageType: mt } = useProtoStore.getState();
     useProtoStore.getState().setLatestValues(values as Record<string, unknown>);
-    setTaggedValues({
+    const tagged: TaggedValues = {
       filePath: fp ?? "",
       messageType: mt ?? "",
       values: values as Record<string, unknown>,
-    });
+    };
+    if (debounceTimerRef.current !== null) clearTimeout(debounceTimerRef.current);
+    debounceTimerRef.current = setTimeout(() => {
+      debounceTimerRef.current = null;
+      setDebouncedTagged(tagged);
+    }, FORM_DEBOUNCE_MS);
   }, []);
 
   useEffect(() => {
@@ -151,8 +158,8 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
       try {
         setEncoding(true);
         setEncodeError(null);
-        const bytes = await encodeMessage(selectedMessageType, debouncedValues);
-        setHexPreview(bytesToHex(bytes));
+        const encoded = await encodeMessage(selectedMessageType, debouncedValues);
+        setHexPreview(base64ToHex(encoded));
       } catch (err) {
         const msg = typeof err === "string" ? err : "Encoding failed";
         setEncodeError(msg);
@@ -197,11 +204,12 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     if (!msg) return;
     if (isJsonMode) setIsJsonMode(false);
     const dirtyFields = getDirtyFieldsRef.current?.() ?? {};
-    // BUG-6 fix: pass current values so dirty fields are preserved (not zeroed)
-    const currentValues: Record<string, unknown> = latestValues ?? {};
+    // BUG-6 fix: pass current values so dirty fields are preserved (not zeroed).
+    // Read at call time: subscribing to latestValues would re-render per keystroke.
+    const currentValues: Record<string, unknown> = useProtoStore.getState().latestValues ?? {};
     const randomValues = generateRandomValues(msg, schema.message_map, dirtyFields, currentValues);
     setPendingReplayValues(randomValues);
-  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues, latestValues]);
+  }, [schema, selectedMessageType, isJsonMode, setPendingReplayValues]);
 
   useHotkeys("mod+shift+r", (e) => {
     e.preventDefault();
@@ -266,6 +274,7 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
     if (!isJsonMode) {
       // FORM → JSON: capture entry snapshot (D-06), pre-fill editor (D-03, D-09)
       // Fall back to buildDefaultValues when latestValues is null/empty (D-09)
+      const latestValues = useProtoStore.getState().latestValues;
       const snapshot =
         latestValues && Object.keys(latestValues).length > 0
           ? latestValues

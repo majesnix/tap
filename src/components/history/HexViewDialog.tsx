@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import type { HistoryEntry } from "@/stores/useHistoryStore";
+import { base64ToHex, MAX_HISTORY_PAYLOAD_BYTES } from "@/lib/bytes";
 
 interface HexViewDialogProps {
   entry: HistoryEntry | null;
@@ -18,14 +19,13 @@ interface HexViewDialogProps {
 export function HexViewDialog({ entry, open, onOpenChange }: HexViewDialogProps) {
   if (!entry) return null;
 
-  // WR-05: Filter out any values outside [0, 255] before rendering.
-  // payloadBytes is typed as number[] but values loaded from persisted JSON may
-  // be corrupted (NaN, negative, >255, float) and would produce malformed hex
-  // strings (e.g. "-1", "nan", multi-char values > 255).
-  const hex = entry.payloadBytes
-    .filter((b) => Number.isInteger(b) && b >= 0 && b <= 255)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join(" ");
+  // Persisted base64 may have been edited or corrupted; show a message rather than crash.
+  let hex: string;
+  try {
+    hex = base64ToHex(entry.payloadBase64);
+  } catch {
+    hex = "(stored payload is not valid base64)";
+  }
 
   // Format target: "exchange → routingKey" (arrow format per UI-SPEC)
   const target = entry.exchange
@@ -44,6 +44,11 @@ export function HexViewDialog({ entry, open, onOpenChange }: HexViewDialogProps)
             {time} → {target}
           </DialogDescription>
         </DialogHeader>
+        {entry.payloadTruncated && (
+          <p className="text-xs text-muted-foreground">
+            Only the first {MAX_HISTORY_PAYLOAD_BYTES / 1024} KB were kept; this entry cannot be resent.
+          </p>
+        )}
         <pre className="text-xs font-mono break-all whitespace-pre-wrap bg-muted rounded p-4 max-h-80 overflow-auto">
           {hex}
         </pre>

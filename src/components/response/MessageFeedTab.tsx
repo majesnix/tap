@@ -27,20 +27,29 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ResponseQueuePicker } from "./ResponseQueuePicker";
 import { SubscribePanel } from "./SubscribePanel";
 import { MessageFeedRow } from "./MessageFeedRow";
+import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
+import { describeBroker, findProfile, requiresConfirmation } from "@/lib/profileSafety";
+import type { FeedMode } from "@/lib/types";
 
 /**
  * Replaces ResponseTab. Renders the queue picker toolbar + FIFO-500 accordion feed.
  * handleDrain: calls drainMessages with selectedDecodeTypes from store (D-19, D-20).
  */
 export function MessageFeedTab() {
-  const [mode, setMode] = useState<"drain" | "subscribe">("drain");
+  // Tap first: it is the only mode that leaves the queue exactly as it was.
+  const [mode, setMode] = useState<FeedMode>("tap");
 
   // Filter state — local only, not persisted (D-03)
   const [filterRoutingKey, setFilterRoutingKey] = useState("");
   // Three-state: null = All, "__none__" = match null contentType, string = exact match (D-04)
   const [filterContentType, setFilterContentType] = useState<string | null>(null);
 
-  const { connectionStatus, activeProfileName } = useConnectionStore();
+  const { connectionStatus, activeProfileName, profiles } = useConnectionStore();
+
+  const activeProfile = findProfile(profiles, activeProfileName);
+
+  // A consume request waiting for confirmation because the broker is not local.
+  const [pendingConsume, setPendingConsume] = useState<BrokerConfirmRequest | null>(null);
   const {
     selectedQueue,
     messages,
@@ -86,9 +95,10 @@ export function MessageFeedTab() {
 
   const isConnected = connectionStatus === "connected";
 
-  const handleDrain = async (count: number) => {
+  const handleDrain = async (count: number, requeue: boolean) => {
     if (!isConnected || !activeProfileName || selectedDecodeTypes.length === 0) return;
     if (!selectedQueue.trim()) return;
+    const verb = requeue ? "Peek" : "Consume";
 
     setIsLoading(true);
     try {
@@ -97,6 +107,7 @@ export function MessageFeedTab() {
         selectedQueue,
         selectedDecodeTypes,   // D-19: ordered candidate list
         count,
+        requeue,
       );
 
       if (outcome.messages.length === 0 && !outcome.partialError) {
@@ -104,7 +115,7 @@ export function MessageFeedTab() {
       }
 
       if (outcome.partialError) {
-        toast.error(`Drain stopped early: ${outcome.partialError}`);
+        toast.error(`${verb} stopped early: ${outcome.partialError}`);
       }
 
       if (outcome.messages.length > 0) {
@@ -116,11 +127,31 @@ export function MessageFeedTab() {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Drain failed: ${message}`);
+      toast.error(`${verb} failed: ${message}`);
     } finally {
       setIsLoading(false);
       setLastReadAt(Date.now()); // CONS-04: always refresh queue depth, even on error
     }
+  };
+
+  // Peek hands everything back and never needs a confirmation. Consume removes
+  // messages for every other consumer of the queue: on the developer's own machine
+  // that is what they asked for; anywhere else, ask first.
+  const requestConsume = (count: number) => {
+    if (mode === "peek") {
+      void handleDrain(count, true);
+      return;
+    }
+    if (!requiresConfirmation(activeProfile, "consume")) {
+      void handleDrain(count, false);
+      return;
+    }
+    setPendingConsume({
+      kind: "consume",
+      queue: selectedQueue,
+      broker: describeBroker(activeProfile),
+      count,
+    });
   };
 
   const handleExport = async () => {
@@ -175,32 +206,50 @@ export function MessageFeedTab() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Mode toggle — Drain ↔ Subscribe (D-04, D-06) */}
+      {/* Mode toggle — Tap / Subscribe stream live; Peek / Consume read a batch (D-04, D-06) */}
       <div className="px-4 pt-2 pb-1 border-b border-border flex items-center gap-2">
         <ToggleGroup
           type="single"
           value={mode}
-          onValueChange={(v) => v && setMode(v as "drain" | "subscribe")}
+          onValueChange={(v) => v && setMode(v as FeedMode)}
           disabled={isModeLocked}
         >
-          <ToggleGroupItem value="drain">Drain</ToggleGroupItem>
-          <ToggleGroupItem value="subscribe">Subscribe</ToggleGroupItem>
+          <ToggleGroupItem value="tap" title="Copy of live traffic through a private queue; the original queue is untouched">
+            Tap
+          </ToggleGroupItem>
+          <ToggleGroupItem value="subscribe" title="Competing consumer: what Tap receives is removed from the queue">
+            Subscribe
+          </ToggleGroupItem>
+          <ToggleGroupItem value="peek" title="Read a batch and hand it back to the queue">
+            Peek
+          </ToggleGroupItem>
+          <ToggleGroupItem value="drain" title="Read a batch and remove it from the queue">
+            Consume
+          </ToggleGroupItem>
         </ToggleGroup>
       </div>
 
       {/* Toolbar — queue picker shared between modes; drain controls hidden in subscribe mode */}
-      <ResponseQueuePicker
-        onDrain={(count) => void handleDrain(count)}
-        mode={mode}
+      <ResponseQueuePicker onDrain={requestConsume} mode={mode} />
+
+      <BrokerConfirmDialog
+        request={pendingConsume}
+        onConfirm={() => {
+          const request = pendingConsume;
+          setPendingConsume(null);
+          if (request?.kind === "consume") void handleDrain(request.count, false);
+        }}
+        onCancel={() => setPendingConsume(null)}
       />
 
-      {/* Subscribe controls — shown in subscribe mode only */}
-      {mode === "subscribe" && (
+      {/* Live controls — tap (copy) or subscribe (competing) */}
+      {(mode === "tap" || mode === "subscribe") && (
         <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
           <SubscribePanel
             selectedQueue={selectedQueue}
             decodeTypes={selectedDecodeTypes}
             profileName={activeProfileName ?? ""}
+            mode={mode === "tap" ? "tap" : "competing"}
           />
         </div>
       )}

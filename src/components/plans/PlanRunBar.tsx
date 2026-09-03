@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { Plan } from "@/lib/types";
+import { findProfile, isReadOnly } from "@/lib/profileSafety";
 
 // ── PlanRunBar ─────────────────────────────────────────────────────────────────
 
@@ -25,13 +26,15 @@ export function PlanRunBar({ plan }: PlanRunBarProps) {
   const { summary } = usePlanExecutionStore();
   const { updatePlan } = usePlanStore();
   const activeProfileName = useConnectionStore((s) => s.activeProfileName);
+  const profiles = useConnectionStore((s) => s.profiles);
+  const readOnly = isReadOnly(findProfile(profiles, activeProfileName));
 
   const stopOnError = plan.stop_on_error ?? true;
 
   // Disable conditions (T-22-10: double-submit prevented by isRunning check)
   const hasSteps = plan.steps.length > 0;
   const hasProfile = activeProfileName !== null;
-  const canRun = hasSteps && hasProfile && !isRunning;
+  const canRun = hasSteps && hasProfile && !readOnly && !isRunning;
 
   // Tooltip message for disabled run button
   let disableReason: string | null = null;
@@ -39,6 +42,8 @@ export function PlanRunBar({ plan }: PlanRunBarProps) {
     disableReason = "Add at least one step to run this plan";
   } else if (!hasProfile) {
     disableReason = "Connect to a profile first";
+  } else if (readOnly) {
+    disableReason = "Profile is read-only";
   }
 
   // Summary display — shown when run completed (isRunning is false, summary is set)

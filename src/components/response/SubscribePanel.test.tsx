@@ -36,6 +36,17 @@ const DEFAULT_PROPS = {
   selectedQueue: "my-queue",
   decodeTypes: ["MyMessage"],
   profileName: "test-profile",
+  mode: "competing" as const,
+};
+
+const LOCAL_PROFILE = {
+  name: "test-profile",
+  host: "localhost",
+  port: 5672,
+  vhost: "/",
+  username: "dev",
+  management_port: 15672,
+  management_ssl: false,
 };
 
 beforeEach(() => {
@@ -44,6 +55,7 @@ beforeEach(() => {
   useConnectionStore.setState({
     activeProfileName: "test-profile",
     connectionStatus: "connected",
+    profiles: [LOCAL_PROFILE],
   });
   // Default: startSubscribe resolves, stopSubscribe resolves
   mockStartSubscribe.mockResolvedValue(undefined);
@@ -69,11 +81,17 @@ describe("Start button", () => {
     expect(screen.queryByRole("button", { name: /start/i })).not.toBeInTheDocument();
   });
 
-  test("clicking Start calls startSubscribe", async () => {
+  test("clicking Start calls startSubscribe as a competing consumer", async () => {
     render(<SubscribePanel {...DEFAULT_PROPS} />);
     fireEvent.click(screen.getByRole("button", { name: /start/i }));
     await waitFor(() => {
-      expect(mockStartSubscribe).toHaveBeenCalledTimes(1);
+      expect(mockStartSubscribe).toHaveBeenCalledWith(
+        "test-profile",
+        "my-queue",
+        ["MyMessage"],
+        expect.anything(),
+        "competing",
+      );
     });
   });
 
@@ -393,5 +411,158 @@ describe("Error state reset on profile change (GAP-3)", () => {
     // Wait one tick for any potential useEffect to fire
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(useResponseStore.getState().subscribeStatus).toBe("Error");
+  });
+});
+
+// ── Confirmation on non-local hosts ───────────────────────────────────────────
+
+describe("confirmation on non-local hosts", () => {
+  beforeEach(() => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+  });
+
+  test("clicking Start opens a confirmation instead of subscribing", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("rabbit.staging.internal");
+    expect(dialog).toHaveTextContent("my-queue");
+    expect(mockStartSubscribe).not.toHaveBeenCalled();
+  });
+
+  test("subscribes after the user confirms", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /start subscribing/i }));
+    await waitFor(() => {
+      expect(mockStartSubscribe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("does not subscribe when the user cancels", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /cancel/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+    expect(mockStartSubscribe).not.toHaveBeenCalled();
+  });
+});
+
+describe("environment tags and read-only profiles", () => {
+  test("a production tag forces confirmation even on localhost", async () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, environment: "production" }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/production/i);
+    expect(mockStartSubscribe).not.toHaveBeenCalled();
+  });
+
+  test("a read-only profile disables Start", () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    expect(screen.getByRole("button", { name: /^start$/i })).toBeDisabled();
+  });
+});
+
+// ── Tap mode (non-destructive) ────────────────────────────────────────────────
+
+describe("tap mode", () => {
+  test("starts a tap without confirmation, even on a remote host", async () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} mode="tap" />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    await waitFor(() => {
+      expect(mockStartSubscribe).toHaveBeenCalledWith(
+        "test-profile",
+        "my-queue",
+        ["MyMessage"],
+        expect.anything(),
+        "tap",
+      );
+    });
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  });
+
+  test("stays available on a read-only profile", () => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, read_only: true }],
+    });
+    render(<SubscribePanel {...DEFAULT_PROPS} mode="tap" />);
+    expect(screen.getByRole("button", { name: /^start$/i })).not.toBeDisabled();
+    expect(screen.getByText(/non-destructive/i)).toBeInTheDocument();
+  });
+});
+
+// ── Delivery batching ─────────────────────────────────────────────────────────
+
+import { Channel } from "@tauri-apps/api/core";
+import { FEED_FLUSH_MS } from "@/lib/feedBatcher";
+import type { DrainResult } from "@/lib/types";
+
+describe("delivery batching", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The callback handed to the (mocked) Channel by the most recent Start. */
+  function channelCallback(): (msg: DrainResult) => void {
+    const instances = vi.mocked(Channel).mock.instances as unknown as Array<{ cb: (msg: DrainResult) => void }>;
+    return instances[instances.length - 1].cb;
+  }
+
+  const delivery = (routingKey: string, isTerminal = false): DrainResult => ({
+    routingKey,
+    exchange: "",
+    contentType: null,
+    timestamp: null,
+    decoded: null,
+    hexString: "0a",
+    error: null,
+    decodedAs: null,
+    isTerminal,
+  });
+
+  test("applies a burst of deliveries to the store in one update", () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    const cb = channelCallback();
+    act(() => {
+      cb(delivery("a"));
+      cb(delivery("b"));
+      cb(delivery("c"));
+    });
+    expect(useResponseStore.getState().messages).toHaveLength(0);
+    act(() => {
+      vi.advanceTimersByTime(FEED_FLUSH_MS);
+    });
+    expect(useResponseStore.getState().messages.map((m) => m.routingKey)).toEqual(["c", "b", "a"]);
+  });
+
+  test("a terminal delivery lands immediately and returns the session to Idle", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    await act(async () => {}); // let the mocked startSubscribe resolve → Running
+    expect(useResponseStore.getState().subscribeStatus).toBe("Running");
+    const cb = channelCallback();
+    act(() => {
+      cb(delivery("a"));
+      cb(delivery("closed", true));
+    });
+    expect(useResponseStore.getState().messages).toHaveLength(2);
+    expect(useResponseStore.getState().subscribeStatus).toBe("Idle");
   });
 });

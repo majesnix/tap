@@ -19,6 +19,7 @@ import { RELEASE_NAME } from "@/lib/release";
 import { runUpdateCheck } from "@/UpdateChecker";
 import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 import { SchemaExplorer } from "@/components/sidebar/SchemaExplorer";
+import { ClearLocalDataButton } from "@/components/sidebar/ClearLocalDataButton";
 
 interface SidebarProps {
   viewMode?: "main" | "plans";
@@ -27,7 +28,9 @@ interface SidebarProps {
 
 export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
   const { isMac } = usePlatformLabel();
-  const { schema, selectedMessageType, setSelectedType } = useProtoStore();
+  const schema = useProtoStore((s) => s.schema);
+  const selectedMessageType = useProtoStore((s) => s.selectedMessageType);
+  const setSelectedType = useProtoStore((s) => s.setSelectedType);
   const [appVersion, setAppVersion] = useState<string>("");
 
   useEffect(() => {
@@ -108,6 +111,7 @@ export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
               <RefreshCw className="size-4" />
             </Button>
           )}
+          <ClearLocalDataButton />
           <ThemeToggle />
         </div>
       </div>

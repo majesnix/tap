@@ -90,6 +90,12 @@ export function MessageHistoryPanel() {
     setPendingReplayValues(entry.fieldValues);
     // NOTE: RightPanel auto-switches to "hex" tab via pendingReplayValues edge-detection.
 
+    // A truncated payload would send a corrupt message; refuse rather than guess.
+    if (entry.payloadTruncated) {
+      toast.error("Resend unavailable: this payload was too large and only its start was kept.");
+      return;
+    }
+
     // Step 2: Send immediately using stored payload bytes (no re-encoding).
     // WR-02: Separate publish from history write so appendEntry failures do not
     // show a misleading "Resend failed" toast when the message was actually sent.
@@ -98,7 +104,7 @@ export function MessageHistoryPanel() {
         activeProfileName,
         entry.exchange,
         entry.routingKey,
-        entry.payloadBytes
+        entry.payloadBase64
       );
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -122,7 +128,8 @@ export function MessageHistoryPanel() {
         routingKey: entry.routingKey,
         status: "sent",
         fieldValues: entry.fieldValues,
-        payloadBytes: entry.payloadBytes,
+        payloadBase64: entry.payloadBase64,
+        payloadTruncated: entry.payloadTruncated,
       });
     } catch (err: unknown) {
       // Non-fatal: message was sent; history record could not be persisted.

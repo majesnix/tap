@@ -1,5 +1,5 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
-import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome, DrainResult, PlanStep, StepResult, ReplyMessage } from "./types";
+import type { ProtoSchema, ConsumeResult, ExchangeSummary, PublishOutcome, DrainOutcome, DrainResult, PlanStep, StepResult, ReplyMessage, SubscribeMode } from "./types";
 
 export async function parseProto(
   filePath: string,
@@ -21,11 +21,12 @@ export async function checkPathsExist(
   return invoke<boolean[]>("check_paths_exist", { paths });
 }
 
+/** Encode form values to protobuf wire bytes; returns standard base64. */
 export async function encodeMessage(
   messageType: string,
   formValues: unknown
-): Promise<number[]> {
-  return invoke<number[]>("encode_message", { messageType, formValues });
+): Promise<string> {
+  return invoke<string>("encode_message", { messageType, formValues });
 }
 
 import type { ConnectionProfile } from "./types";
@@ -39,6 +40,16 @@ export async function saveProfile(
   password: string
 ): Promise<void> {
   return invoke<void>("save_profile", { profile, password });
+}
+
+/** Whether the OS keychain opened at startup; when it did not, passwords live in memory only. */
+export interface KeychainStatus {
+  available: boolean;
+  error: string | null;
+}
+
+export async function keychainStatus(): Promise<KeychainStatus> {
+  return invoke<KeychainStatus>("keychain_status");
 }
 
 export async function listProfiles(): Promise<ConnectionProfile[]> {
@@ -97,14 +108,14 @@ export async function publishMessage(
   profileName: string,
   exchange: string, // "" for default exchange (queue direct), named exchange for PUBL-02
   routingKey: string, // queue name (PUBL-01) or explicit routing key (PUBL-02)
-  payload: number[], // binary protobuf bytes as number[] (from encodeMessage)
+  payloadBase64: string, // binary protobuf bytes as base64 (from encodeMessage)
   amqpProps?: AmqpPropsIpc
 ): Promise<PublishOutcome> {
   return invoke<PublishOutcome>("publish_message", {
     profileName,
     exchange,
     routingKey,
-    payload,
+    payloadBase64,
     contentType: amqpProps?.contentType ?? null,
     deliveryMode: amqpProps?.deliveryMode ?? null,
     ttl: amqpProps?.ttl ?? null,
@@ -127,8 +138,9 @@ export async function consumeMessage(
 }
 
 /**
- * Drain up to count messages from queueName in one shot.
+ * Read up to count messages from queueName in one shot.
  * messageTypeNames: ordered candidate list — Rust tries each in order, first success wins (D-19).
+ * requeue=false consumes (acks) them; requeue=true peeks and hands them back to the queue.
  * Returns DrainOutcome { messages: DrainResult[], partialError: string | null }.
  */
 export async function drainMessages(
@@ -136,12 +148,14 @@ export async function drainMessages(
   queueName: string,
   messageTypeNames: string[],
   count: number,
+  requeue = false,
 ): Promise<DrainOutcome> {
   return invoke<DrainOutcome>("drain_messages", {
     profileName,
     queueName,
     messageTypeNames,
     count,
+    requeue,
   });
 }
 
@@ -158,8 +172,9 @@ export function startSubscribe(
   queueName: string,
   decodeTypes: string[],
   channel: Channel<DrainResult>,
+  mode: SubscribeMode,
 ): Promise<void> {
-  return invoke("start_subscribe", { profileName, queueName, decodeTypes, channel });
+  return invoke("start_subscribe", { profileName, queueName, decodeTypes, mode, channel });
 }
 
 /**

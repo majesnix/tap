@@ -12,6 +12,8 @@
 use lapin::{Connection, ConnectionProperties};
 use std::time::Duration;
 
+use crate::profiles::{AmqpEndpoint, ManagementEndpoint};
+
 /// Connection parameters for the test broker.
 #[derive(Clone)]
 pub struct TestBroker {
@@ -21,6 +23,18 @@ pub struct TestBroker {
     pub username: String,
     pub password: String,
     pub management_port: u16,
+}
+
+impl TestBroker {
+    /// Plain-AMQP endpoint for the test broker.
+    pub fn endpoint(&self) -> AmqpEndpoint {
+        AmqpEndpoint::plain(&self.host, self.port, &self.vhost, &self.username)
+    }
+
+    /// Plain-HTTP Management API endpoint for the test broker.
+    pub fn management_endpoint(&self) -> ManagementEndpoint {
+        ManagementEndpoint::plain(&self.host, self.management_port, &self.vhost, &self.username)
+    }
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -48,7 +62,7 @@ pub fn test_broker() -> TestBroker {
 /// - Not reachable otherwise → prints a skip notice and returns `None`.
 pub async fn broker_or_skip(test_name: &str) -> Option<TestBroker> {
     let b = test_broker();
-    let uri = crate::profiles::build_amqp_uri(&b.host, b.port, &b.vhost, &b.username, &b.password);
+    let uri = b.endpoint().uri(&b.password);
     let reachable = matches!(
         tokio::time::timeout(
             Duration::from_secs(3),
@@ -79,7 +93,7 @@ pub async fn broker_or_skip(test_name: &str) -> Option<TestBroker> {
 /// Returns both so callers that need to keep the `Connection` alive (or move it into
 /// a core that closes it) can hold ownership rather than relying on channel-keepalive.
 pub async fn test_connection_and_channel(b: &TestBroker) -> (lapin::Connection, lapin::Channel) {
-    let uri = crate::profiles::build_amqp_uri(&b.host, b.port, &b.vhost, &b.username, &b.password);
+    let uri = b.endpoint().uri(&b.password);
     let conn = Connection::connect(&uri, ConnectionProperties::default())
         .await
         .expect("test broker connect failed");
@@ -90,4 +104,28 @@ pub async fn test_connection_and_channel(b: &TestBroker) -> (lapin::Connection, 
 /// Open a channel against the test broker — convenience for tests that need one.
 pub async fn test_channel(b: &TestBroker) -> lapin::Channel {
     test_connection_and_channel(b).await.1
+}
+
+/// Delete a test queue so runs do not pile up on the developer's broker.
+pub async fn delete_queue(b: &TestBroker, queue: &str) {
+    let ch = test_channel(b).await;
+    let _ = ch
+        .queue_delete(queue.into(), lapin::options::QueueDeleteOptions::default())
+        .await;
+}
+
+/// Delete a test exchange declared by a test.
+pub async fn delete_exchange(b: &TestBroker, exchange: &str) {
+    let ch = test_channel(b).await;
+    let _ = ch
+        .exchange_delete(exchange.into(), lapin::options::ExchangeDeleteOptions::default())
+        .await;
+}
+
+/// Drop the messages a test published to a shared, pre-declared queue.
+pub async fn purge_queue(b: &TestBroker, queue: &str) {
+    let ch = test_channel(b).await;
+    let _ = ch
+        .queue_purge(queue.into(), lapin::options::QueuePurgeOptions::default())
+        .await;
 }

@@ -13,7 +13,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn().mockResolvedValue(mockStore),
 }));
 
-import { useHistoryStore, type HistoryEntry } from "./useHistoryStore";
+import { useHistoryStore, MAX_HISTORY_AGE_DAYS, type HistoryEntry } from "./useHistoryStore";
 
 function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
   return {
@@ -24,7 +24,7 @@ function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     routingKey: "test-queue",
     status: "sent",
     fieldValues: {},
-    payloadBytes: [0x0a, 0x05],
+    payloadBase64: "CgU=",
     ...overrides,
   };
 }
@@ -117,7 +117,7 @@ describe("protoPath on HistoryEntry (D-10)", () => {
       protoPath: "/some/path.proto",
       status: "sent",
       fieldValues: {},
-      payloadBytes: [],
+      payloadBase64: "",
     });
     const { entries } = useHistoryStore.getState();
     expect(entries[0].protoPath).toBe("/some/path.proto");
@@ -133,7 +133,7 @@ describe("protoPath on HistoryEntry (D-10)", () => {
       routingKey: "test-queue",
       status: "sent",
       fieldValues: {},
-      payloadBytes: [],
+      payloadBase64: "",
     });
     const { entries } = useHistoryStore.getState();
     expect(entries[0].protoPath).toBeUndefined();
@@ -160,5 +160,54 @@ describe("loadHistory", () => {
     const { entries, historyLoaded } = useHistoryStore.getState();
     expect(historyLoaded).toBe(true);
     expect(entries).toHaveLength(0);
+  });
+});
+
+// ── legacy entries ────────────────────────────────────────────────────────────
+
+describe("loadHistory migration", () => {
+  test("converts payloadBytes number arrays from older versions to base64", async () => {
+    mockGet.mockResolvedValue([
+      {
+        id: "legacy",
+        timestamp: new Date().toISOString(), // recent: retention must not drop it
+        messageTypeName: "Legacy",
+        exchange: "",
+        routingKey: "q",
+        status: "sent",
+        fieldValues: {},
+        payloadBytes: [0x0a, 0x05],
+      },
+    ]);
+    await useHistoryStore.getState().loadHistory();
+    const [entry] = useHistoryStore.getState().entries;
+    expect(entry.payloadBase64).toBe("CgU=");
+    expect(entry.payloadTruncated).toBe(false);
+    expect((entry as unknown as { payloadBytes?: unknown }).payloadBytes).toBeUndefined();
+  });
+
+  test("drops entries whose payload cannot be understood", async () => {
+    mockGet.mockResolvedValue([
+      { id: "broken", timestamp: new Date().toISOString(), messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBytes: "nope" },
+      { id: "ok", timestamp: new Date().toISOString(), messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBase64: "CgU=" },
+    ]);
+    await useHistoryStore.getState().loadHistory();
+    expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["ok"]);
+  });
+});
+
+// ── retention ─────────────────────────────────────────────────────────────────
+
+describe("loadHistory retention", () => {
+  test("drops entries older than MAX_HISTORY_AGE_DAYS and keeps recent ones", async () => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const old = new Date(Date.now() - (MAX_HISTORY_AGE_DAYS + 1) * dayMs).toISOString();
+    const recent = new Date(Date.now() - dayMs).toISOString();
+    mockGet.mockResolvedValue([
+      makeEntry({ id: "old", timestamp: old }),
+      makeEntry({ id: "recent", timestamp: recent }),
+    ]);
+    await useHistoryStore.getState().loadHistory();
+    expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["recent"]);
   });
 });

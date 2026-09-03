@@ -41,6 +41,10 @@ vi.mock("@/lib/ipc", () => ({
 }));
 
 import { ResponseQueuePicker } from "@/components/response/ResponseQueuePicker";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+// Listings are cached per profile across renders; start every test from an empty cache.
+beforeEach(() => invalidateCatalog());
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -118,42 +122,42 @@ describe("ResponseQueuePicker", () => {
     });
   });
 
-  it("Test 4 (disabled drain + tooltip): Drain button is disabled when connectionStatus is disconnected", () => {
+  it("Test 4 (disabled consume + tooltip): Consume button is disabled when connectionStatus is disconnected", () => {
     useConnectionStore.setState({ connectionStatus: "disconnected" });
 
     render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
-    const drainButton = screen.getByRole("button", { name: /drain/i });
+    const drainButton = screen.getByRole("button", { name: /consume/i });
     expect(drainButton).toBeDisabled();
   });
 
-  it("Test 5 (loading spinner): shows Loader2 spinner and disables Drain when isLoading=true", () => {
+  it("Test 5 (loading spinner): shows Loader2 spinner and disables Consume when isLoading=true", () => {
     useResponseStore.setState({ isLoading: true });
 
     render(<ResponseQueuePicker onDrain={vi.fn()} />);
 
-    // Drain button should be disabled when loading
-    const drainButton = screen.getByRole("button", { name: /drain/i });
+    // Consume button should be disabled when loading
+    const drainButton = screen.getByRole("button", { name: /consume/i });
     expect(drainButton).toBeDisabled();
 
     // Spinner should be visible
     expect(document.querySelector(".animate-spin")).not.toBeNull();
   });
 
-  test("Drain button is disabled when selectedDecodeTypes is empty", () => {
+  test("Consume button is disabled when selectedDecodeTypes is empty", () => {
     useResponseStore.setState({ selectedDecodeTypes: [] });
     useConnectionStore.setState({ connectionStatus: "connected" });
     render(<ResponseQueuePicker onDrain={vi.fn()} />);
-    const drainButton = screen.getByRole("button", { name: /drain/i });
+    const drainButton = screen.getByRole("button", { name: /consume/i });
     expect(drainButton).toBeDisabled();
   });
 
   test("calls onDrain with the drain count value", async () => {
     const mockOnDrain = vi.fn();
     render(<ResponseQueuePicker onDrain={mockOnDrain} />);
-    const countInput = screen.getByRole("spinbutton", { name: /drain count/i });
+    const countInput = screen.getByRole("spinbutton", { name: /consume count/i });
     fireEvent.change(countInput, { target: { value: "5" } });
-    const drainButton = screen.getByRole("button", { name: /drain/i });
+    const drainButton = screen.getByRole("button", { name: /consume/i });
     fireEvent.click(drainButton);
     expect(mockOnDrain).toHaveBeenCalledWith(5);
   });
@@ -161,7 +165,7 @@ describe("ResponseQueuePicker", () => {
   test("calls onDrain with default count of 10 when unchanged", () => {
     const mockOnDrain = vi.fn();
     render(<ResponseQueuePicker onDrain={mockOnDrain} />);
-    fireEvent.click(screen.getByRole("button", { name: /drain/i }));
+    fireEvent.click(screen.getByRole("button", { name: /consume/i }));
     expect(mockOnDrain).toHaveBeenCalledWith(10);
   });
 });

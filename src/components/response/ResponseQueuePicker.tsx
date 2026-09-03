@@ -23,19 +23,26 @@ import { cn } from "@/lib/utils";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useProtoStore } from "@/stores/useProtoStore";
-import { fetchQueues, fetchQueueDepth } from "@/lib/ipc";
+import { fetchQueueDepth } from "@/lib/ipc";
+import { getQueues } from "@/lib/brokerCatalog";
+import { findProfile, isReadOnly } from "@/lib/profileSafety";
+import type { FeedMode } from "@/lib/types";
 
 interface ResponseQueuePickerProps {
   onDrain: (count: number) => void;
-  mode?: "drain" | "subscribe";
+  mode?: FeedMode;
 }
 
-export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps) {
+export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePickerProps) {
+  const isBatchMode = mode === "peek" || mode === "drain";
+  const isPeek = mode === "peek";
+  const verb = isPeek ? "Peek" : "Consume";
   const [managementAuthError, setManagementAuthError] = useState<string | null>(null);
   const [drainCount, setDrainCount] = useState<number>(10);
   const [decodeOpen, setDecodeOpen] = useState(false);
 
-  const { activeProfileName, connectionStatus } = useConnectionStore();
+  const { activeProfileName, connectionStatus, profiles } = useConnectionStore();
+  const readOnly = isReadOnly(findProfile(profiles, activeProfileName));
   const {
     queueList,
     isLiveMode,
@@ -50,7 +57,8 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
     setSelectedDecodeTypes,
   } = useResponseStore();
 
-  const { openFiles, selectedMessageType } = useProtoStore();
+  const openFiles = useProtoStore((s) => s.openFiles);
+  const selectedMessageType = useProtoStore((s) => s.selectedMessageType);
 
   // Queue fetch on tab focus — useEffect with [activeProfileName] dep (D-06: populates on tab focus)
   useEffect(() => {
@@ -59,7 +67,7 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
 
     const fetch = async () => {
       try {
-        const qs = await fetchQueues(activeProfileName);
+        const qs = await getQueues(activeProfileName);
         if (cancelled) return;
         setManagementAuthError(null);
         setQueueList(qs, true); // isLive = true
@@ -133,11 +141,13 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
       ? selectedDecodeTypes[0]
       : `${selectedDecodeTypes.length} types`;
 
+  // Peek leaves the queue as it was, so read-only profiles may peek but not consume.
   const canDrain =
     connectionStatus === "connected" &&
     selectedQueue.trim().length > 0 &&
     !isLoading &&
-    selectedDecodeTypes.length > 0;
+    selectedDecodeTypes.length > 0 &&
+    !(readOnly && !isPeek);
 
   return (
     <div className="px-4 py-2 border-b border-border flex items-center gap-2 flex-wrap">
@@ -225,10 +235,10 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
         </PopoverContent>
       </Popover>
 
-      {/* Drain-specific controls — hidden when mode is "subscribe" */}
-      {mode !== "subscribe" && (
+      {/* Batch controls — Peek and Consume only; live modes have their own panel */}
+      {isBatchMode && (
         <>
-          {/* Drain count input */}
+          {/* Consume count input */}
           <input
             type="number"
             min={1}
@@ -248,10 +258,12 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
               setDrainCount(clamped);
             }}
             className="w-12 h-9 text-sm text-center rounded-md border border-input bg-background px-1"
-            aria-label="Drain count"
+            aria-label={`${verb} count`}
           />
 
-          {/* Drain button — disabled+tooltip when disconnected */}
+          {/* Consume button — disabled+tooltip when disconnected. "Consume" rather than
+              "Drain": it takes messages off the queue and acks them, so other consumers
+              never see them. */}
           {connectionStatus === "connected" ? (
             <Button
               variant="default"
@@ -261,10 +273,15 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
                 if (safe !== drainCount) setDrainCount(safe);
                 onDrain(safe);
               }}
-              aria-label="Drain"
+              aria-label={verb}
+              title={
+                isPeek
+                  ? "Reads messages and hands them back to the queue (they show as redelivered)."
+                  : "Takes messages off the queue and acknowledges them. Other consumers will not receive them."
+              }
             >
               {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Drain
+              {verb}
             </Button>
           ) : (
             <TooltipProvider>
@@ -272,14 +289,21 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
                 <TooltipTrigger asChild>
                   <span>
                     <Button variant="default" disabled>
-                      Drain
+                      {verb}
                     </Button>
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Connect to a RabbitMQ profile to drain.</TooltipContent>
+                <TooltipContent>Connect to a RabbitMQ profile to {verb.toLowerCase()}.</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
+          <span className="text-xs text-muted-foreground">
+            {isPeek
+              ? "hands messages back to the queue"
+              : readOnly
+                ? "Read-only profile: consuming is disabled"
+                : "removes messages"}
+          </span>
         </>
       )}
     </div>

@@ -28,9 +28,8 @@ export interface OneofFieldProps {
 export function OneofField({ field, path, depth, renderBranchField }: OneofFieldProps) {
   const { control, unregister } = useFormContext();
 
-  if (field.kind.type !== "oneof") return null;
-
-  const branches = field.kind.branches;
+  // Hooks run unconditionally; the "not a oneof" early return comes after them.
+  const branches = field.kind.type === "oneof" ? field.kind.branches : [];
 
   // Branch name = first field's name in each branch.
   // useMemo ensures stable reference so useEffect deps don't trigger infinite loops.
@@ -55,6 +54,8 @@ export function OneofField({ field, path, depth, renderBranchField }: OneofField
       }
     });
   }, [selected, path, unregister, branchNames]);
+
+  if (field.kind.type !== "oneof") return null;
 
   return (
     <div className="flex flex-col gap-2 mb-3">

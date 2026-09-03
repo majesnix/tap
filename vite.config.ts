@@ -2,7 +2,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import path from "path";
+import { fileURLToPath } from "node:url";
 
 // @ts-expect-error process is a nodejs global
 const host = process.env.TAURI_DEV_HOST;
@@ -11,7 +11,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
 
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },
 
   // Vite options tailored for Tauri development
@@ -37,5 +37,11 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    coverage: {
+      // Ratchet: set just below the measured coverage so it can only go up.
+      // Raise these as the plan and history UIs gain tests.
+      thresholds: { statements: 78, branches: 70, functions: 76, lines: 79 },
+      exclude: ["src/components/ui/**", "src/test/**", "src/**/*.test.*", "src/**/__tests__/**", "src/vite-env.d.ts", "src/main.tsx"],
+    },
   },
 });

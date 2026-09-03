@@ -6,7 +6,13 @@
 /// D-10 DEVIATION: Ack happens BEFORE decode — always. This prevents poison-pill
 /// messages from blocking the queue. Decode errors are shown inline; the message
 /// is removed from the queue regardless of decode outcome.
+use crate::profiles::{consumer_tag, AmqpEndpoint, AMQP_CONNECT_TIMEOUT};
+use futures_util::StreamExt;
 use std::time::Duration;
+
+/// How long a batch read waits for the next delivery before deciding the queue is drained.
+/// One consumer with prefetch = count replaces `count` sequential basic.get round trips.
+const BATCH_IDLE_TIMEOUT: Duration = Duration::from_millis(300);
 
 /// Result type returned to the frontend.
 #[derive(serde::Serialize)]
@@ -50,13 +56,12 @@ pub async fn consume_message(
     // Load credentials (sync, no await)
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    crate::profiles::ensure_writable(&profile)?;
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     consume_message_core(
         pool,
-        &profile.host,
-        profile.port,
-        &profile.vhost,
-        &profile.username,
+        &endpoint,
         password,
         queue_name,
         message_type_name,
@@ -69,10 +74,7 @@ pub async fn consume_message(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn consume_message_core(
     pool: Option<prost_reflect::DescriptorPool>,
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
     queue_name: String,
     message_type_name: String,
@@ -83,30 +85,8 @@ pub(crate) async fn consume_message_core(
         message: "No proto file loaded".to_string(),
     })?;
 
-    // Connect in tight URI scope (SECURITY: password and URI dropped before result inspection)
-    let conn = {
-        let uri = crate::profiles::build_amqp_uri(host, port, vhost, username, &password);
-        // password is no longer needed — drop it before connecting
-        drop(password);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            lapin::Connection::connect(&uri, lapin::ConnectionProperties::default()),
-        )
-        .await;
-        // uri is dropped here, before we inspect the result
-        result
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "Consume connection timed out (10s)".to_string(),
-                )
-            })?
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "AMQP connection failed — check host, port, vhost, and credentials"
-                        .to_string(),
-                )
-            })?
-    };
+    // SECURITY: URI built and dropped inside `connect`; errors are sanitized there.
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Consume").await?;
 
     // Step 4: Create channel (close conn on error)
     let channel = match conn.create_channel().await {
@@ -266,6 +246,7 @@ pub async fn drain_messages(
     queue_name: String,
     message_type_names: Vec<String>,
     count: u32,
+    requeue: bool,
     pool_state: tauri::State<'_, std::sync::Mutex<Option<prost_reflect::DescriptorPool>>>,
 ) -> Result<DrainOutcome, crate::error::AppError> {
     // Clone pool BEFORE any .await (MutexGuard is not Send)
@@ -279,34 +260,41 @@ pub async fn drain_messages(
     // Load credentials (sync, no await) — same as consume_message
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    // Peeking (requeue) leaves the queue as it was, so read-only profiles may do it.
+    if !requeue {
+        crate::profiles::ensure_writable(&profile)?;
+    }
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     drain_messages_core(
         pool,
-        &profile.host,
-        profile.port,
-        &profile.vhost,
-        &profile.username,
+        &endpoint,
         password,
         queue_name,
         message_type_names,
         count,
+        requeue,
     )
     .await
 }
 
-/// Pure async core for [`drain_messages`]: drain up to `count` messages, ack-before-decode,
-/// first-candidate-decodes-wins. Decoupled from Tauri/keychain for integration testing.
+/// Pure async core for [`drain_messages`]: read up to `count` messages, first-candidate-decodes-wins.
+///
+/// `requeue = false` (Consume): each message is acked before decode and is gone.
+/// `requeue = true` (Peek): messages are left unacknowledged while they are read and handed
+/// back to the queue in one nack at the end, so the real consumer still gets them (they
+/// carry the redelivered flag afterwards).
+///
+/// Decoupled from Tauri/keychain for integration testing.
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn drain_messages_core(
     pool: Option<prost_reflect::DescriptorPool>,
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
     queue_name: String,
     message_type_names: Vec<String>,
     count: u32,
+    requeue: bool,
 ) -> Result<DrainOutcome, crate::error::AppError> {
     // Validate inputs at system boundary (CLAUDE.md: validate at system boundaries)
     if message_type_names.is_empty() {
@@ -320,26 +308,8 @@ pub(crate) async fn drain_messages_core(
         ));
     }
 
-    // Open connection in tight URI scope — password dropped before result inspection (security)
-    let conn = {
-        let uri = crate::profiles::build_amqp_uri(host, port, vhost, username, &password);
-        drop(password);
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            lapin::Connection::connect(&uri, lapin::ConnectionProperties::default()),
-        )
-        .await;
-        result
-            .map_err(|_| {
-                crate::error::AppError::AmqpError("Drain connection timed out (10s)".to_string())
-            })?
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "AMQP connection failed — check host, port, vhost, and credentials"
-                        .to_string(),
-                )
-            })?
-    };
+    // SECURITY: URI built and dropped inside `connect`; errors are sanitized there.
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Drain").await?;
 
     let channel = match conn.create_channel().await {
         Ok(ch) => ch,
@@ -354,117 +324,167 @@ pub(crate) async fn drain_messages_core(
 
     let mut results: Vec<DrainResult> = Vec::new();
     let mut partial_error: Option<String> = None;
+    // Peek: highest delivery tag read so far; one multiple-nack at the end requeues them all.
+    let mut last_unacked_tag: Option<u64> = None;
 
-    // Drain loop — basic_get up to count times (D-13/D-18/D-19)
-    for _ in 0..count {
-        let get_result = channel
-            .basic_get(queue_name.as_str().into(), lapin::options::BasicGetOptions::default())
-            .await;
+    // One consumer with prefetch = count: the broker pushes the batch in one go instead of
+    // answering `count` sequential basic.get round trips (D-13/D-18/D-19).
+    let prefetch = u16::try_from(count).unwrap_or(u16::MAX);
+    if let Err(e) = channel.basic_qos(prefetch, lapin::options::BasicQosOptions::default()).await {
+        tracing::warn!("drain_messages: basic_qos failed: {}", e);
+        let _ = conn.close(0, "".into()).await;
+        return Err(crate::error::AppError::AmqpError(
+            "Failed to set prefetch on the channel — check broker permissions".to_string(),
+        ));
+    }
+    let tag = consumer_tag(if requeue { "peek" } else { "consume" });
+    let mut consumer = match channel
+        .basic_consume(
+            queue_name.as_str().into(),
+            tag.as_str().into(),
+            lapin::options::BasicConsumeOptions::default(),
+            lapin::types::FieldTable::default(),
+        )
+        .await
+    {
+        Ok(c) => c,
+        Err(e) => {
+            tracing::warn!("drain_messages: basic_consume failed: {}", e);
+            let _ = conn.close(0, "".into()).await;
+            return Err(crate::error::AppError::AmqpError(
+                "Failed to read from queue — queue may have been deleted or connection was interrupted".to_string(),
+            ));
+        }
+    };
 
-        match get_result {
-            Err(e) => {
-                // Mid-loop error — preserve already-acked messages (D-18)
-                tracing::warn!("drain_messages: basic_get failed mid-loop: {}", e);
+    while results.len() < count as usize {
+        let delivery = match tokio::time::timeout(BATCH_IDLE_TIMEOUT, consumer.next()).await {
+            // Nothing arrived for a while: the queue is drained (D-02).
+            Err(_) => break,
+            Ok(None) => {
                 partial_error = Some("Queue read interrupted — partial results returned".to_string());
                 break;
             }
-            Ok(None) => {
-                // Queue empty — stop silently (D-02)
+            Ok(Some(Err(e))) => {
+                // Mid-batch error — preserve already-read messages (D-18)
+                tracing::warn!("drain_messages: delivery failed mid-batch: {}", e);
+                partial_error = Some("Queue read interrupted — partial results returned".to_string());
                 break;
             }
-            Ok(Some(msg)) => {
-                // Extract AMQP metadata — ShortString.to_string() required (RESEARCH Pitfall 7)
-                let routing_key = msg.routing_key.to_string();
-                let exchange = msg.exchange.to_string();
-                let content_type = msg
-                    .properties
-                    .content_type()
-                    .as_ref()
-                    .map(|s| s.to_string());
-                let timestamp: Option<u64> = *msg.properties.timestamp();
-                let payload: Vec<u8> = msg.data.clone();
-                let delivery_tag = msg.delivery_tag;
-                let hex_string = bytes_to_hex(&payload);
+            Ok(Some(Ok(delivery))) => delivery,
+        };
 
-                // ACK BEFORE DECODE (D-14: ack-before-decode — critical order)
-                if let Err(e) = channel
-                    .basic_ack(delivery_tag, lapin::options::BasicAckOptions::default())
-                    .await
-                {
-                    tracing::warn!("drain_messages: ack failed mid-loop: {}", e);
-                    partial_error = Some("Failed to acknowledge a message — partial results returned, message may be requeued".to_string());
-                    break;
-                }
+        // Extract AMQP metadata — ShortString.to_string() required (RESEARCH Pitfall 7)
+        let routing_key = delivery.routing_key.to_string();
+        let exchange = delivery.exchange.to_string();
+        let content_type = delivery
+            .properties
+            .content_type()
+            .as_ref()
+            .map(|s| s.to_string());
+        let timestamp: Option<u64> = *delivery.properties.timestamp();
+        let payload: Vec<u8> = delivery.data.clone();
+        let delivery_tag = delivery.delivery_tag;
+        let hex_string = bytes_to_hex(&payload);
 
-                // Decode: iterate message_type_names, first success wins (D-19)
-                let (decoded, decoded_as, error) = if let Some(pool) = &pool {
-                    let mut found_decoded: Option<serde_json::Value> = None;
-                    let mut found_decoded_as: Option<String> = None;
-                    let mut last_error: Option<String> = None;
+        if requeue {
+            // Peek: leave it unacknowledged; it goes back in one nack after the loop.
+            last_unacked_tag = Some(delivery_tag);
+        } else {
+            // ACK BEFORE DECODE (D-14: ack-before-decode — critical order)
+            if let Err(e) = delivery.acker.ack(lapin::options::BasicAckOptions::default()).await {
+                tracing::warn!("drain_messages: ack failed mid-batch: {}", e);
+                partial_error = Some("Failed to acknowledge a message — partial results returned, message may be requeued".to_string());
+                break;
+            }
+        }
 
-                    'candidates: for type_name in &message_type_names {
-                        let msg_desc = match pool.get_message_by_name(type_name) {
-                            Some(d) => d,
-                            None => {
-                                last_error = Some(format!(
-                                    "Message type '{}' not found in loaded schema",
-                                    type_name
-                                ));
-                                continue;
-                            }
-                        };
-                        match prost_reflect::DynamicMessage::decode(msg_desc, payload.as_ref()) {
-                            Ok(dyn_msg) => {
-                                let mut buf = Vec::new();
-                                let mut ser = serde_json::Serializer::new(&mut buf);
-                                let opts = prost_reflect::SerializeOptions::new()
-                                    .use_proto_field_name(true)
-                                    .stringify_64_bit_integers(true);
-                                if dyn_msg
-                                    .serialize_with_options(&mut ser, &opts)
-                                    .is_ok()
-                                {
-                                    if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&buf) {
-                                        found_decoded = Some(v);
-                                        found_decoded_as = Some(type_name.clone());
-                                        last_error = None;
-                                        break 'candidates; // first success wins
-                                    }
-                                }
-                                last_error = Some(
-                                    "Decode failed: serialization error. Showing raw bytes.".to_string(),
-                                );
-                            }
-                            Err(e) => {
-                                last_error = Some(format!(
-                                    "Decode failed: {}. Showing raw bytes.",
-                                    e
-                                ));
+        // Decode: iterate message_type_names, first success wins (D-19)
+        let (decoded, decoded_as, error) = if let Some(pool) = &pool {
+            let mut found_decoded: Option<serde_json::Value> = None;
+            let mut found_decoded_as: Option<String> = None;
+            let mut last_error: Option<String> = None;
+
+            'candidates: for type_name in &message_type_names {
+                let msg_desc = match pool.get_message_by_name(type_name) {
+                    Some(d) => d,
+                    None => {
+                        last_error = Some(format!(
+                            "Message type '{}' not found in loaded schema",
+                            type_name
+                        ));
+                        continue;
+                    }
+                };
+                match prost_reflect::DynamicMessage::decode(msg_desc, payload.as_ref()) {
+                    Ok(dyn_msg) => {
+                        let mut buf = Vec::new();
+                        let mut ser = serde_json::Serializer::new(&mut buf);
+                        let opts = prost_reflect::SerializeOptions::new()
+                            .use_proto_field_name(true)
+                            .stringify_64_bit_integers(true);
+                        if dyn_msg
+                            .serialize_with_options(&mut ser, &opts)
+                            .is_ok()
+                        {
+                            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&buf) {
+                                found_decoded = Some(v);
+                                found_decoded_as = Some(type_name.clone());
+                                last_error = None;
+                                break 'candidates; // first success wins
                             }
                         }
+                        last_error = Some(
+                            "Decode failed: serialization error. Showing raw bytes.".to_string(),
+                        );
                     }
-
-                    (found_decoded, found_decoded_as, last_error)
-                } else {
-                    (
-                        None,
-                        None,
-                        Some("No proto schema loaded — cannot decode".to_string()),
-                    )
-                };
-
-                results.push(DrainResult {
-                    routing_key,
-                    exchange,
-                    content_type,
-                    timestamp,
-                    decoded,
-                    hex_string,
-                    error,
-                    decoded_as,
-                    is_terminal: false, // drain messages are never terminal
-                });
+                    Err(e) => {
+                        last_error = Some(format!(
+                            "Decode failed: {}. Showing raw bytes.",
+                            e
+                        ));
+                    }
+                }
             }
+
+            (found_decoded, found_decoded_as, last_error)
+        } else {
+            (
+                None,
+                None,
+                Some("No proto schema loaded — cannot decode".to_string()),
+            )
+        };
+
+        results.push(DrainResult {
+            routing_key,
+            exchange,
+            content_type,
+            timestamp,
+            decoded,
+            hex_string,
+            error,
+            decoded_as,
+            is_terminal: false, // batch reads are never terminal
+        });
+    }
+
+    // Stop the broker from pushing anything further before we hand back or close.
+    let _ = channel
+        .basic_cancel(tag.as_str().into(), lapin::options::BasicCancelOptions::default())
+        .await;
+
+    // Peek: hand everything back to the queue before closing (closing would also requeue,
+    // but an explicit nack makes the intent visible and keeps ordering deterministic).
+    if let Some(tag) = last_unacked_tag {
+        if let Err(e) = channel
+            .basic_nack(
+                tag,
+                lapin::options::BasicNackOptions { multiple: true, requeue: true },
+            )
+            .await
+        {
+            tracing::warn!("drain_messages: requeue after peek failed: {}", e);
         }
     }
 
@@ -612,7 +632,7 @@ mod integration_tests {
     #[tokio::test]
     async fn consume_no_pool_errors_without_broker() {
         let res = consume_message_core(
-            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
             "q".to_string(), "Item".to_string(),
         )
         .await;
@@ -626,12 +646,13 @@ mod integration_tests {
         seed_queue(&b, queue, &[]).await;
         let (pool, _) = encode(PROTO, "c_empty.proto", "Item", serde_json::json!({}));
         let res = consume_message_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            Some(pool), &b.endpoint(), b.password.clone(),
             queue.to_string(), "Item".to_string(),
         )
         .await
         .unwrap();
         assert!(res.empty);
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -641,7 +662,7 @@ mod integration_tests {
         let (pool, bytes) = encode(PROTO, "c_dec.proto", "Item", serde_json::json!({ "name": "widget", "qty": 5 }));
         seed_queue(&b, queue, &[bytes]).await;
         let res = consume_message_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            Some(pool), &b.endpoint(), b.password.clone(),
             queue.to_string(), "Item".to_string(),
         )
         .await
@@ -649,6 +670,7 @@ mod integration_tests {
         assert!(!res.empty);
         assert_eq!(res.decoded.as_ref().unwrap()["name"], "widget");
         assert!(res.error.is_none());
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -658,7 +680,7 @@ mod integration_tests {
         let (pool, bytes) = encode(PROTO, "c_unk.proto", "Item", serde_json::json!({ "name": "x" }));
         seed_queue(&b, queue, &[bytes]).await;
         let res = consume_message_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            Some(pool), &b.endpoint(), b.password.clone(),
             queue.to_string(), "NotAType".to_string(),
         )
         .await
@@ -666,13 +688,14 @@ mod integration_tests {
         assert!(!res.empty);
         assert!(res.decoded.is_none());
         assert!(res.error.unwrap().contains("not found"));
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
     async fn drain_rejects_empty_type_names() {
         let res = drain_messages_core(
-            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
-            "q".to_string(), vec![], 10,
+            None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
+            "q".to_string(), vec![], 10, false,
         )
         .await;
         assert!(matches!(res, Err(crate::error::AppError::InvalidInput(_))));
@@ -681,8 +704,8 @@ mod integration_tests {
     #[tokio::test]
     async fn drain_rejects_invalid_count() {
         let res = drain_messages_core(
-            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
-            "q".to_string(), vec!["Item".to_string()], 0,
+            None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
+            "q".to_string(), vec!["Item".to_string()], 0, false,
         )
         .await;
         assert!(matches!(res, Err(crate::error::AppError::InvalidInput(_))));
@@ -697,14 +720,15 @@ mod integration_tests {
         let (_, b3) = encode(PROTO, "d1.proto", "Item", serde_json::json!({ "name": "c", "qty": 3 }));
         seed_queue(&b, queue, &[b1, b2, b3]).await;
         let outcome = drain_messages_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
-            queue.to_string(), vec!["Item".to_string()], 10,
+            Some(pool), &b.endpoint(), b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 10, false,
         )
         .await
         .unwrap();
         assert_eq!(outcome.messages.len(), 3);
         assert!(outcome.partial_error.is_none());
         assert_eq!(outcome.messages[0].decoded_as, Some("Item".to_string()));
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -714,13 +738,44 @@ mod integration_tests {
         let (_, bytes) = encode(PROTO, "dnp.proto", "Item", serde_json::json!({ "name": "x" }));
         seed_queue(&b, queue, &[bytes]).await;
         let outcome = drain_messages_core(
-            None, &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
-            queue.to_string(), vec!["Item".to_string()], 10,
+            None, &b.endpoint(), b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 10, false,
         )
         .await
         .unwrap();
         assert_eq!(outcome.messages.len(), 1);
         assert!(outcome.messages[0].decoded.is_none());
         assert!(outcome.messages[0].error.as_ref().unwrap().contains("No proto schema"));
+        crate::test_support::delete_queue(&b, queue).await;
+    }
+
+    #[tokio::test]
+    async fn peek_returns_messages_and_leaves_them_on_the_queue() {
+        let Some(b) = broker_or_skip("peek").await else { return };
+        let queue = "tap-it-peek";
+        let (pool, b1) = encode(PROTO, "peek1.proto", "Item", serde_json::json!({ "name": "a", "qty": 1 }));
+        let (_, b2) = encode(PROTO, "peek2.proto", "Item", serde_json::json!({ "name": "b", "qty": 2 }));
+        let (_, b3) = encode(PROTO, "peek3.proto", "Item", serde_json::json!({ "name": "c", "qty": 3 }));
+        seed_queue(&b, queue, &[b1, b2, b3]).await;
+
+        let peeked = drain_messages_core(
+            Some(pool.clone()), &b.endpoint(), b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 2, true,
+        )
+        .await
+        .unwrap();
+        assert_eq!(peeked.messages.len(), 2);
+        assert_eq!(peeked.messages[0].decoded.as_ref().unwrap()["name"], "a");
+        assert_eq!(peeked.messages[1].decoded.as_ref().unwrap()["name"], "b");
+
+        // Everything is still on the queue for the real consumer.
+        let all = drain_messages_core(
+            Some(pool), &b.endpoint(), b.password.clone(),
+            queue.to_string(), vec!["Item".to_string()], 10, false,
+        )
+        .await
+        .unwrap();
+        assert_eq!(all.messages.len(), 3, "peek must requeue what it read");
+        crate::test_support::delete_queue(&b, queue).await;
     }
 }

@@ -19,14 +19,58 @@ use std::time::Duration;
 
 use futures_util::StreamExt;
 use lapin::{
-    options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions},
-    BasicProperties, Connection, ConnectionProperties,
+    options::{
+        BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions,
+        BasicQosOptions, ConfirmSelectOptions, QueueDeclareOptions,
+    },
+    types::FieldTable,
+    BasicProperties, Confirmation,
 };
 use prost_reflect::{DescriptorPool, DynamicMessage};
+use tauri::Manager;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::error::AppError;
+use crate::profiles::{consumer_tag, AmqpEndpoint, AMQP_CONNECT_TIMEOUT};
+
+// ─── Limits ──────────────────────────────────────────────────────────────────
+
+/// Longest pause a no-wait step may insert (one minute).
+pub(crate) const MAX_STEP_DELAY_MS: u64 = 60_000;
+/// Longest time a step may wait for a reply (five minutes).
+pub(crate) const MAX_REPLY_TIMEOUT_MS: u64 = 300_000;
+/// In-flight cap while waiting on a reply queue.
+const REPLY_PREFETCH: u16 = 32;
+/// Pause after requeueing an unrelated message on a shared reply queue, so Tap does
+/// not spin at wire speed against the broker while it waits for its own reply.
+const REQUEUE_BACKOFF: Duration = Duration::from_millis(50);
+/// Publisher-confirm budget, matching publish.rs.
+const PUBLISH_CONFIRM_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// Reject timings that would park the runner for hours; checked before connecting.
+pub(crate) fn validate_step_timings(mode: &ResponseMode) -> Result<(), String> {
+    match mode {
+        ResponseMode::NoWait { delay_ms } if *delay_ms > MAX_STEP_DELAY_MS => Err(format!(
+            "Step delay {} ms exceeds the maximum of {} ms",
+            delay_ms, MAX_STEP_DELAY_MS
+        )),
+        ResponseMode::NoWait { .. } => Ok(()),
+        ResponseMode::CorrelationId { timeout_ms, .. }
+        | ResponseMode::FirstArrival { timeout_ms, .. } => {
+            if *timeout_ms == 0 {
+                Err("Reply timeout must be at least 1 ms".to_string())
+            } else if *timeout_ms > MAX_REPLY_TIMEOUT_MS {
+                Err(format!(
+                    "Reply timeout {} ms exceeds the maximum of {} ms",
+                    timeout_ms, MAX_REPLY_TIMEOUT_MS
+                ))
+            } else {
+                Ok(())
+            }
+        }
+    }
+}
 
 // ─── Managed state ───────────────────────────────────────────────────────────
 
@@ -114,7 +158,7 @@ pub struct StepResult {
 pub fn cancel_plan_run(
     run_state: tauri::State<'_, Mutex<Option<PlanRunState>>>,
 ) -> Result<(), AppError> {
-    let mut guard = run_state.lock().unwrap();
+    let mut guard = crate::commands::lock_state(&run_state)?;
     if let Some(ref state) = *guard {
         state.token.cancel();
     }
@@ -137,14 +181,13 @@ pub async fn execute_step(
     // ── 1. Load connection credentials ───────────────────────────────────────
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    crate::profiles::ensure_writable(&profile)?;
 
     // ── 2. Acquire/create CancellationToken BEFORE any .await ────────────────
     let token = {
-        let mut guard = run_state.lock().unwrap();
-        if guard.is_none() {
-            *guard = Some(PlanRunState { token: CancellationToken::new() });
-        }
-        guard.as_ref().unwrap().token.clone()
+        let mut guard = crate::commands::lock_state(&run_state)?;
+        let state = guard.get_or_insert_with(|| PlanRunState { token: CancellationToken::new() });
+        state.token.clone()
     };
     // Guard dropped here — before first .await
 
@@ -163,9 +206,7 @@ pub async fn execute_step(
 
     // ── 3b. Ensure pool contains the step's message type; compile if needed ──
     {
-        let has_type = pool_state
-            .lock()
-            .unwrap()
+        let has_type = crate::commands::lock_state(&pool_state)?
             .as_ref()
             .map(|p| p.get_message_by_name(&step.message_type).is_some())
             .unwrap_or(false);
@@ -182,7 +223,17 @@ pub async fn execute_step(
                     )),
                 });
             }
-            if let Err(e) = compile_and_merge_proto(&step.proto_path, &pool_state) {
+            // Compile on the blocking pool: parsing an import tree must not stall the
+            // async runtime that drives live consumers.
+            let app_for_compile = app.clone();
+            let proto_path = step.proto_path.clone();
+            let compiled = tauri::async_runtime::spawn_blocking(move || {
+                let pool = app_for_compile.state::<Mutex<Option<DescriptorPool>>>();
+                compile_and_merge_proto(&proto_path, &pool)
+            })
+            .await
+            .map_err(|e| AppError::ParseError(format!("proto compile task failed: {}", e)))?;
+            if let Err(e) = compiled {
                 return Ok(StepResult {
                     step_id: step.id,
                     status: "error".into(),
@@ -198,7 +249,7 @@ pub async fn execute_step(
 
     // ── 4. Clone DescriptorPool BEFORE any .await (MutexGuard not Send) ──────
     let pool = {
-        let guard = pool_state.lock().unwrap();
+        let guard = crate::commands::lock_state(&pool_state)?;
         guard
             .as_ref()
             .ok_or_else(|| AppError::AmqpError("descriptor pool not initialized".into()))?
@@ -206,307 +257,280 @@ pub async fn execute_step(
     };
     // Guard dropped here — before first .await
 
-    execute_step_core(pool, token, &profile.host, profile.port, &profile.vhost, &profile.username, password, step)
-        .await
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
+    execute_step_core(pool, token, &endpoint, password, step).await
 }
 
 /// Pure async core for [`execute_step`]: encode, connect, and run the response-mode branch.
 /// Decoupled from Tauri State (pool/run_state) and keychain so it can be integration-tested
 /// against a live broker. The descriptor pool and cancellation token are resolved by the
 /// command and passed in.
-#[allow(clippy::too_many_arguments)]
 pub(crate) async fn execute_step_core(
     pool: prost_reflect::DescriptorPool,
     token: CancellationToken,
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
     step: PlanStep,
 ) -> Result<StepResult, AppError> {
-    // ── 5. Parse field_values JSON and encode message ─────────────────────────
+    // ── 5. Parse field_values JSON, encode, validate timings — all before connecting ──
     let field_values_json: serde_json::Value = match serde_json::from_str(&step.field_values) {
         Ok(v) => v,
         Err(e) => {
-            return Ok(StepResult {
-                step_id: step.id,
-                status: "error".into(),
-                reply: None,
-                error: Some(format!("Failed to parse field_values JSON: {}", e)),
-            });
+            return Ok(step_error(&step.id, format!("Failed to parse field_values JSON: {}", e)));
         }
     };
 
-    let encoded_bytes =
-        match crate::commands::encode::encode_message_with_pool(&pool, &step.message_type, &field_values_json) {
-            Ok(bytes) => bytes,
-            Err(e) => {
-                return Ok(StepResult {
-                    step_id: step.id,
-                    status: "error".into(),
-                    reply: None,
-                    error: Some(e.to_string()),
-                });
-            }
-        };
-
-    // ── 6. Open AMQP connection ────────────────────────────────────────────────
-    //    Follow the tight-scope URI pattern from publish.rs (WR-01: password not leaked).
-    let conn = {
-        use crate::profiles::build_amqp_uri;
-        let uri = build_amqp_uri(host, port, vhost, username, &password);
-        drop(password);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            Connection::connect(&uri, ConnectionProperties::default()),
-        )
-        .await;
-        result
-            .map_err(|_| AppError::AmqpError("Step connection timed out (10s)".to_string()))?
-            .map_err(|_| AppError::AmqpError("AMQP connection failed — check host, port, vhost, and credentials".to_string()))?
+    let encoded_bytes = match crate::commands::encode::encode_message_with_pool(
+        &pool,
+        &step.message_type,
+        &field_values_json,
+    ) {
+        Ok(bytes) => bytes,
+        Err(e) => return Ok(step_error(&step.id, e.to_string())),
     };
 
+    if let Err(message) = validate_step_timings(&step.response_mode) {
+        return Ok(step_error(&step.id, message));
+    }
+
+    // ── 6. Open AMQP connection ────────────────────────────────────────────────
+    //    URI built and dropped inside `connect`; errors sanitized there (WR-01).
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Step").await?;
+
+    // Every path, including AMQP errors, closes the connection.
+    let result = run_step(&conn, &pool, &token, &step, &encoded_bytes).await;
+    let _ = conn.close(0, "".into()).await;
+    result
+}
+
+fn step_error(step_id: &str, message: impl Into<String>) -> StepResult {
+    StepResult {
+        step_id: step_id.to_string(),
+        status: "error".into(),
+        reply: None,
+        error: Some(message.into()),
+    }
+}
+
+fn step_done(step_id: &str, reply: Option<ReplyMessage>) -> StepResult {
+    StepResult {
+        step_id: step_id.to_string(),
+        status: "done".into(),
+        reply,
+        error: None,
+    }
+}
+
+/// Where a step's reply arrives. Private queues are declared per step (exclusive,
+/// auto-delete, server-named) so nothing else can be on them; named queues are shared
+/// with real services and must be treated with care.
+struct ReplyQueue {
+    name: String,
+    private: bool,
+}
+
+/// Use the configured reply queue, or declare a private one when none is configured.
+async fn resolve_reply_queue(
+    channel: &lapin::Channel,
+    configured: &str,
+) -> Result<ReplyQueue, AppError> {
+    let configured = configured.trim();
+    if !configured.is_empty() {
+        return Ok(ReplyQueue { name: configured.to_string(), private: false });
+    }
+    let queue = channel
+        .queue_declare(
+            "".into(),
+            QueueDeclareOptions { exclusive: true, auto_delete: true, ..Default::default() },
+            FieldTable::default(),
+        )
+        .await
+        .map_err(|e| AppError::AmqpError(format!("Could not declare a private reply queue: {}", e)))?;
+    Ok(ReplyQueue { name: queue.name().to_string(), private: true })
+}
+
+/// Consume from the reply queue with a prefetch cap and an attributable consumer tag.
+/// Called BEFORE publishing so a fast reply cannot be missed (pitfall #59).
+async fn start_reply_consumer(
+    channel: &lapin::Channel,
+    reply: &ReplyQueue,
+) -> Result<lapin::Consumer, AppError> {
+    channel
+        .basic_qos(REPLY_PREFETCH, BasicQosOptions::default())
+        .await
+        .map_err(|e| AppError::AmqpError(e.to_string()))?;
+    channel
+        .basic_consume(
+            reply.name.as_str().into(),
+            consumer_tag("plan").as_str().into(),
+            BasicConsumeOptions { no_ack: false, ..Default::default() },
+            FieldTable::default(),
+        )
+        .await
+        .map_err(|e| {
+            AppError::AmqpError(format!("Could not consume from reply queue '{}': {}", reply.name, e))
+        })
+}
+
+/// Publish with publisher confirms and `mandatory`, like the main publish path.
+/// `Ok(Err(reason))` is a delivery problem the step should report; `Err` is an AMQP failure.
+async fn publish_confirmed(
+    channel: &lapin::Channel,
+    exchange: &str,
+    routing_key: &str,
+    payload: &[u8],
+    props: BasicProperties,
+) -> Result<Result<(), String>, AppError> {
+    let confirm = channel
+        .basic_publish(
+            exchange.into(),
+            routing_key.into(),
+            BasicPublishOptions { mandatory: true, ..Default::default() },
+            payload,
+            props,
+        )
+        .await
+        .map_err(|e| AppError::AmqpError(e.to_string()))?;
+    match tokio::time::timeout(PUBLISH_CONFIRM_TIMEOUT, confirm).await {
+        Err(_) => Ok(Err(format!(
+            "Broker did not confirm the publish within {}s",
+            PUBLISH_CONFIRM_TIMEOUT.as_secs()
+        ))),
+        Ok(Err(e)) => Err(AppError::AmqpError(e.to_string())),
+        Ok(Ok(Confirmation::Ack(None))) | Ok(Ok(Confirmation::NotRequested)) => Ok(Ok(())),
+        Ok(Ok(Confirmation::Ack(Some(_)))) => Ok(Err(format!(
+            "Message was returned by the broker: nothing is routed from exchange '{}' with routing key '{}'",
+            exchange, routing_key
+        ))),
+        Ok(Ok(Confirmation::Nack(_))) => Ok(Err("Broker rejected the message (nack)".to_string())),
+    }
+}
+
+/// Run one step on an open connection: publish with confirms, then follow the response mode.
+async fn run_step(
+    conn: &lapin::Connection,
+    pool: &DescriptorPool,
+    token: &CancellationToken,
+    step: &PlanStep,
+    payload: &[u8],
+) -> Result<StepResult, AppError> {
     let channel = conn
         .create_channel()
         .await
         .map_err(|e| AppError::AmqpError(e.to_string()))?;
+    channel
+        .confirm_select(ConfirmSelectOptions::default())
+        .await
+        .map_err(|e| AppError::AmqpError(e.to_string()))?;
 
-    // ── 7. Determine routing info from step.target ────────────────────────────
     let (exchange, routing_key) = match &step.target {
         PublishTarget::Queue { queue } => ("".to_string(), queue.clone()),
-        PublishTarget::Exchange { exchange, routing_key } => {
-            (exchange.clone(), routing_key.clone())
-        }
+        PublishTarget::Exchange { exchange, routing_key } => (exchange.clone(), routing_key.clone()),
     };
 
-    // ── 8. Branch on response_mode ────────────────────────────────────────────
-    let result = match &step.response_mode {
-        // Branch A: NoWait — publish and sleep delay_ms
+    match &step.response_mode {
+        // Branch A: NoWait — publish, then pause (interruptible by Stop).
         ResponseMode::NoWait { delay_ms } => {
-            let delay = *delay_ms;
-
-            channel
-                .basic_publish(
-                    exchange.as_str().into(),
-                    routing_key.as_str().into(),
-                    BasicPublishOptions::default(),
-                    &encoded_bytes,
-                    BasicProperties::default(),
-                )
-                .await
-                .map_err(|e| AppError::AmqpError(e.to_string()))?;
-
-            tokio::time::sleep(Duration::from_millis(delay)).await;
-
-            StepResult {
-                step_id: step.id.clone(),
-                status: "done".into(),
-                reply: None,
-                error: None,
+            if let Err(reason) =
+                publish_confirmed(&channel, &exchange, &routing_key, payload, BasicProperties::default())
+                    .await?
+            {
+                return Ok(step_error(&step.id, reason));
+            }
+            tokio::select! {
+                biased;
+                _ = token.cancelled() => Ok(step_error(&step.id, "Cancelled")),
+                _ = tokio::time::sleep(Duration::from_millis(*delay_ms)) => Ok(step_done(&step.id, None)),
             }
         }
 
-        // Branch B: CorrelationId — consume BEFORE publish; match by correlation_id property
+        // Branch B: CorrelationId — consume BEFORE publish; match by correlation_id property.
         ResponseMode::CorrelationId { reply_queue, timeout_ms } => {
-            let timeout = *timeout_ms;
-            let reply_queue = reply_queue.clone();
+            let reply = resolve_reply_queue(&channel, reply_queue).await?;
             let correlation_id = Uuid::new_v4().to_string();
+            let mut consumer = start_reply_consumer(&channel, &reply).await?;
 
-            // basic_consume BEFORE basic_publish (pitfall #59)
-            let consumer_tag = format!("tap-run-{}", &step.id[..8.min(step.id.len())]);
-            let mut consumer = channel
-                .basic_consume(
-                    reply_queue.as_str().into(),
-                    consumer_tag.as_str().into(),
-                    BasicConsumeOptions { no_ack: false, ..Default::default() },
-                    lapin::types::FieldTable::default(),
-                )
-                .await
-                .map_err(|e| AppError::AmqpError(e.to_string()))?;
-
-            // Build AMQP props with correlation_id + reply_to
             let props = BasicProperties::default()
                 .with_correlation_id(correlation_id.as_str().into())
-                .with_reply_to(reply_queue.as_str().into());
-
-            channel
-                .basic_publish(
-                    exchange.as_str().into(),
-                    routing_key.as_str().into(),
-                    BasicPublishOptions::default(),
-                    &encoded_bytes,
-                    props,
-                )
-                .await
-                .map_err(|e| AppError::AmqpError(e.to_string()))?;
+                .with_reply_to(reply.name.as_str().into());
+            if let Err(reason) =
+                publish_confirmed(&channel, &exchange, &routing_key, payload, props).await?
+            {
+                return Ok(step_error(&step.id, reason));
+            }
 
             // Pin deadline OUTSIDE the loop (pitfall #4)
-            let deadline = tokio::time::sleep(Duration::from_millis(timeout));
+            let deadline = tokio::time::sleep(Duration::from_millis(*timeout_ms));
             tokio::pin!(deadline);
-
-            let mut step_result = StepResult {
-                step_id: step.id.clone(),
-                status: "error".into(),
-                reply: None,
-                error: Some("Timeout waiting for reply".to_string()),
-            };
 
             loop {
                 tokio::select! {
                     biased;
-                    _ = token.cancelled() => {
-                        step_result = StepResult {
-                            step_id: step.id.clone(),
-                            status: "error".into(),
-                            reply: None,
-                            error: Some("Cancelled".to_string()),
-                        };
-                        break;
-                    }
-                    _ = &mut deadline => {
-                        // step_result already set to timeout error above
-                        break;
-                    }
-                    maybe_delivery = consumer.next() => {
-                        match maybe_delivery {
-                            Some(Ok(delivery)) => {
-                                // correlation_id from AMQP properties NOT headers (pitfall #58)
-                                let corr = delivery
-                                    .properties
-                                    .correlation_id()
-                                    .as_ref()
-                                    .map(|s| s.as_str().to_owned());
-
-                                if corr.as_deref() == Some(correlation_id.as_str()) {
-                                    // Match — ack and return done
-                                    let _ = delivery
-                                        .ack(BasicAckOptions::default())
-                                        .await;
-                                    let reply = build_reply_message(&delivery, &pool, &step.message_type);
-                                    step_result = StepResult {
-                                        step_id: step.id.clone(),
-                                        status: "done".into(),
-                                        reply: Some(reply),
-                                        error: None,
-                                    };
-                                    break;
-                                } else {
-                                    // No match — NACK with requeue=true (pitfall #60)
-                                    let _ = delivery
-                                        .nack(BasicNackOptions { requeue: true, ..Default::default() })
-                                        .await;
-                                    // Continue loop
-                                }
+                    _ = token.cancelled() => return Ok(step_error(&step.id, "Cancelled")),
+                    _ = &mut deadline => return Ok(step_error(&step.id, "Timeout waiting for reply")),
+                    maybe_delivery = consumer.next() => match maybe_delivery {
+                        Some(Ok(delivery)) => {
+                            // correlation_id from AMQP properties NOT headers (pitfall #58)
+                            let corr = delivery
+                                .properties
+                                .correlation_id()
+                                .as_ref()
+                                .map(|s| s.as_str().to_owned());
+                            if corr.as_deref() == Some(correlation_id.as_str()) {
+                                let _ = delivery.ack(BasicAckOptions::default()).await;
+                                let reply_msg = build_reply_message(&delivery, pool, &step.message_type);
+                                return Ok(step_done(&step.id, Some(reply_msg)));
                             }
-                            Some(Err(e)) => {
-                                step_result = StepResult {
-                                    step_id: step.id.clone(),
-                                    status: "error".into(),
-                                    reply: None,
-                                    error: Some(format!("Consumer error: {}", e)),
-                                };
-                                break;
-                            }
-                            None => {
-                                step_result = StepResult {
-                                    step_id: step.id.clone(),
-                                    status: "error".into(),
-                                    reply: None,
-                                    error: Some("Consumer channel closed".to_string()),
-                                };
-                                break;
+                            if reply.private {
+                                // Nothing else can legitimately sit on a private queue: drop strays.
+                                let _ = delivery.ack(BasicAckOptions::default()).await;
+                            } else {
+                                // Shared queue: hand the message back to its real consumer, then
+                                // back off so the broker is not hammered with redeliveries.
+                                let _ = delivery
+                                    .nack(BasicNackOptions { requeue: true, ..Default::default() })
+                                    .await;
+                                tokio::time::sleep(REQUEUE_BACKOFF).await;
                             }
                         }
+                        Some(Err(e)) => return Ok(step_error(&step.id, format!("Consumer error: {}", e))),
+                        None => return Ok(step_error(&step.id, "Consumer channel closed")),
                     }
                 }
             }
-
-            step_result
         }
 
-        // Branch C: FirstArrival — consume BEFORE publish; first delivery wins
+        // Branch C: FirstArrival — consume BEFORE publish; first delivery wins.
         ResponseMode::FirstArrival { reply_queue, timeout_ms } => {
-            let timeout = *timeout_ms;
-            let reply_queue = reply_queue.clone();
+            let reply = resolve_reply_queue(&channel, reply_queue).await?;
+            let mut consumer = start_reply_consumer(&channel, &reply).await?;
 
-            // basic_consume BEFORE basic_publish (pitfall #59)
-            let consumer_tag = format!("tap-fa-{}", &step.id[..8.min(step.id.len())]);
-            let mut consumer = channel
-                .basic_consume(
-                    reply_queue.as_str().into(),
-                    consumer_tag.as_str().into(),
-                    BasicConsumeOptions { no_ack: false, ..Default::default() },
-                    lapin::types::FieldTable::default(),
-                )
-                .await
-                .map_err(|e| AppError::AmqpError(e.to_string()))?;
+            let props = BasicProperties::default().with_reply_to(reply.name.as_str().into());
+            if let Err(reason) =
+                publish_confirmed(&channel, &exchange, &routing_key, payload, props).await?
+            {
+                return Ok(step_error(&step.id, reason));
+            }
 
-            // No correlation_id or reply_to in props for first-arrival mode
-            channel
-                .basic_publish(
-                    exchange.as_str().into(),
-                    routing_key.as_str().into(),
-                    BasicPublishOptions::default(),
-                    &encoded_bytes,
-                    BasicProperties::default(),
-                )
-                .await
-                .map_err(|e| AppError::AmqpError(e.to_string()))?;
-
-            // Pin deadline OUTSIDE the select (pitfall #4)
-            let deadline = tokio::time::sleep(Duration::from_millis(timeout));
+            let deadline = tokio::time::sleep(Duration::from_millis(*timeout_ms));
             tokio::pin!(deadline);
 
-            // FirstArrival: every arm is terminal — no loop needed (unlike CorrelationId
-            // which may NACK and continue).
             tokio::select! {
                 biased;
-                _ = token.cancelled() => StepResult {
-                    step_id: step.id.clone(),
-                    status: "error".into(),
-                    reply: None,
-                    error: Some("Cancelled".to_string()),
-                },
-                _ = &mut deadline => StepResult {
-                    step_id: step.id.clone(),
-                    status: "error".into(),
-                    reply: None,
-                    error: Some("Timeout waiting for reply".to_string()),
-                },
+                _ = token.cancelled() => Ok(step_error(&step.id, "Cancelled")),
+                _ = &mut deadline => Ok(step_error(&step.id, "Timeout waiting for reply")),
                 maybe_delivery = consumer.next() => match maybe_delivery {
                     Some(Ok(delivery)) => {
-                        // First arrival — ack and return done (no correlation check)
                         let _ = delivery.ack(BasicAckOptions::default()).await;
-                        let reply = build_reply_message(&delivery, &pool, &step.message_type);
-                        StepResult {
-                            step_id: step.id.clone(),
-                            status: "done".into(),
-                            reply: Some(reply),
-                            error: None,
-                        }
+                        let reply_msg = build_reply_message(&delivery, pool, &step.message_type);
+                        Ok(step_done(&step.id, Some(reply_msg)))
                     }
-                    Some(Err(e)) => StepResult {
-                        step_id: step.id.clone(),
-                        status: "error".into(),
-                        reply: None,
-                        error: Some(format!("Consumer error: {}", e)),
-                    },
-                    None => StepResult {
-                        step_id: step.id.clone(),
-                        status: "error".into(),
-                        reply: None,
-                        error: Some("Consumer channel closed".to_string()),
-                    },
+                    Some(Err(e)) => Ok(step_error(&step.id, format!("Consumer error: {}", e))),
+                    None => Ok(step_error(&step.id, "Consumer channel closed")),
                 },
             }
         }
-    };
-
-    // Close connection (best-effort — don't fail the step on close error)
-    let _ = conn.close(0, "".into()).await;
-
-    Ok(result)
+    }
 }
 
 // ─── Proto compilation helper ────────────────────────────────────────────────
@@ -535,7 +559,7 @@ fn compile_and_merge_proto(
         .map_err(|e| AppError::ParseError(e.to_string()))?;
     let fds = compiler.file_descriptor_set();
 
-    let mut guard = pool.lock().unwrap();
+    let mut guard = crate::commands::lock_state(pool)?;
     match guard.as_mut() {
         None => {
             let new_pool = DescriptorPool::from_file_descriptor_set(fds)
@@ -558,6 +582,11 @@ fn compile_and_merge_proto(
 
 // ─── Reply decoding helper ────────────────────────────────────────────────────
 
+/// Hex in the same spaced format as the feed, so replies and feed rows look alike.
+fn reply_hex(bytes: &[u8]) -> String {
+    crate::commands::consume::bytes_to_hex(bytes)
+}
+
 /// Build a ReplyMessage from a lapin delivery.
 /// Decode failure sets decoded/decoded_as to None — it is NOT a step error.
 /// hex_string is always populated regardless of decode outcome.
@@ -578,11 +607,7 @@ fn build_reply_message(
         .correlation_id()
         .as_ref()
         .map(|s| s.to_string());
-    let hex_string = delivery
-        .data
-        .iter()
-        .map(|b| format!("{:02x}", b))
-        .collect::<String>();
+    let hex_string = reply_hex(&delivery.data);
 
     // Decode attempt using pool (D-03 + Q4 resolution)
     let (decoded, decoded_as) = match pool.get_message_by_name(message_type) {
@@ -700,6 +725,42 @@ mod tests {
         assert!(matches!(err, AppError::ParseError(_)), "got {err:?}");
     }
 
+    // ---- timing bounds (A3) -----------------------------------------------
+
+    #[test]
+    fn timings_within_bounds_are_accepted() {
+        assert!(validate_step_timings(&ResponseMode::NoWait { delay_ms: 0 }).is_ok());
+        assert!(validate_step_timings(&ResponseMode::NoWait { delay_ms: MAX_STEP_DELAY_MS }).is_ok());
+        assert!(validate_step_timings(&ResponseMode::CorrelationId {
+            reply_queue: String::new(),
+            timeout_ms: MAX_REPLY_TIMEOUT_MS,
+        })
+        .is_ok());
+    }
+
+    #[test]
+    fn oversized_delay_and_timeout_are_rejected_with_the_limit_named() {
+        let err = validate_step_timings(&ResponseMode::NoWait { delay_ms: MAX_STEP_DELAY_MS + 1 })
+            .unwrap_err();
+        assert!(err.contains("delay") && err.contains(&MAX_STEP_DELAY_MS.to_string()), "got {err}");
+        let err = validate_step_timings(&ResponseMode::FirstArrival {
+            reply_queue: "r".into(),
+            timeout_ms: MAX_REPLY_TIMEOUT_MS + 1,
+        })
+        .unwrap_err();
+        assert!(err.contains("timeout") && err.contains(&MAX_REPLY_TIMEOUT_MS.to_string()), "got {err}");
+    }
+
+    #[test]
+    fn zero_reply_timeout_is_rejected() {
+        let err = validate_step_timings(&ResponseMode::CorrelationId {
+            reply_queue: "r".into(),
+            timeout_ms: 0,
+        })
+        .unwrap_err();
+        assert!(err.contains("timeout"), "got {err}");
+    }
+
     // ---- input deserialization (TS discriminated unions) ------------------
 
     #[test]
@@ -809,6 +870,13 @@ mod tests {
     }
 
     #[test]
+    fn reply_hex_uses_the_spaced_format_of_the_feed() {
+        // Same convention as consume::bytes_to_hex, so replies and feed rows look alike.
+        assert_eq!(reply_hex(&[0x0a, 0x05, 0x68]), "0a 05 68");
+        assert_eq!(reply_hex(&[]), "");
+    }
+
+    #[test]
     fn reply_message_serializes_to_camel_case() {
         let reply = ReplyMessage {
             routing_key: "rk".into(),
@@ -844,7 +912,9 @@ mod integration_tests {
     fn pool_and_bytes(values: serde_json::Value) -> (DescriptorPool, Vec<u8>) {
         let tmp_dir = std::env::temp_dir().join("tap_plan_it");
         std::fs::create_dir_all(&tmp_dir).unwrap();
-        let path = tmp_dir.join("cmd.proto");
+        // Unique file per call: tests run in parallel and fs::write truncates first, so a
+        // shared file name let one test compile another test's half-written (empty) proto.
+        let path = tmp_dir.join(format!("cmd-{}.proto", Uuid::new_v4().simple()));
         std::fs::write(&path, PROTO).unwrap();
         let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
         c.include_imports(true);
@@ -892,7 +962,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 0 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
@@ -907,7 +977,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 0 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
@@ -921,7 +991,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 0 },
         );
-        let err = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+        let err = execute_step_core(pool, CancellationToken::new(), &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(), s)
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::AmqpError(_)), "got {err:?}");
@@ -938,11 +1008,12 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 1 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "done");
         assert!(res.reply.is_none());
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -957,13 +1028,15 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 5000 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "done");
         let reply = res.reply.expect("expected a reply");
         assert_eq!(reply.decoded_as, Some("Cmd".to_string()));
         assert_eq!(reply.decoded.unwrap()["action"], "pong");
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -977,11 +1050,13 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 400 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
         assert!(res.error.unwrap().contains("Timeout"));
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -997,11 +1072,12 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 5000 },
         );
-        let res = execute_step_core(pool, token, &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, token, &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
         assert_eq!(res.error, Some("Cancelled".to_string()));
+        crate::test_support::delete_queue(&b, reply_q).await;
     }
 
     #[tokio::test]
@@ -1016,10 +1092,144 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::CorrelationId { reply_queue: reply_q.into(), timeout_ms: 500 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
         assert!(res.error.unwrap().contains("Timeout"));
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
+    }
+
+    // ── Bounded timings, confirms, cancellation, private reply queues ──
+
+    #[tokio::test]
+    async fn oversized_delay_is_a_step_error_before_any_connection() {
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "x" }));
+        let s = step(
+            "s-bigdelay", "Cmd", "{\"action\":\"go\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::NoWait { delay_ms: MAX_STEP_DELAY_MS + 1 },
+        );
+        // Unreachable host: validation must fail first, so this returns Ok(error result), not Err.
+        let res = execute_step_core(pool, CancellationToken::new(), &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+        assert!(res.error.unwrap().contains("delay"));
+    }
+
+    #[tokio::test]
+    async fn no_wait_to_unroutable_target_reports_the_return() {
+        let Some(b) = broker_or_skip("plan_no_wait_unroutable").await else { return };
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "go" }));
+        let s = step(
+            "s-unroutable", "Cmd", "{\"action\":\"go\"}",
+            PublishTarget::Queue { queue: "tap-it-no-such-queue-zzz".into() },
+            ResponseMode::NoWait { delay_ms: 0 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+        assert!(res.error.unwrap().to_lowercase().contains("routed"), "unroutable publish must not report done");
+    }
+
+    #[tokio::test]
+    async fn no_wait_delay_is_interrupted_by_cancellation() {
+        let Some(b) = broker_or_skip("plan_no_wait_cancel").await else { return };
+        let (pool, _) = pool_and_bytes(serde_json::json!({ "action": "go" }));
+        let s = step(
+            "s-cancel-delay", "Cmd", "{\"action\":\"go\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::NoWait { delay_ms: 30_000 },
+        );
+        let token = CancellationToken::new();
+        let cancel = token.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            cancel.cancel();
+        });
+        let started = std::time::Instant::now();
+        let res = execute_step_core(pool, token, &b.endpoint(), b.password.clone(), s)
+            .await
+            .unwrap();
+        assert!(started.elapsed() < Duration::from_secs(5), "cancel must interrupt the delay");
+        assert_eq!(res.error, Some("Cancelled".to_string()));
+        crate::test_support::purge_queue(&b, "proto-test").await;
+    }
+
+    #[tokio::test]
+    async fn correlation_id_with_private_reply_queue_round_trips_through_a_responder() {
+        let Some(b) = broker_or_skip("plan_private_reply").await else { return };
+        let request_q = "tap-it-plan-private-req";
+        let (pool, reply_bytes) = pool_and_bytes(serde_json::json!({ "action": "pong" }));
+        seed_queue(&b, request_q, &[]).await;
+
+        // A responder that answers on reply_to with the request's correlation id, like a real service.
+        let responder_broker = b.clone();
+        let responder = tokio::spawn(async move {
+            let ch = test_channel(&responder_broker).await;
+            let deadline = std::time::Instant::now() + Duration::from_secs(5);
+            loop {
+                if let Some(msg) = ch.basic_get(request_q.into(), lapin::options::BasicGetOptions::default()).await.unwrap() {
+                    let reply_to = msg.properties.reply_to().as_ref().map(|s| s.as_str().to_owned()).unwrap();
+                    let corr = msg.properties.correlation_id().as_ref().map(|s| s.as_str().to_owned()).unwrap();
+                    msg.ack(BasicAckOptions::default()).await.unwrap();
+                    ch.basic_publish(
+                        "".into(),
+                        reply_to.as_str().into(),
+                        BasicPublishOptions::default(),
+                        &reply_bytes,
+                        lapin::BasicProperties::default().with_correlation_id(corr.as_str().into()),
+                    )
+                    .await
+                    .unwrap();
+                    return reply_to;
+                }
+                assert!(std::time::Instant::now() < deadline, "responder never saw the request");
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        });
+
+        let s = step(
+            "s-private", "Cmd", "{\"action\":\"ping\"}",
+            PublishTarget::Queue { queue: request_q.into() },
+            // Empty reply_queue: Tap declares an exclusive, auto-delete reply queue for this step.
+            ResponseMode::CorrelationId { reply_queue: String::new(), timeout_ms: 5000 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
+            .await
+            .unwrap();
+        let reply_to = responder.await.unwrap();
+        assert!(reply_to.starts_with("amq.gen-"), "expected a server-named private queue, got {reply_to}");
+        assert_eq!(res.status, "done", "error: {:?}", res.error);
+        let reply = res.reply.expect("expected a reply");
+        assert_eq!(reply.decoded.unwrap()["action"], "pong");
+        crate::test_support::delete_queue(&b, request_q).await;
+    }
+
+    #[tokio::test]
+    async fn correlation_id_on_a_shared_queue_requeues_unrelated_messages() {
+        let Some(b) = broker_or_skip("plan_corr_requeue").await else { return };
+        let reply_q = "tap-it-plan-corr-requeue";
+        let (pool, junk) = pool_and_bytes(serde_json::json!({ "action": "unrelated" }));
+        seed_queue(&b, reply_q, &[junk]).await;
+        let s = step(
+            "s-corr-requeue", "Cmd", "{\"action\":\"ping\"}",
+            PublishTarget::Queue { queue: "proto-test".into() },
+            ResponseMode::CorrelationId { reply_queue: reply_q.into(), timeout_ms: 400 },
+        );
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
+            .await
+            .unwrap();
+        assert_eq!(res.status, "error");
+        // The unrelated message must still be on the queue for its real consumer.
+        let ch = test_channel(&b).await;
+        let leftover = ch.basic_get(reply_q.into(), lapin::options::BasicGetOptions::default()).await.unwrap();
+        assert!(leftover.is_some(), "unrelated message was consumed instead of requeued");
+        leftover.unwrap().ack(BasicAckOptions::default()).await.unwrap();
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 }

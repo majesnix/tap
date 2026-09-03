@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { listProfiles, activateProfile, testConnection } from "@/lib/ipc";
+import { listProfiles, activateProfile, testConnection, keychainStatus } from "@/lib/ipc";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { ProfileManagementModal } from "@/components/connection/ProfileManagementModal";
 import { ConnectionTestResult } from "@/components/connection/ConnectionTestResult";
@@ -32,6 +32,8 @@ export function ConnectionSection() {
   type TestState = "idle" | "testing" | "success" | "error";
   const [testState, setTestState] = useState<TestState>("idle");
   const [testError, setTestError] = useState<string | null>(null);
+  // Set when the backend could not open the OS keychain (passwords are session-only then).
+  const [keychainError, setKeychainError] = useState<string | null>(null);
 
   useEffect(() => {
     listProfiles()
@@ -39,7 +41,23 @@ export function ConnectionSection() {
       .catch(() => {
         // Profiles load failure is non-fatal on startup
       });
+    keychainStatus()
+      .then((status) => {
+        if (status && status.available === false) {
+          setKeychainError(status.error ?? "unknown error");
+        }
+      })
+      .catch(() => {
+        // Older backends without the command: assume the keychain works
+      });
   }, [setProfiles]);
+
+  const keychainBanner = keychainError && (
+    <p role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+      Keychain unavailable: passwords are kept in memory for this session only and profiles
+      cannot be saved permanently ({keychainError}).
+    </p>
+  );
 
   const handleProfileChange = async (name: string) => {
     setActiveProfile(name);
@@ -74,7 +92,9 @@ export function ConnectionSection() {
 
   if (profiles.length === 0) {
     return (
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-col gap-2">
+        {keychainBanner}
+        <div className="flex items-center justify-between gap-2">
         <p className="text-xs text-muted-foreground">Add connection</p>
         <Button
           variant="ghost"
@@ -85,12 +105,14 @@ export function ConnectionSection() {
           <Settings className="w-4 h-4" />
         </Button>
         <ProfileManagementModal open={dialogOpen} onClose={() => setDialogOpen(false)} />
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
+      {keychainBanner}
       <label className="text-sm font-semibold">Connection</label>
       <Select value={activeProfileName ?? ""} onValueChange={handleProfileChange}>
         <SelectTrigger className="w-full">

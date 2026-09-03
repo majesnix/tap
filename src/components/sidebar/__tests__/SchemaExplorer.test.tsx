@@ -36,10 +36,10 @@ function makeSchema(messages: MessageSchema[], enums: EnumSchema[] = []): ProtoS
 const mockSetSelectedType = vi.fn();
 
 function setStore(schema: ProtoSchema | null) {
-  vi.mocked(useProtoStore).mockReturnValue({
-    schema,
-    setSelectedType: mockSetSelectedType,
-  } as any);
+  const state = { schema, setSelectedType: mockSetSelectedType };
+  // The component reads the store through selectors; apply them like zustand would.
+  vi.mocked(useProtoStore).mockImplementation(((selector?: (s: typeof state) => unknown) =>
+    selector ? selector(state) : state) as unknown as typeof useProtoStore);
 }
 
 async function renderExplorer() {

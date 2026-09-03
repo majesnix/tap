@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { PublishBar, buildPublishArgs } from "@/components/publish/PublishBar";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
+import { useHistoryStore } from "@/stores/useHistoryStore";
 
 // Module-scope mock for sonner — uses vi.hoisted() so the factory reference is valid
 // after hoisting. vi.mock() factories are hoisted before const declarations; vi.hoisted()
@@ -13,6 +14,16 @@ vi.mock("sonner", () => ({ toast: toastMock }));
 
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
+}));
+
+// History persistence goes through tauri-plugin-store; keep it in memory here so the
+// history tests neither touch disk nor leave an unhandled rejection behind.
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn().mockResolvedValue({
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue(undefined),
+    save: vi.fn().mockResolvedValue(undefined),
+  }),
 }));
 
 // Mock shadcn Select with a native <select> to avoid Radix UI portal/pointer-event issues in jsdom
@@ -82,6 +93,10 @@ vi.mock("../RoutingKeyCombobox", () => ({
 }));
 
 import { invoke } from "@tauri-apps/api/core";
+import { invalidateCatalog } from "@/lib/brokerCatalog";
+
+// Listings are cached per profile across renders; start every test from an empty cache.
+beforeEach(() => invalidateCatalog());
 const mockInvoke = vi.mocked(invoke);
 
 function getTargetCombobox() {
@@ -620,5 +635,133 @@ describe("Phase 10 — Publisher Confirms Badge", () => {
     await waitFor(() => screen.getByText("NACK"));
     // ACK badge must be gone
     expect(screen.queryByText("ACK")).not.toBeInTheDocument();
+  });
+});
+
+describe("environment and read-only profiles", () => {
+  const PROFILE = {
+    name: "test-profile",
+    host: "rabbit.prod.internal",
+    port: 5672,
+    vhost: "/",
+    username: "dev",
+    management_port: 15672,
+    management_ssl: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [PROFILE],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "live",
+      managementAuthError: null,
+      queues: ["test-queue"],
+      exchanges: [],
+    });
+    useProtoStore.setState({
+      hexPreview: "0a 05",
+      encodeError: null,
+      latestValues: {},
+      selectedMessageType: "TestMessage",
+    });
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "encode_message") return Promise.resolve("CgU=");
+      if (cmd === "publish_message") return Promise.resolve({ status: "ack" });
+      return Promise.resolve([]);
+    });
+  });
+
+  it("shows the host and environment of the active profile", () => {
+    render(<PublishBar />);
+    expect(screen.getByText("rabbit.prod.internal")).toBeInTheDocument();
+    expect(screen.getByTestId("environment-badge")).toHaveTextContent("Shared");
+  });
+
+  it("disables Send for a read-only profile", async () => {
+    useConnectionStore.setState({ profiles: [{ ...PROFILE, read_only: true }] });
+    render(<PublishBar />);
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
+    expect(screen.getByRole("button", { name: /^send$/i })).toBeDisabled();
+  });
+
+  it("asks for confirmation before publishing to a production profile", async () => {
+    useConnectionStore.setState({ profiles: [{ ...PROFILE, environment: "production" }] });
+    render(<PublishBar />);
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent(/production/i);
+    expect(mockInvoke).not.toHaveBeenCalledWith("publish_message", expect.anything());
+    fireEvent.click(screen.getByRole("button", { name: /^publish$/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "publish_message",
+        expect.objectContaining({ routingKey: "test-queue" })
+      );
+    });
+  });
+});
+
+describe("history recording per profile", () => {
+  const PROFILE = {
+    name: "test-profile",
+    host: "localhost",
+    port: 5672,
+    vhost: "/",
+    username: "dev",
+    management_port: 15672,
+    management_ssl: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [PROFILE],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "live",
+      managementAuthError: null,
+      queues: ["test-queue"],
+      exchanges: [],
+    });
+    useProtoStore.setState({
+      hexPreview: "0a 05",
+      encodeError: null,
+      latestValues: {},
+      selectedMessageType: "TestMessage",
+    });
+    useHistoryStore.setState({ entries: [], historyLoaded: true });
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "encode_message") return Promise.resolve("CgU=");
+      if (cmd === "publish_message") return Promise.resolve({ status: "ack" });
+      return Promise.resolve([]);
+    });
+  });
+
+  async function send() {
+    render(<PublishBar />);
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
+    await waitFor(() => expect(screen.getByText("ACK")).toBeInTheDocument());
+  }
+
+  it("records a sent message by default", async () => {
+    await send();
+    await waitFor(() => expect(useHistoryStore.getState().entries).toHaveLength(1));
+  });
+
+  it("records nothing for a profile with record_history off", async () => {
+    useConnectionStore.setState({ profiles: [{ ...PROFILE, record_history: false }] });
+    await send();
+    expect(useHistoryStore.getState().entries).toHaveLength(0);
   });
 });

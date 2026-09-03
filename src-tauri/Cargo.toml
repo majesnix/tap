@@ -35,9 +35,15 @@ lapin = { version = "4", features = ["tokio"] }
 uuid = { version = "1", features = ["v4"] }
 percent-encoding = "2"
 tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+tracing-appender = "0.2"
 base64 = "0.22"
 keyring-core = "1"
 reqwest = { version = "0.13", features = ["json", "rustls"] }
+# Direct dependency only to install the process-wide crypto provider: reqwest brings
+# aws-lc-rs and the TLS certificate verifier brings ring, and rustls refuses to guess
+# when both are present (see profiles::ensure_crypto_provider).
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"] }
 
 [dev-dependencies]
 # Test-only: async test runtime. Merged with the main `tokio` feature set for test builds.

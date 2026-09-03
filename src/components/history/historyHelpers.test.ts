@@ -19,7 +19,7 @@ function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     routingKey: "my.queue",
     status: "sent",
     fieldValues: {},
-    payloadBytes: [],
+    payloadBase64: "",
     ...overrides,
   };
 }

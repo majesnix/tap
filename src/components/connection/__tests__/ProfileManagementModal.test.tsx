@@ -366,3 +366,215 @@ describe("ProfileManagementModal", () => {
     });
   });
 });
+
+describe("transport security", () => {
+  async function openCreateForm() {
+    render(<ProfileManagementModal open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByText(/\+ new profile/i));
+    fireEvent.click(screen.getByText(/\+ new profile/i));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: null,
+      connectionStatus: "disconnected",
+      connectionError: null,
+      managementStatus: "unknown",
+      queues: [],
+      exchanges: [],
+    });
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_profiles") return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+  });
+
+  it("saves amqp_tls=false and no CA path by default", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/e.g. local rabbitmq/i), {
+      target: { value: "Local" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "localhost" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "save_profile",
+        expect.objectContaining({
+          profile: expect.objectContaining({ amqp_tls: false, ca_cert_path: null }),
+        })
+      );
+    });
+  });
+
+  it("switches AMQP TLS on when the port becomes 5671 and saves amqps settings", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/e.g. local rabbitmq/i), {
+      target: { value: "Staging" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "rabbit.staging.internal" },
+    });
+    fireEvent.change(screen.getByDisplayValue("5672"), { target: { value: "5671" } });
+    expect(screen.getByRole("checkbox", { name: /amqp over tls/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+    fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "save_profile",
+        expect.objectContaining({
+          profile: expect.objectContaining({ port: 5671, amqp_tls: true }),
+        })
+      );
+    });
+  });
+
+  it("switches Management API SSL on when the management port becomes 15671", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByDisplayValue("15672"), { target: { value: "15671" } });
+    expect(screen.getByRole("checkbox", { name: /management api ssl/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+
+  it("warns about cleartext credentials for a remote host until both transports use TLS", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "rabbit.staging.internal" },
+    });
+    expect(screen.getByRole("status")).toHaveTextContent(/unencrypted/i);
+    fireEvent.click(screen.getByRole("checkbox", { name: /amqp over tls/i }));
+    expect(screen.getByRole("status")).toHaveTextContent(/management api/i);
+    fireEvent.click(screen.getByRole("checkbox", { name: /management api ssl/i }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("does not warn for localhost", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "localhost" },
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("sends the CA certificate path when one is entered", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/e.g. local rabbitmq/i), {
+      target: { value: "Staging" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "rabbit.staging.internal" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/ca certificate/i), {
+      target: { value: "/etc/ssl/internal-ca.pem" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "save_profile",
+        expect.objectContaining({
+          profile: expect.objectContaining({ ca_cert_path: "/etc/ssl/internal-ca.pem" }),
+        })
+      );
+    });
+  });
+
+  it("restores TLS settings when editing a profile", async () => {
+    useConnectionStore.setState({
+      profiles: [
+        {
+          name: "Staging",
+          host: "rabbit.staging.internal",
+          port: 5671,
+          vhost: "/",
+          username: "dev",
+          management_port: 15671,
+          management_ssl: true,
+          amqp_tls: true,
+          ca_cert_path: "/etc/ssl/internal-ca.pem",
+        },
+      ],
+    });
+    render(<ProfileManagementModal open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByText("Staging"));
+    fireEvent.click(screen.getByRole("button", { name: /edit profile staging/i }));
+    await waitFor(() => screen.getByDisplayValue("/etc/ssl/internal-ca.pem"));
+    expect(screen.getByRole("checkbox", { name: /amqp over tls/i })).toHaveAttribute(
+      "aria-checked",
+      "true"
+    );
+  });
+});
+
+describe("environment and read-only", () => {
+  async function openCreateForm() {
+    render(<ProfileManagementModal open={true} onClose={mockOnClose} />);
+    await waitFor(() => screen.getByText(/\+ new profile/i));
+    fireEvent.click(screen.getByText(/\+ new profile/i));
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [],
+      activeProfileName: null,
+      connectionStatus: "disconnected",
+      connectionError: null,
+      managementStatus: "unknown",
+      queues: [],
+      exchanges: [],
+    });
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "list_profiles") return Promise.resolve([]);
+      return Promise.resolve(undefined);
+    });
+  });
+
+  it("follows the host: localhost defaults to Local, a remote host to Shared", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "localhost" },
+    });
+    expect(screen.getByRole("radio", { name: /^local$/i })).toHaveAttribute("aria-checked", "true");
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "rabbit.staging.internal" },
+    });
+    expect(screen.getByRole("radio", { name: /^shared$/i })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("saves the chosen environment and the read-only flag", async () => {
+    await openCreateForm();
+    fireEvent.change(screen.getByPlaceholderText(/e.g. local rabbitmq/i), {
+      target: { value: "Prod" },
+    });
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "rabbit.prod.internal" },
+    });
+    fireEvent.click(screen.getByRole("radio", { name: /^production$/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /read-only/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save & connect/i }));
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(
+        "save_profile",
+        expect.objectContaining({
+          profile: expect.objectContaining({ environment: "production", read_only: true }),
+        })
+      );
+    });
+  });
+
+  it("keeps a manually chosen environment when the host changes afterwards", async () => {
+    await openCreateForm();
+    fireEvent.click(screen.getByRole("radio", { name: /^production$/i }));
+    fireEvent.change(screen.getByPlaceholderText(/localhost/i), {
+      target: { value: "localhost" },
+    });
+    expect(screen.getByRole("radio", { name: /^production$/i })).toHaveAttribute("aria-checked", "true");
+  });
+});
