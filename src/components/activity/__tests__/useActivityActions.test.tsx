@@ -142,7 +142,10 @@ describe("resend", () => {
     await act(async () => {
       await current.resend(ENTRY);
     });
-    expect(mockPublishMessage).toHaveBeenCalledWith("dev", "", "orders", "CgU=");
+    expect(mockPublishMessage).toHaveBeenCalledWith("dev", "", "orders", "CgU=", {
+      correlationId: undefined,
+      replyTo: undefined,
+    });
     await waitFor(() => {
       expect(useHistoryStore.getState().entries).toHaveLength(1);
     });
@@ -151,6 +154,29 @@ describe("resend", () => {
       routingKey: "orders",
       payloadBase64: "CgU=",
       status: "sent",
+      outcome: "ack",
+    });
+  });
+
+  test("forwards the entry's correlation id and reply-to, and records them", async () => {
+    mockPublishMessage.mockResolvedValueOnce({ status: "returned" });
+    const { current } = actions();
+    await act(async () => {
+      await current.resend({ ...ENTRY, correlationId: "req-1", replyTo: "orders.reply" });
+    });
+
+    expect(mockPublishMessage).toHaveBeenCalledWith("dev", "", "orders", "CgU=", {
+      correlationId: "req-1",
+      replyTo: "orders.reply",
+    });
+    await waitFor(() => {
+      expect(useHistoryStore.getState().entries).toHaveLength(1);
+    });
+    // Without these three the resend never groups its reply and always reads SENT.
+    expect(useHistoryStore.getState().entries[0]).toMatchObject({
+      correlationId: "req-1",
+      replyTo: "orders.reply",
+      outcome: "returned",
     });
   });
 

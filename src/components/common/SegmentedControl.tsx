@@ -1,4 +1,4 @@
-import { useCallback, type ReactNode } from "react";
+import { useCallback, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 export interface SegmentedItem<T extends string> {
@@ -43,6 +43,11 @@ export function SegmentedControl<T extends string>({
   className,
   "aria-label": ariaLabel,
 }: SegmentedControlProps<T>) {
+  // Roving tabindex: only the checked radio is tabbable, so an arrow key must move DOM
+  // focus along with the selection or the next press lands on the old button (and Tab
+  // would exit from a tabIndex=-1 element).
+  const buttonsRef = useRef<(HTMLButtonElement | null)[]>([]);
+
   const move = useCallback(
     (from: number, step: 1 | -1) => {
       const enabled = items.filter((i) => !i.disabled);
@@ -50,6 +55,7 @@ export function SegmentedControl<T extends string>({
       const current = enabled.findIndex((i) => i.value === items[from].value);
       const next = enabled[(current + step + enabled.length) % enabled.length];
       onChange(next.value);
+      buttonsRef.current[items.findIndex((i) => i.value === next.value)]?.focus();
     },
     [items, onChange]
   );
@@ -70,6 +76,9 @@ export function SegmentedControl<T extends string>({
         return (
           <button
             key={item.value}
+            ref={(node) => {
+              buttonsRef.current[index] = node;
+            }}
             type="button"
             role="radio"
             aria-checked={active}

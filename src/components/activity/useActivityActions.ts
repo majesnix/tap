@@ -9,6 +9,7 @@ import { useProtoStore } from "@/stores/useProtoStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { findReplayTabIndex } from "@/components/history/historyHelpers";
 import { describeTarget, type ActivityGroup, type ReceivedItem, type SentItem } from "./activityModel";
+import type { PublishOutcome } from "@/lib/types";
 
 export interface ActivityActions {
   /** Pre-fill the form from a past send. No publish. */
@@ -89,12 +90,19 @@ export function useActivityActions(): ActivityActions {
         // Step 2: send the stored payload bytes (no re-encoding).
         // WR-02: publish and history write are separate so an appendEntry failure
         // never shows a misleading "Resend failed" for a message that went out.
+        // The original correlation id and reply-to ride along so the resend groups
+        // with its reply in the Activity panel exactly as the first send did.
+        let result: PublishOutcome;
         try {
-          await publishMessage(
+          result = await publishMessage(
             activeProfileName,
             entry.exchange,
             entry.routingKey,
-            entry.payloadBase64
+            entry.payloadBase64,
+            {
+              correlationId: entry.correlationId ?? undefined,
+              replyTo: entry.replyTo ?? undefined,
+            }
           );
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : String(err);
@@ -114,6 +122,9 @@ export function useActivityActions(): ActivityActions {
             exchange: entry.exchange,
             routingKey: entry.routingKey,
             status: "sent",
+            outcome: result.status,
+            correlationId: entry.correlationId ?? undefined,
+            replyTo: entry.replyTo ?? undefined,
             fieldValues: entry.fieldValues,
             payloadBase64: entry.payloadBase64,
             payloadTruncated: entry.payloadTruncated,
