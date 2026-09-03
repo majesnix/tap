@@ -37,37 +37,36 @@ function Children({ entries }: { entries: [string, unknown][] }) {
   );
 }
 
-function ValueNode({ value }: { value: unknown }) {
+/** Collapsed-by-default summary for an array/object value; owns the only toggle state. */
+function CollapsibleNode({ summary, entries }: { summary: string; entries: [string, unknown][] }) {
   const [open, setOpen] = useState(false);
 
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className="font-mono text-muted-foreground"
+        onClick={() => setOpen(true)}
+      >
+        {summary}
+      </button>
+    );
+  }
+  return <Children entries={entries} />;
+}
+
+function ValueNode({ value }: { value: unknown }) {
   if (Array.isArray(value)) {
-    if (!open) {
-      return (
-        <button
-          type="button"
-          className="font-mono text-muted-foreground"
-          onClick={() => setOpen(true)}
-        >
-          {`[${value.length} items]`}
-        </button>
-      );
-    }
-    return <Children entries={value.map((item, index) => [String(index), item] as [string, unknown])} />;
+    return (
+      <CollapsibleNode
+        summary={`[${value.length} items]`}
+        entries={value.map((item, index) => [String(index), item] as [string, unknown])}
+      />
+    );
   }
 
   if (isPlainObject(value)) {
-    if (!open) {
-      return (
-        <button
-          type="button"
-          className="font-mono text-muted-foreground"
-          onClick={() => setOpen(true)}
-        >
-          {"{…}"}
-        </button>
-      );
-    }
-    return <Children entries={Object.entries(value)} />;
+    return <CollapsibleNode summary="{…}" entries={Object.entries(value)} />;
   }
 
   const { text, className } = formatScalar(value);
