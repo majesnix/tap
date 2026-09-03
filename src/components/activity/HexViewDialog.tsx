@@ -18,6 +18,8 @@ interface HexViewDialogProps {
   subtitle?: string;
   hex: string;
   truncated?: boolean;
+  /** Shown instead of a dump when the payload could not be read at all. */
+  note?: string;
 }
 
 const COPIED_MS = 1500;
@@ -29,6 +31,7 @@ export function HexViewDialog({
   subtitle,
   hex,
   truncated,
+  note,
 }: HexViewDialogProps) {
   const [copied, setCopied] = useState(false);
 
@@ -55,9 +58,18 @@ export function HexViewDialog({
             resent.
           </p>
         )}
-        <HexDump hex={hex} maxHeight={320} />
+        {note ? (
+          <p className="font-mono text-12 text-danger">{note}</p>
+        ) : (
+          <HexDump hex={hex} maxHeight={320} />
+        )}
         <div className="flex justify-end">
-          <IconButton size={26} label="Copy hex" onClick={() => void handleCopy()}>
+          <IconButton
+            size={26}
+            label="Copy hex"
+            disabled={note !== undefined}
+            onClick={() => void handleCopy()}
+          >
             {copied ? (
               <Check size={13} strokeWidth={1.5} className="text-success" />
             ) : (

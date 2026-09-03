@@ -59,7 +59,7 @@ export function collectSearchTokens(obj: Record<string, unknown>): string[] {
 /**
  * Pure lookup: finds the openFiles index whose schema contains the given messageTypeName.
  * Returns -1 if not found.
- * Used by handleReplay and handleResend in MessageHistoryPanel.
+ * Used by replay and resend in useActivityActions.
  */
 export function findReplayTabIndex(
   openFiles: Array<{ filePath: string; schema: ProtoSchema }>,

@@ -17,11 +17,23 @@ vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { info: vi.fn(), error: vi.fn(), success: vi.fn() }),
 }));
 
+import { fireEvent } from "@testing-library/react";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
+import { useProtoStore } from "@/stores/useProtoStore";
 import { invalidateCatalog } from "@/lib/brokerCatalog";
 import { stopSubscribe } from "@/lib/ipc";
+import type { ProtoSchema } from "@/lib/types";
 import { ReadModePopover } from "../ReadModePopover";
+
+// cmdk scrolls its active item into view; jsdom has no such method.
+Element.prototype.scrollIntoView = function scrollIntoView() {};
+
+const SCHEMA: ProtoSchema = {
+  messages: [{ name: "Order", full_name: "example.Order", fields: [] }],
+  message_map: { "example.Order": { name: "Order", full_name: "example.Order", fields: [] } },
+  enums: [],
+};
 
 beforeEach(() => {
   invalidateCatalog();
@@ -67,5 +79,31 @@ describe("popover mounting", () => {
     expect(screen.getByRole("button", { name: /stop/i, hidden: true })).toBeInTheDocument();
     expect(vi.mocked(stopSubscribe)).not.toHaveBeenCalled();
     expect(useResponseStore.getState().subscribeStatus).toBe("Running");
+  });
+
+  test("closes the portalled decode-as list when the read-mode popover closes", async () => {
+    // The decode-as list portals to document.body, so the read-mode popover's
+    // own data-[state=closed]:hidden cannot hide it.
+    useProtoStore.getState().reset();
+    act(() => {
+      useProtoStore.getState().addOrActivateFile("/fake/order.proto", SCHEMA);
+    });
+
+    const { rerender } = render(
+      <ReadModePopover open onOpenChange={vi.fn()} mode="peek" onModeChange={vi.fn()} />
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Decode as" }));
+    });
+    expect(screen.getByPlaceholderText("Filter types…")).toBeInTheDocument();
+
+    await act(async () => {
+      rerender(
+        <ReadModePopover open={false} onOpenChange={vi.fn()} mode="peek" onModeChange={vi.fn()} />
+      );
+    });
+
+    expect(screen.queryByPlaceholderText("Filter types…")).not.toBeInTheDocument();
   });
 });

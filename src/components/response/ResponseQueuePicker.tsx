@@ -32,12 +32,22 @@ import type { FeedMode } from "@/lib/types";
 interface ResponseQueuePickerProps {
   onDrain: (count: number) => void;
   mode?: FeedMode;
+  /**
+   * Whether the surface hosting this picker is visible. The decode-as list
+   * portals to document.body, so a host that only hides itself with CSS (the
+   * force-mounted read-mode popover) would leave the list floating over the app.
+   */
+  panelOpen?: boolean;
 }
 
 const DEFAULT_COUNT = 10;
 const MAX_COUNT = 500;
 
-export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePickerProps) {
+export function ResponseQueuePicker({
+  onDrain,
+  mode = "drain",
+  panelOpen = true,
+}: ResponseQueuePickerProps) {
   const isBatchMode = mode === "peek" || mode === "drain";
   const isPeek = mode === "peek";
   const verb = isPeek ? "Peek" : "Consume";
@@ -63,6 +73,11 @@ export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePi
 
   const openFiles = useProtoStore((s) => s.openFiles);
   const selectedMessageType = useProtoStore((s) => s.selectedMessageType);
+
+  // Close the portalled decode-as list with its host, so it cannot outlive it.
+  useEffect(() => {
+    if (!panelOpen) setDecodeOpen(false);
+  }, [panelOpen]);
 
   // Queue fetch on profile change (D-06: populates when the picker becomes visible)
   useEffect(() => {
@@ -215,7 +230,7 @@ export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePi
               className="flex h-[34px] w-full items-center gap-2 rounded-md border border-border bg-background pr-2 pl-3 text-left transition-colors hover:border-border-strong focus-visible:ring-3 focus-visible:ring-ring/35"
             >
               <span className="flex-1 truncate font-mono text-[12.5px]">{decodeLabel}</span>
-              <ChevronsUpDown size={14} className="shrink-0 text-ghost" />
+              <ChevronsUpDown size={14} strokeWidth={1.5} className="shrink-0 text-ghost" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-0">
@@ -227,8 +242,10 @@ export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePi
                   {allTypeNames.map((name) => (
                     <CommandItem key={name} value={name} onSelect={() => toggleType(name)}>
                       <Check
+                        size={14}
+                        strokeWidth={1.5}
                         className={cn(
-                          "mr-2 h-4 w-4",
+                          "mr-2",
                           selectedDecodeTypes.includes(name) ? "opacity-100" : "opacity-0"
                         )}
                       />
@@ -290,7 +307,7 @@ export function ResponseQueuePicker({ onDrain, mode = "drain" }: ResponseQueuePi
                     : "Takes messages off the queue and acknowledges them. Other consumers will not receive them."
                 }
               >
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {isLoading ? <Loader2 size={14} strokeWidth={1.5} className="animate-spin" /> : null}
                 {verb}
               </Button>
             ) : (

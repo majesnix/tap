@@ -92,3 +92,43 @@ Other notes: every new file is under 300 lines (largest: `activityModel.ts` 224,
 4. **`ActivityPanel` contributes one lint warning** (`react-hooks/immutability` — assigning `signals.*.current` inside an effect). That is inherent to the ref-signal contract the brief specifies. Total is 24 warnings, 0 errors, down from 27 on the pre-change tree.
 5. **`src/components/ui/popover.tsx` is a shared primitive** and §8 of the handoff may have another task restyling it. My change is 4 additive lines (deviation 10); if it conflicts, keep both — dropping `forceMount` silently breaks the running-tap state, and `ReadModePopoverMount.test.tsx` will catch that.
 6. **The queue-depth pill moved** into the `SearchableSelect` `meta` slot in live mode and onto the status line in manual mode; no test covered it before or after.
+
+---
+
+# Fix report — review round 1
+
+**Commit:** see `git log -1` (single commit on top of `9c167c6`).
+
+| # | Finding | What changed |
+|---|---|---|
+| 1 | Decode-as list survived closing the force-mounted read-mode popover | `ResponseQueuePicker` takes `panelOpen?: boolean` (default `true`) and closes `decodeOpen` in an effect when it goes false; `ReadModePopover` passes its own `open`. |
+| 2 | `useQueueRead` subscribed to whole stores | Now uses five individual selectors; the feed size for the 500-cap warning is read via `useResponseStore.getState()` at drain time, so arriving messages no longer re-render the permanently mounted subtree. |
+| 3 | Corrupt base64 fed into `HexDump` | `HexViewDialog` takes `note?: string` (rendered `font-mono text-12 text-danger` in place of the dump, copy button disabled); `hexOf()` returns `{ hex: "", note }` for unreadable payloads. |
+| 4 | Missing `strokeWidth` | `ChevronsUpDown`, `Check`, `Loader2` in `ResponseQueuePicker` and `Loader2` in `SubscribePanel` now use `size={14} strokeWidth={1.5}`. |
+| 5 | Export conflated status and outcome | `sent[].status` is now `entry.status` verbatim; `outcome` stays separate. |
+| 6 | Unused `isLoading` | Removed from `QueueRead` and the return value. |
+| 7 | Per-render tone map with a colliding name | Hoisted to module scope as `SUBSCRIBE_STATUS_TONE`, typed `Record<SubscribeStatus, TagTone>`. |
+| 8 | Animations untested | Three new cases in `ActivityPanel.test.tsx`. |
+| 9 | Stale comments | `historyHelpers.ts` now names `useActivityActions`; `SubscribePanel.tsx` names `ReadModePopover`. No other stale references in files I touched. |
+| 10 | `aria-controls` | Row and reply buttons point at `activity-detail-{id}`; `ActivityExpanded` takes an `id` prop and sets it on its container. |
+
+## Covering tests
+
+- `ReadModePopoverMount.test.tsx` (real Popover primitive) — new case *"closes the portalled decode-as list when the read-mode popover closes"*: opens the popover, opens the decode-as list, closes the popover, asserts `Filter types…` is gone. **Verified to fail without the fix** (`expect(element).not.toBeInTheDocument()`); the pre-existing running-tap case still passes.
+- `ActivityPanel.test.tsx` — three new cases: newest sent row gains `animate-row-highlight` after `lastSendAt` bumps (asserted absent first); a received row arriving after mount gains `animate-row-in`; a row present at mount does not.
+- `useActivityActions.test.tsx` — the envelope case now exports `status: "sent"` with `outcome: "ack"` as distinct fields; a new case asserts `status: "failed"` with `outcome: null`.
+
+## Commands and output
+
+```
+pnpm exec vitest run src/components/activity src/components/response src/__tests__
+  → 10 files, 134 passed
+
+pnpm test                 → 69 files, 741 passed, 0 failed
+pnpm exec tsc --noEmit    → clean
+pnpm lint                 → 0 errors, 25 warnings
+pnpm exec vitest run --coverage → exit 0
+  statements 84.03 · branches 74.85 · functions 83.83 · lines 85.58   (thresholds 78/70/76/79)
+```
+
+Note: warnings went 24 → 25. The new one is `react-hooks/set-state-in-effect` on the `panelOpen` effect from finding 1 — inherent to that instruction (the alternative, `open={decodeOpen && panelOpen}`, leaves `decodeOpen` true so the list reopens on its own next time the popover opens). Same rule already fires elsewhere in the codebase; still 0 errors.

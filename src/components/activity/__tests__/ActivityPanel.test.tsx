@@ -345,6 +345,39 @@ describe("footer actions", () => {
   });
 });
 
+describe("row animations", () => {
+  /** The row container is the button's parent. */
+  function rowOf(text: string) {
+    return screen.getByText(text).closest("button")?.parentElement;
+  }
+
+  test("the newest sent row is highlighted after a send", async () => {
+    useHistoryStore.setState({ entries: [ENTRY], historyLoaded: true });
+    renderPanel();
+    expect(rowOf("Order")).not.toHaveClass("animate-row-highlight");
+
+    await act(async () => {
+      useProtoStore.setState({ lastSendAt: Date.now() });
+    });
+
+    expect(rowOf("Order")).toHaveClass("animate-row-highlight");
+  });
+
+  test("a received row that arrived after mount slides in", async () => {
+    renderPanel();
+    await act(async () => {
+      useResponseStore.setState({ messages: [{ ...REPLY, receivedAt: Date.now() }] });
+    });
+    expect(rowOf("OrderConfirmed")).toHaveClass("animate-row-in");
+  });
+
+  test("received rows already present at mount do not slide in", () => {
+    useResponseStore.setState({ messages: [REPLY] });
+    renderPanel();
+    expect(rowOf("OrderConfirmed")).not.toHaveClass("animate-row-in");
+  });
+});
+
 describe("read mode button", () => {
   test("reads 'Read queue' when idle", () => {
     renderPanel();

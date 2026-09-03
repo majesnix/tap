@@ -15,7 +15,6 @@ export interface QueueRead {
   pending: BrokerConfirmRequest | null;
   confirm: () => void;
   cancel: () => void;
-  isLoading: boolean;
 }
 
 /**
@@ -26,18 +25,18 @@ export interface QueueRead {
 export function useQueueRead(mode: FeedMode): QueueRead {
   const [pending, setPending] = useState<BrokerConfirmRequest | null>(null);
 
-  const { connectionStatus, activeProfileName, profiles } = useConnectionStore();
+  // Individual selectors: this hook lives in a permanently mounted subtree, so
+  // subscribing to whole stores would re-render it on every arriving message.
+  const connectionStatus = useConnectionStore((s) => s.connectionStatus);
+  const activeProfileName = useConnectionStore((s) => s.activeProfileName);
+  const profiles = useConnectionStore((s) => s.profiles);
   const activeProfile = findProfile(profiles, activeProfileName);
 
-  const {
-    selectedQueue,
-    messages,
-    selectedDecodeTypes,
-    isLoading,
-    appendMessages,
-    setIsLoading,
-    setLastReadAt,
-  } = useResponseStore();
+  const selectedQueue = useResponseStore((s) => s.selectedQueue);
+  const selectedDecodeTypes = useResponseStore((s) => s.selectedDecodeTypes);
+  const appendMessages = useResponseStore((s) => s.appendMessages);
+  const setIsLoading = useResponseStore((s) => s.setIsLoading);
+  const setLastReadAt = useResponseStore((s) => s.setLastReadAt);
 
   const isConnected = connectionStatus === "connected";
 
@@ -65,7 +64,9 @@ export function useQueueRead(mode: FeedMode): QueueRead {
       }
 
       if (outcome.messages.length > 0) {
-        const totalAfterPrepend = outcome.messages.length + messages.length;
+        // Read the current feed size at drain time rather than subscribing to it.
+        const totalAfterPrepend =
+          outcome.messages.length + useResponseStore.getState().messages.length;
         if (totalAfterPrepend > FEED_MAX_SIZE) {
           toast.info(
             `Feed capped at ${FEED_MAX_SIZE} — ${totalAfterPrepend - FEED_MAX_SIZE} older message(s) removed`
@@ -108,6 +109,5 @@ export function useQueueRead(mode: FeedMode): QueueRead {
       if (request?.kind === "consume") void drain(request.count, false);
     },
     cancel: () => setPending(null),
-    isLoading,
   };
 }

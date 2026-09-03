@@ -6,13 +6,21 @@ import { Tag, type TagTone } from "@/components/common/Tag";
 import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
-import type { DrainResult, SubscribeMode } from "@/lib/types";
+import type { DrainResult, SubscribeMode, SubscribeStatus } from "@/lib/types";
 import { createDeliveryBatcher, type DeliveryBatcher } from "@/lib/feedBatcher";
 import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
 import { describeBroker, findProfile, isReadOnly, requiresConfirmation } from "@/lib/profileSafety";
 
 // ── useEffect must be imported from React (not globals) in this codebase ───────
 import { useEffect } from "react";
+
+/** Named for the subscribe session so it never reads as the Activity row status. */
+const SUBSCRIBE_STATUS_TONE: Record<SubscribeStatus, TagTone> = {
+  Idle: "neutral",
+  Running: "teal",
+  Stopping: "warning",
+  Error: "danger",
+};
 
 interface SubscribePanelProps {
   selectedQueue: string;
@@ -137,7 +145,7 @@ export function SubscribePanel({
   //
   // Profile-change detection MUST use prevProfileRef rather than comparing
   // activeProfileName against the profileName prop. Both originate from the same
-  // store selector in the parent (MessageFeedTab reads activeProfileName and passes
+  // store selector in the parent (ReadModePopover reads activeProfileName and passes
   // it as profileName), so they update to the same value in the same render —
   // activeProfileName !== profileName is always false at render time.
   //
@@ -178,16 +186,9 @@ export function SubscribePanel({
 
   // ── Status tag ───────────────────────────────────────────────────────────────
 
-  const STATUS_TONE: Record<typeof subscribeStatus, TagTone> = {
-    Idle: "neutral",
-    Running: "teal",
-    Stopping: "warning",
-    Error: "danger",
-  };
-
   const renderStatusBadge = () => (
     <Tag
-      tone={STATUS_TONE[subscribeStatus]}
+      tone={SUBSCRIBE_STATUS_TONE[subscribeStatus]}
       title={subscribeStatus === "Error" ? (subscribeError ?? undefined) : undefined}
     >
       {subscribeStatus}
@@ -223,7 +224,7 @@ export function SubscribePanel({
           disabled={subscribeStatus === "Stopping"}
         >
           {subscribeStatus === "Stopping" ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
           ) : (
             <Square size={14} strokeWidth={1.5} />
           )}

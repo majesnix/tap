@@ -7,13 +7,15 @@ import { HexViewDialog } from "./HexViewDialog";
 import { formatClock, type ActivityItem } from "./activityModel";
 import type { ActivityActions } from "./useActivityActions";
 
+const BAD_PAYLOAD_NOTE = "The stored payload is not valid base64 and cannot be shown.";
+
 /** Spaced hex for the row's payload; persisted base64 may be corrupt, so guard it. */
-function hexOf(item: ActivityItem): string {
-  if (item.kind === "received") return item.message.hexString;
+function hexOf(item: ActivityItem): { hex: string; note?: string } {
+  if (item.kind === "received") return { hex: item.message.hexString };
   try {
-    return base64ToHex(item.entry.payloadBase64);
+    return { hex: base64ToHex(item.entry.payloadBase64) };
   } catch {
-    return "(stored payload is not valid base64)";
+    return { hex: "", note: BAD_PAYLOAD_NOTE };
   }
 }
 
@@ -34,16 +36,19 @@ function DecodedBlock({ item }: { item: ActivityItem }) {
 }
 
 export function ActivityExpanded({
+  id,
   item,
   actions,
 }: {
+  /** Target of the row button's aria-controls. */
+  id: string;
   item: ActivityItem;
   actions: ActivityActions;
 }) {
   const [hexOpen, setHexOpen] = useState(false);
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 p-[0_16px_14px_48px]">
+    <div id={id} className="flex min-w-0 flex-col gap-2 p-[0_16px_14px_48px]">
       <div className="rounded-md border border-hairline bg-card p-[10px_12px]">
         <DecodedBlock item={item} />
       </div>
@@ -70,7 +75,7 @@ export function ActivityExpanded({
         onOpenChange={setHexOpen}
         title={`Binary payload — ${item.typeName}`}
         subtitle={`${formatClock(item.at)} → ${item.target}`}
-        hex={hexOf(item)}
+        {...hexOf(item)}
         truncated={item.kind === "sent" ? item.entry.payloadTruncated : false}
       />
     </div>

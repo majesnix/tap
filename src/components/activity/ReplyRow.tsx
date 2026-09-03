@@ -25,6 +25,7 @@ export function ReplyRow({ reply, sentAt, expanded, onToggle, actions }: ReplyRo
       <button
         type="button"
         aria-expanded={expanded}
+        aria-controls={`activity-detail-${reply.id}`}
         onClick={onToggle}
         className="m-[2px_16px_12px_27px] flex gap-2.5 border-l border-teal/35 pt-1.5 pl-3.5 text-left"
       >
@@ -39,7 +40,9 @@ export function ReplyRow({ reply, sentAt, expanded, onToggle, actions }: ReplyRo
           <span className="truncate font-mono text-11 text-ghost">{meta}</span>
         </span>
       </button>
-      {expanded && <ActivityExpanded item={reply} actions={actions} />}
+      {expanded && (
+        <ActivityExpanded id={`activity-detail-${reply.id}`} item={reply} actions={actions} />
+      )}
     </>
   );
 }

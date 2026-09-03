@@ -182,7 +182,8 @@ describe("exportVisible", () => {
   test("writes the envelope with curated received fields and an ISO timestamp", async () => {
     const { current } = actions();
     await act(async () => {
-      await current.exportVisible(visibleGroups([ENTRY], [MESSAGE_A]));
+      // status "sent" with outcome "ack": the two must export as separate fields.
+      await current.exportVisible(visibleGroups([{ ...ENTRY, outcome: "ack" }], [MESSAGE_A]));
     });
     expect(mockWriteTextFile).toHaveBeenCalledTimes(1);
     const [, jsonStr] = mockWriteTextFile.mock.calls[0] as [string, string];
@@ -213,10 +214,22 @@ describe("exportVisible", () => {
         exchange: "",
         routingKey: "orders",
         status: "sent",
-        outcome: null,
+        outcome: "ack",
         fieldValues: { order_id: "ord_1" },
       },
     ]);
+  });
+
+  test("keeps a failed send's status distinct from its (absent) outcome", async () => {
+    const { current } = actions();
+    await act(async () => {
+      await current.exportVisible(
+        visibleGroups([{ ...ENTRY, status: "failed", outcome: undefined }], [])
+      );
+    });
+    const [, jsonStr] = mockWriteTextFile.mock.calls[0] as [string, string];
+    const parsed = JSON.parse(jsonStr) as { sent: Array<Record<string, unknown>> };
+    expect(parsed.sent[0]).toMatchObject({ status: "failed", outcome: null });
   });
 
   test("serializes a null publisher timestamp as null", async () => {

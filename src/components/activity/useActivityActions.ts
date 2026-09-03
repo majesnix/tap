@@ -150,13 +150,15 @@ export function useActivityActions(): ActivityActions {
             decoded: message.decoded,
             error: message.error,
           })),
-          sent: sent.map(({ entry, status }) => ({
+          // status is what was recorded at send time ("sent" | "failed"); the
+          // publisher-confirm result stays in its own field.
+          sent: sent.map(({ entry }) => ({
             id: entry.id,
             timestamp: entry.timestamp,
             messageTypeName: entry.messageTypeName,
             exchange: entry.exchange,
             routingKey: entry.routingKey,
-            status,
+            status: entry.status,
             outcome: entry.outcome ?? null,
             fieldValues: entry.fieldValues,
           })),

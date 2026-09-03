@@ -66,7 +66,7 @@ export function ReadModePopover({ open, onOpenChange, mode, onModeChange }: Read
           items={MODE_ITEMS}
         />
 
-        <ResponseQueuePicker onDrain={read.read} mode={mode} />
+        <ResponseQueuePicker onDrain={read.read} mode={mode} panelOpen={open} />
 
         {isLive && (
           <SubscribePanel

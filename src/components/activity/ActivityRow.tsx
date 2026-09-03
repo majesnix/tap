@@ -58,6 +58,7 @@ export function ActivityRow({
       <button
         type="button"
         aria-expanded={expanded}
+        aria-controls={`activity-detail-${item.id}`}
         onClick={onToggle}
         className="flex w-full gap-2.5 p-[10px_16px] text-left hover:bg-foreground/[.03]"
       >
@@ -103,7 +104,9 @@ export function ActivityRow({
           actions={actions}
         />
       )}
-      {expanded && <ActivityExpanded item={item} actions={actions} />}
+      {expanded && (
+        <ActivityExpanded id={`activity-detail-${item.id}`} item={item} actions={actions} />
+      )}
     </div>
   );
 }
