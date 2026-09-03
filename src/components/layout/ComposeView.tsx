@@ -100,7 +100,13 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
       <AppShell
         header={header}
         sidebar={<Sidebar />}
-        drawer={blocksOpen && <BlockLibraryPanel />}
+        drawer={
+          blocksOpen && (
+            <div className="flex w-[272px] shrink-0 flex-col p-[16px_0_16px_16px]">
+              <BlockLibraryPanel />
+            </div>
+          )
+        }
         main={
           <>
             <PublishBar />
