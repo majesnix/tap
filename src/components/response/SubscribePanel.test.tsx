@@ -38,12 +38,23 @@ const DEFAULT_PROPS = {
   profileName: "test-profile",
 };
 
+const LOCAL_PROFILE = {
+  name: "test-profile",
+  host: "localhost",
+  port: 5672,
+  vhost: "/",
+  username: "dev",
+  management_port: 15672,
+  management_ssl: false,
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
   useResponseStore.getState().reset();
   useConnectionStore.setState({
     activeProfileName: "test-profile",
     connectionStatus: "connected",
+    profiles: [LOCAL_PROFILE],
   });
   // Default: startSubscribe resolves, stopSubscribe resolves
   mockStartSubscribe.mockResolvedValue(undefined);
@@ -393,5 +404,43 @@ describe("Error state reset on profile change (GAP-3)", () => {
     // Wait one tick for any potential useEffect to fire
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(useResponseStore.getState().subscribeStatus).toBe("Error");
+  });
+});
+
+// ── Confirmation on non-local hosts ───────────────────────────────────────────
+
+describe("confirmation on non-local hosts", () => {
+  beforeEach(() => {
+    useConnectionStore.setState({
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+  });
+
+  test("clicking Start opens a confirmation instead of subscribing", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("rabbit.staging.internal");
+    expect(dialog).toHaveTextContent("my-queue");
+    expect(mockStartSubscribe).not.toHaveBeenCalled();
+  });
+
+  test("subscribes after the user confirms", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /start subscribing/i }));
+    await waitFor(() => {
+      expect(mockStartSubscribe).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  test("does not subscribe when the user cancels", async () => {
+    render(<SubscribePanel {...DEFAULT_PROPS} />);
+    fireEvent.click(screen.getByRole("button", { name: /^start$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /cancel/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+    expect(mockStartSubscribe).not.toHaveBeenCalled();
   });
 });

@@ -225,10 +225,10 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
         </PopoverContent>
       </Popover>
 
-      {/* Drain-specific controls — hidden when mode is "subscribe" */}
+      {/* Consume-specific controls — hidden when mode is "subscribe" */}
       {mode !== "subscribe" && (
         <>
-          {/* Drain count input */}
+          {/* Consume count input */}
           <input
             type="number"
             min={1}
@@ -248,10 +248,12 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
               setDrainCount(clamped);
             }}
             className="w-12 h-9 text-sm text-center rounded-md border border-input bg-background px-1"
-            aria-label="Drain count"
+            aria-label="Consume count"
           />
 
-          {/* Drain button — disabled+tooltip when disconnected */}
+          {/* Consume button — disabled+tooltip when disconnected. "Consume" rather than
+              "Drain": it takes messages off the queue and acks them, so other consumers
+              never see them. */}
           {connectionStatus === "connected" ? (
             <Button
               variant="default"
@@ -261,10 +263,11 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
                 if (safe !== drainCount) setDrainCount(safe);
                 onDrain(safe);
               }}
-              aria-label="Drain"
+              aria-label="Consume"
+              title="Takes messages off the queue and acknowledges them. Other consumers will not receive them."
             >
               {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
-              Drain
+              Consume
             </Button>
           ) : (
             <TooltipProvider>
@@ -272,14 +275,15 @@ export function ResponseQueuePicker({ onDrain, mode }: ResponseQueuePickerProps)
                 <TooltipTrigger asChild>
                   <span>
                     <Button variant="default" disabled>
-                      Drain
+                      Consume
                     </Button>
                   </span>
                 </TooltipTrigger>
-                <TooltipContent>Connect to a RabbitMQ profile to drain.</TooltipContent>
+                <TooltipContent>Connect to a RabbitMQ profile to consume.</TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
+          <span className="text-xs text-muted-foreground">removes messages</span>
         </>
       )}
     </div>

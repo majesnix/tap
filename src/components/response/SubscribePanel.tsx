@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { Play, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import type { DrainResult } from "@/lib/types";
+import { ConsumeConfirmDialog, type ConsumeConfirmRequest } from "./ConsumeConfirmDialog";
+import { isLocalHost, profileHost } from "@/lib/hosts";
 
 // ── useEffect must be imported from React (not globals) in this codebase ───────
 import { useEffect } from "react";
@@ -26,6 +28,10 @@ export function SubscribePanel({
     useResponseStore();
   const activeProfileName = useConnectionStore((s) => s.activeProfileName);
   const connectionStatus = useConnectionStore((s) => s.connectionStatus);
+  const profiles = useConnectionStore((s) => s.profiles);
+
+  // Subscribe is a competing consumer; on a non-local broker ask before joining.
+  const [confirmRequest, setConfirmRequest] = useState<ConsumeConfirmRequest | null>(null);
 
   const channelRef = useRef<Channel<DrainResult> | null>(null);
 
@@ -70,6 +76,19 @@ export function SubscribePanel({
       // CR-03: always reset the guard so subsequent clicks work after the IPC resolves
       isStartingRef.current = false;
     }
+  };
+
+  const requestStart = () => {
+    const host = profileHost(profiles, profileName || activeProfileName);
+    if (isLocalHost(host)) {
+      void handleStart();
+      return;
+    }
+    setConfirmRequest({
+      kind: "subscribe",
+      queue: selectedQueue,
+      host: host ?? "an unknown host",
+    });
   };
 
   const handleStop = async () => {
@@ -188,7 +207,7 @@ export function SubscribePanel({
       {!isRunningOrStopping && (
         <Button
           variant="default"
-          onClick={() => void handleStart()}
+          onClick={requestStart}
           disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current}
         >
           <Play className="mr-2 h-4 w-4" />
@@ -211,6 +230,19 @@ export function SubscribePanel({
           Stop
         </Button>
       )}
+
+      <span className="text-xs text-muted-foreground basis-full">
+        Competing consumer: messages Tap receives are acknowledged and removed from the queue.
+      </span>
+
+      <ConsumeConfirmDialog
+        request={confirmRequest}
+        onConfirm={() => {
+          setConfirmRequest(null);
+          void handleStart();
+        }}
+        onCancel={() => setConfirmRequest(null)}
+      />
     </div>
   );
 }

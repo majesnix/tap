@@ -27,6 +27,8 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { ResponseQueuePicker } from "./ResponseQueuePicker";
 import { SubscribePanel } from "./SubscribePanel";
 import { MessageFeedRow } from "./MessageFeedRow";
+import { ConsumeConfirmDialog, type ConsumeConfirmRequest } from "./ConsumeConfirmDialog";
+import { isLocalHost, profileHost } from "@/lib/hosts";
 
 /**
  * Replaces ResponseTab. Renders the queue picker toolbar + FIFO-500 accordion feed.
@@ -40,7 +42,10 @@ export function MessageFeedTab() {
   // Three-state: null = All, "__none__" = match null contentType, string = exact match (D-04)
   const [filterContentType, setFilterContentType] = useState<string | null>(null);
 
-  const { connectionStatus, activeProfileName } = useConnectionStore();
+  const { connectionStatus, activeProfileName, profiles } = useConnectionStore();
+
+  // A consume request waiting for confirmation because the broker is not local.
+  const [pendingConsume, setPendingConsume] = useState<ConsumeConfirmRequest | null>(null);
   const {
     selectedQueue,
     messages,
@@ -104,7 +109,7 @@ export function MessageFeedTab() {
       }
 
       if (outcome.partialError) {
-        toast.error(`Drain stopped early: ${outcome.partialError}`);
+        toast.error(`Consume stopped early: ${outcome.partialError}`);
       }
 
       if (outcome.messages.length > 0) {
@@ -116,11 +121,27 @@ export function MessageFeedTab() {
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
-      toast.error(`Drain failed: ${message}`);
+      toast.error(`Consume failed: ${message}`);
     } finally {
       setIsLoading(false);
       setLastReadAt(Date.now()); // CONS-04: always refresh queue depth, even on error
     }
+  };
+
+  // Consume removes messages for every other consumer of the queue. On the
+  // developer's own machine that is what they asked for; anywhere else, ask first.
+  const requestConsume = (count: number) => {
+    const host = profileHost(profiles, activeProfileName);
+    if (isLocalHost(host)) {
+      void handleDrain(count);
+      return;
+    }
+    setPendingConsume({
+      kind: "consume",
+      queue: selectedQueue,
+      host: host ?? "an unknown host",
+      count,
+    });
   };
 
   const handleExport = async () => {
@@ -175,7 +196,7 @@ export function MessageFeedTab() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Mode toggle — Drain ↔ Subscribe (D-04, D-06) */}
+      {/* Mode toggle — Consume ↔ Subscribe (D-04, D-06) */}
       <div className="px-4 pt-2 pb-1 border-b border-border flex items-center gap-2">
         <ToggleGroup
           type="single"
@@ -183,15 +204,22 @@ export function MessageFeedTab() {
           onValueChange={(v) => v && setMode(v as "drain" | "subscribe")}
           disabled={isModeLocked}
         >
-          <ToggleGroupItem value="drain">Drain</ToggleGroupItem>
+          <ToggleGroupItem value="drain">Consume</ToggleGroupItem>
           <ToggleGroupItem value="subscribe">Subscribe</ToggleGroupItem>
         </ToggleGroup>
       </div>
 
       {/* Toolbar — queue picker shared between modes; drain controls hidden in subscribe mode */}
-      <ResponseQueuePicker
-        onDrain={(count) => void handleDrain(count)}
-        mode={mode}
+      <ResponseQueuePicker onDrain={requestConsume} mode={mode} />
+
+      <ConsumeConfirmDialog
+        request={pendingConsume}
+        onConfirm={() => {
+          const request = pendingConsume;
+          setPendingConsume(null);
+          if (request?.kind === "consume") void handleDrain(request.count);
+        }}
+        onCancel={() => setPendingConsume(null)}
       />
 
       {/* Subscribe controls — shown in subscribe mode only */}

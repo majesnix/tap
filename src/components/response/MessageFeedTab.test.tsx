@@ -80,9 +80,20 @@ import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { MessageFeedTab } from "./MessageFeedTab";
 
+const LOCAL_PROFILE = {
+  name: "test-profile",
+  host: "localhost",
+  port: 5672,
+  vhost: "/",
+  username: "dev",
+  management_port: 15672,
+  management_ssl: false,
+};
+
 const CONNECTED_STATE = {
   connectionStatus: "connected" as const,
   activeProfileName: "test-profile",
+  profiles: [LOCAL_PROFILE],
 };
 
 const FEED_STATE = {
@@ -170,11 +181,11 @@ describe("MessageFeedTab", () => {
     expect(screen.getByText("1 message")).toBeInTheDocument();
   });
 
-  test("calls drainMessages with selectedDecodeTypes on Drain", async () => {
+  test("calls drainMessages with selectedDecodeTypes on Consume", async () => {
     mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
     render(<MessageFeedTab />);
     // The Drain button is rendered by ResponseQueuePicker; find it
-    const drainButton = screen.getByRole("button", { name: /drain/i });
+    const drainButton = screen.getByRole("button", { name: /^consume$/i });
     fireEvent.click(drainButton);
     await waitFor(() => {
       expect(mockDrainMessages).toHaveBeenCalledWith(
@@ -189,7 +200,7 @@ describe("MessageFeedTab", () => {
   test("shows toast.info when drain returns 0 messages", async () => {
     mockDrainMessages.mockResolvedValueOnce({ messages: [], partialError: null });
     render(<MessageFeedTab />);
-    fireEvent.click(screen.getByRole("button", { name: /drain/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     await waitFor(() => {
       expect(mockToastInfo).toHaveBeenCalledWith("Queue is empty");
     });
@@ -201,10 +212,10 @@ describe("MessageFeedTab", () => {
       partialError: "connection reset",
     });
     render(<MessageFeedTab />);
-    fireEvent.click(screen.getByRole("button", { name: /drain/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
     await waitFor(() => {
       expect(mockToastError).toHaveBeenCalledWith(
-        "Drain stopped early: connection reset"
+        "Consume stopped early: connection reset"
       );
     });
   });
@@ -403,5 +414,48 @@ describe("Filter and Export", () => {
     const parsed = JSON.parse(jsonStr) as { messageCount: number; messages: unknown[] };
     expect(parsed.messageCount).toBe(1);
     expect(parsed.messages).toHaveLength(1);
+  });
+});
+
+describe("consume confirmation on non-local hosts", () => {
+  beforeEach(() => {
+    useConnectionStore.setState({
+      ...CONNECTED_STATE,
+      profiles: [{ ...LOCAL_PROFILE, host: "rabbit.staging.internal" }],
+    });
+    mockDrainMessages.mockResolvedValue({ messages: [], partialError: null });
+  });
+
+  test("asks for confirmation instead of consuming immediately", async () => {
+    render(<MessageFeedTab />);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    const dialog = await screen.findByRole("alertdialog");
+    expect(dialog).toHaveTextContent("rabbit.staging.internal");
+    expect(dialog).toHaveTextContent("test-queue");
+    expect(mockDrainMessages).not.toHaveBeenCalled();
+  });
+
+  test("consumes after the user confirms", async () => {
+    render(<MessageFeedTab />);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /consume 10 messages/i }));
+    await waitFor(() => {
+      expect(mockDrainMessages).toHaveBeenCalledWith(
+        "test-profile",
+        "test-queue",
+        ["MyMessage"],
+        10,
+      );
+    });
+  });
+
+  test("does nothing when the user cancels", async () => {
+    render(<MessageFeedTab />);
+    fireEvent.click(screen.getByRole("button", { name: /^consume$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /cancel/i }));
+    await waitFor(() => {
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    });
+    expect(mockDrainMessages).not.toHaveBeenCalled();
   });
 });
