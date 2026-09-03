@@ -33,7 +33,7 @@ pub async fn publish_message(
     profile_name: String,
     exchange: String,
     routing_key: String,
-    payload: Vec<u8>,
+    payload_base64: String,
     content_type: Option<String>,
     delivery_mode: Option<u8>,
     ttl: Option<u32>,
@@ -41,6 +41,8 @@ pub async fn publish_message(
     reply_to: Option<String>,
     headers: Option<Vec<(String, String)>>,
 ) -> Result<PublishOutcome, AppError> {
+    let payload = decode_payload(&payload_base64)?;
+
     // Load profile credentials
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
@@ -61,6 +63,14 @@ pub async fn publish_message(
         headers,
     )
     .await
+}
+
+/// Decode the base64 payload sent by the frontend.
+pub(crate) fn decode_payload(payload_base64: &str) -> Result<Vec<u8>, AppError> {
+    use base64::{engine::general_purpose::STANDARD, Engine as _};
+    STANDARD
+        .decode(payload_base64)
+        .map_err(|e| AppError::InvalidInput(format!("payload is not valid base64: {}", e)))
 }
 
 /// Pure async core for [`publish_message`]: connect, publish with confirms, map the outcome.
@@ -300,5 +310,22 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(outcome.status, "ack");
+    }
+}
+
+#[cfg(test)]
+mod payload_tests {
+    use super::*;
+
+    #[test]
+    fn decodes_standard_base64_payloads() {
+        assert_eq!(decode_payload("CgU=").unwrap(), vec![0x0a, 0x05]);
+        assert_eq!(decode_payload("").unwrap(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn rejects_payloads_that_are_not_base64() {
+        let err = decode_payload("not base64!").unwrap_err();
+        assert!(matches!(err, AppError::InvalidInput(_)), "got {err:?}");
     }
 }

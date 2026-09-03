@@ -3,6 +3,7 @@ import { useDroppable, useDndMonitor } from "@dnd-kit/core";
 import { useProtoStore } from "@/stores/useProtoStore";
 import { useDraftStore } from "@/stores/useDraftStore";
 import { encodeMessage } from "@/lib/ipc";
+import { base64ToHex } from "@/lib/bytes";
 import { generateRandomValues } from "@/lib/randomizer";
 import { ProtoFormRenderer, buildDefaultValues } from "./ProtoFormRenderer";
 import { JsonEditor } from "./JsonEditor";
@@ -27,14 +28,6 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import { useHotkeys } from "react-hotkeys-hook";
 import { usePlatformLabel } from "@/hooks/usePlatformLabel";
-
-/**
- * Converts a byte array to a formatted hex string.
- * Example: [0x0a, 0x05] → "0a 05"
- */
-function bytesToHex(bytes: number[]): string {
-  return bytes.map((b) => b.toString(16).padStart(2, "0")).join(" ");
-}
 
 interface FormPanelProps {
   isBlockLibraryOpen?: boolean;
@@ -165,8 +158,8 @@ export function FormPanel({ isBlockLibraryOpen = false, onToggleBlockLibrary }: 
       try {
         setEncoding(true);
         setEncodeError(null);
-        const bytes = await encodeMessage(selectedMessageType, debouncedValues);
-        setHexPreview(bytesToHex(bytes));
+        const encoded = await encodeMessage(selectedMessageType, debouncedValues);
+        setHexPreview(base64ToHex(encoded));
       } catch (err) {
         const msg = typeof err === "string" ? err : "Encoding failed";
         setEncodeError(msg);

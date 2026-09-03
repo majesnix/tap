@@ -26,6 +26,7 @@ import { useHistoryStore } from "@/stores/useHistoryStore";
 import { usePlanExecutionStore } from "@/stores/usePlanExecutionStore";
 import { publishMessage, fetchBindings, listProfiles, activateProfile, encodeMessage } from "@/lib/ipc";
 import { getExchanges, getQueues } from "@/lib/brokerCatalog";
+import { truncatePayloadForHistory } from "@/lib/bytes";
 import { AmqpPropertiesSheet } from "@/components/publish/AmqpPropertiesSheet";
 import { RoutingKeyCombobox } from "@/components/publish/RoutingKeyCombobox";
 import type { ProfileEnvironment, PublishOutcome } from "@/lib/types";
@@ -280,7 +281,7 @@ export function PublishBar() {
     // Capture AMQP properties synchronously BEFORE any await (Pitfall 3)
     const { properties } = useAmqpStore.getState();
 
-    let freshPayload: number[];
+    let freshPayload: string;
     try {
       freshPayload = await encodeMessage(selectedMessageType, latestValues);
     } catch (err: unknown) {
@@ -330,7 +331,7 @@ export function PublishBar() {
         protoPath: activeFilePath ?? undefined, // D-10: captures active file path at send time
         status: "sent",
         fieldValues: latestValues ?? {},
-        payloadBytes: payload,
+        ...truncatePayloadForHistory(payload),
       });
 
       // Signal RightPanel to auto-switch to History tab
@@ -351,7 +352,7 @@ export function PublishBar() {
         status: "failed",
         errorMessage: message,
         fieldValues: latestValues ?? {},
-        payloadBytes: payload,
+        ...truncatePayloadForHistory(payload),
       });
     } finally {
       setIsSending(false);

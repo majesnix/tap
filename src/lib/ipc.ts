@@ -21,11 +21,12 @@ export async function checkPathsExist(
   return invoke<boolean[]>("check_paths_exist", { paths });
 }
 
+/** Encode form values to protobuf wire bytes; returns standard base64. */
 export async function encodeMessage(
   messageType: string,
   formValues: unknown
-): Promise<number[]> {
-  return invoke<number[]>("encode_message", { messageType, formValues });
+): Promise<string> {
+  return invoke<string>("encode_message", { messageType, formValues });
 }
 
 import type { ConnectionProfile } from "./types";
@@ -97,14 +98,14 @@ export async function publishMessage(
   profileName: string,
   exchange: string, // "" for default exchange (queue direct), named exchange for PUBL-02
   routingKey: string, // queue name (PUBL-01) or explicit routing key (PUBL-02)
-  payload: number[], // binary protobuf bytes as number[] (from encodeMessage)
+  payloadBase64: string, // binary protobuf bytes as base64 (from encodeMessage)
   amqpProps?: AmqpPropsIpc
 ): Promise<PublishOutcome> {
   return invoke<PublishOutcome>("publish_message", {
     profileName,
     exchange,
     routingKey,
-    payload,
+    payloadBase64,
     contentType: amqpProps?.contentType ?? null,
     deliveryMode: amqpProps?.deliveryMode ?? null,
     ttl: amqpProps?.ttl ?? null,

@@ -658,7 +658,7 @@ describe("environment and read-only profiles", () => {
     });
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
-      if (cmd === "encode_message") return Promise.resolve([10, 5]);
+      if (cmd === "encode_message") return Promise.resolve("CgU=");
       if (cmd === "publish_message") return Promise.resolve({ status: "ack" });
       return Promise.resolve([]);
     });

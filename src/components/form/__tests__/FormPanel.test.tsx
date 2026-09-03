@@ -99,7 +99,7 @@ beforeEach(() => {
   });
   vi.clearAllMocks();
   vi.useFakeTimers();
-  vi.mocked(ipc.encodeMessage).mockResolvedValue([0x0a, 0x05]);
+  vi.mocked(ipc.encodeMessage).mockResolvedValue("CgU=");
   vi.mocked(useTheme).mockReturnValue({ resolvedTheme: "light" } as ReturnType<typeof useTheme>);
 });
 

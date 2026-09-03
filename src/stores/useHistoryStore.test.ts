@@ -24,7 +24,7 @@ function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
     routingKey: "test-queue",
     status: "sent",
     fieldValues: {},
-    payloadBytes: [0x0a, 0x05],
+    payloadBase64: "CgU=",
     ...overrides,
   };
 }
@@ -117,7 +117,7 @@ describe("protoPath on HistoryEntry (D-10)", () => {
       protoPath: "/some/path.proto",
       status: "sent",
       fieldValues: {},
-      payloadBytes: [],
+      payloadBase64: "",
     });
     const { entries } = useHistoryStore.getState();
     expect(entries[0].protoPath).toBe("/some/path.proto");
@@ -133,7 +133,7 @@ describe("protoPath on HistoryEntry (D-10)", () => {
       routingKey: "test-queue",
       status: "sent",
       fieldValues: {},
-      payloadBytes: [],
+      payloadBase64: "",
     });
     const { entries } = useHistoryStore.getState();
     expect(entries[0].protoPath).toBeUndefined();
@@ -160,5 +160,38 @@ describe("loadHistory", () => {
     const { entries, historyLoaded } = useHistoryStore.getState();
     expect(historyLoaded).toBe(true);
     expect(entries).toHaveLength(0);
+  });
+});
+
+// ── legacy entries ────────────────────────────────────────────────────────────
+
+describe("loadHistory migration", () => {
+  test("converts payloadBytes number arrays from older versions to base64", async () => {
+    mockGet.mockResolvedValue([
+      {
+        id: "legacy",
+        timestamp: "2026-05-01T00:00:00.000Z",
+        messageTypeName: "Legacy",
+        exchange: "",
+        routingKey: "q",
+        status: "sent",
+        fieldValues: {},
+        payloadBytes: [0x0a, 0x05],
+      },
+    ]);
+    await useHistoryStore.getState().loadHistory();
+    const [entry] = useHistoryStore.getState().entries;
+    expect(entry.payloadBase64).toBe("CgU=");
+    expect(entry.payloadTruncated).toBe(false);
+    expect((entry as unknown as { payloadBytes?: unknown }).payloadBytes).toBeUndefined();
+  });
+
+  test("drops entries whose payload cannot be understood", async () => {
+    mockGet.mockResolvedValue([
+      { id: "broken", timestamp: "t", messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBytes: "nope" },
+      { id: "ok", timestamp: "t", messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBase64: "CgU=" },
+    ]);
+    await useHistoryStore.getState().loadHistory();
+    expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["ok"]);
   });
 });
