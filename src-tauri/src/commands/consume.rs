@@ -652,6 +652,7 @@ mod integration_tests {
         .await
         .unwrap();
         assert!(res.empty);
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -669,6 +670,7 @@ mod integration_tests {
         assert!(!res.empty);
         assert_eq!(res.decoded.as_ref().unwrap()["name"], "widget");
         assert!(res.error.is_none());
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -686,6 +688,7 @@ mod integration_tests {
         assert!(!res.empty);
         assert!(res.decoded.is_none());
         assert!(res.error.unwrap().contains("not found"));
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -725,6 +728,7 @@ mod integration_tests {
         assert_eq!(outcome.messages.len(), 3);
         assert!(outcome.partial_error.is_none());
         assert_eq!(outcome.messages[0].decoded_as, Some("Item".to_string()));
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -742,6 +746,7 @@ mod integration_tests {
         assert_eq!(outcome.messages.len(), 1);
         assert!(outcome.messages[0].decoded.is_none());
         assert!(outcome.messages[0].error.as_ref().unwrap().contains("No proto schema"));
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -771,5 +776,6 @@ mod integration_tests {
         .await
         .unwrap();
         assert_eq!(all.messages.len(), 3, "peek must requeue what it read");
+        crate::test_support::delete_queue(&b, queue).await;
     }
 }

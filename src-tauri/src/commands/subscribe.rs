@@ -770,6 +770,7 @@ mod integration_tests {
 
         // Cancel path must NOT clear state (stop_subscribe owns that) — CR-01/BUG-2 invariant.
         assert!(!terminated.load(Ordering::SeqCst), "on_terminate must not run on cancel");
+        crate::test_support::delete_queue(&b, queue).await;
     }
 
     #[tokio::test]
@@ -837,6 +838,8 @@ mod integration_tests {
         let original = ch2.basic_get(queue.into(), lapin::options::BasicGetOptions::default()).await.unwrap();
         assert!(original.is_some(), "tap mode must not consume from the original queue");
         original.unwrap().ack(BasicAckOptions::default()).await.unwrap();
+        crate::test_support::delete_queue(&b, queue).await;
+        crate::test_support::delete_exchange(&b, exchange).await;
     }
 
     #[tokio::test]

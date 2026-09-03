@@ -53,3 +53,8 @@ export function describeBroker(profile: ConnectionProfile | undefined): string {
   const host = profile?.host ?? "an unknown host";
   return `${host} (${ENVIRONMENT_LABELS[profileEnvironment(profile)]})`;
 }
+
+/** Whether sends through this profile are kept in the local history. */
+export function recordsHistory(profile: ConnectionProfile | undefined): boolean {
+  return profile?.record_history !== false;
+}

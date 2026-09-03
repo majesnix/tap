@@ -272,6 +272,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(outcome.status, "ack");
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -310,6 +311,7 @@ mod tests {
         .await
         .unwrap();
         assert_eq!(outcome.status, "ack");
+        crate::test_support::purge_queue(&b, "test-queue").await;
     }
 }
 

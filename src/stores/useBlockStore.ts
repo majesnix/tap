@@ -17,6 +17,8 @@ interface BlockStore {
   addBlock: (block: Block) => Promise<void>;
   updateBlock: (id: string, updates: Pick<Block, "name" | "content">) => Promise<void>;
   deleteBlock: (id: string) => Promise<void>;
+  /** Remove every block (Clear local data). */
+  clearAllBlocks: () => Promise<void>;
 }
 
 function isBlock(value: unknown): value is Block {
@@ -81,6 +83,11 @@ export const useBlockStore = create<BlockStore>((set, get) => ({
       set({ blocks: previous });
       throw err;
     }
+  },
+
+  clearAllBlocks: async () => {
+    set({ blocks: [] });
+    await persistBlocks([]);
   },
 
   deleteBlock: async (id) => {

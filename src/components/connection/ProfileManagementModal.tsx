@@ -51,6 +51,7 @@ interface ProfileFormValues {
   /** True once the user picked an environment; the host no longer overrides it. */
   environmentTouched: boolean;
   readOnly: boolean;
+  recordHistory: boolean;
 }
 
 const DEFAULT_FORM_VALUES: ProfileFormValues = {
@@ -67,6 +68,7 @@ const DEFAULT_FORM_VALUES: ProfileFormValues = {
   environment: "local",
   environmentTouched: false,
   readOnly: false,
+  recordHistory: true,
 };
 
 /**
@@ -86,6 +88,7 @@ function profileFromForm(values: ProfileFormValues): ConnectionProfile {
     ca_cert_path: values.caCertPath.trim() || null,
     environment: values.environment,
     read_only: values.readOnly,
+    record_history: values.recordHistory,
   };
 }
 
@@ -140,6 +143,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
       environment: profileEnvironment(profile),
       environmentTouched: true, // editing: never silently retag an existing profile
       readOnly: profile.read_only ?? false,
+      recordHistory: profile.record_history !== false,
     });
     setError(null);
     setTestState("idle");
@@ -424,6 +428,18 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   />
                   <label htmlFor="read-only" className="text-sm font-semibold cursor-pointer">
                     Read-only profile (no Send, Consume, Subscribe or plan runs)
+                  </label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="record-history"
+                    checked={formValues.recordHistory}
+                    onCheckedChange={(checked) =>
+                      setFormValues((prev) => ({ ...prev, recordHistory: checked === true }))
+                    }
+                  />
+                  <label htmlFor="record-history" className="text-sm font-semibold cursor-pointer">
+                    Record sent messages in history (off keeps production payloads off this machine)
                   </label>
                 </div>
                 <div className="flex flex-col gap-1">

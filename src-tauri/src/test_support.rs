@@ -105,3 +105,27 @@ pub async fn test_connection_and_channel(b: &TestBroker) -> (lapin::Connection, 
 pub async fn test_channel(b: &TestBroker) -> lapin::Channel {
     test_connection_and_channel(b).await.1
 }
+
+/// Delete a test queue so runs do not pile up on the developer's broker.
+pub async fn delete_queue(b: &TestBroker, queue: &str) {
+    let ch = test_channel(b).await;
+    let _ = ch
+        .queue_delete(queue.into(), lapin::options::QueueDeleteOptions::default())
+        .await;
+}
+
+/// Delete a test exchange declared by a test.
+pub async fn delete_exchange(b: &TestBroker, exchange: &str) {
+    let ch = test_channel(b).await;
+    let _ = ch
+        .exchange_delete(exchange.into(), lapin::options::ExchangeDeleteOptions::default())
+        .await;
+}
+
+/// Drop the messages a test published to a shared, pre-declared queue.
+pub async fn purge_queue(b: &TestBroker, queue: &str) {
+    let ch = test_channel(b).await;
+    let _ = ch
+        .queue_purge(queue.into(), lapin::options::QueuePurgeOptions::default())
+        .await;
+}

@@ -13,7 +13,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn().mockResolvedValue(mockStore),
 }));
 
-import { useHistoryStore, type HistoryEntry } from "./useHistoryStore";
+import { useHistoryStore, MAX_HISTORY_AGE_DAYS, type HistoryEntry } from "./useHistoryStore";
 
 function makeEntry(overrides: Partial<HistoryEntry> = {}): HistoryEntry {
   return {
@@ -170,7 +170,7 @@ describe("loadHistory migration", () => {
     mockGet.mockResolvedValue([
       {
         id: "legacy",
-        timestamp: "2026-05-01T00:00:00.000Z",
+        timestamp: new Date().toISOString(), // recent: retention must not drop it
         messageTypeName: "Legacy",
         exchange: "",
         routingKey: "q",
@@ -188,10 +188,26 @@ describe("loadHistory migration", () => {
 
   test("drops entries whose payload cannot be understood", async () => {
     mockGet.mockResolvedValue([
-      { id: "broken", timestamp: "t", messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBytes: "nope" },
-      { id: "ok", timestamp: "t", messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBase64: "CgU=" },
+      { id: "broken", timestamp: new Date().toISOString(), messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBytes: "nope" },
+      { id: "ok", timestamp: new Date().toISOString(), messageTypeName: "M", exchange: "", routingKey: "q", status: "sent", fieldValues: {}, payloadBase64: "CgU=" },
     ]);
     await useHistoryStore.getState().loadHistory();
     expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["ok"]);
+  });
+});
+
+// ── retention ─────────────────────────────────────────────────────────────────
+
+describe("loadHistory retention", () => {
+  test("drops entries older than MAX_HISTORY_AGE_DAYS and keeps recent ones", async () => {
+    const dayMs = 24 * 60 * 60 * 1000;
+    const old = new Date(Date.now() - (MAX_HISTORY_AGE_DAYS + 1) * dayMs).toISOString();
+    const recent = new Date(Date.now() - dayMs).toISOString();
+    mockGet.mockResolvedValue([
+      makeEntry({ id: "old", timestamp: old }),
+      makeEntry({ id: "recent", timestamp: recent }),
+    ]);
+    await useHistoryStore.getState().loadHistory();
+    expect(useHistoryStore.getState().entries.map((e) => e.id)).toEqual(["recent"]);
   });
 });

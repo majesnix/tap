@@ -25,6 +25,8 @@ interface PlanStore {
   deleteStep: (planId: string, stepId: string) => Promise<void>;
   duplicateStep: (planId: string, stepId: string) => Promise<PlanStep | null>;
   reorderSteps: (planId: string, fromIndex: number, toIndex: number) => Promise<void>;
+  /** Remove every plan (Clear local data). */
+  clearAllPlans: () => Promise<void>;
 }
 
 // ── Type guard ────────────────────────────────────────────────────────────────
@@ -273,6 +275,11 @@ export const usePlanStore = create<PlanStore>((set, get) => ({
       set({ plans: previous });
       throw err;
     }
+  },
+
+  clearAllPlans: async (): Promise<void> => {
+    set({ plans: [] });
+    await persistPlans([]);
   },
 
   reorderSteps: async (planId: string, fromIndex: number, toIndex: number): Promise<void> => {

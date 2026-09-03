@@ -5,6 +5,15 @@ import { bytesToBase64, truncatePayloadForHistory } from "@/lib/bytes";
 const HISTORY_STORE_PATH = "history.json";
 const HISTORY_KEY = "entries";
 const MAX_ENTRIES = 100; // D-02: FIFO cap at 100 entries
+/** Entries older than this are dropped on load; history is a scratchpad, not an archive. */
+export const MAX_HISTORY_AGE_DAYS = 30;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function isFresh(entry: HistoryEntry, now: number): boolean {
+  const at = Date.parse(entry.timestamp);
+  if (Number.isNaN(at)) return true; // never destroy data over a malformed timestamp
+  return now - at <= MAX_HISTORY_AGE_DAYS * DAY_MS;
+}
 
 export interface HistoryEntry {
   id: string;                           // crypto.randomUUID() — no uuid dep needed
@@ -64,9 +73,11 @@ export const useHistoryStore = create<HistoryStore>((set, get) => ({
   loadHistory: async () => {
     const store = await load(HISTORY_STORE_PATH);
     const saved = await store.get<unknown[]>(HISTORY_KEY);
+    const now = Date.now();
     const entries = (saved ?? [])
       .map(normalizeHistoryEntry)
-      .filter((e): e is HistoryEntry => e !== null);
+      .filter((e): e is HistoryEntry => e !== null)
+      .filter((e) => isFresh(e, now));
     set({ entries, historyLoaded: true });
   },
 

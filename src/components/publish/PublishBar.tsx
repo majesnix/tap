@@ -38,6 +38,7 @@ import {
   findProfile,
   isReadOnly,
   profileEnvironment,
+  recordsHistory,
   requiresConfirmation,
 } from "@/lib/profileSafety";
 
@@ -321,8 +322,8 @@ export function PublishBar() {
 
       // D-15: form retains all field values — do NOT reset the form
 
-      // Record successful send to history
-      void useHistoryStore.getState().appendEntry({
+      // Record successful send to history (unless the profile opts out, e.g. production)
+      if (recordsHistory(activeProfile)) void useHistoryStore.getState().appendEntry({
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         messageTypeName: selectedMessageType ?? "unknown",
@@ -341,8 +342,8 @@ export function PublishBar() {
       // D-14: failure toast, destructive, 5 seconds
       toast.error(`Send failed: ${message}`, { duration: 5000 });
 
-      // Record failed send to history
-      void useHistoryStore.getState().appendEntry({
+      // Record failed send to history (same opt-out)
+      if (recordsHistory(activeProfile)) void useHistoryStore.getState().appendEntry({
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
         messageTypeName: selectedMessageType ?? "unknown",
@@ -357,7 +358,7 @@ export function PublishBar() {
     } finally {
       setIsSending(false);
     }
-  }, [activeProfileName, canSend, mode, selectedQueue, selectedExchange, routingKey]);
+  }, [activeProfileName, activeProfile, canSend, mode, selectedQueue, selectedExchange, routingKey]);
 
   // Production profiles get a confirmation before anything leaves the machine.
   const requestSend = () => {

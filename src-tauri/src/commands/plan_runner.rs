@@ -27,6 +27,7 @@ use lapin::{
     BasicProperties, Confirmation,
 };
 use prost_reflect::{DescriptorPool, DynamicMessage};
+use tauri::Manager;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
@@ -222,7 +223,17 @@ pub async fn execute_step(
                     )),
                 });
             }
-            if let Err(e) = compile_and_merge_proto(&step.proto_path, &pool_state) {
+            // Compile on the blocking pool: parsing an import tree must not stall the
+            // async runtime that drives live consumers.
+            let app_for_compile = app.clone();
+            let proto_path = step.proto_path.clone();
+            let compiled = tauri::async_runtime::spawn_blocking(move || {
+                let pool = app_for_compile.state::<Mutex<Option<DescriptorPool>>>();
+                compile_and_merge_proto(&proto_path, &pool)
+            })
+            .await
+            .map_err(|e| AppError::ParseError(format!("proto compile task failed: {}", e)))?;
+            if let Err(e) = compiled {
                 return Ok(StepResult {
                     step_id: step.id,
                     status: "error".into(),
@@ -1002,6 +1013,7 @@ mod integration_tests {
             .unwrap();
         assert_eq!(res.status, "done");
         assert!(res.reply.is_none());
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -1023,6 +1035,8 @@ mod integration_tests {
         let reply = res.reply.expect("expected a reply");
         assert_eq!(reply.decoded_as, Some("Cmd".to_string()));
         assert_eq!(reply.decoded.unwrap()["action"], "pong");
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -1041,6 +1055,8 @@ mod integration_tests {
             .unwrap();
         assert_eq!(res.status, "error");
         assert!(res.error.unwrap().contains("Timeout"));
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -1061,6 +1077,7 @@ mod integration_tests {
             .unwrap();
         assert_eq!(res.status, "error");
         assert_eq!(res.error, Some("Cancelled".to_string()));
+        crate::test_support::delete_queue(&b, reply_q).await;
     }
 
     #[tokio::test]
@@ -1080,6 +1097,8 @@ mod integration_tests {
             .unwrap();
         assert_eq!(res.status, "error");
         assert!(res.error.unwrap().contains("Timeout"));
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     // ── Bounded timings, confirms, cancellation, private reply queues ──
@@ -1137,6 +1156,7 @@ mod integration_tests {
             .unwrap();
         assert!(started.elapsed() < Duration::from_secs(5), "cancel must interrupt the delay");
         assert_eq!(res.error, Some("Cancelled".to_string()));
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 
     #[tokio::test]
@@ -1186,6 +1206,7 @@ mod integration_tests {
         assert_eq!(res.status, "done", "error: {:?}", res.error);
         let reply = res.reply.expect("expected a reply");
         assert_eq!(reply.decoded.unwrap()["action"], "pong");
+        crate::test_support::delete_queue(&b, request_q).await;
     }
 
     #[tokio::test]
@@ -1208,5 +1229,7 @@ mod integration_tests {
         let leftover = ch.basic_get(reply_q.into(), lapin::options::BasicGetOptions::default()).await.unwrap();
         assert!(leftover.is_some(), "unrelated message was consumed instead of requeued");
         leftover.unwrap().ack(BasicAckOptions::default()).await.unwrap();
+        crate::test_support::delete_queue(&b, reply_q).await;
+        crate::test_support::purge_queue(&b, "proto-test").await;
     }
 }

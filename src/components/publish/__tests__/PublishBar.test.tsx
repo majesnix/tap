@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { PublishBar, buildPublishArgs } from "@/components/publish/PublishBar";
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { useProtoStore } from "@/stores/useProtoStore";
+import { useHistoryStore } from "@/stores/useHistoryStore";
 
 // Module-scope mock for sonner — uses vi.hoisted() so the factory reference is valid
 // after hoisting. vi.mock() factories are hoisted before const declarations; vi.hoisted()
@@ -694,5 +695,63 @@ describe("environment and read-only profiles", () => {
         expect.objectContaining({ routingKey: "test-queue" })
       );
     });
+  });
+});
+
+describe("history recording per profile", () => {
+  const PROFILE = {
+    name: "test-profile",
+    host: "localhost",
+    port: 5672,
+    vhost: "/",
+    username: "dev",
+    management_port: 15672,
+    management_ssl: false,
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useConnectionStore.setState({
+      profiles: [PROFILE],
+      activeProfileName: "test-profile",
+      connectionStatus: "connected",
+      connectionError: null,
+      managementStatus: "live",
+      managementAuthError: null,
+      queues: ["test-queue"],
+      exchanges: [],
+    });
+    useProtoStore.setState({
+      hexPreview: "0a 05",
+      encodeError: null,
+      latestValues: {},
+      selectedMessageType: "TestMessage",
+    });
+    useHistoryStore.setState({ entries: [], historyLoaded: true });
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "encode_message") return Promise.resolve("CgU=");
+      if (cmd === "publish_message") return Promise.resolve({ status: "ack" });
+      return Promise.resolve([]);
+    });
+  });
+
+  async function send() {
+    render(<PublishBar />);
+    await waitFor(() => getTargetCombobox());
+    fireEvent.change(getTargetCombobox(), { target: { value: "test-queue" } });
+    fireEvent.click(screen.getByRole("button", { name: /^send$/i }));
+    await waitFor(() => expect(screen.getByText("ACK")).toBeInTheDocument());
+  }
+
+  it("records a sent message by default", async () => {
+    await send();
+    await waitFor(() => expect(useHistoryStore.getState().entries).toHaveLength(1));
+  });
+
+  it("records nothing for a profile with record_history off", async () => {
+    useConnectionStore.setState({ profiles: [{ ...PROFILE, record_history: false }] });
+    await send();
+    expect(useHistoryStore.getState().entries).toHaveLength(0);
   });
 });

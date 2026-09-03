@@ -93,6 +93,8 @@ export interface ConnectionProfile {
   environment?: ProfileEnvironment;
   /** Read-only profiles cannot send, consume, subscribe or run plans. */
   read_only?: boolean;
+  /** Keep sent messages in the local history (default true). Turn off for production data. */
+  record_history?: boolean;
 }
 
 export type ConnectionStatus = "connected" | "error" | "disconnected";

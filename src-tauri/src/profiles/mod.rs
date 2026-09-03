@@ -80,6 +80,13 @@ pub struct ConnectionProfile {
     /// The frontend hides those actions; this flag is also enforced in every command.
     #[serde(default)]
     pub read_only: bool,
+    /// Keep sent messages in the local history (frontend concern; stored here, default true).
+    #[serde(default = "default_true")]
+    pub record_history: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Validate a profile at the command boundary: the form checks too, but the command
@@ -452,6 +459,7 @@ mod tests {
             ca_cert_path: None,
             environment: None,
             read_only: false,
+            record_history: true,
         };
         let json = serde_json::to_string(&profile).unwrap();
         assert!(!json.contains("password"), "password must never appear in serialized ConnectionProfile");
@@ -500,6 +508,7 @@ mod uri_tests {
             ca_cert_path: None,
             environment: None,
             read_only: false,
+            record_history: true,
         };
         assert!(validate_profile(&ok).is_ok());
         for host in ["localhost", "10.0.0.5", "::1", "[fe80::1]", "broker-1.example.com"] {
@@ -543,6 +552,7 @@ mod endpoint_tests {
             ca_cert_path: ca.map(|s| s.to_string()),
             environment: None,
             read_only: false,
+            record_history: true,
         }
     }
 
@@ -647,6 +657,7 @@ mod writable_tests {
             ca_cert_path: None,
             environment: Some("production".into()),
             read_only,
+            record_history: true,
         }
     }
 
@@ -669,5 +680,6 @@ mod writable_tests {
         let p: ConnectionProfile = serde_json::from_str(json).unwrap();
         assert!(p.environment.is_none());
         assert!(!p.read_only);
+        assert!(p.record_history, "history recording defaults to on");
     }
 }

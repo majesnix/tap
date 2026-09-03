@@ -19,6 +19,7 @@ import { RELEASE_NAME } from "@/lib/release";
 import { runUpdateCheck } from "@/UpdateChecker";
 import { usePlatformLabel } from "@/hooks/usePlatformLabel";
 import { SchemaExplorer } from "@/components/sidebar/SchemaExplorer";
+import { ClearLocalDataButton } from "@/components/sidebar/ClearLocalDataButton";
 
 interface SidebarProps {
   viewMode?: "main" | "plans";
@@ -110,6 +111,7 @@ export function Sidebar({ viewMode, onViewChange }: SidebarProps) {
               <RefreshCw className="size-4" />
             </Button>
           )}
+          <ClearLocalDataButton />
           <ThemeToggle />
         </div>
       </div>
