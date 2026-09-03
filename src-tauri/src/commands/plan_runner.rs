@@ -20,13 +20,14 @@ use std::time::Duration;
 use futures_util::StreamExt;
 use lapin::{
     options::{BasicAckOptions, BasicConsumeOptions, BasicNackOptions, BasicPublishOptions},
-    BasicProperties, Connection, ConnectionProperties,
+    BasicProperties,
 };
 use prost_reflect::{DescriptorPool, DynamicMessage};
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::error::AppError;
+use crate::profiles::{consumer_tag, AmqpEndpoint, AMQP_CONNECT_TIMEOUT};
 
 // ─── Managed state ───────────────────────────────────────────────────────────
 
@@ -206,8 +207,8 @@ pub async fn execute_step(
     };
     // Guard dropped here — before first .await
 
-    execute_step_core(pool, token, &profile.host, profile.port, &profile.vhost, &profile.username, password, step)
-        .await
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
+    execute_step_core(pool, token, &endpoint, password, step).await
 }
 
 /// Pure async core for [`execute_step`]: encode, connect, and run the response-mode branch.
@@ -218,10 +219,7 @@ pub async fn execute_step(
 pub(crate) async fn execute_step_core(
     pool: prost_reflect::DescriptorPool,
     token: CancellationToken,
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
     step: PlanStep,
 ) -> Result<StepResult, AppError> {
@@ -252,20 +250,8 @@ pub(crate) async fn execute_step_core(
         };
 
     // ── 6. Open AMQP connection ────────────────────────────────────────────────
-    //    Follow the tight-scope URI pattern from publish.rs (WR-01: password not leaked).
-    let conn = {
-        use crate::profiles::build_amqp_uri;
-        let uri = build_amqp_uri(host, port, vhost, username, &password);
-        drop(password);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            Connection::connect(&uri, ConnectionProperties::default()),
-        )
-        .await;
-        result
-            .map_err(|_| AppError::AmqpError("Step connection timed out (10s)".to_string()))?
-            .map_err(|_| AppError::AmqpError("AMQP connection failed — check host, port, vhost, and credentials".to_string()))?
-    };
+    //    URI built and dropped inside `connect`; errors sanitized there (WR-01).
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Step").await?;
 
     let channel = conn
         .create_channel()
@@ -314,7 +300,7 @@ pub(crate) async fn execute_step_core(
             let correlation_id = Uuid::new_v4().to_string();
 
             // basic_consume BEFORE basic_publish (pitfall #59)
-            let consumer_tag = format!("tap-run-{}", &step.id[..8.min(step.id.len())]);
+            let consumer_tag = consumer_tag("plan");
             let mut consumer = channel
                 .basic_consume(
                     reply_queue.as_str().into(),
@@ -431,7 +417,7 @@ pub(crate) async fn execute_step_core(
             let reply_queue = reply_queue.clone();
 
             // basic_consume BEFORE basic_publish (pitfall #59)
-            let consumer_tag = format!("tap-fa-{}", &step.id[..8.min(step.id.len())]);
+            let consumer_tag = consumer_tag("plan");
             let mut consumer = channel
                 .basic_consume(
                     reply_queue.as_str().into(),
@@ -892,7 +878,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 0 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
@@ -907,7 +893,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 0 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
@@ -921,7 +907,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 0 },
         );
-        let err = execute_step_core(pool, CancellationToken::new(), "127.0.0.1", 1, "/", "dev", "dev".to_string(), s)
+        let err = execute_step_core(pool, CancellationToken::new(), &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(), s)
             .await
             .unwrap_err();
         assert!(matches!(err, AppError::AmqpError(_)), "got {err:?}");
@@ -938,7 +924,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::NoWait { delay_ms: 1 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "done");
@@ -957,7 +943,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 5000 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "done");
@@ -977,7 +963,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 400 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
@@ -997,7 +983,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::FirstArrival { reply_queue: reply_q.into(), timeout_ms: 5000 },
         );
-        let res = execute_step_core(pool, token, &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, token, &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");
@@ -1016,7 +1002,7 @@ mod integration_tests {
             PublishTarget::Queue { queue: "proto-test".into() },
             ResponseMode::CorrelationId { reply_queue: reply_q.into(), timeout_ms: 500 },
         );
-        let res = execute_step_core(pool, CancellationToken::new(), &b.host, b.port, &b.vhost, &b.username, b.password.clone(), s)
+        let res = execute_step_core(pool, CancellationToken::new(), &b.endpoint(), b.password.clone(), s)
             .await
             .unwrap();
         assert_eq!(res.status, "error");

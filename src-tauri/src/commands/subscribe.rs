@@ -124,32 +124,18 @@ pub async fn start_subscribe(
         crate::commands::connection::load_profile_with_password(&app, &profile_name)
             .inspect_err(|_| { if let Ok(mut g) = subscribe_state.lock() { *g = None; } })?;
 
-    // Open connection in tight URI scope (SECURITY: password dropped before .await; uri dropped at block end)
-    let conn = {
-        let uri = crate::profiles::build_amqp_uri(
-            &profile.host,
-            profile.port,
-            &profile.vhost,
-            &profile.username,
-            &password,
-        );
-        // SECURITY: drop password before connecting — never reaches spawn closure
-        drop(password);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            lapin::Connection::connect(&uri, lapin::ConnectionProperties::default()),
-        )
-        .await;
-        // uri dropped here (end of block) — password and URI both gone before any await resumes
-        match result {
-            Err(_) => clear_slot_and_return!(crate::error::AppError::AmqpError(
-                "Subscribe connection timed out (10s)".to_string(),
-            )),
-            Ok(Err(_)) => clear_slot_and_return!(crate::error::AppError::AmqpError(
-                "AMQP connection failed — check host, port, vhost, and credentials".to_string(),
-            )),
-            Ok(Ok(c)) => c,
-        }
+    // SECURITY: the URI is built and dropped inside `connect`; the password is consumed
+    // there, so neither reaches the spawn closure below.
+    let endpoint = match crate::profiles::AmqpEndpoint::from_profile(&profile) {
+        Ok(endpoint) => endpoint,
+        Err(e) => clear_slot_and_return!(e),
+    };
+    let conn = match endpoint
+        .connect(password, crate::profiles::AMQP_CONNECT_TIMEOUT, "Subscribe")
+        .await
+    {
+        Ok(c) => c,
+        Err(e) => clear_slot_and_return!(e),
     };
 
     // Open AMQP channel (close conn on error)
@@ -167,9 +153,9 @@ pub async fn start_subscribe(
     // Move all captured values into the spawn closure.
     // CRITICAL: URI and password are NOT captured here (dropped above).
     let queue_name_clone = queue_name.clone();
-    // IN-02: consumer_tag is safe as a constant because start_subscribe enforces a single
-    // active session via the CR-01 atomic slot claim above.
-    let consumer_tag = "tap-subscriber".to_string();
+    // Unique, attributable tag ("tap:subscribe:<user>:<id>") so broker operators can
+    // see whose Tap holds a consumer on a shared queue.
+    let consumer_tag = crate::profiles::consumer_tag("subscribe");
 
     // Clone app handle for use inside the spawn closure to clear state on self-termination.
     let app_handle_clone = app.clone();

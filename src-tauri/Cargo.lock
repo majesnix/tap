@@ -4849,6 +4849,7 @@ dependencies = [
  "prost-reflect",
  "protox",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",

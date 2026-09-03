@@ -1,12 +1,12 @@
 use lapin::{
     options::{BasicPublishOptions, ConfirmSelectOptions},
-    BasicProperties, Confirmation, Connection, ConnectionProperties,
+    BasicProperties, Confirmation,
 };
 use std::time::Duration;
 use tauri::AppHandle;
 
 use crate::error::AppError;
-use crate::profiles::build_amqp_uri;
+use crate::profiles::{AmqpEndpoint, AMQP_CONNECT_TIMEOUT};
 
 /// Delivery outcome returned by publish_message.
 /// D-02: Flat serializable struct with a status string field.
@@ -44,12 +44,10 @@ pub async fn publish_message(
     // Load profile credentials
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     publish_message_core(
-        &profile.host,
-        profile.port,
-        &profile.vhost,
-        &profile.username,
+        &endpoint,
         password,
         exchange,
         routing_key,
@@ -71,10 +69,7 @@ pub async fn publish_message(
 /// before connect; connect errors are sanitized (never propagate the cleartext URI).
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn publish_message_core(
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
     exchange: String,
     routing_key: String,
@@ -96,25 +91,9 @@ pub(crate) async fn publish_message_core(
         }
     }
 
-    // WR-01: Build URI in a tight block so it is dropped before any error is
-    // propagated. The connect error is replaced with a generic message to prevent
-    // the password-containing URI from leaking into the AppError payload sent to
-    // the frontend or captured by tracing.
-    let conn = {
-        let uri = build_amqp_uri(host, port, vhost, username, &password);
-        // password is no longer needed — drop it before connecting
-        drop(password);
-        // uri is in scope only for the duration of this block
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            Connection::connect(&uri, ConnectionProperties::default()),
-        )
-        .await;
-        // uri is dropped here, before we inspect the result
-        result
-            .map_err(|_| AppError::AmqpError("Publish connection timed out (10s)".to_string()))?
-            .map_err(|_| AppError::AmqpError("AMQP connection failed — check host, port, vhost, and credentials".to_string()))?
-    };
+    // WR-01: the URI is built and dropped inside `connect`; connect errors are
+    // replaced with fixed messages so the password can never leak to the frontend.
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Publish").await?;
 
     // CR-02: close the connection on any error path after this point so we do
     // not leak TCP connections when create_channel or basic_publish fails.
@@ -246,7 +225,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_invalid_delivery_mode() {
         let err = publish_message_core(
-            "localhost", 5672, "/", "dev", "dev".to_string(),
+            &AmqpEndpoint::plain("localhost", 5672, "/", "dev"), "dev".to_string(),
             "".to_string(), "q".to_string(), vec![1, 2, 3],
             None, Some(3), None, None, None, None,
         )
@@ -258,7 +237,7 @@ mod tests {
     #[tokio::test]
     async fn unreachable_host_returns_amqp_error() {
         let err = publish_message_core(
-            "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
             "".to_string(), "q".to_string(), vec![1], None, None, None, None, None, None,
         )
         .await
@@ -275,7 +254,7 @@ mod tests {
         };
         // Default exchange ("") routes by queue name; "proto-test" exists (definitions.json).
         let outcome = publish_message_core(
-            &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            &b.endpoint(), b.password.clone(),
             "".to_string(), "proto-test".to_string(), vec![0x08, 0x96, 0x01],
             None, None, None, None, None, None,
         )
@@ -291,7 +270,7 @@ mod tests {
         };
         // mandatory=true + no queue bound to this routing key → broker returns the message.
         let outcome = publish_message_core(
-            &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            &b.endpoint(), b.password.clone(),
             "".to_string(), "no-such-queue-xyz-123".to_string(), vec![1],
             None, None, None, None, None, None,
         )
@@ -308,7 +287,7 @@ mod tests {
         // test-direct + routing key "proto.test" is bound to test-queue (definitions.json).
         // Exercises every optional-property branch (content_type/delivery_mode/ttl/corr/reply/headers).
         let outcome = publish_message_core(
-            &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            &b.endpoint(), b.password.clone(),
             "test-direct".to_string(), "proto.test".to_string(), vec![0x08, 0x01],
             Some("application/x-protobuf".to_string()),
             Some(2),

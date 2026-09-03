@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Pencil } from "lucide-react";
+import { Pencil, FolderOpen } from "lucide-react";
+import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,12 @@ import { saveProfile, listProfiles, deleteProfile, testConnection } from "@/lib/
 import { useConnectionStore } from "@/stores/useConnectionStore";
 import { ConnectionTestResult } from "@/components/connection/ConnectionTestResult";
 import type { ConnectionProfile } from "@/lib/types";
+import { isLocalHost } from "@/lib/hosts";
+
+/** Standard AMQP TLS port: choosing it is a strong hint that the broker expects amqps. */
+const AMQP_TLS_PORT = "5671";
+/** Standard RabbitMQ Management HTTPS port. */
+const MANAGEMENT_TLS_PORT = "15671";
 
 interface ProfileFormValues {
   name: string;
@@ -33,6 +40,8 @@ interface ProfileFormValues {
   password: string;
   managementPort: string;
   managementSsl: boolean;
+  amqpTls: boolean;
+  caCertPath: string;
 }
 
 const DEFAULT_FORM_VALUES: ProfileFormValues = {
@@ -44,7 +53,39 @@ const DEFAULT_FORM_VALUES: ProfileFormValues = {
   password: "",
   managementPort: "15672",
   managementSsl: false,
+  amqpTls: false,
+  caCertPath: "",
 };
+
+/**
+ * Build the profile object sent to the backend from the form state.
+ * Ports fall back to the AMQP / Management defaults when unparsable.
+ */
+function profileFromForm(values: ProfileFormValues): ConnectionProfile {
+  return {
+    name: values.name.trim(),
+    host: values.host.trim(),
+    port: Number(values.port) || 5672,
+    vhost: values.vhost.trim() || "/",
+    username: values.username.trim(),
+    management_port: Number(values.managementPort) || 15672,
+    management_ssl: values.managementSsl,
+    amqp_tls: values.amqpTls,
+    ca_cert_path: values.caCertPath.trim() || null,
+  };
+}
+
+/**
+ * Which transports would carry the password in cleartext to a remote host.
+ * Empty when the host is local or everything is encrypted.
+ */
+function cleartextTransports(values: ProfileFormValues): string[] {
+  if (isLocalHost(values.host)) return [];
+  const exposed: string[] = [];
+  if (!values.amqpTls) exposed.push("AMQP");
+  if (!values.managementSsl) exposed.push("Management API");
+  return exposed;
+}
 
 interface ProfileManagementModalProps {
   open: boolean;
@@ -80,6 +121,8 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
       password: "",             // intentionally blank — user must re-enter to change
       managementPort: String(profile.management_port ?? 15672),
       managementSsl: profile.management_ssl ?? false,
+      amqpTls: profile.amqp_tls ?? false,
+      caCertPath: profile.ca_cert_path ?? "",
     });
     setError(null);
     setTestState("idle");
@@ -98,20 +141,43 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     setFormValues((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Picking the standard TLS port is the clearest signal a user gives about the
+  // transport; follow it, but leave the checkbox editable afterwards.
+  const handlePortChange = (value: string) => {
+    setFormValues((prev) => ({
+      ...prev,
+      port: value,
+      amqpTls: value === AMQP_TLS_PORT ? true : value === "5672" ? false : prev.amqpTls,
+    }));
+  };
+
+  const handleManagementPortChange = (value: string) => {
+    setFormValues((prev) => ({
+      ...prev,
+      managementPort: value,
+      managementSsl:
+        value === MANAGEMENT_TLS_PORT ? true : value === "15672" ? false : prev.managementSsl,
+    }));
+  };
+
+  const handleBrowseCaCert = async () => {
+    const selected = await openFileDialog({
+      multiple: false,
+      filters: [{ name: "PEM certificate", extensions: ["pem", "crt", "cer"] }],
+    });
+    if (selected && typeof selected === "string") {
+      setFormValues((prev) => ({ ...prev, caCertPath: selected }));
+    }
+  };
+
+  const exposedTransports = cleartextTransports(formValues);
+
   const handleTestOnly = async () => {
     setError(null);
     setTestState("idle");
     setTestError(null);
 
-    const profile: ConnectionProfile = {
-      name: formValues.name.trim(),
-      host: formValues.host.trim(),
-      port: Number(formValues.port) || 5672,
-      vhost: formValues.vhost.trim() || "/",
-      username: formValues.username.trim(),
-      management_port: Number(formValues.managementPort) || 15672,
-      management_ssl: formValues.managementSsl,
-    };
+    const profile = profileFromForm(formValues);
 
     if (!profile.name) {
       setError("Profile name is required.");
@@ -154,15 +220,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
     setTestState("idle");
     setTestError(null);
 
-    const profile: ConnectionProfile = {
-      name: formValues.name.trim(),
-      host: formValues.host.trim(),
-      port: Number(formValues.port) || 5672,
-      vhost: formValues.vhost.trim() || "/",
-      username: formValues.username.trim(),
-      management_port: Number(formValues.managementPort) || 15672,
-      management_ssl: formValues.managementSsl,
-    };
+    const profile = profileFromForm(formValues);
 
     if (!profile.name) {
       setError("Profile name is required.");
@@ -302,8 +360,20 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   <Input
                     type="number"
                     value={formValues.port}
-                    onChange={(e) => handleFieldChange("port", e.target.value)}
+                    onChange={(e) => handlePortChange(e.target.value)}
                   />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="amqp-tls"
+                    checked={formValues.amqpTls}
+                    onCheckedChange={(checked) =>
+                      setFormValues((prev) => ({ ...prev, amqpTls: checked === true }))
+                    }
+                  />
+                  <label htmlFor="amqp-tls" className="text-sm font-semibold cursor-pointer">
+                    AMQP over TLS (amqps, port 5671)
+                  </label>
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-sm font-semibold">Virtual Host</label>
@@ -339,7 +409,7 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                   <Input
                     type="number"
                     value={formValues.managementPort}
-                    onChange={(e) => handleFieldChange("managementPort", e.target.value)}
+                    onChange={(e) => handleManagementPortChange(e.target.value)}
                   />
                 </div>
                 <div className="flex items-center gap-2">
@@ -354,6 +424,35 @@ export function ProfileManagementModal({ open, onClose }: ProfileManagementModal
                     Management API SSL (HTTPS)
                   </label>
                 </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-semibold">CA certificate</label>
+                  <div className="flex items-center gap-1">
+                    <Input
+                      placeholder="CA certificate (PEM), optional"
+                      value={formValues.caCertPath}
+                      onChange={(e) => handleFieldChange("caCertPath", e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => void handleBrowseCaCert()}
+                      aria-label="Browse for CA certificate"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Only needed when the broker uses an internal PKI that the OS trust store does not know.
+                  </p>
+                </div>
+
+                {exposedTransports.length > 0 && (
+                  <p role="status" className="text-xs text-amber-700 dark:text-amber-400">
+                    The password will travel unencrypted to {formValues.host.trim()} over{" "}
+                    {exposedTransports.join(" and ")}. Enable TLS before using this profile on a shared broker.
+                  </p>
+                )}
 
                 {error && (
                   <p className="text-sm text-destructive">{error}</p>

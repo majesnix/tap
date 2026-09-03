@@ -6,7 +6,7 @@
 /// D-10 DEVIATION: Ack happens BEFORE decode — always. This prevents poison-pill
 /// messages from blocking the queue. Decode errors are shown inline; the message
 /// is removed from the queue regardless of decode outcome.
-use std::time::Duration;
+use crate::profiles::{AmqpEndpoint, AMQP_CONNECT_TIMEOUT};
 
 /// Result type returned to the frontend.
 #[derive(serde::Serialize)]
@@ -50,13 +50,11 @@ pub async fn consume_message(
     // Load credentials (sync, no await)
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     consume_message_core(
         pool,
-        &profile.host,
-        profile.port,
-        &profile.vhost,
-        &profile.username,
+        &endpoint,
         password,
         queue_name,
         message_type_name,
@@ -69,10 +67,7 @@ pub async fn consume_message(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn consume_message_core(
     pool: Option<prost_reflect::DescriptorPool>,
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
     queue_name: String,
     message_type_name: String,
@@ -83,30 +78,8 @@ pub(crate) async fn consume_message_core(
         message: "No proto file loaded".to_string(),
     })?;
 
-    // Connect in tight URI scope (SECURITY: password and URI dropped before result inspection)
-    let conn = {
-        let uri = crate::profiles::build_amqp_uri(host, port, vhost, username, &password);
-        // password is no longer needed — drop it before connecting
-        drop(password);
-        let result = tokio::time::timeout(
-            Duration::from_secs(10),
-            lapin::Connection::connect(&uri, lapin::ConnectionProperties::default()),
-        )
-        .await;
-        // uri is dropped here, before we inspect the result
-        result
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "Consume connection timed out (10s)".to_string(),
-                )
-            })?
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "AMQP connection failed — check host, port, vhost, and credentials"
-                        .to_string(),
-                )
-            })?
-    };
+    // SECURITY: URI built and dropped inside `connect`; errors are sanitized there.
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Consume").await?;
 
     // Step 4: Create channel (close conn on error)
     let channel = match conn.create_channel().await {
@@ -279,13 +252,11 @@ pub async fn drain_messages(
     // Load credentials (sync, no await) — same as consume_message
     let (profile, password) =
         crate::commands::connection::load_profile_with_password(&app, &profile_name)?;
+    let endpoint = AmqpEndpoint::from_profile(&profile)?;
 
     drain_messages_core(
         pool,
-        &profile.host,
-        profile.port,
-        &profile.vhost,
-        &profile.username,
+        &endpoint,
         password,
         queue_name,
         message_type_names,
@@ -299,10 +270,7 @@ pub async fn drain_messages(
 #[allow(clippy::too_many_arguments)]
 pub(crate) async fn drain_messages_core(
     pool: Option<prost_reflect::DescriptorPool>,
-    host: &str,
-    port: u16,
-    vhost: &str,
-    username: &str,
+    endpoint: &AmqpEndpoint,
     password: String,
     queue_name: String,
     message_type_names: Vec<String>,
@@ -320,26 +288,8 @@ pub(crate) async fn drain_messages_core(
         ));
     }
 
-    // Open connection in tight URI scope — password dropped before result inspection (security)
-    let conn = {
-        let uri = crate::profiles::build_amqp_uri(host, port, vhost, username, &password);
-        drop(password);
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(10),
-            lapin::Connection::connect(&uri, lapin::ConnectionProperties::default()),
-        )
-        .await;
-        result
-            .map_err(|_| {
-                crate::error::AppError::AmqpError("Drain connection timed out (10s)".to_string())
-            })?
-            .map_err(|_| {
-                crate::error::AppError::AmqpError(
-                    "AMQP connection failed — check host, port, vhost, and credentials"
-                        .to_string(),
-                )
-            })?
-    };
+    // SECURITY: URI built and dropped inside `connect`; errors are sanitized there.
+    let conn = endpoint.connect(password, AMQP_CONNECT_TIMEOUT, "Drain").await?;
 
     let channel = match conn.create_channel().await {
         Ok(ch) => ch,
@@ -612,7 +562,7 @@ mod integration_tests {
     #[tokio::test]
     async fn consume_no_pool_errors_without_broker() {
         let res = consume_message_core(
-            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
             "q".to_string(), "Item".to_string(),
         )
         .await;
@@ -626,7 +576,7 @@ mod integration_tests {
         seed_queue(&b, queue, &[]).await;
         let (pool, _) = encode(PROTO, "c_empty.proto", "Item", serde_json::json!({}));
         let res = consume_message_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            Some(pool), &b.endpoint(), b.password.clone(),
             queue.to_string(), "Item".to_string(),
         )
         .await
@@ -641,7 +591,7 @@ mod integration_tests {
         let (pool, bytes) = encode(PROTO, "c_dec.proto", "Item", serde_json::json!({ "name": "widget", "qty": 5 }));
         seed_queue(&b, queue, &[bytes]).await;
         let res = consume_message_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            Some(pool), &b.endpoint(), b.password.clone(),
             queue.to_string(), "Item".to_string(),
         )
         .await
@@ -658,7 +608,7 @@ mod integration_tests {
         let (pool, bytes) = encode(PROTO, "c_unk.proto", "Item", serde_json::json!({ "name": "x" }));
         seed_queue(&b, queue, &[bytes]).await;
         let res = consume_message_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            Some(pool), &b.endpoint(), b.password.clone(),
             queue.to_string(), "NotAType".to_string(),
         )
         .await
@@ -671,7 +621,7 @@ mod integration_tests {
     #[tokio::test]
     async fn drain_rejects_empty_type_names() {
         let res = drain_messages_core(
-            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
             "q".to_string(), vec![], 10,
         )
         .await;
@@ -681,7 +631,7 @@ mod integration_tests {
     #[tokio::test]
     async fn drain_rejects_invalid_count() {
         let res = drain_messages_core(
-            None, "127.0.0.1", 1, "/", "dev", "dev".to_string(),
+            None, &AmqpEndpoint::plain("127.0.0.1", 1, "/", "dev"), "dev".to_string(),
             "q".to_string(), vec!["Item".to_string()], 0,
         )
         .await;
@@ -697,7 +647,7 @@ mod integration_tests {
         let (_, b3) = encode(PROTO, "d1.proto", "Item", serde_json::json!({ "name": "c", "qty": 3 }));
         seed_queue(&b, queue, &[b1, b2, b3]).await;
         let outcome = drain_messages_core(
-            Some(pool), &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            Some(pool), &b.endpoint(), b.password.clone(),
             queue.to_string(), vec!["Item".to_string()], 10,
         )
         .await
@@ -714,7 +664,7 @@ mod integration_tests {
         let (_, bytes) = encode(PROTO, "dnp.proto", "Item", serde_json::json!({ "name": "x" }));
         seed_queue(&b, queue, &[bytes]).await;
         let outcome = drain_messages_core(
-            None, &b.host, b.port, &b.vhost, &b.username, b.password.clone(),
+            None, &b.endpoint(), b.password.clone(),
             queue.to_string(), vec!["Item".to_string()], 10,
         )
         .await

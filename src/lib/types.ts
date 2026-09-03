@@ -82,6 +82,10 @@ export interface ConnectionProfile {
   username: string;
   management_port: number; // default 15672
   management_ssl: boolean; // default false — set true to use HTTPS for Management API
+  /** Use amqps:// (TLS) for the AMQP connection. Absent in profiles saved before 1.10. */
+  amqp_tls?: boolean;
+  /** Optional PEM bundle the broker certificate must chain to (internal PKI). */
+  ca_cert_path?: string | null;
 }
 
 export type ConnectionStatus = "connected" | "error" | "disconnected";

@@ -83,6 +83,13 @@ TAP_INTEGRATION=1 cargo llvm-cov --manifest-path src-tauri/Cargo.toml \
 pnpm tauri build
 ```
 
+The release configuration always produces signed updater artifacts, which needs
+`TAURI_SIGNING_PRIVATE_KEY`. For a local build without the key, switch them off:
+
+```bash
+pnpm tauri build --debug --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
 ---
 
 ## Install on Arch Linux
@@ -108,6 +115,26 @@ See [`packaging/arch/README.md`](packaging/arch/README.md) for details on the PK
 
 ---
 
+## Connecting over TLS
+
+Profiles have two transport switches and an optional CA bundle:
+
+| Setting | What it does | Default |
+|---------|--------------|---------|
+| AMQP over TLS | Connects with `amqps://` instead of `amqp://` | Off; switches on when the AMQP port is set to 5671 |
+| Management API SSL | Uses `https://` for queue and exchange discovery | Off; switches on when the management port is set to 15671 |
+| CA certificate | PEM bundle the broker certificate must chain to, for internal PKIs the OS trust store does not know | None |
+
+Without TLS the AMQP password travels in cleartext, so the profile dialog warns when a
+remote host is configured with either switch off. Certificates issued by a CA in the OS
+trust store are accepted without a CA bundle.
+
+## Reading queues safely
+
+Consume and Subscribe are competing consumers: every message Tap receives is acknowledged
+and removed from the queue, so services consuming the same queue never see it. Tap asks for
+confirmation before either runs against a broker that is not on your own machine.
+
 ## RabbitMQ quick-start (Docker)
 
 ```bash
@@ -131,4 +158,4 @@ docs/             Additional documentation
 
 ## Version
 
-v1.8.3
+v1.9.0

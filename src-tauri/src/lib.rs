@@ -10,6 +10,9 @@ mod test_support;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Select the rustls crypto backend before any TLS handshake (AMQP, Management API, updater).
+    profiles::ensure_crypto_provider();
+
     // Platform-specific keyring store initialization — must run before any Entry operations.
     // keyring-core 1.x requires explicit store registration; see keyring-core README.
     // SECURITY: do not log password or AMQP URI
