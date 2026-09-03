@@ -18,8 +18,8 @@ interface MessageFeedRowProps {
  */
 export function MessageFeedRow({ message }: MessageFeedRowProps) {
   const formattedTimestamp = (() => {
-    if (message.timestamp === null) return "—";
-    const d = new Date(message.timestamp);
+    if (!Number.isFinite(message.receivedAt)) return "—";
+    const d = new Date(message.receivedAt);
     const base = d.toLocaleTimeString([], {
       hour: "2-digit",
       minute: "2-digit",
