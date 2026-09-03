@@ -16,6 +16,16 @@ vi.mock("@tauri-apps/api/core", () => ({
   invoke: vi.fn(),
 }));
 
+// History persistence goes through tauri-plugin-store; keep it in memory here so the
+// history tests neither touch disk nor leave an unhandled rejection behind.
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn().mockResolvedValue({
+    get: vi.fn().mockResolvedValue(null),
+    set: vi.fn().mockResolvedValue(undefined),
+    save: vi.fn().mockResolvedValue(undefined),
+  }),
+}));
+
 // Mock shadcn Select with a native <select> to avoid Radix UI portal/pointer-event issues in jsdom
 vi.mock("@/components/ui/select", () => ({
   Select: ({ value, onValueChange, children }: { value?: string; onValueChange?: (v: string) => void; children: React.ReactNode }) => (
