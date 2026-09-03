@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/common/IconButton";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,16 +44,9 @@ export function ClearLocalDataButton() {
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-8"
-        onClick={() => setOpen(true)}
-        aria-label="Clear local data"
-        title="Clear local data"
-      >
-        <Trash2 className="size-4" />
-      </Button>
+      <IconButton size={24} danger label="Clear local data" onClick={() => setOpen(true)}>
+        <Trash2 size={14} strokeWidth={1.5} />
+      </IconButton>
       <AlertDialog open={open} onOpenChange={setOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

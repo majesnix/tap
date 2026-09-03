@@ -3,7 +3,7 @@ import { useHotkeys } from "react-hotkeys-hook";
 import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragStartEvent } from "@dnd-kit/core";
 import { GripVertical } from "lucide-react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Sidebar } from "@/components/sidebar/Sidebar";
+import { FilesSidebar } from "@/components/sidebar/FilesSidebar";
 import { FormPanel } from "@/components/form/FormPanel";
 import { RightPanel, type RightPanelTab } from "@/components/layout/RightPanel";
 import { PublishBar } from "@/components/publish/PublishBar";
@@ -99,7 +99,7 @@ export function ComposeView({ header, blocksOpen, onToggleBlocks }: ComposeViewP
     >
       <AppShell
         header={header}
-        sidebar={<Sidebar />}
+        sidebar={<FilesSidebar />}
         drawer={
           blocksOpen && (
             <div className="flex w-[272px] shrink-0 flex-col p-[16px_0_16px_16px]">

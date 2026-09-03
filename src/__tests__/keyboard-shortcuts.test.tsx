@@ -5,8 +5,8 @@ import type { ProtoSchema } from "@/lib/types";
 
 // ─── Mock heavy leaf components that don't affect shortcut/copy testing ────────
 
-vi.mock("@/components/sidebar/Sidebar", () => ({
-  Sidebar: () => <div data-testid="sidebar-stub" />,
+vi.mock("@/components/sidebar/FilesSidebar", () => ({
+  FilesSidebar: () => <div data-testid="sidebar-stub" />,
 }));
 
 vi.mock("@/components/publish/PublishBar", () => ({
