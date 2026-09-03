@@ -154,6 +154,30 @@ describe("delivery outcome", () => {
     await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("none"));
   });
 
+  it("D-09: a new send replaces the prior outcome immediately without queuing", async () => {
+    let calls = 0;
+    mockInvoke.mockImplementation((cmd: string) => {
+      if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
+      if (cmd === "encode_message") return Promise.resolve("CgU=");
+      if (cmd === "publish_message") {
+        calls++;
+        return Promise.resolve({ status: calls === 1 ? "ack" : "nack" });
+      }
+      return Promise.resolve([]);
+    });
+    await renderAndPickQueue();
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("ack"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("nack"));
+
+    // The first send's 3 s timer must not clear the second send's outcome.
+    act(() => vi.advanceTimersByTime(3000));
+    expect(screen.getByTestId("outcome")).toHaveTextContent("nack");
+  });
+
   it("PUBL-08: a Timeout never auto-dismisses but can be dismissed by hand", async () => {
     mockInvoke.mockImplementation((cmd: string) => {
       if (cmd === "fetch_queues") return Promise.resolve(["test-queue"]);
@@ -306,6 +330,14 @@ describe("history recording", () => {
       exchange: "",
       protoPath: "/fake/test.proto",
     });
+  });
+
+  it("stamps lastSendAt so the Activity panel can highlight the new row", async () => {
+    expect(useProtoStore.getState().lastSendAt).toBeNull();
+    await renderAndPickQueue();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+
+    await waitFor(() => expect(useProtoStore.getState().lastSendAt).toBeTypeOf("number"));
   });
 
   it("records nothing for a profile with record_history off", async () => {

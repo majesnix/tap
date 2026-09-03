@@ -182,7 +182,7 @@ export function PropertiesSection({ onApplied }: PropertiesSectionProps) {
                     }))
                   }
                 >
-                  <X size={12} />
+                  <X size={12} strokeWidth={1.5} />
                 </IconButton>
               </span>
             ))}
@@ -193,7 +193,7 @@ export function PropertiesSection({ onApplied }: PropertiesSectionProps) {
                   type="button"
                   className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-border-strong px-2.5 text-12 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/35"
                 >
-                  <Plus size={12} />
+                  <Plus size={12} strokeWidth={1.5} />
                   header
                 </button>
               </PopoverTrigger>

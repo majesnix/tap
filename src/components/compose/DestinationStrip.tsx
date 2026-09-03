@@ -81,7 +81,7 @@ export function DestinationStrip({
 
         {d.mode === "exchange" && (
           <>
-            <ArrowRight size={14} className="text-ghost" />
+            <ArrowRight size={14} strokeWidth={1.5} className="text-ghost" />
             {d.useCombobox ? (
               <RoutingKeyCombobox
                 value={d.routingKey}

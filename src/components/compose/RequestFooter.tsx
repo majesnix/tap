@@ -101,9 +101,9 @@ export function RequestFooter({
                   onClick={publish.send}
                 >
                   {publish.isSending ? (
-                    <LoaderCircle size={15} className="animate-spin" />
+                    <LoaderCircle size={15} strokeWidth={1.5} className="animate-spin" />
                   ) : (
-                    <Send size={15} />
+                    <Send size={15} strokeWidth={1.5} />
                   )}
                   {sendLabel}
                   <Kbd>{modSymbol}↵</Kbd>
@@ -125,10 +125,10 @@ export function RequestFooter({
             </span>
             <div className="flex gap-0.5">
               <IconButton size={26} label="Copy hex" onClick={() => void copyHex()}>
-                <Copy size={14} />
+                <Copy size={14} strokeWidth={1.5} />
               </IconButton>
               <IconButton size={26} label="Save .bin" onClick={() => void saveBin()}>
-                <Download size={14} />
+                <Download size={14} strokeWidth={1.5} />
               </IconButton>
             </div>
           </div>

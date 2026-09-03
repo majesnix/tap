@@ -51,9 +51,9 @@ export function RoutingKeyCombobox({
             {value || <span className="font-sans text-muted-foreground">Routing key</span>}
           </span>
           {isLoading ? (
-            <LoaderCircle size={14} className="shrink-0 animate-spin text-ghost" />
+            <LoaderCircle size={14} strokeWidth={1.5} className="shrink-0 animate-spin text-ghost" />
           ) : (
-            <ChevronsUpDown size={14} className="shrink-0 text-ghost" />
+            <ChevronsUpDown size={14} strokeWidth={1.5} className="shrink-0 text-ghost" />
           )}
         </button>
       </PopoverTrigger>
@@ -74,6 +74,7 @@ export function RoutingKeyCombobox({
                   }}
                 >
                   <Check
+                    strokeWidth={1.5}
                     className={cn("mr-2 size-4", value === key ? "opacity-100" : "opacity-0")}
                   />
                   <span className="flex-1 truncate font-mono text-12">{key}</span>

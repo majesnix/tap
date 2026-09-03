@@ -50,7 +50,7 @@ export function RequestHeader({
           active={blocksOpen}
           onClick={onToggleBlocks}
         >
-          <Library size={15} />
+          <Library size={15} strokeWidth={1.5} />
         </IconButton>
         <IconButton
           size={28}
@@ -59,7 +59,7 @@ export function RequestHeader({
           title="Fill empty fields with random values"
           onClick={onRandomize}
         >
-          <Dices size={15} />
+          <Dices size={15} strokeWidth={1.5} />
         </IconButton>
         <IconButton
           size={28}
@@ -68,7 +68,7 @@ export function RequestHeader({
           title={`Clear form (${modSymbol}+Shift+R)`}
           onClick={onClear}
         >
-          <RotateCcw size={15} />
+          <RotateCcw size={15} strokeWidth={1.5} />
         </IconButton>
         <IconButton
           size={28}
@@ -77,7 +77,7 @@ export function RequestHeader({
           active={isJsonMode}
           onClick={onToggleJson}
         >
-          <Braces size={15} />
+          <Braces size={15} strokeWidth={1.5} />
         </IconButton>
       </div>
     </div>

@@ -30,7 +30,7 @@ export function EmptyState() {
             onClick={requestOpenFile}
             className={`${STEP_CARD_CLASS} border-border-strong transition-colors hover:bg-surface-2`}
           >
-            <FileCode size={16} className="text-violet-bright" />
+            <FileCode size={16} strokeWidth={1.5} className="text-violet-bright" />
             <span className="text-13 font-semibold">1 · Open a .proto</span>
             <span className="text-11 text-muted-foreground">
               ⌘O · include paths remembered per file
@@ -38,7 +38,7 @@ export function EmptyState() {
           </button>
 
           <div className={`${STEP_CARD_CLASS} border-border`}>
-            <Radio size={16} className="text-teal" />
+            <Radio size={16} strokeWidth={1.5} className="text-teal" />
             <span className="text-13 font-semibold">2 · Pick a destination</span>
             <span className="text-11 text-muted-foreground">
               queues and exchanges from the live catalog
@@ -46,7 +46,7 @@ export function EmptyState() {
           </div>
 
           <div className={`${STEP_CARD_CLASS} border-border`}>
-            <Send size={16} className="text-success" />
+            <Send size={16} strokeWidth={1.5} className="text-success" />
             <span className="text-13 font-semibold">3 · Send</span>
             <span className="text-11 text-muted-foreground">
               ⌘↵ · publisher confirms shown inline

@@ -19,7 +19,7 @@ export function HexStrip({ hex, byteCount, encodeError, open, onToggle }: HexStr
       onClick={onToggle}
       className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
     >
-      <Binary size={15} className="shrink-0 text-muted-foreground" />
+      <Binary size={15} strokeWidth={1.5} className="shrink-0 text-muted-foreground" />
       <span className="flex-1 truncate font-mono text-[11.5px] text-muted-foreground">
         {encodeError ? (
           <span className="text-danger">{encodeError}</span>

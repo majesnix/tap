@@ -24,7 +24,7 @@ export function PropertiesSummaryButton({ open, onToggle }: PropertiesSummaryBut
         open ? "border-border-strong bg-primary/8" : "border-transparent"
       )}
     >
-      <Layers size={14} className="shrink-0" />
+      <Layers size={14} strokeWidth={1.5} className="shrink-0" />
       <span className="whitespace-nowrap">
         {parts.map((part, index) => (
           <span key={`${part.text}-${index}`}>

@@ -62,33 +62,50 @@ export function RequestCard({
     };
   }, [toggleHex]);
 
+  // A block can only land on the form, so the JSON editor shows no drop affordance.
+  const isDropTarget = isDragOver && !form.isJsonMode;
+
+  // Mounted in every branch: mod+enter can request a production send before a message type is
+  // selected, and that confirmation must still be answerable.
+  const confirmDialog = (
+    <BrokerConfirmDialog
+      request={publish.pendingPublish}
+      onConfirm={publish.confirmPublish}
+      onCancel={publish.cancelPublish}
+    />
+  );
+
   if (!schema || !selectedMessageType) {
-    return <EmptyState />;
+    return (
+      <>
+        {confirmDialog}
+        <EmptyState />
+      </>
+    );
   }
 
   if (!message) {
     return (
-      <div className="flex flex-1 items-center justify-center text-12 text-ghost">
-        Message type not found in schema
-      </div>
+      <>
+        {confirmDialog}
+        <div className="flex flex-1 items-center justify-center text-12 text-ghost">
+          Message type not found in schema
+        </div>
+      </>
     );
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col p-4">
       <BlockConflictDialog conflict={conflict} />
-      <BrokerConfirmDialog
-        request={publish.pendingPublish}
-        onConfirm={publish.confirmPublish}
-        onCancel={publish.cancelPublish}
-      />
+      {confirmDialog}
 
       <div
         ref={setDropZoneRef}
         data-testid="drop-zone"
         className={cn(
           "flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border bg-card transition-[border-color,box-shadow]",
-          isDragOver ? "border-border-strong ring-4 ring-primary/12" : "border-border"
+          isDropTarget ? "border-border-strong ring-4 ring-primary/12" : "border-border"
         )}
       >
         <RequestHeader
@@ -101,7 +118,7 @@ export function RequestCard({
           onClear={form.clear}
           onToggleJson={form.toggleJson}
           dropHint={
-            isDragOver
+            isDropTarget
               ? `Drop to fill ${message.name} · ${message.fields.length} fields`
               : null
           }

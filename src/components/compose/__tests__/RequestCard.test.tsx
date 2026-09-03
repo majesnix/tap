@@ -260,6 +260,19 @@ describe("drop target", () => {
     renderCard();
     expect(screen.getByTestId("drop-zone").className).not.toContain("ring-4");
   });
+
+  it("shows no drop affordance in JSON mode — a block cannot land there", () => {
+    openSchema();
+    renderCard();
+    fireEvent.click(screen.getByRole("button", { name: "Edit as JSON" }));
+
+    dndKit.isOver = true;
+    // Re-render through a state change so the card reads the new isOver value.
+    fireEvent.click(screen.getByTestId("properties-summary"));
+
+    expect(screen.getByTestId("drop-zone").className).not.toContain("ring-4");
+    expect(screen.queryByText(/Drop to fill/)).not.toBeInTheDocument();
+  });
 });
 
 describe("compose signals", () => {

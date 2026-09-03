@@ -36,7 +36,7 @@ export function OutcomeChip({ outcome, outcomeAt, onDismiss }: OutcomeChipProps)
         TONE[outcome.status]
       )}
     >
-      {outcome.status === "ack" && <CircleCheck size={12} />}
+      {outcome.status === "ack" && <CircleCheck size={12} strokeWidth={1.5} />}
       {LABEL[outcome.status]}
       {outcome.status === "ack" && time && ` · ${time}`}
       {outcome.status === "timeout" && (
@@ -46,7 +46,7 @@ export function OutcomeChip({ outcome, outcomeAt, onDismiss }: OutcomeChipProps)
           className="-mr-1 text-danger"
           onClick={onDismiss}
         >
-          <X size={12} />
+          <X size={12} strokeWidth={1.5} />
         </IconButton>
       )}
     </span>
