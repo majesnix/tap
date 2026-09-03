@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <meta name="design_doc_mode" content="canvas">
+  <link rel="stylesheet" href="_ds/majesnix-design-system-019dcb5d-c0b5-7e2b-9de4-65eee30e0993/colors_and_type.css">
+  <script src="_ds/majesnix-design-system-019dcb5d-c0b5-7e2b-9de4-65eee30e0993/_ds_bundle.js"></script>
+  <style>
+    body { margin:0; background:#0C0D12; font-family:'Geist','Geist Variable',sans-serif; }
+    a { color:#fafafa; } a:hover { color:#e5e5e5; }
+    input::placeholder { color:#a1a1a1; }
+  </style>
+</helmet>
+
+<section style="display:flex;flex-direction:column;gap:32px;padding:40px;color:#EEF0F8;font-family:'Geist',sans-serif;">
+  <div style="display:flex;flex-direction:column;gap:6px;max-width:900px;">
+    <div style="font-size:12px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:#5C6182;">Recreation · majesnix/tap @ main</div>
+    <div style="font-size:24px;font-weight:600;letter-spacing:-.02em;">Tap — current build (shadcn neutral, dark)</div>
+    <div style="font-size:14px;color:#9499B8;line-height:1.5;">Faithful copy of AppLayout → Sidebar / PublishBar / FormPanel / RightPanel, BlockLibraryPanel, PlanView, ProfileManagementModal and AmqpPropertiesSheet, built from the source files. Reference for the redesign in <a href="Tap — Redesign.dc.html" style="color:#A497FF;">Tap — Redesign</a>.</div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:40px;align-items:flex-start;">
+
+    <!-- ============ FRAME 1: EMPTY STATE ============ -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;color:#9499B8;"><span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#1C1F2C;color:#EEF0F8;font-weight:600;margin-right:8px;">0a</span>Main view — empty (no .proto open)</div>
+      <div data-screen-label="0a Empty" style="width:1280px;height:820px;display:flex;overflow:hidden;background:#0a0a0a;color:#fafafa;font-size:14px;border-radius:10px;outline:1px solid rgba(255,255,255,.08);">
+        <!-- sidebar -->
+        <aside style="width:288px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;padding:16px;gap:16px;box-sizing:border-box;">
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="font-size:18px;font-weight:600;line-height:28px;">Tap</div>
+            <div style="font-size:12px;line-height:16px;color:#a1a1a1;">Load a .proto file to get started</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:10px;font-weight:500;"><dc-import name="Icon" icon="list-checks" size="16" hint-size="16px,16px"></dc-import>Plans</div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:4px;"><div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-weight:500;">Open .proto File</div></div>
+            <div style="font-size:12px;line-height:16px;color:#a1a1a1;">No file open</div>
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="font-weight:600;line-height:20px;">Connection</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><span>local</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span><span style="font-size:12px;color:#a1a1a1;">Connected</span><div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;"><dc-import name="Icon" icon="settings" size="16" hint-size="16px,16px"></dc-import></div></div>
+            <div style="display:flex;"><div style="display:flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">Re-test</div></div>
+          </div>
+          <div style="flex:1;"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:12px;color:#a1a1a1;">v1.9.0 — Steady Signal</div>
+            <div style="display:flex;align-items:center;gap:4px;color:#fafafa;">
+              <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="refresh-cw" size="16" hint-size="16px,16px"></dc-import></div>
+              <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="trash-2" size="16" hint-size="16px,16px"></dc-import></div>
+              <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="monitor" size="16" hint-size="16px,16px"></dc-import></div>
+            </div>
+          </div>
+        </aside>
+        <!-- main -->
+        <main style="flex:1;display:flex;flex-direction:column;min-width:0;">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:#171717;border-bottom:1px solid rgba(255,255,255,.1);padding:8px 16px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
+              <div style="display:flex;align-items:center;justify-content:space-between;width:144px;height:28px;padding:0 8px 0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;box-sizing:border-box;"><span>local</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+              <span style="font-size:12px;color:#a1a1a1;">localhost</span>
+              <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.1);color:#34d399;font-size:12px;font-weight:500;">Local</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <span style="padding:4px 12px;border-radius:6px;border:1px solid #e5e5e5;background:#e5e5e5;color:#171717;font-weight:600;line-height:20px;">Queue</span>
+              <span style="padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:#0a0a0a;font-weight:600;line-height:20px;">Exchange</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;width:192px;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);color:#a1a1a1;box-sizing:border-box;"><span style="white-space:nowrap;">Select queue…</span><dc-import name="Icon" icon="chevrons-up-down" size="16" hint-size="16px,16px"></dc-import></div>
+              <span style="display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span>Live</span>
+            </div>
+            <div style="display:flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12.8px;font-weight:500;">Properties</div>
+            <div style="display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:10px;background:#e5e5e5;color:#171717;font-weight:500;opacity:.5;"><dc-import name="Icon" icon="send" size="16" hint-size="16px,16px"></dc-import>Send</div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;color:#a1a1a1;font-size:14px;">Open a .proto file to get started</div>
+        </main>
+        <!-- right -->
+        <aside style="width:320px;flex-shrink:0;border-left:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;height:32px;padding:3px 8px;background:#262626;border-bottom:1px solid rgba(255,255,255,.1);box-sizing:border-box;gap:0;">
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">Hex</span>
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;font-size:12px;font-weight:500;color:#a1a1a1;">History</span>
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;font-size:12px;font-weight:500;color:#a1a1a1;">Response</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);"><span style="font-weight:600;">Hex Preview</span></div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="padding:16px;font-size:12px;color:#a1a1a1;">Fill in the form fields to see binary encoding</div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============ FRAME 2: LOADED ============ -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;color:#9499B8;"><span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#1C1F2C;color:#EEF0F8;font-weight:600;margin-right:8px;">0b</span>Main view — order.proto loaded, Order selected, Hex tab</div>
+      <div data-screen-label="0b Loaded" style="width:1280px;height:820px;display:flex;overflow:hidden;background:#0a0a0a;color:#fafafa;font-size:14px;border-radius:10px;outline:1px solid rgba(255,255,255,.08);">
+        <aside style="width:288px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;padding:16px;gap:16px;box-sizing:border-box;overflow:hidden;">
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="font-size:18px;font-weight:600;line-height:28px;">Tap</div>
+            <div style="font-size:12px;line-height:16px;color:#a1a1a1;">Load a .proto file to get started</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:10px;font-weight:500;"><dc-import name="Icon" icon="list-checks" size="16" hint-size="16px,16px"></dc-import>Plans</div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:4px;">
+              <div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-weight:500;">Open .proto File</div>
+              <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><dc-import name="Icon" icon="refresh-cw" size="16" hint-size="16px,16px"></dc-import></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:10px;background:#262626;">
+              <div style="display:flex;align-items:center;gap:2px;"><span style="flex:1;display:flex;align-items:center;height:26px;padding:0 6px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">order.proto</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="x" size="12" hint-size="12px,12px"></dc-import></div></div>
+              <div style="display:flex;align-items:center;gap:2px;"><span style="flex:1;display:flex;align-items:center;height:26px;padding:0 6px;font-size:12px;font-weight:500;color:#a1a1a1;">event.proto</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="x" size="12" hint-size="12px,12px"></dc-import></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12px;font-weight:500;color:#a1a1a1;">Include Paths</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="folder-plus" size="14" hint-size="14px,14px"></dc-import></div></div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;"><span style="display:inline-flex;align-items:center;gap:2px;padding:2px 6px;border-radius:8px;border:1px solid rgba(255,255,255,.1);font-size:12px;color:#a1a1a1;">examples<dc-import name="Icon" icon="x" size="10" hint-size="10px,10px"></dc-import></span></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:12px;font-weight:500;color:#a1a1a1;">Recent Files</span>
+              <div style="display:flex;flex-direction:column;gap:2px;font-size:12px;"><span style="padding:4px 8px;">sensor.proto</span><span style="padding:4px 8px;">user.proto</span></div>
+            </div>
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="font-weight:500;line-height:20px;">Message Type</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><span>Order</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:2px;font-size:12px;">
+            <span style="font-weight:500;color:#a1a1a1;margin-bottom:4px;">Messages</span>
+            <div style="display:flex;align-items:center;gap:4px;padding:2px 0;"><dc-import name="Icon" icon="chevron-right" size="12" hint-size="12px,12px"></dc-import><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="file-text" size="12" hint-size="12px,12px"></dc-import></span><span>Order</span><span style="display:inline-flex;align-items:center;height:16px;padding:0 4px;border-radius:16px;background:#262626;font-size:10px;font-weight:500;">6</span></div>
+            <div style="display:flex;align-items:center;gap:4px;padding:2px 0;"><dc-import name="Icon" icon="chevron-right" size="12" hint-size="12px,12px"></dc-import><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="file-text" size="12" hint-size="12px,12px"></dc-import></span><span>LineItem</span><span style="display:inline-flex;align-items:center;height:16px;padding:0 4px;border-radius:16px;background:#262626;font-size:10px;font-weight:500;">4</span></div>
+            <div style="display:flex;align-items:center;gap:4px;padding:2px 0;"><dc-import name="Icon" icon="chevron-right" size="12" hint-size="12px,12px"></dc-import><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="file-text" size="12" hint-size="12px,12px"></dc-import></span><span>Address</span><span style="display:inline-flex;align-items:center;height:16px;padding:0 4px;border-radius:16px;background:#262626;font-size:10px;font-weight:500;">5</span></div>
+            <div style="display:flex;align-items:center;gap:4px;padding:2px 0;"><dc-import name="Icon" icon="chevron-right" size="12" hint-size="12px,12px"></dc-import><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="file-text" size="12" hint-size="12px,12px"></dc-import></span><span>Payment</span><span style="display:inline-flex;align-items:center;height:16px;padding:0 4px;border-radius:16px;background:#262626;font-size:10px;font-weight:500;">1</span></div>
+            <span style="font-weight:500;color:#a1a1a1;margin:8px 0 4px;">Enums</span>
+            <div style="display:flex;align-items:center;gap:4px;padding:2px 0;"><dc-import name="Icon" icon="chevron-right" size="12" hint-size="12px,12px"></dc-import><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="list" size="12" hint-size="12px,12px"></dc-import></span><span>OrderStatus</span><span style="display:inline-flex;align-items:center;height:16px;padding:0 4px;border-radius:16px;background:#262626;font-size:10px;font-weight:500;">6</span></div>
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="font-weight:600;line-height:20px;">Connection</div>
+            <div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><span>local</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span><span style="font-size:12px;color:#a1a1a1;">Connected</span><div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="settings" size="16" hint-size="16px,16px"></dc-import></div></div>
+            <div style="display:flex;"><div style="display:flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">Re-test</div></div>
+          </div>
+          <div style="flex:1;"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:12px;color:#a1a1a1;">v1.9.0 — Steady Signal</div>
+            <div style="display:flex;align-items:center;gap:4px;">
+              <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="refresh-cw" size="16" hint-size="16px,16px"></dc-import></div>
+              <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="trash-2" size="16" hint-size="16px,16px"></dc-import></div>
+              <div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="monitor" size="16" hint-size="16px,16px"></dc-import></div>
+            </div>
+          </div>
+        </aside>
+        <main style="flex:1;display:flex;flex-direction:column;min-width:0;">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;background:#171717;border-bottom:1px solid rgba(255,255,255,.1);padding:8px 16px;">
+            <div style="display:flex;align-items:center;gap:6px;">
+              <span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span>
+              <div style="display:flex;align-items:center;justify-content:space-between;width:144px;height:28px;padding:0 8px 0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;box-sizing:border-box;"><span>local</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+              <span style="font-size:12px;color:#a1a1a1;">localhost</span>
+              <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.1);color:#34d399;font-size:12px;font-weight:500;">Local</span>
+            </div>
+            <div style="display:flex;gap:4px;">
+              <span style="padding:4px 12px;border-radius:6px;border:1px solid #e5e5e5;background:#e5e5e5;color:#171717;font-weight:600;line-height:20px;">Queue</span>
+              <span style="padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:#0a0a0a;font-weight:600;line-height:20px;">Exchange</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;width:192px;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);box-sizing:border-box;"><span>orders</span><dc-import name="Icon" icon="chevrons-up-down" size="16" hint-size="16px,16px"></dc-import></div>
+              <span style="display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span>Live</span>
+            </div>
+            <div style="display:flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12.8px;font-weight:500;">Properties</div>
+            <span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.1);color:#34d399;font-size:12px;font-weight:500;">ACK</span>
+            <div style="display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:10px;background:#e5e5e5;color:#171717;font-weight:500;"><dc-import name="Icon" icon="send" size="16" hint-size="16px,16px"></dc-import>Send</div>
+          </div>
+          <div style="flex:1;display:flex;min-height:0;">
+            <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);">
+                <div><div style="font-weight:600;line-height:20px;">Order</div><div style="font-size:12px;line-height:16px;color:#a1a1a1;">example.Order</div></div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;"><dc-import name="Icon" icon="library" size="16" hint-size="16px,16px"></dc-import></div>
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;"><dc-import name="Icon" icon="rotate-ccw" size="16" hint-size="16px,16px"></dc-import></div>
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;"><dc-import name="Icon" icon="dices" size="16" hint-size="16px,16px"></dc-import></div>
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;"><dc-import name="Icon" icon="braces" size="16" hint-size="16px,16px"></dc-import></div>
+                </div>
+              </div>
+              <div style="flex:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:16px;">
+                <!-- order_id -->
+                <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+                  <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Order Id</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div>
+                  <div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">ord_8f3a21</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+                  <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Customer Id</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div>
+                  <div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">cus_1042</div>
+                </div>
+                <!-- items repeated -->
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">
+                  <div style="display:flex;align-items:center;gap:8px;"><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;background:#262626;font-size:12px;font-weight:500;">repeated</span><span style="font-weight:600;">Items</span></div>
+                  <div style="display:flex;align-items:flex-start;gap:8px;padding:8px;border:1px solid rgba(255,255,255,.1);border-radius:6px;">
+                    <div style="flex:1;">
+                      <div style="margin-left:16px;padding-left:12px;border-left:1px solid rgba(255,255,255,.1);margin-bottom:8px;">
+                        <div style="display:flex;align-items:center;gap:4px;padding:4px 0;font-weight:600;"><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import>Items[0]</div>
+                        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+                          <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Product Id</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div>
+                          <div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">sku-778</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+                          <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Name</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div>
+                          <div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">Field Radio</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+                          <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Quantity</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">int32</span></div>
+                          <div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">2</div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:4px;">
+                          <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Unit Price</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">double</span></div>
+                          <div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">149.9</div>
+                        </div>
+                      </div>
+                    </div>
+                    <div style="width:32px;height:32px;margin-top:4px;display:flex;align-items:center;justify-content:center;border-radius:10px;background:rgba(255,100,103,.2);color:#ff6467;"><dc-import name="Icon" icon="trash-2" size="16" hint-size="16px,16px"></dc-import></div>
+                  </div>
+                  <div style="display:flex;"><div style="display:flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12.8px;font-weight:500;"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>Add item</div></div>
+                </div>
+                <!-- shipping nested (collapsed to fit) -->
+                <div style="margin-left:16px;padding-left:12px;border-left:1px solid rgba(255,255,255,.1);margin-bottom:8px;">
+                  <div style="display:flex;align-items:center;gap:4px;padding:4px 0;font-weight:600;"><dc-import name="Icon" icon="chevron-right" size="16" hint-size="16px,16px"></dc-import>Shipping</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;">
+                  <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Status</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">enum</span></div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);width:fit-content;min-width:260px;"><span>ORDER_STATUS_CONFIRMED</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <aside style="width:320px;flex-shrink:0;border-left:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;height:32px;padding:3px 8px;background:#262626;border-bottom:1px solid rgba(255,255,255,.1);box-sizing:border-box;">
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">Hex</span>
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;font-size:12px;font-weight:500;color:#a1a1a1;">History</span>
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;font-size:12px;font-weight:500;color:#a1a1a1;">Response</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);"><span style="font-weight:600;">Hex Preview</span></div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <pre style="margin:0;padding:16px;font:12px/1.5 'Geist Mono',monospace;white-space:pre-wrap;word-break:break-all;color:#fafafa;">0a 0a 6f 72 64 5f 38 66 33 61 32 31 12 08 63 75 73 5f 31 30 34 32 1a 22 0a 07 73 6b 75 2d 37 37 38 12 0b 46 69 65 6c 64 20 52 61 64 69 6f 18 02 21 cd cc cc cc cc bc 62 40 22 3c 0a 12 31 32 20 48 61 66 65 6e 73 74 72 61 73 73 65 12 07 48 61 6d 62 75 72 67 1a 02 48 48 22 05 32 30 34 35 37 2a 02 44 45 28 02 32 12 0a 10 0a 04 34 32 34 32 12 04 76 69 73 61 18 0b 20 e9 0f</pre>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============ FRAME 3: BLOCK LIBRARY + HISTORY ============ -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;color:#9499B8;"><span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#1C1F2C;color:#EEF0F8;font-weight:600;margin-right:8px;">0c</span>Block Library open · History tab</div>
+      <div data-screen-label="0c Block Library" style="width:1280px;height:820px;display:flex;overflow:hidden;background:#0a0a0a;color:#fafafa;font-size:14px;border-radius:10px;outline:1px solid rgba(255,255,255,.08);">
+        <aside style="width:288px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;padding:16px;gap:16px;box-sizing:border-box;">
+          <div style="display:flex;flex-direction:column;gap:8px;"><div style="font-size:18px;font-weight:600;line-height:28px;">Tap</div><div style="font-size:12px;line-height:16px;color:#a1a1a1;">Load a .proto file to get started</div></div>
+          <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:10px;font-weight:500;"><dc-import name="Icon" icon="list-checks" size="16" hint-size="16px,16px"></dc-import>Plans</div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:4px;"><div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-weight:500;">Open .proto File</div><div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><dc-import name="Icon" icon="refresh-cw" size="16" hint-size="16px,16px"></dc-import></div></div>
+            <div style="display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:10px;background:#262626;"><div style="display:flex;align-items:center;gap:2px;"><span style="flex:1;display:flex;align-items:center;height:26px;padding:0 6px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">order.proto</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="x" size="12" hint-size="12px,12px"></dc-import></div></div></div>
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;"><div style="font-weight:500;line-height:20px;">Message Type</div><div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><span>Order</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div></div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;"><div style="font-weight:600;line-height:20px;">Connection</div><div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><span>local</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div><div style="display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span><span style="font-size:12px;color:#a1a1a1;">Connected</span></div></div>
+          <div style="flex:1;"></div>
+          <div style="font-size:12px;color:#a1a1a1;">v1.9.0 — Steady Signal</div>
+        </aside>
+        <main style="flex:1;display:flex;flex-direction:column;min-width:0;">
+          <div style="display:flex;align-items:center;gap:16px;background:#171717;border-bottom:1px solid rgba(255,255,255,.1);padding:8px 16px;">
+            <div style="display:flex;align-items:center;gap:6px;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span><div style="display:flex;align-items:center;justify-content:space-between;width:144px;height:28px;padding:0 8px 0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;box-sizing:border-box;"><span>local</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div><span style="font-size:12px;color:#a1a1a1;">localhost</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.1);color:#34d399;font-size:12px;font-weight:500;">Local</span></div>
+            <div style="display:flex;gap:4px;"><span style="padding:4px 12px;border-radius:6px;border:1px solid #e5e5e5;background:#e5e5e5;color:#171717;font-weight:600;line-height:20px;">Queue</span><span style="padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:#0a0a0a;font-weight:600;line-height:20px;">Exchange</span></div>
+            <div style="display:flex;align-items:center;gap:8px;"><div style="display:flex;align-items:center;justify-content:space-between;width:192px;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);box-sizing:border-box;"><span>orders</span><dc-import name="Icon" icon="chevrons-up-down" size="16" hint-size="16px,16px"></dc-import></div><span style="display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span>Live</span></div>
+            <div style="display:flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12.8px;font-weight:500;">Properties</div>
+            <div style="display:flex;align-items:center;gap:6px;height:32px;padding:0 10px;border-radius:10px;background:#e5e5e5;color:#171717;font-weight:500;"><dc-import name="Icon" icon="send" size="16" hint-size="16px,16px"></dc-import>Send</div>
+          </div>
+          <div style="flex:1;display:flex;min-height:0;">
+            <div style="width:256px;flex-shrink:0;display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.1);">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);"><span style="font-weight:600;">Block Library</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="plus" size="16" hint-size="16px,16px"></dc-import></div></div>
+              <div style="display:flex;flex-direction:column;">
+                <div style="display:flex;align-items:center;gap:4px;padding:8px;"><span style="color:#a1a1a1;padding:2px;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="flex:1;">Hamburg shipping address</span><div style="display:flex;gap:4px;"><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="pencil" size="14" hint-size="14px,14px"></dc-import></div><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="trash-2" size="14" hint-size="14px,14px"></dc-import></div></div></div>
+                <div style="display:flex;align-items:center;gap:4px;padding:8px;background:#262626;border-radius:6px;"><span style="color:#a1a1a1;padding:2px;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="flex:1;">Visa test card</span><div style="display:flex;gap:4px;"><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="pencil" size="14" hint-size="14px,14px"></dc-import></div><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="trash-2" size="14" hint-size="14px,14px"></dc-import></div></div></div>
+                <div style="display:flex;align-items:center;gap:4px;padding:8px;"><span style="color:#a1a1a1;padding:2px;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="flex:1;">Two line items</span><div style="display:flex;gap:4px;"><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="pencil" size="14" hint-size="14px,14px"></dc-import></div><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="trash-2" size="14" hint-size="14px,14px"></dc-import></div></div></div>
+              </div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);">
+                <div><div style="font-weight:600;line-height:20px;">Order</div><div style="font-size:12px;line-height:16px;color:#a1a1a1;">example.Order</div></div>
+                <div style="display:flex;align-items:center;gap:4px;">
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:8px;background:#262626;"><dc-import name="Icon" icon="library" size="16" hint-size="16px,16px"></dc-import></div>
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="rotate-ccw" size="16" hint-size="16px,16px"></dc-import></div>
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="dices" size="16" hint-size="16px,16px"></dc-import></div>
+                  <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="braces" size="16" hint-size="16px,16px"></dc-import></div>
+                </div>
+              </div>
+              <div style="flex:1;margin:0;box-shadow:inset 0 0 0 2px rgba(229,229,229,.5);padding:16px;display:flex;flex-direction:column;gap:16px;">
+                <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Order Id</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">ord_8f3a21</div></div>
+                <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Customer Id</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">cus_1042</div></div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;"><div style="display:flex;align-items:center;gap:8px;"><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;background:#262626;font-size:12px;font-weight:500;">repeated</span><span style="font-weight:600;">Items</span></div><div style="display:flex;"><div style="display:flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12.8px;font-weight:500;"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>Add item</div></div></div>
+                <div style="margin-left:16px;padding-left:12px;border-left:1px solid rgba(255,255,255,.1);"><div style="display:flex;align-items:center;gap:4px;padding:4px 0;font-weight:600;"><dc-import name="Icon" icon="chevron-right" size="16" hint-size="16px,16px"></dc-import>Shipping</div></div>
+                <div style="display:flex;flex-direction:column;gap:4px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Status</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">enum</span></div><div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);width:fit-content;min-width:260px;"><span>ORDER_STATUS_PENDING</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#171717;border:1px solid rgba(255,255,255,.1);border-radius:8px;box-shadow:0 20px 25px -5px rgba(0,0,0,.5);font-size:14px;width:fit-content;margin-left:120px;"><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="font-weight:500;">Visa test card</span></div>
+              </div>
+            </div>
+          </div>
+        </main>
+        <aside style="width:320px;flex-shrink:0;border-left:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;height:32px;padding:3px 8px;background:#262626;border-bottom:1px solid rgba(255,255,255,.1);box-sizing:border-box;">
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;font-size:12px;font-weight:500;color:#a1a1a1;">Hex</span>
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">History</span>
+            <span style="display:inline-flex;align-items:center;height:25px;padding:0 6px;font-size:12px;font-weight:500;color:#a1a1a1;">Response</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-bottom:1px solid rgba(255,255,255,.1);"><span style="font-size:12px;font-weight:600;color:#a1a1a1;">4 / 100</span><span style="font-size:12px;font-weight:500;padding:0 10px;height:28px;display:flex;align-items:center;">Clear</span></div>
+          <div style="padding:8px 12px 0;border-bottom:1px solid rgba(255,255,255,.1);"><div style="display:flex;align-items:center;height:28px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;color:#a1a1a1;">Search…</div></div>
+          <div style="display:flex;gap:8px;padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.1);"><div style="flex:1;display:flex;align-items:center;height:28px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;color:#a1a1a1;overflow:hidden;white-space:nowrap;">Filter by type…</div><div style="flex:1;display:flex;align-items:center;height:28px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;color:#a1a1a1;overflow:hidden;white-space:nowrap;">Filter by queue/exch…</div></div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead><tr style="border-bottom:1px solid rgba(255,255,255,.1);"><th style="height:40px;padding:0 8px;text-align:left;font-weight:500;">Time</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500;">Type</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500;">Target</th><th style="height:40px;padding:0 8px;text-align:left;font-weight:500;">Status</th><th style="width:64px;"></th></tr></thead>
+            <tbody>
+              <tr style="border-bottom:1px solid rgba(255,255,255,.1);"><td style="padding:8px;font-family:'Geist Mono',monospace;color:#a1a1a1;">14:02:11</td><td style="padding:8px;">Order</td><td style="padding:8px;">orders</td><td style="padding:8px;"><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.1);color:#10b981;font-weight:500;">Sent</span></td><td style="padding:8px;"><div style="display:flex;gap:4px;"><div style="width:24px;height:24px;border-radius:10px;background:#e5e5e5;color:#171717;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="rotate-ccw" size="12" hint-size="12px,12px"></dc-import></div><div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="binary" size="12" hint-size="12px,12px"></dc-import></div></div></td></tr>
+              <tr style="border-bottom:1px solid rgba(255,255,255,.1);"><td style="padding:8px;font-family:'Geist Mono',monospace;color:#a1a1a1;">13:58:40</td><td style="padding:8px;">Order</td><td style="padding:8px;">orders</td><td style="padding:8px;"><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.1);color:#10b981;font-weight:500;">Sent</span></td><td style="padding:8px;"><div style="display:flex;gap:4px;"><div style="width:24px;height:24px;border-radius:10px;background:#e5e5e5;color:#171717;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="rotate-ccw" size="12" hint-size="12px,12px"></dc-import></div><div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="binary" size="12" hint-size="12px,12px"></dc-import></div></div></td></tr>
+              <tr style="border-bottom:1px solid rgba(255,255,255,.1);"><td style="padding:8px;font-family:'Geist Mono',monospace;color:#a1a1a1;">13:51:02</td><td style="padding:8px;">Event</td><td style="padding:8px;">events → eu.…</td><td style="padding:8px;"><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;background:rgba(255,100,103,.2);color:#ff6467;font-weight:500;">Failed</span></td><td style="padding:8px;"><div style="display:flex;gap:4px;"><div style="width:24px;height:24px;border-radius:10px;background:#e5e5e5;color:#171717;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="rotate-ccw" size="12" hint-size="12px,12px"></dc-import></div><div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="binary" size="12" hint-size="12px,12px"></dc-import></div></div></td></tr>
+              <tr><td style="padding:8px;font-family:'Geist Mono',monospace;color:#a1a1a1;">13:44:19</td><td style="padding:8px;">Order</td><td style="padding:8px;">orders</td><td style="padding:8px;"><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;border:1px solid rgba(16,185,129,.2);background:rgba(16,185,129,.1);color:#10b981;font-weight:500;">Sent</span></td><td style="padding:8px;"><div style="display:flex;gap:4px;"><div style="width:24px;height:24px;border-radius:10px;background:#e5e5e5;color:#171717;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="rotate-ccw" size="12" hint-size="12px,12px"></dc-import></div><div style="width:24px;height:24px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="binary" size="12" hint-size="12px,12px"></dc-import></div></div></td></tr>
+            </tbody>
+          </table>
+        </aside>
+      </div>
+    </div>
+
+    <!-- ============ FRAME 4: PLANS ============ -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;color:#9499B8;"><span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#1C1F2C;color:#EEF0F8;font-weight:600;margin-right:8px;">0d</span>Plans view — plan selected, step editor</div>
+      <div data-screen-label="0d Plans" style="width:1280px;height:820px;display:flex;overflow:hidden;background:#0a0a0a;color:#fafafa;font-size:14px;border-radius:10px;outline:1px solid rgba(255,255,255,.08);">
+        <aside style="width:288px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;padding:16px;gap:16px;box-sizing:border-box;">
+          <div style="display:flex;flex-direction:column;gap:8px;"><div style="font-size:18px;font-weight:600;line-height:28px;">Tap</div><div style="font-size:12px;line-height:16px;color:#a1a1a1;">Load a .proto file to get started</div></div>
+          <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:10px;font-weight:500;background:#262626;"><dc-import name="Icon" icon="list-checks" size="16" hint-size="16px,16px"></dc-import>Plans</div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;gap:4px;"><div style="flex:1;display:flex;align-items:center;justify-content:center;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-weight:500;">Open .proto File</div><div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><dc-import name="Icon" icon="refresh-cw" size="16" hint-size="16px,16px"></dc-import></div></div>
+            <div style="display:flex;flex-direction:column;gap:2px;padding:4px;border-radius:10px;background:#262626;"><div style="display:flex;align-items:center;gap:2px;"><span style="flex:1;display:flex;align-items:center;height:26px;padding:0 6px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">order.proto</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="x" size="12" hint-size="12px,12px"></dc-import></div></div></div>
+          </div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;"><div style="font-weight:500;line-height:20px;">Message Type</div><div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><span>Order</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div></div>
+          <div style="height:1px;background:rgba(255,255,255,.1);"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;"><div style="font-weight:600;line-height:20px;">Connection</div><div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"><span>local</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div><div style="display:flex;align-items:center;gap:8px;"><span style="width:8px;height:8px;border-radius:50%;background:#10b981;"></span><span style="font-size:12px;color:#a1a1a1;">Connected</span></div></div>
+          <div style="flex:1;"></div>
+          <div style="font-size:12px;color:#a1a1a1;">v1.9.0 — Steady Signal</div>
+        </aside>
+        <div style="width:288px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);"><span style="font-weight:600;">Plans</span><span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;font-size:12.8px;font-weight:500;"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>New Plan</span></div>
+          <div style="display:flex;align-items:center;padding:8px 12px;background:#262626;"><span style="flex:1;">Checkout happy path</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="ellipsis-vertical" size="14" hint-size="14px,14px"></dc-import></div></div>
+          <div style="display:flex;align-items:center;padding:8px 12px;"><span style="flex:1;">Sensor burst · 50 msgs</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="ellipsis-vertical" size="14" hint-size="14px,14px"></dc-import></div></div>
+          <div style="display:flex;align-items:center;padding:8px 12px;"><span style="flex:1;">Refund flow</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="ellipsis-vertical" size="14" hint-size="14px,14px"></dc-import></div></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+          <div style="display:flex;align-items:center;gap:16px;background:#171717;border-bottom:1px solid rgba(255,255,255,.1);padding:8px 16px;">
+            <span style="flex:1;font-weight:500;">Checkout happy path</span>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:32px;height:18px;border-radius:999px;background:#e5e5e5;position:relative;display:inline-block;"><span style="position:absolute;top:1px;right:1px;width:16px;height:16px;border-radius:50%;background:#171717;"></span></span><span>Stop on error</span></div>
+            <div style="display:flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:8px;background:#e5e5e5;color:#171717;font-size:12.8px;font-weight:500;"><dc-import name="Icon" icon="play" size="14" hint-size="14px,14px"></dc-import>Run Plan</div>
+          </div>
+          <div style="flex:1;display:flex;min-height:0;">
+            <div style="width:240px;flex-shrink:0;border-right:1px solid rgba(255,255,255,.1);display:flex;flex-direction:column;">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);"><span style="font-weight:600;">Steps</span><span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;font-size:12.8px;font-weight:500;"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>Add step</span></div>
+              <div style="display:flex;align-items:center;gap:4px;padding:8px 12px;background:#262626;"><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="flex:1;">Create order</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="ellipsis-vertical" size="14" hint-size="14px,14px"></dc-import></div></div>
+              <div style="display:flex;align-items:center;gap:4px;padding:8px 12px;"><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="flex:1;">Confirm payment</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="ellipsis-vertical" size="14" hint-size="14px,14px"></dc-import></div></div>
+              <div style="display:flex;align-items:center;gap:4px;padding:8px 12px;"><span style="color:#a1a1a1;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="flex:1;">Ship order</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="ellipsis-vertical" size="14" hint-size="14px,14px"></dc-import></div></div>
+            </div>
+            <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
+              <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);">
+                <div style="font-weight:600;margin-bottom:12px;">Proto file</div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <span style="font-size:12px;color:#a1a1a1;font-weight:500;">File</span>
+                  <div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);width:fit-content;min-width:220px;"><span>order.proto</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+                  <span style="font-size:12px;color:#a1a1a1;font-weight:500;">Message type</span>
+                  <div style="display:flex;align-items:center;justify-content:space-between;height:32px;padding:0 8px 0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);width:fit-content;min-width:220px;"><span>Order</span><dc-import name="Icon" icon="chevron-down" size="16" hint-size="16px,16px"></dc-import></div>
+                </div>
+              </div>
+              <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;"><span style="font-weight:600;">Fields</span><div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="dices" size="16" hint-size="16px,16px"></dc-import></div></div>
+                <div style="display:flex;flex-direction:column;gap:12px;">
+                  <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Order Id</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">ord_plan_001</div></div>
+                  <div style="display:flex;flex-direction:column;gap:4px;margin-bottom:12px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:12px;font-weight:600;line-height:1;">Customer Id</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:16px;border:1px solid rgba(255,255,255,.1);font-size:12px;font-weight:500;">string</span></div><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">cus_1042</div></div>
+                  <div style="display:flex;flex-direction:column;gap:8px;"><div style="display:flex;align-items:center;gap:8px;"><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:16px;background:#262626;font-size:12px;font-weight:500;">repeated</span><span style="font-weight:600;">Items</span></div><div style="display:flex;"><div style="display:flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12.8px;font-weight:500;"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>Add item</div></div></div>
+                </div>
+              </div>
+              <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.1);">
+                <div style="font-weight:600;margin-bottom:12px;">Target</div>
+                <div style="display:flex;gap:4px;"><span style="padding:4px 12px;border-radius:6px;border:1px solid #e5e5e5;background:#e5e5e5;color:#171717;font-weight:600;line-height:20px;">Queue</span><span style="padding:4px 12px;border-radius:6px;border:1px solid rgba(255,255,255,.15);background:#0a0a0a;font-weight:600;line-height:20px;">Exchange</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ FRAME 5: PROFILE MODAL ============ -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;color:#9499B8;"><span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#1C1F2C;color:#EEF0F8;font-weight:600;margin-right:8px;">0e</span>Connection Profiles modal — edit form</div>
+      <div data-screen-label="0e Profile modal" style="width:620px;height:820px;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#0a0a0a;color:#fafafa;font-size:14px;border-radius:10px;outline:1px solid rgba(255,255,255,.08);position:relative;">
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,.1);backdrop-filter:blur(4px);"></div>
+        <div style="position:relative;width:512px;max-height:697px;display:flex;flex-direction:column;gap:16px;padding:16px;border-radius:14px;background:#171717;box-shadow:0 0 0 1px rgba(250,250,250,.1);box-sizing:border-box;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:16px;font-weight:500;line-height:1;">Connection Profiles</span><dc-import name="Icon" icon="x" size="16" hint-size="16px,16px"></dc-import></div>
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid rgba(255,255,255,.1);border-radius:8px;"><span style="font-weight:500;">local</span><div style="display:flex;align-items:center;gap:4px;"><div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="pencil" size="16" hint-size="16px,16px"></dc-import></div><span style="font-size:12.8px;font-weight:500;padding:0 10px;">Delete</span></div></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border:1px solid rgba(255,255,255,.1);border-radius:8px;"><span style="font-weight:500;">staging</span><div style="display:flex;align-items:center;gap:4px;"><div style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="pencil" size="16" hint-size="16px,16px"></dc-import></div><span style="font-size:12.8px;font-weight:500;padding:0 10px;">Delete</span></div></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <span style="font-weight:600;">Edit Profile</span>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:600;">Profile Name</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);opacity:.6;">staging</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:600;">Host</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">mq.staging.internal</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-weight:600;">Environment</span>
+              <div style="display:flex;gap:16px;">
+                <span style="display:flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"></span>Local</span>
+                <span style="display:flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border-radius:50%;background:#e5e5e5;display:flex;align-items:center;justify-content:center;"><span style="width:8px;height:8px;border-radius:50%;background:#171717;"></span></span>Shared</span>
+                <span style="display:flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border-radius:50%;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"></span>Production</span>
+              </div>
+              <span style="font-size:12px;color:#a1a1a1;">Shared and Production ask before consuming or subscribing; Production also asks before sending.</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border-radius:4px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);"></span><span style="font-weight:600;">Read-only profile (no Send, Consume, Subscribe or plan runs)</span></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border-radius:4px;background:#e5e5e5;color:#171717;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="check" size="14" hint-size="14px,14px"></dc-import></span><span style="font-weight:600;">Record sent messages in history (off keeps production payloads off this machine)</span></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:600;">Port</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">5671</div></div>
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:16px;height:16px;border-radius:4px;background:#e5e5e5;color:#171717;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="check" size="14" hint-size="14px,14px"></dc-import></span><span style="font-weight:600;">AMQP over TLS (amqps, port 5671)</span></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:600;">Virtual Host</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">/</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:600;">Username</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">tap</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:600;">Password</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);color:#a1a1a1;">Enter password to update; leave blank to keep current</div></div>
+            <div style="display:flex;justify-content:flex-end;gap:8px;"><span style="display:inline-flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-weight:500;">Cancel</span><span style="display:inline-flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;background:#e5e5e5;color:#171717;font-weight:500;">Save &amp; Connect</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ FRAME 6: AMQP PROPERTIES SHEET ============ -->
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div style="font-size:13px;color:#9499B8;"><span style="display:inline-block;padding:2px 8px;border-radius:999px;background:#1C1F2C;color:#EEF0F8;font-weight:600;margin-right:8px;">0f</span>AMQP Properties sheet (right, 320px)</div>
+      <div data-screen-label="0f Properties sheet" style="width:620px;height:820px;display:flex;justify-content:flex-end;overflow:hidden;background:#0a0a0a;color:#fafafa;font-size:14px;border-radius:10px;outline:1px solid rgba(255,255,255,.08);position:relative;">
+        <div style="position:absolute;inset:0;background:rgba(0,0,0,.1);backdrop-filter:blur(4px);"></div>
+        <div style="position:relative;width:320px;height:100%;display:flex;flex-direction:column;gap:16px;background:#171717;border-left:1px solid rgba(255,255,255,.1);box-shadow:0 10px 15px -3px rgba(0,0,0,.5);box-sizing:border-box;">
+          <div style="display:flex;flex-direction:column;gap:2px;padding:16px;position:relative;"><span style="font-size:16px;font-weight:500;">AMQP Properties</span><span style="color:#a1a1a1;">Set per-message AMQP properties. Applied on next send.</span><span style="position:absolute;top:12px;right:12px;width:28px;height:28px;display:flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="x" size="16" hint-size="16px,16px"></dc-import></span></div>
+          <div style="display:flex;flex-direction:column;gap:16px;padding:8px 16px;flex:1;">
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:500;">Content Type</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">application/x-protobuf</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:500;">Delivery Mode</span><div style="display:flex;align-items:center;gap:8px;"><span style="width:32px;height:18px;border-radius:999px;background:#e5e5e5;position:relative;display:inline-block;"><span style="position:absolute;top:1px;right:1px;width:16px;height:16px;border-radius:50%;background:#171717;"></span></span><span>Persistent</span></div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:500;">TTL (ms)</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);color:#a1a1a1;">e.g. 60000</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:500;">Correlation ID</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">req-7c1e</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:500;">Reply-To</span><div style="display:flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);">orders.reply</div></div>
+            <div style="display:flex;flex-direction:column;gap:4px;"><span style="font-weight:500;">Custom Headers</span>
+              <div style="display:flex;flex-direction:column;gap:4px;">
+                <div style="display:flex;align-items:center;gap:4px;font-size:12px;"><span style="flex:1;">x-tenant</span><span style="flex:1;color:#a1a1a1;">acme</span><span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;">×</span></div>
+                <div style="display:flex;align-items:center;gap:4px;font-size:12px;"><span style="flex:1;">x-source</span><span style="flex:1;color:#a1a1a1;">tap</span><span style="width:20px;height:20px;display:flex;align-items:center;justify-content:center;">×</span></div>
+                <div style="display:flex;margin-top:4px;"><span style="display:inline-flex;align-items:center;height:28px;padding:0 10px;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-size:12px;font-weight:500;">Add Header</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;gap:8px;padding:16px;border-top:1px solid rgba(255,255,255,.1);"><span style="display:inline-flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.045);font-weight:500;">Reset to defaults</span><span style="display:inline-flex;align-items:center;height:32px;padding:0 10px;border-radius:10px;background:#e5e5e5;color:#171717;font-weight:500;">Apply Properties</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+</x-dc>
+</body>
+</html>
