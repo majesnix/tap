@@ -3,7 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from "@testing-library/react"
 import { useProtoStore } from "@/stores/useProtoStore";
 import type { ProtoSchema } from "@/lib/types";
 
-vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn().mockResolvedValue("1.9.0") }));
+vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn().mockResolvedValue("1.10.0") }));
 vi.mock("@tauri-apps/plugin-store", () => ({
   load: vi.fn().mockResolvedValue({
     get: vi.fn().mockResolvedValue(null),
@@ -73,7 +73,7 @@ describe("FilesSidebar", () => {
     expect(screen.getByLabelText("Open .proto")).toBeInTheDocument();
 
     await waitFor(() => {
-      expect(screen.getByText(/v1\.9\.0/)).toBeInTheDocument();
+      expect(screen.getByText(/v1\.10\.0/)).toBeInTheDocument();
     });
   });
 

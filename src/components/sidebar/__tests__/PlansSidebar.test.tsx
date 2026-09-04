@@ -11,7 +11,7 @@ vi.mock("@tauri-apps/plugin-store", () => ({
   }),
 }));
 
-vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn().mockResolvedValue("1.9.0") }));
+vi.mock("@tauri-apps/api/app", () => ({ getVersion: vi.fn().mockResolvedValue("1.10.0") }));
 
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }),
@@ -156,7 +156,7 @@ describe("PlansSidebar", () => {
 
   test("renders the sidebar footer with the version and release name", async () => {
     renderSidebar();
-    expect(await screen.findByText(/v1\.9\.0 · Steady Signal/)).toBeInTheDocument();
+    expect(await screen.findByText(/v1\.10\.0 · Clear Bench/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /clear local data/i })).toBeInTheDocument();
   });
 });
