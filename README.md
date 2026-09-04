@@ -228,4 +228,14 @@ docs/             Additional documentation
 
 ## Version
 
-v1.10.0
+v1.10.0 · Clear Bench
+
+Each milestone carries a name, set in `src/lib/release.ts` and shown in the sidebar footer and
+the GitHub release title.
+
+| Version | Name | Date |
+|---------|------|------|
+| 1.10.0 | Clear Bench | 2026-09-04 |
+| 1.8.0 – 1.9.0 | Steady Signal | 2026-05-26 |
+| 1.3.0 – 1.7 | Wire Ready | 2026-05-19 |
+| 1.3.0 | Confirmed | 2026-05-19 (renamed to Wire Ready the same day) |

@@ -38,6 +38,14 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Read release name
+        # src/lib/release.ts is the single source of the milestone name shown in
+        # the app footer; the GitHub release title carries it too.
+        run: |
+          NAME=$(sed -n 's/.*RELEASE_NAME = "\(.*\)".*/\1/p' src/lib/release.ts)
+          echo "RELEASE_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "Release name: $NAME"
+
       - name: Import Apple Developer Certificate
         if: startsWith(github.ref, 'refs/tags/')
         env:
@@ -77,7 +85,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: "Tap v__VERSION__"
+          releaseName: "Tap v__VERSION__ · ${{ env.RELEASE_NAME }}"
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           # Updater artifacts need the signing key, so only the release workflow requests them.
@@ -131,6 +139,14 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Read release name
+        # src/lib/release.ts is the single source of the milestone name shown in
+        # the app footer; the GitHub release title carries it too.
+        run: |
+          NAME=$(sed -n 's/.*RELEASE_NAME = "\(.*\)".*/\1/p' src/lib/release.ts)
+          echo "RELEASE_NAME=$NAME" >> "$GITHUB_ENV"
+          echo "Release name: $NAME"
+
       - name: Build Tauri app (Linux x86_64)
         uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
@@ -139,7 +155,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
-          releaseName: "Tap v__VERSION__"
+          releaseName: "Tap v__VERSION__ · ${{ env.RELEASE_NAME }}"
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: --config '{"bundle":{"createUpdaterArtifacts":true}}'
