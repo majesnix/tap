@@ -31,6 +31,10 @@ export default tseslint.config(
     },
   },
   {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     files: ["src/**/*.test.{ts,tsx}", "src/**/__tests__/**/*.{ts,tsx}", "src/test/**"],
     languageOptions: { globals: { ...globals.node } },
     rules: { "@typescript-eslint/no-explicit-any": "off", "react-hooks/rules-of-hooks": "off" },

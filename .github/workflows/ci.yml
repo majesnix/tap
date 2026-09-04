@@ -80,6 +80,12 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Check Tauri crate and npm package alignment
+        # Dependabot bumps cargo and npm separately; the Tauri CLI refuses to build
+        # when a crate and its npm package differ at major.minor, which cargo test
+        # and vitest never notice.
+        run: pnpm check:tauri-versions
+
       - name: Audit npm production dependencies
         # Development-only advisories (jsdom, the shadcn CLI, ...) never ship in
         # the bundle; the production tree must stay clean at high and above.
@@ -139,10 +145,9 @@ jobs:
         run: cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
   build-windows:
-    # Tap is documented as cross-platform but was never built on Windows in CI.
-    # Introduced as non-blocking; set continue-on-error to false after the first green run.
+    # Tap is documented as cross-platform; this job is a required check so a
+    # change that only builds on macOS or Linux cannot land on main.
     runs-on: windows-latest
-    continue-on-error: true
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
