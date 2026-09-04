@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { FormProvider, useForm } from "react-hook-form";
 import { NestedMessageField } from "../fields/NestedMessageField";
+import { ScalarField } from "../fields/ScalarField";
 import { ProtoSchemaContext } from "../ProtoSchemaContext";
 import type { FieldSchema, MessageSchema } from "@/lib/types";
 
@@ -59,7 +60,9 @@ function renderNested(depth: number) {
 
 test("renders collapsible with field label", () => {
   renderNested(0);
-  expect(screen.getByText(/inner/i)).toBeInTheDocument();
+  // Exact match: the label span text is "Inner" — the adjacent mono meta span
+  // reads "Inner · 2" and would also match a case-insensitive /inner/i query.
+  expect(screen.getByText("Inner")).toBeInTheDocument();
 });
 
 test("renders DepthCapPlaceholder at depth 5", () => {
@@ -70,4 +73,26 @@ test("renders DepthCapPlaceholder at depth 5", () => {
 test("does not render DepthCapPlaceholder at depth 4", () => {
   renderNested(4);
   expect(screen.queryByText(/Nesting limit reached/i)).not.toBeInTheDocument();
+});
+
+test("a child field's label uses the compact text-12 treatment (FieldDepthContext depth > 0)", () => {
+  const Wrapper = () => {
+    const methods = useForm({ defaultValues: { inner: { title: "" } } });
+    return (
+      <ProtoSchemaContext.Provider value={testSchema.message_map}>
+        <FormProvider {...methods}>
+          <NestedMessageField
+            field={innerField}
+            path="inner"
+            depth={0}
+            renderChildField={(f: FieldSchema, childPath: string) => (
+              <ScalarField key={childPath} field={f} path={childPath} />
+            )}
+          />
+        </FormProvider>
+      </ProtoSchemaContext.Provider>
+    );
+  };
+  render(<Wrapper />);
+  expect(screen.getByText("title")).toHaveClass("text-12");
 });

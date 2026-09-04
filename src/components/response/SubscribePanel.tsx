@@ -2,17 +2,25 @@ import { useRef, useState } from "react";
 import { Channel } from "@tauri-apps/api/core";
 import { Play, Square, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Tag, type TagTone } from "@/components/common/Tag";
 import { startSubscribe, stopSubscribe } from "@/lib/ipc";
 import { useResponseStore } from "@/stores/useResponseStore";
 import { useConnectionStore } from "@/stores/useConnectionStore";
-import type { DrainResult, SubscribeMode } from "@/lib/types";
+import type { DrainResult, SubscribeMode, SubscribeStatus } from "@/lib/types";
 import { createDeliveryBatcher, type DeliveryBatcher } from "@/lib/feedBatcher";
 import { BrokerConfirmDialog, type BrokerConfirmRequest } from "./BrokerConfirmDialog";
 import { describeBroker, findProfile, isReadOnly, requiresConfirmation } from "@/lib/profileSafety";
 
 // ── useEffect must be imported from React (not globals) in this codebase ───────
 import { useEffect } from "react";
+
+/** Named for the subscribe session so it never reads as the Activity row status. */
+const SUBSCRIBE_STATUS_TONE: Record<SubscribeStatus, TagTone> = {
+  Idle: "neutral",
+  Running: "teal",
+  Stopping: "warning",
+  Error: "danger",
+};
 
 interface SubscribePanelProps {
   selectedQueue: string;
@@ -137,7 +145,7 @@ export function SubscribePanel({
   //
   // Profile-change detection MUST use prevProfileRef rather than comparing
   // activeProfileName against the profileName prop. Both originate from the same
-  // store selector in the parent (MessageFeedTab reads activeProfileName and passes
+  // store selector in the parent (ReadModePopover reads activeProfileName and passes
   // it as profileName), so they update to the same value in the same render —
   // activeProfileName !== profileName is always false at render time.
   //
@@ -176,39 +184,16 @@ export function SubscribePanel({
   const isRunningOrStopping =
     subscribeStatus === "Running" || subscribeStatus === "Stopping";
 
-  // ── Status badge ─────────────────────────────────────────────────────────────
+  // ── Status tag ───────────────────────────────────────────────────────────────
 
-  const renderStatusBadge = () => {
-    switch (subscribeStatus) {
-      case "Idle":
-        return (
-          <Badge variant="outline">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-muted-foreground inline-block" />
-            Idle
-          </Badge>
-        );
-      case "Running":
-        return (
-          <Badge variant="outline">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-emerald-500 inline-block" />
-            Running
-          </Badge>
-        );
-      case "Stopping":
-        return (
-          <Badge variant="outline">
-            <span className="mr-1.5 h-2 w-2 rounded-full bg-amber-500 inline-block" />
-            Stopping
-          </Badge>
-        );
-      case "Error":
-        return (
-          <Badge variant="destructive" title={subscribeError ?? undefined}>
-            Error
-          </Badge>
-        );
-    }
-  };
+  const renderStatusBadge = () => (
+    <Tag
+      tone={SUBSCRIBE_STATUS_TONE[subscribeStatus]}
+      title={subscribeStatus === "Error" ? (subscribeError ?? undefined) : undefined}
+    >
+      {subscribeStatus}
+    </Tag>
+  );
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -221,10 +206,11 @@ export function SubscribePanel({
       {!isRunningOrStopping && (
         <Button
           variant="default"
+          size="md"
           onClick={requestStart}
           disabled={(subscribeStatus !== "Idle" && subscribeStatus !== "Error") || !selectedQueue || isStartingRef.current || blockedByReadOnly}
         >
-          <Play className="mr-2 h-4 w-4" />
+          <Play size={14} strokeWidth={1.5} />
           Start
         </Button>
       )}
@@ -233,19 +219,20 @@ export function SubscribePanel({
       {isRunningOrStopping && (
         <Button
           variant="outline"
+          size="md"
           onClick={() => void handleStop()}
           disabled={subscribeStatus === "Stopping"}
         >
           {subscribeStatus === "Stopping" ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
           ) : (
-            <Square className="mr-2 h-4 w-4" />
+            <Square size={14} strokeWidth={1.5} />
           )}
           Stop
         </Button>
       )}
 
-      <span className="text-xs text-muted-foreground basis-full">
+      <span className="basis-full text-11 text-ghost">
         {isTap
           ? "Non-destructive: Tap binds a private queue to the same exchanges, so the original queue is untouched. Needs the Management API and at least one exchange binding."
           : blockedByReadOnly

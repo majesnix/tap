@@ -4,6 +4,7 @@ import {
   bytesToBase64,
   base64ToHex,
   base64ByteLength,
+  hexToBytes,
   truncatePayloadForHistory,
   MAX_HISTORY_PAYLOAD_BYTES,
 } from "@/lib/bytes";
@@ -19,6 +20,16 @@ describe("bytes", () => {
   test("renders base64 as the spaced lowercase hex the app uses everywhere", () => {
     expect(base64ToHex("CgVo/wA=")).toBe("0a 05 68 ff 00");
     expect(base64ToHex("")).toBe("");
+  });
+
+  test("turns spaced or unspaced hex back into bytes", () => {
+    expect(Array.from(hexToBytes("0a 05 68 ff 00"))).toEqual([0x0a, 0x05, 0x68, 0xff, 0x00]);
+    expect(Array.from(hexToBytes("0a0568ff00"))).toEqual([0x0a, 0x05, 0x68, 0xff, 0x00]);
+    expect(Array.from(hexToBytes(""))).toEqual([]);
+  });
+
+  test("hexToBytes is the inverse of base64ToHex", () => {
+    expect(bytesToBase64(hexToBytes(base64ToHex("CgVo/wA=")))).toBe("CgVo/wA=");
   });
 
   test("reports the decoded length without decoding", () => {

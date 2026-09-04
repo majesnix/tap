@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Copy, Check } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/common/IconButton";
 
 const FEEDBACK_DURATION_MS = 1500;
 
@@ -28,20 +28,12 @@ export function CopyButton({ value }: CopyButtonProps) {
   }, [value]);
 
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      className="size-6 opacity-0 group-hover:opacity-100 transition-opacity"
-      onClick={handleCopy}
-      aria-label="Copy value"
-      title="Copy value"
-    >
+    <IconButton size={22} label="Copy value" onClick={handleCopy}>
       {copied ? (
-        <Check className="size-3.5 text-green-500" />
+        <Check size={12} strokeWidth={1.5} className="text-success" />
       ) : (
-        <Copy className="size-3.5" />
+        <Copy size={12} strokeWidth={1.5} className="text-ghost hover:text-foreground" />
       )}
-    </Button>
+    </IconButton>
   );
 }

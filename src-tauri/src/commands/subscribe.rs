@@ -129,6 +129,7 @@ fn error_drain_result(message: String) -> DrainResult {
         routing_key: String::new(),
         exchange: String::new(),
         content_type: None,
+        correlation_id: None,
         timestamp: None,
         decoded: None,
         hex_string: String::new(),
@@ -521,6 +522,7 @@ pub(crate) async fn run_subscribe_loop(
                             .content_type()
                             .as_ref()
                             .map(|s| s.to_string());
+                        let correlation_id = delivery.properties.correlation_id().as_ref().map(|s| s.to_string());
                         let timestamp: Option<u64> = *delivery.properties.timestamp();
                         let payload: Vec<u8> = delivery.data.clone();
                         let hex_string = crate::commands::consume::bytes_to_hex(&payload);
@@ -543,6 +545,7 @@ pub(crate) async fn run_subscribe_loop(
                             routing_key,
                             exchange,
                             content_type,
+                            correlation_id,
                             timestamp,
                             decoded,
                             hex_string,
@@ -634,7 +637,7 @@ mod integration_tests {
         // Unique file per call: parallel tests must not truncate each other's proto.
         let path = tmp_dir.join(format!("ping-{}.proto", uuid::Uuid::new_v4().simple()));
         std::fs::write(&path, PROTO).unwrap();
-        let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        let mut c = protox::Compiler::new([tmp_dir.to_str().unwrap()]).unwrap();
         c.include_imports(true);
         c.open_file(path.to_str().unwrap()).unwrap();
         let pool = DescriptorPool::from_file_descriptor_set(c.file_descriptor_set()).unwrap();

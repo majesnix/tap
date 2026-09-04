@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { Plus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -8,7 +9,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { IconButton } from "@/components/common/IconButton";
 
 interface IncludePathDialogProps {
   open: boolean;
@@ -20,7 +21,8 @@ interface IncludePathDialogProps {
 /**
  * Dialog for configuring include paths used by protox to resolve .proto imports.
  * The file's parent directory is pre-populated by default.
- * Paths are persisted per file via tauri-plugin-store (handled in FileSection.tsx).
+ * Paths are persisted per file via tauri-plugin-store (handled by `useIncludePaths`
+ * in src/components/sidebar/useIncludePaths.ts).
  *
  * Copywriting per UI-SPEC Copywriting Contract:
  *   Title:   "Configure include paths"
@@ -61,32 +63,36 @@ export function IncludePathDialog({
           <DialogTitle>Configure include paths</DialogTitle>
         </DialogHeader>
 
-        <p className="text-sm text-muted-foreground">
+        <p className="text-13 text-muted-foreground">
           Add the directories that contain imported{" "}
-          <code className="text-xs font-mono">.proto</code> files. The
+          <code className="font-mono text-12">.proto</code> files. The
           file&apos;s parent directory is included by default.
         </p>
 
-        <div className="flex flex-col gap-2 max-h-60 overflow-y-auto">
+        <div className="flex max-h-60 flex-col gap-2 overflow-y-auto">
           {paths.map((path, index) => (
             <div key={`${path}-${index}`} className="flex items-center gap-2">
-              <Input readOnly value={path} className="flex-1 text-xs" />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemovePath(index)}
-                aria-label={`Remove ${path}`}
+              <span
+                title={path}
+                className="flex-1 truncate rounded-md border border-border bg-background px-3 py-2 font-mono text-12 text-foreground"
               >
-                ✕
-              </Button>
+                {path}
+              </span>
+              <IconButton size={24} label={`Remove ${path}`} onClick={() => handleRemovePath(index)}>
+                <X size={13} strokeWidth={1.5} />
+              </IconButton>
             </div>
           ))}
         </div>
 
-        <Button type="button" variant="outline" onClick={handleAddPath} className="w-full">
+        <button
+          type="button"
+          onClick={() => void handleAddPath()}
+          className="flex h-9 items-center justify-center gap-1.5 rounded-md border border-dashed border-border-strong text-13 font-medium text-violet-bright hover:bg-primary/8"
+        >
+          <Plus size={14} strokeWidth={1.5} />
           Add path
-        </Button>
+        </button>
 
         <DialogFooter className="gap-2">
           <Button type="button" variant="ghost" onClick={onCancel}>

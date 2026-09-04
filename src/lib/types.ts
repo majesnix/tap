@@ -134,6 +134,7 @@ export interface DrainResult {
   routingKey: string;
   exchange: string;
   contentType: string | null;
+  correlationId: string | null;    // AMQP correlation_id property, null when the publisher did not set one
   timestamp: number | null;        // seconds since epoch; null if publisher did not set it
   decoded: Record<string, unknown> | null;
   hexString: string;
@@ -161,7 +162,8 @@ export interface FeedMessage {
   exchange: string;
   contentType: string | null;
   correlationId: string | null;
-  timestamp: number | null;        // milliseconds since epoch (client receipt time); null = not set
+  timestamp: number | null;        // publisher timestamp, seconds since epoch; null when not set
+  receivedAt: number;              // client clock (ms) when the message entered the feed — drives the Activity timeline
   decoded: Record<string, unknown> | null;
   hexString: string;
   error: string | null;

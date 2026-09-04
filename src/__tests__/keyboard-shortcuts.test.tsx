@@ -5,29 +5,45 @@ import type { ProtoSchema } from "@/lib/types";
 
 // ─── Mock heavy leaf components that don't affect shortcut/copy testing ────────
 
-vi.mock("@/components/sidebar/Sidebar", () => ({
-  Sidebar: () => <div data-testid="sidebar-stub" />,
+vi.mock("@/components/sidebar/FilesSidebar", () => ({
+  FilesSidebar: () => <div data-testid="sidebar-stub" />,
 }));
 
-vi.mock("@/components/publish/PublishBar", () => ({
-  PublishBar: () => <div data-testid="publishbar-stub" />,
+// The destination strip owns the target picker, which renders a text input of its own when
+// the Management API is unavailable; stub it so getByRole("textbox") stays the form field.
+vi.mock("@/components/compose/DestinationStrip", () => ({
+  DestinationStrip: () => <div data-testid="destination-strip-stub" />,
 }));
 
 vi.mock("@/components/blocks/BlockLibraryPanel", () => ({
   BlockLibraryPanel: () => <div data-testid="block-library-stub" />,
 }));
 
-vi.mock("@/components/preview/HexPreviewPanel", () => ({
-  HexPreviewPanel: () => <div data-testid="hex-panel-stub" />,
+// Radix popovers do not portal usefully in jsdom — render the content inline so
+// the read-mode popover's contents are queryable, and only while it is open.
+vi.mock("@/components/ui/popover", () => ({
+  Popover: ({ open, children }: { open?: boolean; children: React.ReactNode }) => (
+    <div>{open ? children : null}</div>
+  ),
+  PopoverTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 
-vi.mock("@/components/history/MessageHistoryPanel", () => ({
-  MessageHistoryPanel: () => <div data-testid="history-panel-stub" />,
+vi.mock("@/components/ui/searchable-select", () => ({
+  SearchableSelect: () => <select role="combobox" aria-label="queue select" />,
 }));
 
-vi.mock("@/components/response/MessageFeedTab", () => ({
-  MessageFeedTab: () => <div data-testid="response-tab-stub" />,
+vi.mock("@tauri-apps/plugin-store", () => ({
+  load: vi.fn(async () => ({
+    get: vi.fn(async () => []),
+    set: vi.fn(async () => {}),
+    save: vi.fn(async () => {}),
+  })),
 }));
+
+vi.mock("@tauri-apps/plugin-dialog", () => ({ save: vi.fn(), open: vi.fn() }));
+vi.mock("@tauri-apps/plugin-fs", () => ({ writeTextFile: vi.fn(), readTextFile: vi.fn() }));
+vi.mock("@tauri-apps/api/core", () => ({ Channel: class {}, invoke: vi.fn() }));
 
 vi.mock("@/lib/ipc");
 import * as ipc from "@/lib/ipc";
@@ -50,18 +66,19 @@ vi.mock("@uiw/react-codemirror", () => ({
 
 vi.mock("next-themes", () => ({ useTheme: vi.fn(() => ({ resolvedTheme: "light" })) }));
 
-vi.mock("sonner", () => ({ toast: { warning: vi.fn(), error: vi.fn() } }));
+vi.mock("sonner", () => ({
+  toast: Object.assign(vi.fn(), {
+    warning: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    success: vi.fn(),
+  }),
+}));
 
 vi.mock("@/stores/useBlockStore", () => ({
   useBlockStore: Object.assign(
     vi.fn((selector: (s: { blocks: unknown[] }) => unknown) => selector({ blocks: [] })),
     { getState: vi.fn(() => ({ blocks: [] })) }
-  ),
-}));
-
-vi.mock("@/stores/useResponseStore", () => ({
-  useResponseStore: vi.fn((selector: (s: { lastReadAt: null }) => unknown) =>
-    selector({ lastReadAt: null })
   ),
 }));
 
@@ -82,7 +99,11 @@ vi.mock("@dnd-kit/core", () => ({
   })),
 }));
 
-import { AppLayout } from "@/components/layout/AppLayout";
+import { ComposeView } from "@/components/layout/ComposeView";
+import { useHistoryStore } from "@/stores/useHistoryStore";
+
+// cmdk scrolls its active item into view; jsdom has no such method.
+Element.prototype.scrollIntoView = function scrollIntoView() {};
 
 const MINIMAL_SCHEMA: ProtoSchema = {
   messages: [
@@ -127,6 +148,8 @@ beforeEach(() => {
     useProtoStore.getState().addOrActivateFile("/fake/test.proto", MINIMAL_SCHEMA);
     useProtoStore.getState().setSelectedType("TestMsg");
   });
+  // Seeded so ActivityPanel never calls loadHistory() against the store plugin.
+  useHistoryStore.setState({ entries: [], historyLoaded: true });
   vi.clearAllMocks();
   vi.useFakeTimers();
   vi.mocked(ipc.encodeMessage).mockResolvedValue("CgU=");
@@ -147,7 +170,7 @@ afterEach(async () => {
 
 function renderApp() {
   return render(
-    <AppLayout viewMode="main" onViewChange={vi.fn()} />
+    <ComposeView header={<div />} blocksOpen={false} onToggleBlocks={vi.fn()} />
   );
 }
 
@@ -238,35 +261,37 @@ describe("Cmd+O open file shortcut", () => {
   });
 });
 
-// ─── Cmd+1/2/3: tab switching ─────────────────────────────────────────────────
+// ─── Cmd+1/2/3: panel signals ─────────────────────────────────────────────────
 
-describe("Cmd+1/2/3 tab switching", () => {
-  function getActiveTab() {
-    const tabs = screen.getAllByRole("tab");
-    return tabs.find((t) => t.getAttribute("data-state") === "active");
-  }
-
-  test("Cmd+1 switches to Hex tab", () => {
+describe("Cmd+1/2/3 panel signals", () => {
+  test("Cmd+2 toggles the Request card's hex dump", () => {
     renderApp();
-    // Switch away from hex first
-    act(() => { pressKey("2", { ctrlKey: true }); });
-    expect(getActiveTab()?.textContent).toContain("History");
+    expect(screen.queryByText(/wire format/)).not.toBeInTheDocument();
 
-    // Switch back
+    act(() => { pressKey("2", { ctrlKey: true }); });
+    expect(screen.getByText(/wire format/)).toBeInTheDocument();
+
+    act(() => { pressKey("2", { ctrlKey: true }); });
+    expect(screen.queryByText(/wire format/)).not.toBeInTheDocument();
+  });
+
+  test("Cmd+1 focuses the Activity filter input", () => {
+    renderApp();
+    const filter = screen.getByLabelText("Filter activity");
+    expect(document.activeElement).not.toBe(filter);
+
     act(() => { pressKey("1", { ctrlKey: true }); });
-    expect(getActiveTab()?.textContent).toContain("Hex");
+
+    expect(document.activeElement).toBe(filter);
   });
 
-  test("Cmd+2 switches to History tab", () => {
+  test("Cmd+3 opens the read-mode popover", () => {
     renderApp();
-    act(() => { pressKey("2", { ctrlKey: true }); });
-    expect(getActiveTab()?.textContent).toContain("History");
-  });
+    expect(screen.queryByRole("radiogroup", { name: "Read mode" })).not.toBeInTheDocument();
 
-  test("Cmd+3 switches to Response tab", () => {
-    renderApp();
     act(() => { pressKey("3", { ctrlKey: true }); });
-    expect(getActiveTab()?.textContent).toContain("Response");
+
+    expect(screen.getByRole("radiogroup", { name: "Read mode" })).toBeInTheDocument();
   });
 });
 
@@ -300,20 +325,20 @@ describe("CopyButton integration", () => {
     renderApp();
 
     const copyBtn = screen.getByRole("button", { name: "Copy value" });
-    expect(copyBtn.querySelector(".text-green-500")).toBeNull();
+    expect(copyBtn.querySelector(".text-success")).toBeNull();
 
     await act(async () => {
       fireEvent.click(copyBtn);
       await Promise.resolve();
     });
 
-    expect(copyBtn.querySelector(".text-green-500")).not.toBeNull();
+    expect(copyBtn.querySelector(".text-success")).not.toBeNull();
 
     act(() => {
       vi.advanceTimersByTime(1500);
     });
 
-    expect(copyBtn.querySelector(".text-green-500")).toBeNull();
+    expect(copyBtn.querySelector(".text-success")).toBeNull();
   });
 });
 
@@ -324,22 +349,5 @@ describe("Platform-correct tooltips", () => {
     renderApp();
     const clearBtn = screen.getByRole("button", { name: "Clear form" });
     expect(clearBtn.getAttribute("title")).toMatch(/\+Shift\+R/);
-  });
-
-  test("RightPanel tab triggers show platform shortcut symbols", () => {
-    renderApp();
-    const tabs = screen.getAllByRole("tab");
-    const hexTab = tabs.find((t) => t.textContent?.includes("Hex"));
-    const historyTab = tabs.find((t) => t.textContent?.includes("History"));
-    const responseTab = tabs.find((t) => t.textContent?.includes("Response"));
-
-    expect(hexTab).toBeDefined();
-    expect(historyTab).toBeDefined();
-    expect(responseTab).toBeDefined();
-
-    // All tab triggers should have title attributes with shortcut symbols
-    expect(hexTab!.getAttribute("title")).toMatch(/1$/);
-    expect(historyTab!.getAttribute("title")).toMatch(/2$/);
-    expect(responseTab!.getAttribute("title")).toMatch(/3$/);
   });
 });

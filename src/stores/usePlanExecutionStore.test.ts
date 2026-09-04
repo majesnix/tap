@@ -255,11 +255,6 @@ describe("initial state — new Phase 23 fields", () => {
     const s = useRawPlanExecutionStore.getState();
     expect(s.planReplyFeed).toEqual([]);
   });
-
-  test("paneMode is 'editor' initially", () => {
-    const s = useRawPlanExecutionStore.getState();
-    expect(s.paneMode).toBe("editor");
-  });
 });
 
 // ── Phase 23: setStepReply ────────────────────────────────────────────────────
@@ -315,6 +310,7 @@ const makeFeedEntry = (id = "entry-1"): FeedMessage => ({
   contentType: "application/protobuf",
   correlationId: null,
   timestamp: 1234567890,
+  receivedAt: 0,
   decoded: { field: "value" },
   hexString: "deadbeef",
   error: null,
@@ -374,21 +370,6 @@ describe("appendReplyFeedEntry", () => {
   });
 });
 
-// ── Phase 23: setPaneMode ─────────────────────────────────────────────────────
-
-describe("setPaneMode", () => {
-  test("setPaneMode('reply') sets paneMode to 'reply'", () => {
-    useRawPlanExecutionStore.getState().setPaneMode("reply");
-    expect(useRawPlanExecutionStore.getState().paneMode).toBe("reply");
-  });
-
-  test("setPaneMode('editor') sets paneMode to 'editor'", () => {
-    useRawPlanExecutionStore.getState().setPaneMode("reply");
-    useRawPlanExecutionStore.getState().setPaneMode("editor");
-    expect(useRawPlanExecutionStore.getState().paneMode).toBe("editor");
-  });
-});
-
 // ── Phase 23: setRunning resets new fields inline ─────────────────────────────
 
 describe("setRunning — resets Phase 23 fields inline (Pitfall 3)", () => {
@@ -406,12 +387,6 @@ describe("setRunning — resets Phase 23 fields inline (Pitfall 3)", () => {
     useRawPlanExecutionStore.getState().setRunning("plan-2", ["step-x"]);
     expect(useRawPlanExecutionStore.getState().planReplyFeed).toEqual([]);
   });
-
-  test("setRunning resets paneMode to 'editor'", () => {
-    useRawPlanExecutionStore.getState().setPaneMode("reply");
-    useRawPlanExecutionStore.getState().setRunning("plan-2", ["step-x"]);
-    expect(useRawPlanExecutionStore.getState().paneMode).toBe("editor");
-  });
 });
 
 // ── Phase 23: clearRun resets new fields via INITIAL_STATE ───────────────────
@@ -420,7 +395,6 @@ describe("clearRun — resets Phase 23 fields via INITIAL_STATE spread", () => {
   beforeEach(() => {
     useRawPlanExecutionStore.getState().setStepReply("step-1", makeReply());
     useRawPlanExecutionStore.getState().appendReplyFeedEntry(makeFeedEntry("e-1"));
-    useRawPlanExecutionStore.getState().setPaneMode("reply");
   });
 
   test("clearRun resets stepReplies to empty record", () => {
@@ -431,10 +405,5 @@ describe("clearRun — resets Phase 23 fields via INITIAL_STATE spread", () => {
   test("clearRun resets planReplyFeed to empty array", () => {
     useRawPlanExecutionStore.getState().clearRun();
     expect(useRawPlanExecutionStore.getState().planReplyFeed).toEqual([]);
-  });
-
-  test("clearRun resets paneMode to 'editor'", () => {
-    useRawPlanExecutionStore.getState().clearRun();
-    expect(useRawPlanExecutionStore.getState().paneMode).toBe("editor");
   });
 });

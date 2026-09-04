@@ -535,7 +535,7 @@ mod tests {
         std::fs::write(&proto_path, proto_content).unwrap();
 
         let mut compiler =
-            protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+            protox::Compiler::new([tmp_dir.to_str().unwrap()]).unwrap();
         compiler.include_imports(true);
         compiler.open_file(proto_path.to_str().unwrap()).unwrap();
         let fds = compiler.file_descriptor_set();
@@ -805,7 +805,7 @@ mod coverage_tests {
         std::fs::create_dir_all(&tmp_dir).unwrap();
         let proto_path = tmp_dir.join(file_name);
         std::fs::write(&proto_path, proto_content).unwrap();
-        let mut compiler = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        let mut compiler = protox::Compiler::new([tmp_dir.to_str().unwrap()]).unwrap();
         compiler.include_imports(true);
         compiler.open_file(proto_path.to_str().unwrap()).unwrap();
         DescriptorPool::from_file_descriptor_set(compiler.file_descriptor_set()).unwrap()

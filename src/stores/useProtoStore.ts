@@ -5,7 +5,7 @@ import type { ProtoSchema } from "@/lib/types";
 const MAX_OPEN_FILES = 20;
 const MAX_RECENT_FILES = 10;
 
-interface OpenFileEntry {
+export interface OpenFileEntry {
   filePath: string;
   schema: ProtoSchema;
 }

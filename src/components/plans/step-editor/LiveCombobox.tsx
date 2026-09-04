@@ -39,7 +39,7 @@ export function LiveCombobox({ value, onChange, onCommit, items, placeholder, id
         onChange={(e) => onChange(e.target.value)}
         onBlur={() => onCommit?.(value)}
         placeholder={placeholder}
-        className="text-sm"
+        className="h-[34px] font-mono text-[12.5px]"
       />
     );
   }
@@ -52,15 +52,16 @@ export function LiveCombobox({ value, onChange, onCommit, items, placeholder, id
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
+            id={id}
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-full h-9 justify-between border-input bg-background font-normal text-sm"
+            className="h-[34px] w-full justify-between bg-background px-3 font-mono text-[12.5px] font-normal"
           >
-            <span className="truncate text-left flex-1">
-              {value || <span className="text-muted-foreground">{placeholder}</span>}
+            <span className="flex-1 truncate text-left">
+              {value || <span className="text-ghost">{placeholder}</span>}
             </span>
-            <ChevronsUpDown className="ml-auto h-4 w-4 shrink-0 text-muted-foreground" />
+            <ChevronsUpDown className="ml-auto size-3.5 shrink-0 text-ghost" strokeWidth={1.5} />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="p-0 min-w-[12rem]">
@@ -85,6 +86,7 @@ export function LiveCombobox({ value, onChange, onCommit, items, placeholder, id
                   >
                     <Check
                       className={cn("mr-2 h-4 w-4", value === item ? "opacity-100" : "opacity-0")}
+                      strokeWidth={1.5}
                     />
                     {item}
                   </CommandItem>
@@ -95,10 +97,9 @@ export function LiveCombobox({ value, onChange, onCommit, items, placeholder, id
         </PopoverContent>
       </Popover>
       {noMatch && (
-        <p className="text-xs text-destructive">No results for &ldquo;{value}&rdquo;</p>
+        <p className="text-11 text-danger">No results for &ldquo;{value}&rdquo;</p>
       )}
     </div>
   );
 }
 
-// ── TargetSection ─────────────────────────────────────────────────────────────

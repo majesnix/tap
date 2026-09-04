@@ -1,4 +1,3 @@
-import type { HistoryEntry } from "@/stores/useHistoryStore";
 import type { ProtoSchema } from "@/lib/types";
 
 /**
@@ -58,47 +57,9 @@ export function collectSearchTokens(obj: Record<string, unknown>): string[] {
 }
 
 /**
- * Pure filter function for history entries.
- * Used by MessageHistoryPanel.filteredEntries via useMemo.
- *
- * All filters use case-insensitive substring matching.
- * When multiple filters are active, entries must satisfy ALL (AND logic).
- * The optional `searchQuery` parameter defaults to "" — existing callers
- * passing only 3 arguments are unaffected (HIST-FT-07 backward compat).
- */
-export function filterHistoryEntries(
-  entries: HistoryEntry[],
-  typeFilter: string,
-  targetFilter: string,
-  searchQuery = ""
-): HistoryEntry[] {
-  return entries
-    .filter(
-      (e) =>
-        !typeFilter ||
-        e.messageTypeName.toLowerCase().includes(typeFilter.toLowerCase())
-    )
-    .filter(
-      (e) =>
-        !targetFilter ||
-        e.exchange.toLowerCase().includes(targetFilter.toLowerCase()) ||
-        e.routingKey.toLowerCase().includes(targetFilter.toLowerCase())
-    )
-    .filter((e) => {
-      if (!searchQuery) return true;
-      const q = searchQuery.toLowerCase();
-      if (e.messageTypeName.toLowerCase().includes(q)) return true;
-      if (e.exchange.toLowerCase().includes(q)) return true;
-      if (e.routingKey.toLowerCase().includes(q)) return true;
-      const tokens = collectSearchTokens(e.fieldValues);
-      return tokens.some((token) => token.toLowerCase().includes(q));
-    });
-}
-
-/**
  * Pure lookup: finds the openFiles index whose schema contains the given messageTypeName.
  * Returns -1 if not found.
- * Used by handleReplay and handleResend in MessageHistoryPanel.
+ * Used by replay and resend in useActivityActions.
  */
 export function findReplayTabIndex(
   openFiles: Array<{ filePath: string; schema: ProtoSchema }>,

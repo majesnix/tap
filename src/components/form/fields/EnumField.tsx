@@ -1,4 +1,5 @@
 import { Controller, useFormContext, useWatch } from "react-hook-form";
+import { cn } from "@/lib/utils";
 import {
   Select,
   SelectContent,
@@ -6,11 +7,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import type { FieldSchema } from "@/lib/types";
-import { CopyButton } from "./CopyButton";
-import { FieldTooltip } from "./FieldTooltip";
+import { FieldLabel } from "./FieldLabel";
+import { useFieldDepth } from "./FieldDepthContext";
 
 export interface EnumFieldProps {
   field: FieldSchema;
@@ -25,6 +24,7 @@ export interface EnumFieldProps {
 export function EnumField({ field, path }: EnumFieldProps) {
   const { control } = useFormContext();
   const watchedValue = useWatch({ control, name: path });
+  const depth = useFieldDepth();
 
   if (field.kind.type !== "enum") return null;
 
@@ -32,19 +32,13 @@ export function EnumField({ field, path }: EnumFieldProps) {
   const defaultNumber = (field.default_value as number) ?? values[0]?.number ?? 0;
   const resolvedEnumName = values.find((v) => v.number === watchedValue)?.name ?? "";
 
+  // Depth 0 (top level) uses the trigger default (h-9, bg-background); nested triggers
+  // shrink to 34px (size="sm") and alternate background by depth parity — same as ScalarField.
+  const depthBg = depth === 0 ? "" : depth % 2 === 1 ? "bg-card" : "bg-background";
+
   return (
-    <div className="flex flex-col gap-1 mb-3 group">
-      <div className="flex items-center gap-2">
-        <FieldTooltip field={field}>
-          <Label className="text-xs font-semibold" htmlFor={path}>
-            {field.label}
-          </Label>
-        </FieldTooltip>
-        <Badge variant="outline" className="text-xs px-1.5 py-0">
-          enum
-        </Badge>
-        <CopyButton value={resolvedEnumName} />
-      </div>
+    <div className="flex flex-col gap-1.5">
+      <FieldLabel field={field} htmlFor={path} copyValue={resolvedEnumName} />
       <Controller
         name={path}
         control={control}
@@ -54,13 +48,17 @@ export function EnumField({ field, path }: EnumFieldProps) {
             value={String(rhfField.value)}
             onValueChange={(strVal) => rhfField.onChange(Number(strVal))}
           >
-            <SelectTrigger id={path}>
+            <SelectTrigger
+              id={path}
+              size={depth === 0 ? "default" : "sm"}
+              className={cn("font-mono text-13", depthBg)}
+            >
               <SelectValue placeholder="Select value" />
             </SelectTrigger>
             <SelectContent>
               {values.map((v) => (
                 <SelectItem key={v.number} value={String(v.number)}>
-                  {v.name}
+                  {v.name} <span className="text-ghost">= {v.number}</span>
                 </SelectItem>
               ))}
             </SelectContent>

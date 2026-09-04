@@ -96,11 +96,11 @@ export type ApplyPlan = {
 };
 
 /**
- * Ref payload type wired between FormPanel (caller) and ProtoFormRenderer (owner).
+ * Ref payload type wired between useRequestForm (caller) and ProtoFormRenderer (owner).
  * ProtoFormRenderer sets `applyBlockRef.current` to this object in a useEffect;
- * FormPanel calls `buildPlan` then `commitApply` on every block drag-and-drop.
+ * useRequestForm calls `buildPlan` then `commitApply` on every block drag-and-drop.
  *
- * Exported for use in ProtoFormRenderer.tsx and FormPanel.tsx (plan 25-02).
+ * Exported for use in ProtoFormRenderer.tsx and useRequestForm.ts.
  */
 export type ApplyBlockRef = {
   buildPlan: (blockValues: Record<string, unknown>) => ApplyPlan;

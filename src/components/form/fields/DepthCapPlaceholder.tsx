@@ -4,7 +4,7 @@
  */
 export function DepthCapPlaceholder() {
   return (
-    <div className="ml-4 border-l border-border pl-3 py-1 text-xs text-muted-foreground italic">
+    <div className="py-1 text-12 text-ghost italic">
       Nesting limit reached (max depth 5)
     </div>
   );

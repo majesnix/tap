@@ -67,3 +67,7 @@ vendor/
 coverage/
 .cache/
 tmp/
+
+# Agent scratch (superpowers reports, agent worktrees) — local only
+.superpowers/
+.claude/worktrees/

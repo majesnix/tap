@@ -916,7 +916,7 @@ mod integration_tests {
         // shared file name let one test compile another test's half-written (empty) proto.
         let path = tmp_dir.join(format!("cmd-{}.proto", Uuid::new_v4().simple()));
         std::fs::write(&path, PROTO).unwrap();
-        let mut c = protox::Compiler::new(&[tmp_dir.to_str().unwrap()]).unwrap();
+        let mut c = protox::Compiler::new([tmp_dir.to_str().unwrap()]).unwrap();
         c.include_imports(true);
         c.open_file(path.to_str().unwrap()).unwrap();
         let pool = DescriptorPool::from_file_descriptor_set(c.file_descriptor_set()).unwrap();

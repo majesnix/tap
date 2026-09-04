@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="_ds/majesnix-design-system-019dcb5d-c0b5-7e2b-9de4-65eee30e0993/colors_and_type.css">
+  <script src="_ds/majesnix-design-system-019dcb5d-c0b5-7e2b-9de4-65eee30e0993/_ds_bundle.js"></script>
+  <style>
+    html, body { margin:0; height:100%; background:#0C0D12; font-family:'Geist','Geist Variable',sans-serif; overflow:auto; }
+    a { color:#A497FF; } a:hover { color:#EEF0F8; }
+    input { font-family:'Geist Mono',monospace; } input::placeholder { color:#5C6182; }
+    @keyframes tapPulse { 0%,100% { opacity:1; } 50% { opacity:.35; } }
+  </style>
+</helmet>
+
+<div data-screen-label="Workbench" style="width:100vw;min-width:1240px;height:100vh;display:flex;flex-direction:column;overflow:hidden;background:#0C0D12;color:#EEF0F8;font-size:13px;position:relative;">
+  <!-- ─── Header ─── -->
+  <header style="height:52px;flex-shrink:0;display:flex;align-items:center;gap:16px;padding:0 20px;border-bottom:1px solid rgba(255,255,255,.08);">
+    <div style="display:flex;align-items:center;gap:10px;"><img src="public/tap-mark.svg" alt="" style="width:24px;height:24px;"><span style="font-weight:600;font-size:15px;letter-spacing:-.01em;">Tap</span></div>
+    <div style="display:flex;padding:2px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);margin-left:8px;">
+      <button onClick="{{ goCompose }}" style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:4px;border:0;cursor:pointer;background:{{ composeTabBg }};color:{{ composeTabColor }};font:500 12.5px Geist,sans-serif;"><dc-import name="Icon" icon="send" size="13" hint-size="13px,13px"></dc-import>Compose</button>
+      <button onClick="{{ goPlans }}" style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 12px;border-radius:4px;border:0;cursor:pointer;background:{{ plansTabBg }};color:{{ plansTabColor }};font:500 12.5px Geist,sans-serif;"><dc-import name="Icon" icon="list-checks" size="13" hint-size="13px,13px"></dc-import>Plans</button>
+    </div>
+    <div style="flex:1;"></div>
+    <button onClick="{{ openSheet }}" style="display:flex;align-items:center;gap:10px;height:34px;padding:0 6px 0 12px;border-radius:999px;background:#13151E;border:1px solid rgba(255,255,255,.08);cursor:pointer;color:#EEF0F8;font:13px Geist,sans-serif;" style-hover="border-color:rgba(123,108,246,.45);"><span style="width:8px;height:8px;border-radius:50%;background:#34D399;box-shadow:0 0 8px rgba(52,211,153,.6);"></span><span style="font-weight:500;white-space:nowrap;">{{ profileName }}</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ profileHost }}</span><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:{{ envBg }};color:{{ envColor }};font-size:10px;font-weight:700;letter-spacing:.08em;">{{ envLabel }}</span><span style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;color:#9499B8;"><dc-import name="Icon" icon="chevron-down" size="14" hint-size="14px,14px"></dc-import></span></button>
+    <div style="display:flex;gap:2px;">
+      <button onClick="{{ toggleBlocks }}" title="Blocks" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:0;cursor:pointer;background:{{ blocksBtnBg }};color:{{ blocksBtnColor }};" style-hover="background:#1C1F2C;"><dc-import name="Icon" icon="library" size="17" hint-size="17px,17px"></dc-import></button>
+      <button title="Shortcuts" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:0;cursor:pointer;background:transparent;color:#9499B8;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="keyboard" size="17" hint-size="17px,17px"></dc-import></button>
+      <button title="Theme" style="width:32px;height:32px;display:flex;align-items:center;justify-content:center;border-radius:6px;border:0;cursor:pointer;background:transparent;color:#9499B8;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="moon" size="17" hint-size="17px,17px"></dc-import></button>
+    </div>
+  </header>
+
+  <div style="flex:1;display:flex;min-height:0;">
+    <!-- ─── Sidebar ─── -->
+    <aside style="width:272px;flex-shrink:0;display:flex;flex-direction:column;padding:16px 12px;gap:18px;border-right:1px solid rgba(255,255,255,.08);overflow:hidden;">
+      <sc-if value="{{ isCompose }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px;"><span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Files</span><div style="display:flex;gap:2px;"><button title="Reload ⌘R" style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="refresh-cw" size="14" hint-size="14px,14px"></dc-import></button><button onClick="{{ openFile }}" title="Open .proto ⌘O" style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#A497FF;cursor:pointer;" style-hover="background:rgba(123,108,246,.12);"><dc-import name="Icon" icon="plus" size="15" hint-size="15px,15px"></dc-import></button></div></div>
+          <sc-if value="{{ fileOpen }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:10px;background:#13151E;border:1px solid rgba(255,255,255,.08);"><span style="width:28px;height:28px;border-radius:6px;background:rgba(123,108,246,.12);color:#A497FF;display:inline-flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="file-code" size="15" hint-size="15px,15px"></dc-import></span><div style="flex:1;display:flex;flex-direction:column;min-width:0;"><span style="font-weight:500;">order.proto</span><span style="font-size:11px;color:#5C6182;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">6 messages · 1 enum · includes examples/</span></div><button onClick="{{ closeFile }}" title="Close" style="width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#5C6182;cursor:pointer;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="x" size="13" hint-size="13px,13px"></dc-import></button></div>
+            <div style="display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:10px;color:#9499B8;cursor:pointer;" style-hover="background:#13151E;"><span style="width:28px;height:28px;border-radius:6px;background:#13151E;display:inline-flex;align-items:center;justify-content:center;"><dc-import name="Icon" icon="file-code" size="15" hint-size="15px,15px"></dc-import></span><div style="flex:1;display:flex;flex-direction:column;"><span style="font-weight:500;">event.proto</span><span style="font-size:11px;color:#5C6182;">3 messages</span></div></div>
+          </sc-if>
+          <sc-if value="{{ fileClosed }}" hint-placeholder-val="{{ false }}">
+            <button onClick="{{ openFile }}" style="display:flex;align-items:center;justify-content:center;gap:8px;height:40px;border-radius:10px;border:1px dashed rgba(123,108,246,.45);background:transparent;color:#A497FF;font:500 13px Geist,sans-serif;cursor:pointer;" style-hover="background:rgba(123,108,246,.08);"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>Open .proto<span style="font-family:'Geist Mono',monospace;font-size:10px;color:#5C6182;">⌘O</span></button>
+          </sc-if>
+        </div>
+        <sc-if value="{{ fileOpen }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;flex-direction:column;gap:2px;">
+            <div style="padding:0 8px 6px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Messages</div>
+            <sc-for list="{{ messages }}" as="m" hint-placeholder-count="6">
+              <button onClick="{{ m.select }}" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:6px;border:0;cursor:pointer;text-align:left;background:{{ m.bg }};color:{{ m.color }};font:13px Geist,sans-serif;" style-hover="background:#13151E;"><span style="width:6px;height:6px;border-radius:50%;background:{{ m.dot }};"></span><span style="flex:1;font-weight:500;">{{ m.name }}</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ m.count }}</span></button>
+            </sc-for>
+            <div style="padding:14px 8px 6px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Enums</div>
+            <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border-radius:6px;color:#9499B8;"><span style="width:6px;height:6px;border-radius:2px;background:#5C6182;"></span><span style="flex:1;">OrderStatus</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;">6</span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ fileClosed }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:2px;"><div style="padding:0 8px 6px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Recent</div>
+            <button onClick="{{ openFile }}" style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#9499B8;cursor:pointer;font:13px Geist,sans-serif;text-align:left;" style-hover="background:#13151E;color:#EEF0F8;"><dc-import name="Icon" icon="file-code" size="14" hint-size="14px,14px"></dc-import>order.proto</button>
+            <button style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;border:0;border-radius:6px;background:transparent;color:#9499B8;cursor:pointer;font:13px Geist,sans-serif;text-align:left;" style-hover="background:#13151E;color:#EEF0F8;"><dc-import name="Icon" icon="file-code" size="14" hint-size="14px,14px"></dc-import>sensor.proto</button>
+            <div style="display:flex;align-items:center;gap:8px;height:32px;padding:0 10px;color:#5C6182;text-decoration:line-through;" title="File not found"><dc-import name="Icon" icon="file-code" size="14" hint-size="14px,14px"></dc-import>legacy.proto</div>
+          </div>
+        </sc-if>
+      </sc-if>
+      <sc-if value="{{ isPlans }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px 6px;"><span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Plans</span><button title="New plan" style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#A497FF;cursor:pointer;" style-hover="background:rgba(123,108,246,.12);"><dc-import name="Icon" icon="plus" size="15" hint-size="15px,15px"></dc-import></button></div>
+          <sc-for list="{{ plans }}" as="p" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:10px;background:{{ p.bg }};color:{{ p.color }};cursor:pointer;" style-hover="background:#13151E;"><span style="font-weight:500;">{{ p.name }}</span><span style="font-size:11px;color:#5C6182;">{{ p.steps }} steps · {{ p.last }}</span></div>
+          </sc-for>
+        </div>
+      </sc-if>
+      <div style="flex:1;"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px;font-size:11px;color:#5C6182;white-space:nowrap;"><span>v1.9.0 · Steady Signal</span><button title="Clear local data" style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;color:#F87171;"><dc-import name="Icon" icon="trash-2" size="14" hint-size="14px,14px"></dc-import></button></div>
+    </aside>
+
+    <!-- ─── Blocks drawer ─── -->
+    <sc-if value="{{ blocksOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="width:272px;flex-shrink:0;display:flex;flex-direction:column;padding:16px 0 16px 16px;">
+        <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:#13151E;border:1px solid rgba(255,255,255,.08);overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 14px 10px;"><span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Blocks</span><div style="display:flex;gap:2px;"><button style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;"><dc-import name="Icon" icon="search" size="14" hint-size="14px,14px"></dc-import></button><button style="width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#A497FF;cursor:pointer;" style-hover="background:rgba(123,108,246,.12);"><dc-import name="Icon" icon="plus" size="15" hint-size="15px,15px"></dc-import></button></div></div>
+          <div style="display:flex;flex-direction:column;gap:8px;padding:0 10px;">
+            <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:10px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);cursor:grab;" style-hover="border-color:rgba(123,108,246,.45);"><div style="display:flex;align-items:center;gap:8px;"><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="flex:1;font-weight:500;">{{ b.name }}</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="pencil" size="13" hint-size="13px,13px"></dc-import></span></div><div style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;padding-left:22px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ b.preview }}</div><div style="padding-left:22px;font-size:11px;color:{{ b.fitColor }};">{{ b.fit }}</div></div>
+            </sc-for>
+          </div>
+          <div style="flex:1;"></div>
+          <div style="padding:12px 14px;font-size:11px;color:#5C6182;line-height:1.5;border-top:1px solid rgba(255,255,255,.08);">Drop onto the request. Fields that already have a value ask before being overwritten.</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <!-- ─── Compose main ─── -->
+    <sc-if value="{{ isCompose }}" hint-placeholder-val="{{ true }}">
+      <main style="flex:1;display:flex;flex-direction:column;min-width:0;padding:16px;">
+        <sc-if value="{{ fileClosed }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;display:flex;align-items:center;justify-content:center;border-radius:16px;border:1px dashed rgba(255,255,255,.1);">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:16px;max-width:420px;text-align:center;">
+              <img src="public/tap-icon.svg" alt="" style="width:64px;height:64px;border-radius:16px;">
+              <div style="font-size:20px;font-weight:600;letter-spacing:-.02em;">Send a real protobuf message in 30 seconds</div>
+              <div style="font-size:14px;color:#9499B8;line-height:1.55;">Open a .proto file and pick a message. Tap builds the form, encodes wire bytes and sends them to any queue or exchange.</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;width:100%;margin-top:4px;">
+                <button onClick="{{ openFile }}" style="display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:10px;background:#13151E;border:1px solid rgba(123,108,246,.45);text-align:left;cursor:pointer;color:#EEF0F8;font-family:Geist,sans-serif;" style-hover="background:#1C1F2C;"><span style="color:#A497FF;display:inline-flex;"><dc-import name="Icon" icon="file-code" size="16" hint-size="16px,16px"></dc-import></span><span style="font-weight:600;font-size:13px;">1 · Open a .proto</span><span style="font-size:11px;color:#9499B8;">⌘O · include paths remembered per file</span></button>
+                <div style="display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:10px;background:#13151E;border:1px solid rgba(255,255,255,.08);text-align:left;"><span style="color:#2DD4BF;display:inline-flex;"><dc-import name="Icon" icon="radio" size="16" hint-size="16px,16px"></dc-import></span><span style="font-weight:600;font-size:13px;">2 · Pick a destination</span><span style="font-size:11px;color:#9499B8;">queues and exchanges from the live catalog</span></div>
+                <div style="display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:10px;background:#13151E;border:1px solid rgba(255,255,255,.08);text-align:left;"><span style="color:#34D399;display:inline-flex;"><dc-import name="Icon" icon="send" size="16" hint-size="16px,16px"></dc-import></span><span style="font-weight:600;font-size:13px;">3 · Send</span><span style="font-size:11px;color:#9499B8;">⌘↵ · publisher confirms shown inline</span></div>
+              </div>
+              <div style="font-size:12px;color:#5C6182;">Connected to <span style="color:#9499B8;">{{ profileName }}</span> · try <span style="color:#A497FF;cursor:pointer;">examples/order.proto</span></div>
+            </div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ fileOpen }}" hint-placeholder-val="{{ true }}">
+          <div style="flex:1;display:flex;flex-direction:column;border-radius:16px;background:#13151E;border:1px solid rgba(255,255,255,.08);overflow:hidden;min-height:0;">
+            <!-- card header -->
+            <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.08);flex-shrink:0;">
+              <span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Request</span>
+              <span style="font-size:16px;font-weight:600;letter-spacing:-.01em;">{{ selectedMsg }}</span>
+              <span style="font-family:'Geist Mono',monospace;font-size:12px;color:#5C6182;">example.{{ selectedMsg }}</span>
+              <span style="font-size:11px;color:#5C6182;white-space:nowrap;">· draft saved</span>
+              <div style="flex:1;"></div>
+              <div style="display:flex;padding:2px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);">
+                <button onClick="{{ toggleBlocks }}" title="Blocks" style="width:28px;height:26px;display:flex;align-items:center;justify-content:center;border:0;border-radius:4px;cursor:pointer;background:{{ blocksBtnBg }};color:{{ blocksBtnColor }};" style-hover="color:#EEF0F8;"><dc-import name="Icon" icon="library" size="15" hint-size="15px,15px"></dc-import></button>
+                <button title="Fill empty fields with random values" style="width:28px;height:26px;display:flex;align-items:center;justify-content:center;border:0;border-radius:4px;cursor:pointer;background:transparent;color:#9499B8;" style-hover="color:#EEF0F8;background:#1C1F2C;"><dc-import name="Icon" icon="dices" size="15" hint-size="15px,15px"></dc-import></button>
+                <button title="Clear form ⌘⇧R" style="width:28px;height:26px;display:flex;align-items:center;justify-content:center;border:0;border-radius:4px;cursor:pointer;background:transparent;color:#9499B8;" style-hover="color:#EEF0F8;background:#1C1F2C;"><dc-import name="Icon" icon="rotate-ccw" size="15" hint-size="15px,15px"></dc-import></button>
+                <button onClick="{{ toggleJson }}" title="Edit as JSON" style="width:28px;height:26px;display:flex;align-items:center;justify-content:center;border:0;border-radius:4px;cursor:pointer;background:{{ jsonBtnBg }};color:{{ jsonBtnColor }};" style-hover="color:#EEF0F8;"><dc-import name="Icon" icon="braces" size="15" hint-size="15px,15px"></dc-import></button>
+              </div>
+            </div>
+            <!-- destination strip -->
+            <div style="display:flex;flex-direction:column;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);flex-shrink:0;">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;flex-wrap:wrap;">
+                <span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">To</span>
+                <div style="display:flex;padding:2px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);">
+                  <button onClick="{{ setQueue }}" style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:4px;border:0;cursor:pointer;background:{{ queueSegBg }};color:{{ queueSegColor }};font:600 12px Geist,sans-serif;">Queue</button>
+                  <button onClick="{{ setExchange }}" style="display:inline-flex;align-items:center;height:26px;padding:0 10px;border-radius:4px;border:0;cursor:pointer;background:{{ exSegBg }};color:{{ exSegColor }};font:600 12px Geist,sans-serif;">Exchange</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;height:{{ inputH }}px;width:280px;padding:0 8px 0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);cursor:pointer;" style-hover="border-color:rgba(123,108,246,.45);"><span style="flex:1;font-family:'Geist Mono',monospace;font-size:12.5px;">{{ targetName }}</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ targetMeta }}</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevrons-up-down" size="14" hint-size="14px,14px"></dc-import></span></div>
+                <sc-if value="{{ isExchange }}" hint-placeholder-val="{{ false }}">
+                  <span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="arrow-right" size="14" hint-size="14px,14px"></dc-import></span>
+                  <div style="display:flex;align-items:center;gap:8px;height:{{ inputH }}px;width:220px;padding:0 8px 0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);"><span style="font-size:11px;color:#5C6182;">key</span><span style="flex:1;font-family:'Geist Mono',monospace;font-size:12.5px;">eu.orders.created</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevrons-up-down" size="14" hint-size="14px,14px"></dc-import></span></div>
+                </sc-if>
+                <span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:#9499B8;white-space:nowrap;"><span style="width:6px;height:6px;border-radius:50%;background:#34D399;"></span>Live catalog</span>
+                <div style="flex:1;"></div>
+                <button onClick="{{ toggleProps }}" style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:6px;border:1px solid {{ propsBtnBorder }};background:{{ propsBtnBg }};color:#9499B8;font:12px Geist,sans-serif;cursor:pointer;" style-hover="color:#EEF0F8;"><dc-import name="Icon" icon="layers" size="14" hint-size="14px,14px"></dc-import><span style="white-space:nowrap;">persistent · reply-to <span style="font-family:'Geist Mono',monospace;color:#EEF0F8;">orders.reply</span> · 2 headers</span><span style="color:#A497FF;font-weight:500;">{{ propsToggleLabel }}</span></button>
+              </div>
+              <sc-if value="{{ propsOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:12px;padding:4px 18px 16px;">
+                  <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:12px;">
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Content type</span><input value="application/x-protobuf" style="height:{{ inputH }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12.5px;outline:none;" style-focus="border-color:rgba(123,108,246,.45);box-shadow:0 0 0 3px rgba(123,108,246,.35);"></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Delivery</span><div style="display:flex;padding:2px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);height:{{ inputH }}px;box-sizing:border-box;"><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;color:#9499B8;font-size:12px;cursor:pointer;">Transient</span><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;border-radius:4px;background:#252840;font-size:12px;font-weight:600;cursor:pointer;">Persistent</span></div></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">TTL</span><div style="display:flex;align-items:center;height:{{ inputH }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);box-sizing:border-box;"><input placeholder="—" style="flex:1;min-width:0;border:0;background:transparent;color:#EEF0F8;font-size:12.5px;outline:none;padding:0;"><span style="font-size:11px;color:#5C6182;">ms</span></div></div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px;">
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Correlation ID</span><input value="req-7c1e" style="height:{{ inputH }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12.5px;outline:none;" style-focus="border-color:rgba(123,108,246,.45);box-shadow:0 0 0 3px rgba(123,108,246,.35);"></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Reply-to</span><input value="orders.reply" style="height:{{ inputH }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12.5px;outline:none;" style-focus="border-color:rgba(123,108,246,.45);box-shadow:0 0 0 3px rgba(123,108,246,.35);"></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><div style="display:flex;justify-content:space-between;"><span style="font-size:12px;color:#9499B8;">Headers</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;">2 / 20</span></div><div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;min-height:{{ inputH }}px;"><span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:999px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:12px;">x-tenant<span style="color:#9499B8;">= acme</span><span style="color:#5C6182;display:inline-flex;cursor:pointer;"><dc-import name="Icon" icon="x" size="12" hint-size="12px,12px"></dc-import></span></span><span style="display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 6px 0 10px;border-radius:999px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:12px;">x-source<span style="color:#9499B8;">= tap</span><span style="color:#5C6182;display:inline-flex;cursor:pointer;"><dc-import name="Icon" icon="x" size="12" hint-size="12px,12px"></dc-import></span></span><span style="display:inline-flex;align-items:center;gap:4px;height:28px;padding:0 10px;border-radius:999px;border:1px dashed rgba(255,255,255,.12);color:#9499B8;font-size:12px;cursor:pointer;"><dc-import name="Icon" icon="plus" size="12" hint-size="12px,12px"></dc-import>header</span></div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:12px;"><span style="font-size:12px;color:#9499B8;cursor:pointer;">Reset to defaults</span><div style="flex:1;"></div><button onClick="{{ toggleProps }}" style="height:28px;padding:0 12px;border-radius:6px;border:0;background:#7B6CF6;color:#fff;font:600 12px Geist,sans-serif;cursor:pointer;">Apply</button></div>
+                </div>
+              </sc-if>
+            </div>
+            <!-- form body -->
+            <sc-if value="{{ jsonMode }}" hint-placeholder-val="{{ false }}">
+              <div style="flex:1;display:flex;min-height:0;overflow:hidden;font-family:'Geist Mono',monospace;font-size:12.5px;line-height:20px;">
+                <div style="width:44px;flex-shrink:0;padding:14px 0;text-align:right;color:#5C6182;background:#0C0D12;border-right:1px solid rgba(255,255,255,.06);"><sc-for list="{{ jsonLines }}" as="l" hint-placeholder-count="10"><div style="padding-right:10px;">{{ l.n }}</div></sc-for></div>
+                <pre style="margin:0;padding:14px 18px;flex:1;overflow:auto;color:#EEF0F8;font:inherit;">{{ jsonText }}</pre>
+              </div>
+            </sc-if>
+            <sc-if value="{{ formMode }}" hint-placeholder-val="{{ true }}">
+              <div style="flex:1;overflow:auto;padding:18px;display:flex;flex-direction:column;gap:16px;min-height:0;">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                  <sc-for list="{{ scalarFields }}" as="f" hint-placeholder-count="2">
+                    <div style="display:flex;flex-direction:column;gap:6px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:500;white-space:nowrap;">{{ f.label }}</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ f.type }} · {{ f.num }}</span><div style="flex:1;"></div><span style="color:#5C6182;display:inline-flex;cursor:pointer;" title="Copy value"><dc-import name="Icon" icon="copy" size="12" hint-size="12px,12px"></dc-import></span></div><input value="{{ f.value }}" style="height:{{ inputH }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:13px;outline:none;" style-focus="border-color:rgba(123,108,246,.45);box-shadow:0 0 0 3px rgba(123,108,246,.35);"></div>
+                  </sc-for>
+                </div>
+                <!-- repeated flat message → table -->
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:500;white-space:nowrap;">Items</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">repeated LineItem · 3 · {{ itemCount }} rows</span><div style="flex:1;"></div><button onClick="{{ addItem }}" style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border:0;border-radius:4px;background:transparent;color:#A497FF;font:500 12px Geist,sans-serif;cursor:pointer;" style-hover="background:rgba(123,108,246,.12);"><dc-import name="Icon" icon="plus" size="13" hint-size="13px,13px"></dc-import>Add item</button></div>
+                  <div style="display:grid;grid-template-columns:28px 2fr 3fr 1fr 1fr 28px;gap:8px;padding:0 12px;font-family:'Geist Mono',monospace;font-size:10.5px;color:#5C6182;white-space:nowrap;"><span>#</span><span>product_id</span><span>name</span><span>quantity</span><span>unit_price</span><span></span></div>
+                  <sc-for list="{{ items }}" as="it" hint-placeholder-count="1">
+                    <div style="display:grid;grid-template-columns:28px 2fr 3fr 1fr 1fr 28px;gap:8px;align-items:center;padding:6px 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);" style-hover="border-color:rgba(255,255,255,.16);"><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ it.i }}</span><input value="{{ it.sku }}" style="height:28px;padding:0 8px;border-radius:4px;background:transparent;border:1px solid transparent;color:#EEF0F8;font-size:12.5px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);background:#13151E;"><input value="{{ it.name }}" style="height:28px;padding:0 8px;border-radius:4px;background:transparent;border:1px solid transparent;color:#EEF0F8;font-size:12.5px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);background:#13151E;"><input value="{{ it.qty }}" style="height:28px;padding:0 8px;border-radius:4px;background:transparent;border:1px solid transparent;color:#EEF0F8;font-size:12.5px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);background:#13151E;"><input value="{{ it.price }}" style="height:28px;padding:0 8px;border-radius:4px;background:transparent;border:1px solid transparent;color:#EEF0F8;font-size:12.5px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);background:#13151E;"><button onClick="{{ it.remove }}" title="Remove" style="width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#5C6182;cursor:pointer;" style-hover="color:#F87171;background:rgba(248,113,113,.12);"><dc-import name="Icon" icon="trash-2" size="13" hint-size="13px,13px"></dc-import></button></div>
+                  </sc-for>
+                </div>
+                <!-- nested message → container -->
+                <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.08);">
+                  <button onClick="{{ toggleShipping }}" style="display:flex;align-items:center;gap:8px;border:0;background:transparent;padding:0;cursor:pointer;color:#EEF0F8;font-family:Geist,sans-serif;text-align:left;"><span style="color:#9499B8;display:inline-flex;transition:transform .15s;transform:{{ shipChevron }};"><dc-import name="Icon" icon="chevron-down" size="14" hint-size="14px,14px"></dc-import></span><span style="font-size:13px;font-weight:500;white-space:nowrap;">Shipping</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">Address · 4</span><sc-if value="{{ shipCollapsed }}" hint-placeholder-val="{{ false }}"><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#9499B8;margin-left:8px;">12 Hafenstrasse, Hamburg HH 20457, DE</span></sc-if></button>
+                  <sc-if value="{{ shipOpen }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1fr;gap:12px;">
+                      <sc-for list="{{ address }}" as="f" hint-placeholder-count="5">
+                        <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">{{ f.label }}</span><input value="{{ f.value }}" style="height:{{ inputHsm }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12.5px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);box-shadow:0 0 0 3px rgba(123,108,246,.35);"></div>
+                      </sc-for>
+                    </div>
+                  </sc-if>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+                  <div style="display:flex;flex-direction:column;gap:6px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:500;white-space:nowrap;">Status</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">enum OrderStatus · 5</span></div><div style="display:flex;align-items:center;justify-content:space-between;height:{{ inputH }}px;padding:0 10px 0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:13px;cursor:pointer;" style-hover="border-color:rgba(123,108,246,.45);"><span style="white-space:nowrap;">ORDER_STATUS_CONFIRMED <span style="color:#5C6182;">= 2</span></span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevron-down" size="14" hint-size="14px,14px"></dc-import></span></div></div>
+                  <div style="display:flex;flex-direction:column;gap:6px;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:500;white-space:nowrap;">Payment</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">oneof method · 6</span></div><div style="display:flex;padding:2px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);height:{{ inputH }}px;box-sizing:border-box;"><sc-for list="{{ payBranches }}" as="b" hint-placeholder-count="3"><button onClick="{{ b.select }}" style="flex:1;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;cursor:pointer;background:{{ b.bg }};color:{{ b.color }};font:{{ b.weight }} 12px 'Geist Mono',monospace;">{{ b.name }}</button></sc-for></div></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,.08);margin-left:0;">
+                  <div style="display:flex;align-items:center;gap:8px;"><span style="font-size:13px;font-weight:500;white-space:nowrap;">{{ payLabel }}</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ payType }}</span></div>
+                  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;">
+                    <sc-for list="{{ payFields }}" as="f" hint-placeholder-count="4">
+                      <div style="display:flex;flex-direction:column;gap:6px;"><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:12px;color:#9499B8;">{{ f.label }}</span><span style="font-family:'Geist Mono',monospace;font-size:10.5px;color:#5C6182;">{{ f.type }}</span></div><input value="{{ f.value }}" style="height:{{ inputHsm }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12.5px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);box-shadow:0 0 0 3px rgba(123,108,246,.35);"></div>
+                    </sc-for>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+            <!-- footer: hex + send -->
+            <div style="display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.02);flex-shrink:0;">
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;">
+                <button onClick="{{ toggleHex }}" style="display:flex;align-items:center;gap:10px;flex:1;min-width:0;border:0;background:transparent;padding:0;cursor:pointer;text-align:left;color:#EEF0F8;font-family:Geist,sans-serif;">
+                  <span style="color:#9499B8;display:inline-flex;"><dc-import name="Icon" icon="binary" size="15" hint-size="15px,15px"></dc-import></span>
+                  <span style="font-family:'Geist Mono',monospace;font-size:11.5px;color:#9499B8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;">{{ byteCount }} B · <span style="color:#EEF0F8;">{{ hexInline }}</span></span>
+                  <span style="font-size:12px;color:#A497FF;font-weight:500;white-space:nowrap;">{{ hexToggleLabel }}</span>
+                </button>
+                <sc-if value="{{ outcomeVisible }}" hint-placeholder-val="{{ false }}"><span style="display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px;border-radius:2px;background:rgba(52,211,153,.1);color:#34D399;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;white-space:nowrap;"><dc-import name="Icon" icon="circle-check" size="12" hint-size="12px,12px"></dc-import>ACK · {{ outcomeTime }}</span></sc-if>
+                <button onClick="{{ send }}" style="display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 8px 0 14px;border-radius:6px;border:0;background:#7B6CF6;color:#fff;font:600 13px Geist,sans-serif;cursor:pointer;white-space:nowrap;transition:all .15s;" style-hover="filter:brightness(1.1);box-shadow:0 0 24px rgba(123,108,246,.25);" style-active="transform:scale(.97);"><dc-import name="Icon" icon="{{ sendIcon }}" size="15" hint-size="15px,15px"></dc-import>{{ sendLabel }}<span style="display:inline-flex;align-items:center;height:20px;padding:0 6px;border-radius:4px;background:rgba(255,255,255,.14);font-family:'Geist Mono',monospace;font-size:11px;font-weight:500;">⌘↵</span></button>
+              </div>
+              <sc-if value="{{ hexOpen }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;padding:0 18px 14px;">
+                  <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:8px;"><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;">wire format · {{ byteCount }} bytes · example.{{ selectedMsg }}</span><div style="display:flex;gap:2px;"><button title="Copy hex" style="width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="copy" size="14" hint-size="14px,14px"></dc-import></button><button title="Save .bin" style="width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="download" size="14" hint-size="14px,14px"></dc-import></button></div></div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 32px;padding:12px 14px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.06);font-family:'Geist Mono',monospace;font-size:11.5px;line-height:20px;max-height:180px;overflow:auto;">
+                    <sc-for list="{{ hexRows }}" as="r" hint-placeholder-count="12"><div style="display:flex;gap:12px;"><span style="color:#5C6182;width:36px;">{{ r.offset }}</span><span style="color:#EEF0F8;width:200px;letter-spacing:.02em;">{{ r.bytes }}</span><span style="color:#5C6182;">{{ r.ascii }}</span></div></sc-for>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+      </main>
+
+      <!-- ─── Activity ─── -->
+      <aside style="width:360px;flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);min-height:0;">
+        <div style="display:flex;align-items:center;gap:8px;padding:16px 16px 10px;"><span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Activity</span><div style="flex:1;"></div><div style="display:flex;padding:2px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);font-size:11px;"><sc-for list="{{ actFilters }}" as="f" hint-placeholder-count="3"><button onClick="{{ f.select }}" style="display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 8px;border:0;border-radius:4px;cursor:pointer;background:{{ f.bg }};color:{{ f.color }};font:{{ f.weight }} 11px Geist,sans-serif;">{{ f.label }}</button></sc-for></div></div>
+        <div style="display:flex;align-items:center;gap:8px;padding:0 16px 10px;"><div style="flex:1;display:flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);color:#5C6182;font-size:12px;"><dc-import name="Icon" icon="search" size="13" hint-size="13px,13px"></dc-import><input placeholder="Filter type, target, payload…" style="flex:1;min-width:0;border:0;background:transparent;color:#EEF0F8;font:12px Geist,sans-serif;outline:none;"></div><button onClick="{{ toggleTap }}" title="Read mode" style="display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid {{ tapBorder }};font:12px Geist,sans-serif;color:#EEF0F8;cursor:pointer;white-space:nowrap;"><span style="width:6px;height:6px;border-radius:50%;background:{{ tapDot }};animation:{{ tapAnim }};"></span>{{ tapLabel }}<span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevron-down" size="13" hint-size="13px,13px"></dc-import></span></button></div>
+        <div style="flex:1;overflow-y:auto;overflow-x:hidden;display:flex;flex-direction:column;min-height:0;">
+          <sc-for list="{{ activityGroups }}" as="g" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;border-top:1px solid rgba(255,255,255,.05);background:{{ g.bg }};">
+              <button onClick="{{ g.toggle }}" style="display:flex;gap:10px;padding:10px 16px;border:0;background:transparent;cursor:pointer;text-align:left;color:#EEF0F8;font-family:Geist,sans-serif;width:100%;" style-hover="background:rgba(255,255,255,.03);"><span style="width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:{{ g.iconBg }};color:{{ g.iconColor }};flex-shrink:0;margin-top:1px;"><dc-import name="Icon" icon="{{ g.icon }}" size="13" hint-size="13px,13px"></dc-import></span><div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:500;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;">{{ g.type }}</span><span style="font-size:10px;font-weight:700;letter-spacing:.06em;color:{{ g.statusColor }};">{{ g.status }}</span></div><div style="display:flex;align-items:center;gap:6px;font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;"><span style="color:#9499B8;">{{ g.target }}</span><span>·</span><span>{{ g.time }}</span><span>·</span><span>{{ g.size }}</span></div></div></button>
+              <sc-if value="{{ g.hasReply }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;gap:10px;margin:2px 16px 12px 27px;padding:6px 0 0 14px;border-left:1px solid rgba(45,212,191,.35);"><span style="width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:rgba(45,212,191,.12);color:#2DD4BF;flex-shrink:0;"><dc-import name="Icon" icon="arrow-left" size="13" hint-size="13px,13px"></dc-import></span><div style="flex:1;display:flex;flex-direction:column;gap:3px;min-width:0;"><div style="display:flex;align-items:center;gap:8px;"><span style="font-weight:500;flex:1;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ g.replyType }}</span><span style="font-size:10px;font-weight:700;letter-spacing:.06em;color:#2DD4BF;">REPLY</span></div><div style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ g.replyMeta }}</div></div></div>
+              </sc-if>
+              <sc-if value="{{ g.expanded }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:8px;padding:0 16px 14px 48px;min-width:0;">
+                  <div style="display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.06);font-family:'Geist Mono',monospace;font-size:12px;line-height:1.6;">
+                    <sc-for list="{{ g.decoded }}" as="d" hint-placeholder-count="4"><span><span style="color:#9499B8;">{{ d.k }}</span> <span style="color:{{ d.color }};">{{ d.v }}</span></span></sc-for>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;"><button style="display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:transparent;color:#9499B8;font:12px Geist,sans-serif;cursor:pointer;white-space:nowrap;" style-hover="color:#EEF0F8;background:#1C1F2C;"><dc-import name="Icon" icon="arrow-left" size="12" hint-size="12px,12px"></dc-import>Load</button><button style="display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:transparent;color:#9499B8;font:12px Geist,sans-serif;cursor:pointer;" style-hover="color:#EEF0F8;background:#1C1F2C;"><dc-import name="Icon" icon="rotate-ccw" size="12" hint-size="12px,12px"></dc-import>Resend</button><button style="display:inline-flex;align-items:center;gap:5px;height:26px;padding:0 8px;border-radius:4px;border:1px solid rgba(255,255,255,.08);background:transparent;color:#9499B8;font:12px Geist,sans-serif;cursor:pointer;" style-hover="color:#EEF0F8;background:#1C1F2C;"><dc-import name="Icon" icon="binary" size="12" hint-size="12px,12px"></dc-import>Hex</button></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#5C6182;white-space:nowrap;"><span>{{ actSummary }}</span><span style="display:inline-flex;align-items:center;gap:4px;color:#9499B8;cursor:pointer;"><dc-import name="Icon" icon="download" size="12" hint-size="12px,12px"></dc-import>Export</span></div>
+      </aside>
+    </sc-if>
+
+    <!-- ─── Plans main ─── -->
+    <sc-if value="{{ isPlans }}" hint-placeholder-val="{{ false }}">
+      <main style="flex:1;display:flex;flex-direction:column;min-width:0;padding:16px;gap:12px;overflow:auto;">
+        <div style="display:flex;align-items:center;gap:12px;padding:14px 18px;border-radius:16px;background:#13151E;border:1px solid rgba(255,255,255,.08);">
+          <div style="display:flex;flex-direction:column;gap:2px;"><span style="font-size:16px;font-weight:600;letter-spacing:-.01em;">Checkout happy path</span><span style="font-size:12px;color:#5C6182;">3 steps · last run 14:02 · 3.9 s</span></div>
+          <div style="flex:1;"></div>
+          <span style="display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:rgba(52,211,153,.1);color:#34D399;font-size:12px;font-weight:600;"><dc-import name="Icon" icon="circle-check" size="13" hint-size="13px,13px"></dc-import>3 / 3 succeeded</span>
+          <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#9499B8;"><span style="width:28px;height:16px;border-radius:999px;background:#7B6CF6;position:relative;display:inline-block;"><span style="position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:#fff;"></span></span>Stop on error</div>
+          <button style="display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 14px;border-radius:6px;border:0;background:#7B6CF6;color:#fff;font:600 13px Geist,sans-serif;cursor:pointer;" style-hover="filter:brightness(1.1);"><dc-import name="Icon" icon="play" size="14" hint-size="14px,14px"></dc-import>Run again</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <sc-for list="{{ steps }}" as="s" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;border-radius:10px;background:#13151E;border:1px solid {{ s.border }};">
+              <button onClick="{{ s.select }}" style="display:grid;grid-template-columns:16px 28px 1fr auto;gap:12px;align-items:start;padding:14px 16px;border:0;background:transparent;cursor:pointer;text-align:left;color:#EEF0F8;font-family:Geist,sans-serif;width:100%;"><span style="color:#5C6182;display:inline-flex;margin-top:6px;cursor:grab;"><dc-import name="Icon" icon="grip-vertical" size="14" hint-size="14px,14px"></dc-import></span><span style="width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;background:{{ s.dotBg }};color:{{ s.dotColor }};font-family:'Geist Mono',monospace;font-size:12px;font-weight:600;">{{ s.n }}</span><div style="display:flex;flex-direction:column;gap:6px;min-width:0;"><div style="display:flex;align-items:center;gap:10px;"><span style="font-weight:600;font-size:14px;">{{ s.name }}</span><span style="display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;background:{{ s.badgeBg }};color:{{ s.badgeColor }};font-size:10px;font-weight:700;letter-spacing:.06em;">{{ s.status }}</span></div><div style="display:flex;gap:16px;font-family:'Geist Mono',monospace;font-size:11.5px;color:#9499B8;flex-wrap:wrap;"><span><span style="color:#5C6182;">type</span> {{ s.type }}</span><span><span style="color:#5C6182;">to</span> {{ s.target }}</span><span><span style="color:#5C6182;">then</span> {{ s.mode }}</span></div></div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;"><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ s.duration }}</span><span style="font-size:12px;color:#A497FF;font-weight:500;">{{ s.replyLabel }}</span></div></button>
+              <sc-if value="{{ s.selected }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;gap:14px;padding:0 16px 16px 72px;border-top:1px solid rgba(255,255,255,.06);margin-top:-2px;padding-top:14px;">
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Proto file</span><div style="display:flex;align-items:center;justify-content:space-between;height:{{ inputHsm }}px;padding:0 10px 0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-size:12.5px;"><span>order.proto</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevron-down" size="14" hint-size="14px,14px"></dc-import></span></div></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Message type</span><div style="display:flex;align-items:center;justify-content:space-between;height:{{ inputHsm }}px;padding:0 10px 0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-size:12.5px;"><span>{{ s.type }}</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevron-down" size="14" hint-size="14px,14px"></dc-import></span></div></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Response mode</span><div style="display:flex;align-items:center;justify-content:space-between;height:{{ inputHsm }}px;padding:0 10px 0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-size:12.5px;"><span>{{ s.modeName }}</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevron-down" size="14" hint-size="14px,14px"></dc-import></span></div></div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Target</span><div style="display:flex;align-items:center;gap:8px;height:{{ inputHsm }}px;padding:0 10px 0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:12.5px;"><span style="flex:1;">{{ s.target }}</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevrons-up-down" size="14" hint-size="14px,14px"></dc-import></span></div></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">{{ s.modeParamLabel }}</span><div style="display:flex;align-items:center;justify-content:space-between;height:{{ inputHsm }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:12.5px;"><span>{{ s.modeParam }}</span><span style="font-size:11px;color:#5C6182;">ms</span></div></div>
+                    <div style="display:flex;flex-direction:column;gap:6px;"><span style="font-size:12px;color:#9499B8;">Reply queue</span><div style="display:flex;align-items:center;height:{{ inputHsm }}px;padding:0 12px;border-radius:6px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:12.5px;color:{{ s.replyQueueColor }};">{{ s.replyQueue }}</div></div>
+                  </div>
+                  <div style="display:flex;align-items:center;justify-content:space-between;"><span style="font-size:12px;color:#9499B8;">Fields <span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;">· {{ s.fieldSummary }}</span></span><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#A497FF;font-weight:500;cursor:pointer;"><dc-import name="Icon" icon="pencil" size="12" hint-size="12px,12px"></dc-import>Edit fields</span></div>
+                </div>
+              </sc-if>
+            </div>
+          </sc-for>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:10px;border:1px dashed rgba(255,255,255,.12);color:#9499B8;font-size:12px;cursor:pointer;" style-hover="border-color:rgba(123,108,246,.45);color:#A497FF;"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>Add step<span style="color:#5C6182;">— blank · from history · from block</span></div>
+        </div>
+      </main>
+      <aside style="width:360px;flex-shrink:0;display:flex;flex-direction:column;border-left:1px solid rgba(255,255,255,.08);">
+        <div style="display:flex;align-items:center;gap:8px;padding:16px 16px 10px;"><span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Step {{ selectedStepN }} · reply</span><div style="flex:1;"></div><span style="font-size:12px;color:#9499B8;">Reply feed · 2</span></div>
+        <sc-if value="{{ stepHasReply }}" hint-placeholder-val="{{ true }}">
+          <div style="margin:0 16px;padding:12px 14px;border-radius:10px;background:#13151E;border:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;"><span style="width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;background:rgba(45,212,191,.12);color:#2DD4BF;"><dc-import name="Icon" icon="arrow-left" size="13" hint-size="13px,13px"></dc-import></span><span style="font-weight:500;flex:1;">PaymentConfirmed</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;">+412 ms</span></div>
+            <div style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;">orders.reply · corr:req-7c1e · 88 B</div>
+            <div style="display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:6px;background:#0C0D12;font-family:'Geist Mono',monospace;font-size:12px;line-height:1.6;"><span><span style="color:#9499B8;">order_id</span> <span style="color:#A497FF;">"ord_plan_001"</span></span><span><span style="color:#9499B8;">status</span> <span style="color:#2DD4BF;">PAID</span></span><span><span style="color:#9499B8;">amount</span> <span style="color:#EEF0F8;">299.8</span></span><span><span style="color:#9499B8;">provider</span> <span style="color:#A497FF;">"visa"</span></span></div>
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:#9499B8;"><span>Decoded as PaymentConfirmed</span><span style="color:#A497FF;cursor:pointer;">Hex</span></div>
+          </div>
+        </sc-if>
+        <sc-if value="{{ stepNoReply }}" hint-placeholder-val="{{ false }}">
+          <div style="margin:0 16px;padding:14px;border-radius:10px;border:1px dashed rgba(255,255,255,.1);font-size:12px;color:#5C6182;line-height:1.5;">This step does not wait for a reply. Switch its response mode to <span style="color:#9499B8;">correlation id</span> or <span style="color:#9499B8;">first arrival</span> to capture one.</div>
+        </sc-if>
+      </aside>
+    </sc-if>
+  </div>
+
+  <!-- ─── Connection sheet ─── -->
+  <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeSheet }}" style="position:absolute;inset:0;background:rgba(12,13,18,.6);backdrop-filter:blur(12px);"></div>
+    <div style="position:absolute;top:0;right:0;bottom:0;width:440px;display:flex;flex-direction:column;background:rgba(19,21,30,.97);border-left:1px solid rgba(255,255,255,.08);box-shadow:0 8px 32px rgba(0,0,0,.6);">
+      <sc-if value="{{ sheetList }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;align-items:center;gap:10px;padding:18px 20px 12px;"><div style="flex:1;display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;font-weight:600;">Connections</span><span style="font-size:12px;color:#5C6182;">Passwords live in the OS keychain</span></div><button onClick="{{ closeSheet }}" style="width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="x" size="16" hint-size="16px,16px"></dc-import></button></div>
+        <div style="display:flex;flex-direction:column;gap:6px;padding:6px 20px;">
+          <sc-for list="{{ profiles }}" as="p" hint-placeholder-count="3">
+            <button onClick="{{ p.open }}" style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:10px;border:1px solid {{ p.border }};background:#0C0D12;cursor:pointer;text-align:left;color:#EEF0F8;font-family:Geist,sans-serif;" style-hover="border-color:rgba(123,108,246,.45);"><span style="width:8px;height:8px;border-radius:50%;background:{{ p.dot }};"></span><div style="flex:1;display:flex;flex-direction:column;gap:2px;"><span style="font-weight:500;font-size:13px;">{{ p.name }}</span><span style="font-family:'Geist Mono',monospace;font-size:11px;color:#5C6182;white-space:nowrap;">{{ p.url }}</span></div><span style="display:inline-flex;align-items:center;height:20px;padding:0 8px;border-radius:999px;background:{{ p.envBg }};color:{{ p.envColor }};font-size:10px;font-weight:700;letter-spacing:.08em;">{{ p.env }}</span><span style="color:#5C6182;display:inline-flex;"><dc-import name="Icon" icon="chevron-right" size="14" hint-size="14px,14px"></dc-import></span></button>
+          </sc-for>
+          <div style="display:flex;align-items:center;justify-content:center;gap:8px;height:44px;border-radius:10px;border:1px dashed rgba(123,108,246,.45);color:#A497FF;font-weight:500;cursor:pointer;margin-top:4px;" style-hover="background:rgba(123,108,246,.08);"><dc-import name="Icon" icon="plus" size="14" hint-size="14px,14px"></dc-import>New connection</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ sheetDetail }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:10px;padding:18px 20px 12px;"><button onClick="{{ backToList }}" style="width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="arrow-left" size="16" hint-size="16px,16px"></dc-import></button><div style="flex:1;display:flex;flex-direction:column;gap:2px;"><span style="font-size:15px;font-weight:600;">staging</span><span style="font-size:12px;color:#5C6182;">Connection profile</span></div><span style="display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:999px;background:rgba(251,191,36,.1);color:#FBBF24;font-size:10px;font-weight:700;letter-spacing:.08em;">SHARED</span><button onClick="{{ closeSheet }}" style="width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:4px;background:transparent;color:#9499B8;cursor:pointer;" style-hover="background:#1C1F2C;color:#EEF0F8;"><dc-import name="Icon" icon="x" size="16" hint-size="16px,16px"></dc-import></button></div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:12px;padding:6px 20px 16px;overflow:auto;">
+          <div style="display:flex;flex-direction:column;border-radius:10px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);">
+            <div style="padding:10px 14px 4px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Broker</div>
+            <div style="display:grid;grid-template-columns:100px 1fr;align-items:center;gap:6px 10px;padding:6px 14px 12px;">
+              <span style="font-size:12px;color:#9499B8;">Name</span><input value="staging" style="height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font:13px Geist,sans-serif;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);">
+              <span style="font-size:12px;color:#9499B8;">Host</span><input value="mq.staging.internal" style="height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);">
+              <span style="font-size:12px;color:#9499B8;">Ports</span><div style="display:flex;gap:6px;"><span style="flex:1;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:12px;">5671<span style="font-size:10px;color:#5C6182;">amqps</span></span><span style="flex:1;height:30px;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);font-family:'Geist Mono',monospace;font-size:12px;">15671<span style="font-size:10px;color:#5C6182;">https</span></span></div>
+              <span style="font-size:12px;color:#9499B8;">Virtual host</span><input value="/" style="height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12px;outline:none;min-width:0;" style-focus="border-color:rgba(123,108,246,.45);">
+              <span style="font-size:12px;color:#9499B8;">Credentials</span><div style="display:flex;gap:6px;"><input value="tap" style="flex:1;min-width:0;height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12px;outline:none;" style-focus="border-color:rgba(123,108,246,.45);"><input type="password" value="password" style="flex:1;min-width:0;height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12px;outline:none;" style-focus="border-color:rgba(123,108,246,.45);"></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;border-radius:10px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);">
+            <div style="padding:10px 14px 4px;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">Safety</div>
+            <div style="display:flex;flex-direction:column;padding:4px 14px 10px;">
+              <div style="display:flex;padding:2px;border-radius:6px;background:#13151E;margin-bottom:8px;"><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:26px;border-radius:4px;color:#9499B8;font-size:12px;cursor:pointer;">Local</span><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:26px;border-radius:4px;background:#252840;color:#FBBF24;font-weight:600;font-size:12px;cursor:pointer;">Shared</span><span style="flex:1;display:inline-flex;align-items:center;justify-content:center;height:26px;border-radius:4px;color:#9499B8;font-size:12px;cursor:pointer;">Production</span></div>
+              <div style="font-size:11px;color:#5C6182;padding-bottom:6px;">Shared asks before Consume and Subscribe. Production also asks before Send.</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;height:34px;border-top:1px solid rgba(255,255,255,.05);"><span style="font-size:12px;">Read-only profile</span><span style="width:28px;height:16px;border-radius:999px;background:#252840;position:relative;cursor:pointer;"><span style="position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;background:#9499B8;"></span></span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;height:34px;border-top:1px solid rgba(255,255,255,.05);"><span style="font-size:12px;">Record sent messages in history</span><span style="width:28px;height:16px;border-radius:999px;background:#7B6CF6;position:relative;cursor:pointer;"><span style="position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:#fff;"></span></span></div>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;border-radius:10px;background:#0C0D12;border:1px solid rgba(255,255,255,.08);">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;"><span style="font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#5C6182;">TLS</span><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#34D399;"><dc-import name="Icon" icon="shield" size="13" hint-size="13px,13px"></dc-import>Encrypted on both transports</span></div>
+            <div style="display:flex;flex-direction:column;padding:0 14px 10px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;height:34px;border-top:1px solid rgba(255,255,255,.05);"><span style="font-size:12px;">AMQP over TLS <span style="color:#5C6182;">amqps</span></span><span style="width:28px;height:16px;border-radius:999px;background:#7B6CF6;position:relative;cursor:pointer;"><span style="position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:#fff;"></span></span></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;height:34px;border-top:1px solid rgba(255,255,255,.05);"><span style="font-size:12px;">Management API over HTTPS</span><span style="width:28px;height:16px;border-radius:999px;background:#7B6CF6;position:relative;cursor:pointer;"><span style="position:absolute;top:2px;right:2px;width:12px;height:12px;border-radius:50%;background:#fff;"></span></span></div>
+              <div style="display:flex;align-items:center;gap:6px;padding-top:8px;border-top:1px solid rgba(255,255,255,.05);"><input placeholder="CA certificate (PEM), optional" style="flex:1;min-width:0;height:30px;padding:0 10px;border-radius:6px;background:#13151E;border:1px solid rgba(255,255,255,.08);color:#EEF0F8;font-size:12px;outline:none;" style-focus="border-color:rgba(123,108,246,.45);"><button style="width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:transparent;color:#9499B8;cursor:pointer;" style-hover="color:#EEF0F8;background:#1C1F2C;"><dc-import name="Icon" icon="folder-plus" size="14" hint-size="14px,14px"></dc-import></button></div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;padding:12px 20px;border-top:1px solid rgba(255,255,255,.08);"><span style="font-size:12px;color:#F87171;cursor:pointer;">Delete</span><div style="flex:1;"></div><span style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#34D399;margin-right:6px;"><dc-import name="Icon" icon="circle-check" size="13" hint-size="13px,13px"></dc-import>Reachable · 41 ms</span><button style="height:34px;padding:0 12px;border-radius:6px;border:1px solid rgba(255,255,255,.08);background:transparent;color:#9499B8;font:500 13px Geist,sans-serif;cursor:pointer;" style-hover="color:#EEF0F8;background:#1C1F2C;">Test</button><button onClick="{{ connectStaging }}" style="height:34px;padding:0 14px;border-radius:6px;border:0;background:#7B6CF6;color:#fff;font:600 13px Geist,sans-serif;cursor:pointer;" style-hover="filter:brightness(1.1);">Save &amp; connect</button></div>
+      </sc-if>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;environment&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;local&quot;,&quot;options&quot;:[&quot;local&quot;,&quot;shared&quot;,&quot;production&quot;],&quot;tsType&quot;:&quot;'local' | 'shared' | 'production'&quot;,&quot;section&quot;:&quot;Connection&quot;},&quot;inputHeight&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:36,&quot;min&quot;:30,&quot;max&quot;:40,&quot;step&quot;:2,&quot;unit&quot;:&quot;px&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Density&quot;}}">
+const HEX = "0a0a6f72645f3866336132311208637573 5f313034321a220a07736b752d373738120b4669 656c6420526164696f180221cdcccccccccc bc6240223c0a12313220486166656e737472 617373651207 48616d627572671a0248482205 32303435372a0244452802 32120a100a04343234321204766973611 80b20e90f".replace(/\s+/g, "");
+const ENV = {
+  local: { label: "LOCAL", color: "#34D399", bg: "rgba(52,211,153,.12)" },
+  shared: { label: "SHARED", color: "#FBBF24", bg: "rgba(251,191,36,.12)" },
+  production: { label: "PRODUCTION", color: "#F87171", bg: "rgba(248,113,113,.12)" },
+};
+const PROFILES = [
+  { name: "local", host: "localhost", url: "amqp://guest@localhost:5672/", env: "local", connected: true },
+  { name: "staging", host: "mq.staging.internal", url: "amqps://tap@mq.staging.internal:5671/", env: "shared", connected: false },
+  { name: "prod-eu", host: "mq.eu.prod", url: "amqps://tap-ro@mq.eu.prod:5671/orders", env: "production", connected: false },
+];
+const PAY = {
+  credit_card: { label: "Credit Card", type: "CreditCard · 4 fields", fields: [["Last Four", "string", "4242"], ["Brand", "string", "visa"], ["Exp Month", "int32", "11"], ["Exp Year", "int32", "2029"]] },
+  bank_transfer: { label: "Bank Transfer", type: "BankTransfer · 3 fields", fields: [["Iban", "string", "DE89 3704 0044 0532 0130 00"], ["Bic", "string", "COBADEFF"], ["Holder", "string", "A. Weber"]] },
+  voucher_code: { label: "Voucher Code", type: "string", fields: [["Voucher Code", "string", "SUMMER-25"]] },
+};
+const ACTIVITY = [
+  { id: "a1", dir: "sent", type: "Order", target: "orders", time: "14:02:11.412", size: "142 B", status: "ACK", statusColor: "#34D399", replyType: "OrderConfirmed", replyMeta: "orders.reply · req-7c1e · +278 ms · 88 B",
+    decoded: [["order_id", '"ord_8f3a21"', "#A497FF"], ["customer_id", '"cus_1042"', "#A497FF"], ["items", "[1 LineItem]", "#9499B8"], ["status", "ORDER_STATUS_CONFIRMED", "#2DD4BF"]] },
+  { id: "a2", dir: "sent", type: "Order", target: "orders", time: "13:58:40.102", size: "142 B", status: "ACK", statusColor: "#34D399", replyType: "unknown", replyMeta: "orders.reply · no decoder matched · 61 B",
+    decoded: [["order_id", '"ord_8f3a20"', "#A497FF"], ["customer_id", '"cus_1042"', "#A497FF"], ["status", "ORDER_STATUS_PENDING", "#2DD4BF"]] },
+  { id: "a3", dir: "recv", type: "SensorReading", target: "telemetry · tap", time: "13:55:02.771", size: "44 B", status: "DECODED", statusColor: "#2DD4BF",
+    decoded: [["device_id", '"probe-07"', "#A497FF"], ["celsius", "21.4", "#EEF0F8"], ["battery", "0.82", "#EEF0F8"]] },
+  { id: "a4", dir: "sent", type: "Event", target: "events → eu.orders", time: "13:51:02.008", size: "96 B", status: "NACK", statusColor: "#F87171",
+    decoded: [["name", '"order.created"', "#A497FF"], ["payload", "{…}", "#9499B8"]] },
+  { id: "a5", dir: "sent", type: "Order", target: "orders", time: "13:44:19.551", size: "142 B", status: "ACK", statusColor: "#34D399",
+    decoded: [["order_id", '"ord_8f3a19"', "#A497FF"], ["status", "ORDER_STATUS_SHIPPED", "#2DD4BF"]] },
+];
+const STEPS = [
+  { n: 1, name: "Create order", type: "Order", target: "orders", mode: "wait 200 ms", modeName: "No wait", modeParamLabel: "Delay", modeParam: "200", replyQueue: "—", k: "done", duration: "0.9 s", replyLabel: "", fieldSummary: "6 fields · 2 empty" },
+  { n: 2, name: "Confirm payment", type: "PaymentConfirmed", target: "payments / confirm", mode: "wait for correlation id · 10 s", modeName: "Correlation ID", modeParamLabel: "Timeout", modeParam: "10000", replyQueue: "orders.reply", k: "done", duration: "1.6 s", replyLabel: "View reply", fieldSummary: "4 fields · from block Visa test card" },
+  { n: 3, name: "Ship order", type: "Shipment", target: "orders", mode: "wait 200 ms", modeName: "No wait", modeParamLabel: "Delay", modeParam: "200", replyQueue: "—", k: "done", duration: "1.4 s", replyLabel: "", fieldSummary: "3 fields" },
+];
+
+class Component extends DCLogic {
+  state = {
+    view: "compose", fileOpen: true, selectedMsg: "Order", mode: "queue", blocksOpen: false, propsOpen: false,
+    hexOpen: false, jsonMode: false, shipOpen: true, pay: "credit_card", actFilter: "all", expanded: "a1",
+    sheet: null, profile: "local", tapRunning: true, sending: false, outcome: null, selectedStep: 2,
+    items: [{ sku: "sku-778", name: "Field Radio", qty: "2", price: "149.9" }],
+  };
+  set(patch) { return () => this.setState(patch); }
+  renderVals() {
+    const s = this.state;
+    const inputH = Number(this.props.inputHeight ?? 36);
+    const profile = PROFILES.find(p => p.name === s.profile) ?? PROFILES[0];
+    const env = ENV[this.props.environment ?? profile.env] ?? ENV.local;
+    const bytes = HEX.match(/.{2}/g) || [];
+    const hexRows = [];
+    for (let i = 0; i < bytes.length; i += 8) {
+      const chunk = bytes.slice(i, i + 8);
+      hexRows.push({ offset: i.toString(16).padStart(4, "0"), bytes: chunk.join(" "), ascii: chunk.map(b => { const c = parseInt(b, 16); return c >= 32 && c < 127 ? String.fromCharCode(c) : "·"; }).join("") });
+    }
+    const act = { bg: "rgba(123,108,246,.12)", color: "#EEF0F8", dot: "#7B6CF6" }, idle = { bg: "transparent", color: "#9499B8", dot: "#5C6182" };
+    const messages = [["Order", 6], ["LineItem", 4], ["Address", 5], ["Payment", 1], ["CreditCard", 4], ["BankTransfer", 3]]
+      .map(([name, count]) => ({ name, count, ...(name === s.selectedMsg ? act : idle), select: this.set({ selectedMsg: name }) }));
+    const pay = PAY[s.pay];
+    const payBranches = Object.keys(PAY).map(k => ({ name: k, select: this.set({ pay: k }), bg: k === s.pay ? "#252840" : "transparent", color: k === s.pay ? "#EEF0F8" : "#9499B8", weight: k === s.pay ? 600 : 400 }));
+    const filters = [["all", "All"], ["sent", "Sent"], ["recv", "Received"]].map(([k, label]) => ({ label, select: this.set({ actFilter: k }), bg: s.actFilter === k ? "#1C1F2C" : "transparent", color: s.actFilter === k ? "#EEF0F8" : "#9499B8", weight: s.actFilter === k ? 600 : 400 }));
+    const activityGroups = ACTIVITY.filter(a => s.actFilter === "all" || a.dir === s.actFilter).map(a => ({
+      ...a,
+      icon: a.dir === "sent" ? "arrow-right" : "arrow-left",
+      iconBg: a.dir === "sent" ? "rgba(123,108,246,.12)" : "rgba(45,212,191,.12)",
+      iconColor: a.dir === "sent" ? "#A497FF" : "#2DD4BF",
+      hasReply: Boolean(a.replyType) && s.actFilter !== "sent",
+      expanded: s.expanded === a.id,
+      bg: s.expanded === a.id ? "rgba(255,255,255,.03)" : "transparent",
+      decoded: a.decoded.map(([k, v, color]) => ({ k, v, color })),
+      toggle: this.set({ expanded: s.expanded === a.id ? null : a.id }),
+    }));
+    const st = { done: { badgeBg: "rgba(52,211,153,.12)", badgeColor: "#34D399", dotBg: "rgba(52,211,153,.15)", dotColor: "#34D399", status: "DONE" } };
+    const steps = STEPS.map(x => ({ ...x, ...st[x.k], selected: s.selectedStep === x.n, border: s.selectedStep === x.n ? "rgba(123,108,246,.45)" : "rgba(255,255,255,.08)", replyQueueColor: x.replyQueue === "—" ? "#5C6182" : "#EEF0F8", select: this.set({ selectedStep: x.n }) }));
+    const selStep = STEPS.find(x => x.n === s.selectedStep);
+    const plans = [["Checkout happy path", 3, true, "ran 14:02"], ["Sensor burst · 50 msgs", 50, false, "ran yesterday"], ["Refund flow", 4, false, "never run"]]
+      .map(([name, steps, on, last]) => ({ name, steps, last, bg: on ? "rgba(123,108,246,.12)" : "transparent", color: on ? "#EEF0F8" : "#9499B8" }));
+    const profiles = PROFILES.map(p => ({ ...p, env: ENV[p.env].label, envBg: ENV[p.env].bg, envColor: ENV[p.env].color, dot: p.name === s.profile ? "#34D399" : "#5C6182", border: p.name === s.profile ? "rgba(123,108,246,.45)" : "rgba(255,255,255,.08)", open: this.set({ sheet: p.name === "staging" ? "detail" : "list" }) }));
+    const items = s.items.map((it, i) => ({ ...it, i, remove: () => this.setState(st => ({ items: st.items.filter((_, j) => j !== i) })) }));
+    const jsonObj = { order_id: "ord_8f3a21", customer_id: "cus_1042", items: s.items.map(it => ({ product_id: it.sku, name: it.name, quantity: Number(it.qty), unit_price: Number(it.price) })), shipping: { street: "12 Hafenstrasse", city: "Hamburg", state: "HH", zip: "20457", country: "DE" }, status: 2, payment: { _selected: s.pay } };
+    const jsonText = JSON.stringify(jsonObj, null, 2);
+    const isCompose = s.view === "compose";
+    const seg = on => ({ bg: on ? "#252840" : "transparent", color: on ? "#EEF0F8" : "#9499B8" });
+    const q = seg(s.mode === "queue"), ex = seg(s.mode === "exchange");
+    const targetName = s.mode === "queue" ? "orders" : "events";
+    return {
+      inputH, inputHsm: inputH - 2,
+      isCompose, isPlans: !isCompose, fileOpen: s.fileOpen, fileClosed: !s.fileOpen,
+      goCompose: this.set({ view: "compose" }), goPlans: this.set({ view: "plans" }),
+      composeTabBg: isCompose ? "#1C1F2C" : "transparent", composeTabColor: isCompose ? "#EEF0F8" : "#9499B8",
+      plansTabBg: isCompose ? "transparent" : "#1C1F2C", plansTabColor: isCompose ? "#9499B8" : "#EEF0F8",
+      profileName: profile.name, profileHost: profile.host, envLabel: env.label, envColor: env.color, envBg: env.bg,
+      openFile: this.set({ fileOpen: true }), closeFile: this.set({ fileOpen: false, blocksOpen: false }),
+      selectedMsg: s.selectedMsg, messages, plans,
+      toggleBlocks: this.set({ blocksOpen: !s.blocksOpen }), blocksOpen: s.blocksOpen && isCompose && s.fileOpen,
+      blocksBtnBg: s.blocksOpen ? "rgba(123,108,246,.12)" : "transparent", blocksBtnColor: s.blocksOpen ? "#A497FF" : "#9499B8",
+      blocks: [
+        { name: "Hamburg shipping address", preview: '{ "street": "12 Hafenstrasse", "city": "Hamburg", … }', fit: "fits Shipping · 5 of 5 fields", fitColor: "#34D399" },
+        { name: "Visa test card", preview: '{ "last_four": "4242", "brand": "visa", … }', fit: "fits Payment › credit_card", fitColor: "#34D399" },
+        { name: "Two line items", preview: '[ { "product_id": "sku-778" }, { "product_id": "sku-102" } ]', fit: "fits Items · replaces 1 row", fitColor: "#FBBF24" },
+      ],
+      setQueue: this.set({ mode: "queue" }), setExchange: this.set({ mode: "exchange" }), isExchange: s.mode === "exchange",
+      queueSegBg: q.bg, queueSegColor: q.color, exSegBg: ex.bg, exSegColor: ex.color,
+      targetName, targetMeta: s.mode === "queue" ? "12 msgs · 1 consumer" : "topic",
+      toggleProps: this.set({ propsOpen: !s.propsOpen }), propsOpen: s.propsOpen, propsToggleLabel: s.propsOpen ? "Done" : "Edit",
+      propsBtnBorder: s.propsOpen ? "rgba(123,108,246,.45)" : "transparent", propsBtnBg: s.propsOpen ? "rgba(123,108,246,.08)" : "transparent",
+      toggleJson: this.set({ jsonMode: !s.jsonMode }), jsonMode: s.jsonMode, formMode: !s.jsonMode,
+      jsonBtnBg: s.jsonMode ? "rgba(123,108,246,.12)" : "transparent", jsonBtnColor: s.jsonMode ? "#A497FF" : "#9499B8",
+      jsonText, jsonLines: jsonText.split("\n").map((_, i) => ({ n: i + 1 })),
+      scalarFields: [{ label: "Order Id", type: "string", num: "1", value: "ord_8f3a21" }, { label: "Customer Id", type: "string", num: "2", value: "cus_1042" }],
+      items, itemCount: items.length, addItem: () => this.setState(st => ({ items: [...st.items, { sku: "", name: "", qty: "1", price: "0" }] })),
+      toggleShipping: this.set({ shipOpen: !s.shipOpen }), shipOpen: s.shipOpen, shipCollapsed: !s.shipOpen, shipChevron: s.shipOpen ? "rotate(0deg)" : "rotate(-90deg)",
+      address: [{ label: "Street", value: "12 Hafenstrasse" }, { label: "City", value: "Hamburg" }, { label: "State", value: "HH" }, { label: "Zip", value: "20457" }, { label: "Country", value: "DE" }],
+      payBranches, payLabel: pay.label, payType: pay.type, payFields: pay.fields.map(([label, type, value]) => ({ label, type, value })),
+      byteCount: bytes.length, hexRows, hexInline: bytes.slice(0, 48).join(" ") + " …",
+      toggleHex: this.set({ hexOpen: !s.hexOpen }), hexOpen: s.hexOpen, hexToggleLabel: s.hexOpen ? "Collapse" : "Expand",
+      send: () => { if (s.sending) return; this.setState({ sending: true, outcome: null }); setTimeout(() => { const t = new Date(); this.setState({ sending: false, outcome: t.toTimeString().slice(0, 8) }); setTimeout(() => this.setState({ outcome: null }), 3000); }, 700); },
+      sendIcon: s.sending ? "loader-circle" : "send", sendLabel: s.sending ? "Sending…" : `Send to ${targetName}`,
+      outcomeVisible: Boolean(s.outcome), outcomeTime: s.outcome ?? "",
+      actFilters: filters, activityGroups, actSummary: "4 sent · 3 received · today",
+      toggleTap: this.set({ tapRunning: !s.tapRunning }), tapLabel: s.tapRunning ? "Tapping orders" : "Read queue", tapDot: s.tapRunning ? "#2DD4BF" : "#5C6182", tapBorder: s.tapRunning ? "rgba(45,212,191,.35)" : "rgba(255,255,255,.08)", tapAnim: s.tapRunning ? "tapPulse 1.6s ease-in-out infinite" : "none",
+      steps, selectedStepN: s.selectedStep, stepHasReply: selStep?.replyQueue !== "—", stepNoReply: selStep?.replyQueue === "—",
+      sheetOpen: s.sheet !== null, sheetList: s.sheet === "list", sheetDetail: s.sheet === "detail",
+      openSheet: this.set({ sheet: "list" }), closeSheet: this.set({ sheet: null }), backToList: this.set({ sheet: "list" }),
+      connectStaging: this.set({ sheet: null, profile: "staging" }),
+      profiles,
+    };
+  }
+}
+</script>
+</body>
+</html>

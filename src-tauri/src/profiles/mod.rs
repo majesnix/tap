@@ -474,7 +474,7 @@ mod uri_tests {
     fn default_vhost_encodes_correctly() {
         let uri = build_amqp_uri("localhost", 5672, "/", "guest", "guest", false);
         assert!(uri.contains("%2F"), "default vhost '/' must become '%2F' in URI");
-        let after_port = uri.split(':').last().unwrap_or("");
+        let after_port = uri.split(':').next_back().unwrap_or("");
         assert!(!after_port.starts_with("5672//"), "unencoded '/' in path causes wrong vhost");
     }
 

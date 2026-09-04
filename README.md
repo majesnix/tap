@@ -119,6 +119,34 @@ See [`packaging/arch/README.md`](packaging/arch/README.md) for details on the PK
 
 ---
 
+## Workbench layout
+
+Tap is one window, laid out the same way in both views:
+
+- **Header** — the view switch (Compose / Plans), the connection pill (click it for the
+  connection sheet), the blocks and shortcuts buttons and the theme toggle.
+- **Files sidebar** (left) — open `.proto` files with their include paths, the message list of
+  the active file, recent files, and the footer with the version and the trash icon.
+- **Request card** (centre, Compose) — the destination strip (queue or exchange + routing key),
+  the AMQP properties summary, the generated form (or its JSON view), the hex strip showing the
+  encoded wire bytes, and Send.
+- **Activity panel** (right) — one timeline of everything sent and received, newest first, with
+  each reply grouped under the request it answers. Rows expand to the decoded tree, the hex dump
+  and the replay/resend actions; the read-mode button reads a queue into the same timeline.
+- **Plans view** — the plans sidebar, step cards with the run bar, and the reply panel for the
+  selected step.
+- **Blocks drawer** — saved JSON snippets, dragged onto the form to fill fields.
+- **Connection sheet** — profiles, credentials and the connection test, opened from the pill.
+
+Shortcuts (`⌘` on macOS, `Ctrl` elsewhere): `⌘O` open `.proto`, `⌘R` reload schema, `⌘↵` send,
+`⌘⇧R` clear form, `⌘1` focus the activity filter, `⌘2` toggle hex, `⌘3` read a queue. The same
+list lives behind the keyboard button in the header.
+
+The design reference for this layout is
+[`docs/design/workbench-handoff/README.md`](docs/design/workbench-handoff/README.md).
+
+---
+
 ## Connecting over TLS
 
 Profiles have two transport switches and an optional CA bundle:
@@ -158,7 +186,7 @@ denied, the broker error is shown as-is.
 
 ## Reading queues safely
 
-The Response panel offers four ways to read a queue:
+The read-mode button in the Activity panel offers four ways to read a queue:
 
 | Mode | What happens on the broker | Effect on other consumers |
 |------|----------------------------|---------------------------|

@@ -1,12 +1,13 @@
-import { useState, useEffect } from "react";
-import { useDraggable } from "@dnd-kit/core";
+import { useState, useEffect, useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { json } from "@codemirror/lang-json";
-import { Plus, Pencil, Trash2, ArrowLeft, TriangleAlertIcon, GripVertical } from "lucide-react";
+import { Plus, Search, ArrowLeft, TriangleAlertIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { IconButton } from "@/components/common/IconButton";
+import { SectionLabel } from "@/components/common/SectionLabel";
+import { jsonEditorTheme } from "@/components/form/jsonEditorTheme";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,57 +20,24 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useBlockStore, type Block } from "@/stores/useBlockStore";
+import { useProtoStore } from "@/stores/useProtoStore";
+import { BlockCard } from "@/components/blocks/BlockCard";
+import { describeBlockFit } from "@/components/blocks/blockFit";
 
 type PanelView = "list" | "editor";
-
-interface DraggableBlockRowProps {
-  block: Block;
-  onEdit: (block: Block) => void;
-  onDelete: (block: Block) => void;
-}
-
-function DraggableBlockRow({ block, onEdit, onDelete }: DraggableBlockRowProps) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: block.id });
-  return (
-    <div
-      ref={setNodeRef}
-      {...listeners}
-      {...attributes}
-      className={`px-2 py-2 flex items-center gap-1 hover:bg-muted rounded-sm cursor-grab active:cursor-grabbing${isDragging ? ' opacity-40' : ''}`}
-    >
-      <div
-        className="text-muted-foreground shrink-0 p-0.5"
-        aria-label={`Drag ${block.name}`}
-      >
-        <GripVertical size={14} />
-      </div>
-      <span className="text-sm truncate flex-1">{block.name}</span>
-      <div className="flex items-center gap-1 shrink-0">
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Edit ${block.name}`}
-          onClick={() => onEdit(block)}
-        >
-          <Pencil size={14} />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label={`Delete ${block.name}`}
-          onClick={() => onDelete(block)}
-        >
-          <Trash2 size={14} />
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export function BlockLibraryPanel() {
   const { blocks, blocksLoaded, loadBlocks, addBlock, updateBlock, deleteBlock } =
     useBlockStore();
   const { resolvedTheme } = useTheme();
+  // Same design-system CodeMirror theme the request form's JSON editor uses.
+  const editorExtensions = useMemo(
+    () => [json(), ...jsonEditorTheme(resolvedTheme === "dark")],
+    [resolvedTheme]
+  );
+  const selectedMessage = useProtoStore(
+    (s) => s.schema?.message_map[s.selectedMessageType ?? ""] ?? null
+  );
 
   const [view, setView] = useState<PanelView>("list");
   const [editingBlock, setEditingBlock] = useState<Block | null>(null);
@@ -78,17 +46,32 @@ export function BlockLibraryPanel() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveErrorKind, setSaveErrorKind] = useState<"validation" | "json-parse" | "persistence" | null>(null);
   const [blockToDelete, setBlockToDelete] = useState<Block | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [filterText, setFilterText] = useState("");
 
-  // Lazy-load on mount — mirrors MessageHistoryPanel.tsx lines 19-23
+  // Lazy-load on mount so the drawer only reads the block store once it is opened.
   useEffect(() => {
     if (!blocksLoaded) {
       void loadBlocks();
     }
   }, [blocksLoaded, loadBlocks]);
 
+  const filteredBlocks = useMemo(() => {
+    if (!searchOpen || !filterText.trim()) return blocks;
+    const needle = filterText.trim().toLowerCase();
+    return blocks.filter((b) => b.name.toLowerCase().includes(needle));
+  }, [blocks, searchOpen, filterText]);
+
   function clearSaveError() {
     setSaveError(null);
     setSaveErrorKind(null);
+  }
+
+  function handleToggleSearch() {
+    setSearchOpen((open) => {
+      if (open) setFilterText("");
+      return !open;
+    });
   }
 
   function handleNewBlock() {
@@ -110,6 +93,23 @@ export function BlockLibraryPanel() {
   function handleBack() {
     clearSaveError();
     setView("list");
+  }
+
+  function handleDeleteRequest() {
+    if (editingBlock) setBlockToDelete(editingBlock);
+  }
+
+  function handleConfirmDelete() {
+    if (!blockToDelete) return;
+    const id = blockToDelete.id;
+    setBlockToDelete(null);
+    deleteBlock(id)
+      .then(() => {
+        setView("list");
+      })
+      .catch((err: unknown) => {
+        toast.error(err instanceof Error ? err.message : "Failed to delete block");
+      });
   }
 
   function handleSave() {
@@ -143,107 +143,136 @@ export function BlockLibraryPanel() {
     });
   }
 
-  if (view === "editor") {
-    return (
-      <div className="w-64 shrink-0 h-full flex flex-col border-r border-border">
-        {/* Header */}
-        <div className="px-4 py-3 border-b border-border shrink-0 flex items-center gap-2">
-          <Button variant="ghost" size="icon-sm" aria-label="Back" onClick={handleBack}>
-            <ArrowLeft size={16} />
-          </Button>
-          <h2 className="text-sm font-semibold">
-            {editingBlock ? "Edit block" : "New block"}
-          </h2>
-        </div>
-        {/* Editor body — MUST be flex-col min-h-0, NOT ScrollArea (Pitfall 4) */}
-        <div className="flex-1 flex flex-col p-4 gap-3 min-h-0">
-          <Input
-            placeholder="Block name"
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-          />
-          {/* CodeMirror — flex-1 so it fills remaining space */}
-          <div className="flex-1 flex flex-col min-h-0">
-            <CodeMirror
-              value={contentDraft}
-              height="100%"
-              theme={resolvedTheme === "dark" ? "dark" : "light"}
-              extensions={[json()]}
-              onChange={setContentDraft}
-              className="flex-1 min-h-0"
-              basicSetup={{ lineNumbers: true, bracketMatching: true }}
-            />
-          </div>
-          {saveError && (
-            <div
-              role="alert"
-              className="rounded-md border border-destructive/40 bg-destructive/10 p-3"
-            >
-              <div className="flex items-start gap-2">
-                <TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-1" />
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-destructive">
-                    {saveErrorKind === "json-parse" ? "Invalid JSON" : saveError}
-                  </span>
-                  {saveErrorKind === "json-parse" && (
-                    <p className="text-xs text-destructive mt-1">
-                      {saveError}
-                    </p>
-                  )}
+  return (
+    <>
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-border bg-card">
+        {view === "editor" ? (
+          <>
+            {/* Header */}
+            <div className="flex items-center gap-2 p-[14px_14px_10px]">
+              <IconButton size={24} label="Back" onClick={handleBack}>
+                <ArrowLeft size={16} strokeWidth={1.5} />
+              </IconButton>
+              <h2 className="text-13 font-semibold">
+                {editingBlock ? "Edit block" : "New block"}
+              </h2>
+            </div>
+            {/* Editor body — MUST be flex-col min-h-0, NOT ScrollArea (Pitfall 4) */}
+            <div className="flex flex-1 flex-col gap-3 p-3 min-h-0">
+              <Input
+                className="h-9"
+                placeholder="Block name"
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+              />
+              {/* CodeMirror — flex-1 so it fills remaining space */}
+              <div className="flex-1 flex flex-col min-h-0">
+                <CodeMirror
+                  value={contentDraft}
+                  height="100%"
+                  theme="none"
+                  extensions={editorExtensions}
+                  onChange={setContentDraft}
+                  className="flex-1 min-h-0"
+                  basicSetup={{ lineNumbers: true, bracketMatching: true }}
+                />
+              </div>
+              {saveError && (
+                <div
+                  role="alert"
+                  className="rounded-md border border-destructive/40 bg-destructive/10 p-3"
+                >
+                  <div className="flex items-start gap-2">
+                    <TriangleAlertIcon className="size-4 text-destructive shrink-0 mt-1" strokeWidth={1.5} />
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs font-semibold text-destructive">
+                        {saveErrorKind === "json-parse" ? "Invalid JSON" : saveError}
+                      </span>
+                      {saveErrorKind === "json-parse" && (
+                        <p className="text-xs text-destructive mt-1">
+                          {saveError}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                 </div>
+              )}
+              <div className="mt-auto flex flex-col gap-2">
+                {editingBlock && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="self-start px-0 text-12 text-danger hover:bg-danger/12 hover:text-danger"
+                    onClick={handleDeleteRequest}
+                  >
+                    Delete block
+                  </Button>
+                )}
+                <Button
+                  variant="default"
+                  className="w-full"
+                  aria-label="Save block"
+                  onClick={handleSave}
+                  disabled={!blocksLoaded}
+                >
+                  {blocksLoaded ? "Save block" : "Loading…"}
+                </Button>
               </div>
             </div>
-          )}
-          <Button
-            variant="default"
-            className="w-full mt-auto"
-            aria-label="Save block"
-            onClick={handleSave}
-            disabled={!blocksLoaded}
-          >
-            {blocksLoaded ? "Save block" : "Loading…"}
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  // List view (default)
-  return (
-    <div className="w-64 shrink-0 h-full flex flex-col border-r border-border">
-      {/* Header */}
-      <div className="px-4 py-3 border-b border-border shrink-0 flex items-center justify-between">
-        <h2 className="text-sm font-semibold">Block Library</h2>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-label="New block"
-          onClick={handleNewBlock}
-        >
-          <Plus size={16} />
-        </Button>
-      </div>
-      {/* Scrollable list */}
-      <ScrollArea className="flex-1 min-h-0">
-        {blocksLoaded && blocks.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
-            <p className="text-sm text-muted-foreground font-medium">No blocks yet</p>
-            <p className="text-xs text-muted-foreground text-center">
-              Save JSON snippets you can reuse across messages.
-            </p>
-          </div>
+          </>
+        ) : (
+          <>
+            {/* Header */}
+            <div className="flex items-center justify-between p-[14px_14px_10px]">
+              <SectionLabel>Blocks</SectionLabel>
+              <div className="flex gap-0.5">
+                <IconButton size={24} label="Search blocks" onClick={handleToggleSearch}>
+                  <Search size={14} strokeWidth={1.5} />
+                </IconButton>
+                <IconButton size={24} tone="violet" label="New block" onClick={handleNewBlock}>
+                  <Plus size={15} strokeWidth={1.5} />
+                </IconButton>
+              </div>
+            </div>
+            {searchOpen && (
+              <Input
+                className="mx-2.5 mb-2 h-7 text-12"
+                aria-label="Filter blocks"
+                placeholder="Filter blocks"
+                value={filterText}
+                onChange={(e) => setFilterText(e.target.value)}
+                autoFocus
+              />
+            )}
+            {/* Scrollable list */}
+            <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-2.5 min-h-0">
+              {blocksLoaded && blocks.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
+                  <p className="text-sm text-muted-foreground font-medium">No blocks yet</p>
+                  <p className="text-xs text-muted-foreground text-center">
+                    Save JSON snippets you can reuse across messages.
+                  </p>
+                </div>
+              )}
+              {blocksLoaded &&
+                filteredBlocks.map((block) => (
+                  <BlockCard
+                    key={block.id}
+                    block={block}
+                    fit={describeBlockFit(block.content, selectedMessage)}
+                    onEdit={handleEditBlock}
+                  />
+                ))}
+            </div>
+            {/* Footer note */}
+            <div className="border-t border-border p-[12px_14px] text-11 text-ghost leading-[1.5]">
+              Drop onto the request. Fields that already have a value ask before being overwritten.
+            </div>
+          </>
         )}
-        {blocksLoaded &&
-          blocks.map((block) => (
-            <DraggableBlockRow
-              key={block.id}
-              block={block}
-              onEdit={handleEditBlock}
-              onDelete={(b) => setBlockToDelete(b)}
-            />
-          ))}
-      </ScrollArea>
-      {/* AlertDialog for delete — rendered outside ScrollArea, always in tree */}
+      </div>
+      {/* AlertDialog for delete — rendered outside the card, always in tree */}
       <AlertDialog
         open={!!blockToDelete}
         onOpenChange={(open) => {
@@ -257,25 +286,12 @@ export function BlockLibraryPanel() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Keep block</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                if (blockToDelete) {
-                  const id = blockToDelete.id;
-                  setBlockToDelete(null);
-                  deleteBlock(id).catch((err: unknown) => {
-                    toast.error(
-                      err instanceof Error ? err.message : "Failed to delete block"
-                    );
-                  });
-                }
-              }}
-            >
+            <AlertDialogAction variant="destructive" onClick={handleConfirmDelete}>
               Delete block
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </div>
+    </>
   );
 }

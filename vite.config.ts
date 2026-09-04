@@ -37,10 +37,12 @@ export default defineConfig({
     globals: true,
     environment: "jsdom",
     setupFiles: ["./src/test/setup.ts"],
+    // Agent worktrees live under .claude/worktrees inside the repo; never collect their tests.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.claude/**", "**/src-tauri/**"],
     coverage: {
       // Ratchet: set just below the measured coverage so it can only go up.
       // Raise these as the plan and history UIs gain tests.
-      thresholds: { statements: 78, branches: 70, functions: 76, lines: 79 },
+      thresholds: { statements: 85, branches: 76, functions: 85, lines: 86 },
       exclude: ["src/components/ui/**", "src/test/**", "src/**/*.test.*", "src/**/__tests__/**", "src/vite-env.d.ts", "src/main.tsx"],
     },
   },

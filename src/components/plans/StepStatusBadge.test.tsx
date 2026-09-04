@@ -1,71 +1,64 @@
-import { describe, test, expect } from "vitest";
+import React from "react";
+import { describe, test, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { StepStatusBadge } from "./StepStatusBadge";
 import type { StepStatus } from "@/lib/types";
 
+vi.mock("@/components/ui/tooltip", () => ({
+  Tooltip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  TooltipContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  TooltipProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
+
+import { StepStatusBadge } from "./StepStatusBadge";
+
 describe("StepStatusBadge", () => {
-  test("renders 'Pending' text for pending status", () => {
-    render(<StepStatusBadge status="pending" />);
-    expect(screen.getByText("Pending")).toBeInTheDocument();
+  test.each([
+    ["pending", "PENDING"],
+    ["sending", "SENDING"],
+    ["waiting-response", "WAITING"],
+    ["done", "DONE"],
+    ["error", "ERROR"],
+  ] as const)("renders the %s label in caps", (status, label) => {
+    render(<StepStatusBadge status={status} />);
+    expect(screen.getByText(label)).toBeInTheDocument();
   });
 
-  test("renders 'Sending' text for sending status", () => {
-    render(<StepStatusBadge status="sending" />);
-    expect(screen.getByText("Sending")).toBeInTheDocument();
-  });
-
-  test("renders 'Waiting…' text for waiting-response status", () => {
-    render(<StepStatusBadge status="waiting-response" />);
-    expect(screen.getByText("Waiting…")).toBeInTheDocument();
-  });
-
-  test("renders 'Done' text for done status", () => {
+  test("done uses the success tone", () => {
     render(<StepStatusBadge status="done" />);
-    expect(screen.getByText("Done")).toBeInTheDocument();
+    expect(screen.getByText("DONE").className).toContain("text-success");
   });
 
-  test("renders 'Error' text for error status", () => {
+  test("sending and waiting use the warning tone", () => {
+    const { unmount } = render(<StepStatusBadge status="sending" />);
+    expect(screen.getByText("SENDING").className).toContain("text-warning");
+    unmount();
+    render(<StepStatusBadge status="waiting-response" />);
+    expect(screen.getByText("WAITING").className).toContain("text-warning");
+  });
+
+  test("error uses the danger tone", () => {
     render(<StepStatusBadge status="error" />);
-    expect(screen.getByText("Error")).toBeInTheDocument();
+    expect(screen.getByText("ERROR").className).toContain("text-danger");
   });
 
-  test("sending badge has amber tint class", () => {
-    const { container } = render(<StepStatusBadge status="sending" />);
-    const badge = container.firstElementChild as HTMLElement;
-    expect(badge.className).toContain("bg-amber-500/10");
+  test("pending uses the neutral surface tone", () => {
+    render(<StepStatusBadge status="pending" />);
+    const badge = screen.getByText("PENDING");
+    expect(badge.className).toContain("bg-surface-2");
+    expect(badge.className).not.toContain("text-success");
+    expect(badge.className).not.toContain("text-warning");
+    expect(badge.className).not.toContain("text-danger");
   });
 
-  test("waiting-response badge has amber tint class", () => {
+  test("waiting-response still shows the spinner", () => {
     const { container } = render(<StepStatusBadge status="waiting-response" />);
-    const badge = container.firstElementChild as HTMLElement;
-    expect(badge.className).toContain("bg-amber-500/10");
+    expect(container.querySelector(".animate-spin")).not.toBeNull();
   });
 
-  test("done badge has emerald tint class", () => {
-    const { container } = render(<StepStatusBadge status="done" />);
-    const badge = container.firstElementChild as HTMLElement;
-    expect(badge.className).toContain("bg-emerald-500/10");
-  });
-
-  test("error badge has destructive tint class", () => {
-    const { container } = render(<StepStatusBadge status="error" />);
-    const badge = container.firstElementChild as HTMLElement;
-    expect(badge.className).toContain("bg-destructive/10");
-  });
-
-  test("waiting-response badge shows Loader2 spinner element", () => {
-    const { container } = render(<StepStatusBadge status="waiting-response" />);
-    // Loader2 renders as svg with animate-spin class
-    const spinner = container.querySelector(".animate-spin");
-    expect(spinner).not.toBeNull();
-  });
-
-  test("pending badge has no color override class (neutral)", () => {
-    const { container } = render(<StepStatusBadge status="pending" />);
-    const badge = container.firstElementChild as HTMLElement;
-    expect(badge.className).not.toContain("bg-amber-");
-    expect(badge.className).not.toContain("bg-emerald-");
-    expect(badge.className).not.toContain("bg-destructive");
+  test("shows the error message in a tooltip", () => {
+    render(<StepStatusBadge status="error" errorMsg="channel closed" />);
+    expect(screen.getByText("channel closed")).toBeInTheDocument();
   });
 
   test("accepts all StepStatus values without TypeScript error", () => {

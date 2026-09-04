@@ -27,6 +27,9 @@ export interface HistoryEntry {
   fieldValues: Record<string, unknown>; // latestValues from useProtoStore at send time
   payloadBase64: string;                // wire bytes as base64, capped by truncatePayloadForHistory
   payloadTruncated?: boolean;           // true when only the first MAX_HISTORY_PAYLOAD_BYTES were kept
+  correlationId?: string;               // AMQP property set at send time; used to pair replies in the Activity panel
+  replyTo?: string;                     // AMQP reply-to queue set at send time
+  outcome?: "ack" | "nack" | "returned" | "timeout"; // publisher-confirm result; absent for failed sends and old entries
 }
 
 /**

@@ -16,8 +16,6 @@ interface PlanExecutionState {
   stepReplies: Record<string, ReplyMessage>;
   /** Shared reply feed — FIFO-500 (D-11) */
   planReplyFeed: FeedMessage[];
-  /** Controls which pane the editor/reply split shows (D-04) */
-  paneMode: 'editor' | 'reply';
   /** Error message for each failed step, keyed by step.id */
   stepErrors: Record<string, string>;
 }
@@ -28,7 +26,7 @@ interface PlanExecutionActions {
   /**
    * Start a new run: set runningPlanId, initialize all stepIds to 'pending',
    * clear summary and reset isCancelling. (D-14, RUN-03)
-   * Also resets stepReplies, planReplyFeed, and paneMode inline (Pitfall 3, D-09).
+   * Also resets stepReplies and planReplyFeed inline (Pitfall 3, D-09).
    */
   setRunning: (planId: string, stepIds: string[]) => void;
   /**
@@ -43,8 +41,8 @@ interface PlanExecutionActions {
   setSummary: (succeeded: number, total: number) => void;
   /**
    * Mark run complete: clears runningPlanId and activeStepId.
-   * Intentionally keeps stepStatuses, summary, stepReplies, planReplyFeed, and
-   * paneMode intact so the UI can display post-run state. (D-11)
+   * Intentionally keeps stepStatuses, summary, stepReplies and planReplyFeed
+   * intact so the UI can display post-run state. (D-11)
    * Do NOT call clearRun() here — that erases badges. clearRun() is called by
    * setRunning() at the start of the next run.
    */
@@ -55,8 +53,6 @@ interface PlanExecutionActions {
   setStepReply: (stepId: string, reply: ReplyMessage) => void;
   /** Prepend entry to planReplyFeed, capped at 500 entries (FIFO-500). (D-11) */
   appendReplyFeedEntry: (entry: FeedMessage) => void;
-  /** Switch the editor/reply pane mode. (D-04) */
-  setPaneMode: (mode: 'editor' | 'reply') => void;
   /** Store the error message for a failed step so it survives toast dismissal. */
   setStepError: (stepId: string, msg: string) => void;
 }
@@ -74,7 +70,6 @@ const INITIAL_STATE: PlanExecutionState = {
   isRunning: false,
   stepReplies: {} as Record<string, ReplyMessage>,
   planReplyFeed: [] as FeedMessage[],
-  paneMode: 'editor' as const,
   stepErrors: {} as Record<string, string>,
 };
 
@@ -99,7 +94,6 @@ export const usePlanExecutionStore = create<PlanExecutionStore>((set) => ({
       isRunning: true,
       stepReplies: {},
       planReplyFeed: [],
-      paneMode: 'editor',
       stepErrors: {},
     }),
 
@@ -128,8 +122,6 @@ export const usePlanExecutionStore = create<PlanExecutionStore>((set) => ({
 
   appendReplyFeedEntry: (entry) =>
     set((s) => ({ planReplyFeed: [entry, ...s.planReplyFeed].slice(0, 500) })),
-
-  setPaneMode: (mode) => set({ paneMode: mode }),
 
   setStepError: (stepId, msg) =>
     set((state) => ({ stepErrors: { ...state.stepErrors, [stepId]: msg } })),

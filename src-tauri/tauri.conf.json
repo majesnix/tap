@@ -14,7 +14,9 @@
       {
         "title": "Tap",
         "width": 1280,
-        "height": 800
+        "height": 800,
+        "minWidth": 1240,
+        "minHeight": 720
       }
     ],
     "security": {
