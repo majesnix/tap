@@ -64,7 +64,7 @@
     "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^16.5.0",
-    "jsdom": "^29.1.1",
+    "jsdom": "^30.0.1",
     "shadcn": "^4.21.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.3",
