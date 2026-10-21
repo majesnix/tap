@@ -96,10 +96,19 @@ jobs:
         # warnings and do not fail the step. RUSTSEC-2026-0194/0195 (quick-xml)
         # arrive through tauri -> plist, which pins quick-xml 0.39; drop the
         # ignores once plist moves to quick-xml >= 0.41.
+        # RUSTSEC-2026-0367/0368/0369 (zip extract) arrive through
+        # tauri-plugin-updater, which requires zip ^4 in every release up to
+        # 3.0.0-alpha.3. The updater extracts only a downloaded bundle whose
+        # minisign signature it has already verified against our pubkey, so
+        # a malicious archive needs the signing key. Drop these ignores once
+        # the updater moves to zip >= 9.
         run: |
           cargo audit -f src-tauri/Cargo.lock \
             --ignore RUSTSEC-2026-0194 \
-            --ignore RUSTSEC-2026-0195
+            --ignore RUSTSEC-2026-0195 \
+            --ignore RUSTSEC-2026-0367 \
+            --ignore RUSTSEC-2026-0368 \
+            --ignore RUSTSEC-2026-0369
 
       - name: Run frontend tests with coverage
         run: pnpm exec vitest run --coverage --reporter=verbose
