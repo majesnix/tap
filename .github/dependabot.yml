@@ -1,4 +1,22 @@
 version: 2
+
+# Tauri crates and their @tauri-apps/* npm packages must stay on the same
+# major.minor (enforced by scripts/check-tauri-versions.mjs in CI). Dependabot
+# normally opens one PR per ecosystem, so each side bumps alone and fails that
+# check. This group pulls both sides into a single PR instead. The regular npm
+# and cargo entries below ignore these packages so they don't also open
+# one-sided PRs.
+multi-ecosystem-groups:
+  tauri:
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    labels:
+      - dependencies
+      - tauri
+
 updates:
   - package-ecosystem: npm
     directory: "/"
@@ -16,6 +34,9 @@ updates:
       prefix: chore(deps)
       prefix-development: chore(deps-dev)
       include: scope
+    ignore:
+      # Updated together with the crates by the `tauri` group.
+      - dependency-name: "@tauri-apps/*"
     groups:
       npm-production:
         dependency-type: production
@@ -42,11 +63,36 @@ updates:
     commit-message:
       prefix: chore(deps)
       include: scope
+    ignore:
+      # Updated together with the npm packages by the `tauri` group.
+      - dependency-name: "tauri"
+      - dependency-name: "tauri-*"
     groups:
       cargo-minor-patch:
         update-types:
           - minor
           - patch
+
+  # Tauri, both ecosystems in one PR.
+  - package-ecosystem: npm
+    directory: "/"
+    multi-ecosystem-group: tauri
+    versioning-strategy: increase
+    patterns:
+      - "@tauri-apps/*"
+    commit-message:
+      prefix: chore(deps)
+      include: scope
+
+  - package-ecosystem: cargo
+    directory: "/src-tauri"
+    multi-ecosystem-group: tauri
+    patterns:
+      - "tauri"
+      - "tauri-*"
+    commit-message:
+      prefix: chore(deps)
+      include: scope
 
   - package-ecosystem: github-actions
     directory: "/"
