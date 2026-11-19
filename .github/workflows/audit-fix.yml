@@ -1,0 +1,133 @@
+name: Audit fix
+
+# Repairs RustSec advisories on main without waiting for a human.
+#
+# Dependabot version updates only move direct dependencies, so a vulnerable
+# transitive crate (hickory-*, quinn-udp, zip, ...) stays locked even when a
+# fixed release exists, and the audit on main stays red. This workflow updates
+# the lockfile and opens a pull request that merges itself once the required
+# checks pass.
+#
+# npm needs no counterpart here: `pnpm audit` and Dependabot security updates
+# read the same GitHub advisory database, so Dependabot opens those fixes.
+#
+# Requires the repository setting "Allow GitHub Actions to create and approve
+# pull requests" (Settings -> Actions -> General).
+
+on:
+  # Ahead of the weekday CI schedule, so that run already sees the pull request.
+  schedule:
+    - cron: "30 5 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: audit-fix
+  cancel-in-progress: false
+
+env:
+  BRANCH: fix/audit-lockfile-refresh
+  MANIFEST: src-tauri/Cargo.toml
+  LOCKFILE: src-tauri/Cargo.lock
+
+jobs:
+  refresh-lockfile:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2
+        with:
+          tool: cargo-audit
+
+      - name: Update vulnerable crates
+        id: update
+        run: |
+          # "name@version" of every crate with an advisory that is not ignored
+          # in .cargo/audit.toml. cargo audit exits non-zero when it finds any.
+          vulnerable() {
+            (cargo audit --json -f "$LOCKFILE" || true) \
+              | jq -r '[.vulnerabilities.list[] | "\(.package.name)@\(.package.version)"] | unique | .[]'
+          }
+          advisories() {
+            (cargo audit --json -f "$LOCKFILE" || true) \
+              | jq -r '.vulnerabilities.list[] | "- \(.advisory.id) `\(.package.name)` \(.package.version)"'
+          }
+
+          before="$(vulnerable)"
+          if [ -z "$before" ]; then
+            echo "No RustSec advisories on main." >> "$GITHUB_STEP_SUMMARY"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          advisories > "$RUNNER_TEMP/advisories-before.md"
+
+          # First only the affected crates: the smallest change that can work.
+          specs=()
+          while IFS= read -r spec; do specs+=(-p "$spec"); done <<< "$before"
+          cargo update --manifest-path "$MANIFEST" "${specs[@]}"
+
+          # Some fixes need the parent crate to move as well (zip is pinned by
+          # tauri-plugin-updater), which only a full compatible update does.
+          if [ -n "$(vulnerable)" ]; then
+            cargo update --manifest-path "$MANIFEST"
+          fi
+
+          advisories > "$RUNNER_TEMP/advisories-after.md"
+          {
+            echo "### Advisories before"
+            cat "$RUNNER_TEMP/advisories-before.md"
+            echo "### Advisories still open (no compatible fix released)"
+            if [ -s "$RUNNER_TEMP/advisories-after.md" ]; then cat "$RUNNER_TEMP/advisories-after.md"; else echo "None."; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if git diff --quiet -- "$LOCKFILE"; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open self-merging pull request
+        if: steps.update.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git commit -m "fix(deps): refresh Cargo.lock to clear RustSec advisories" -- "$LOCKFILE"
+          git push --force origin "$BRANCH"
+
+          {
+            echo "Automated lockfile refresh from the \`Audit fix\` workflow."
+            echo
+            echo "## Advisories on main before this change"
+            cat "$RUNNER_TEMP/advisories-before.md"
+            echo
+            echo "## Still open after this change"
+            if [ -s "$RUNNER_TEMP/advisories-after.md" ]; then cat "$RUNNER_TEMP/advisories-after.md"; else echo "None."; fi
+            echo
+            echo "Merges itself once \`test\`, \`build-windows\` and \`audit\` pass."
+          } > "$RUNNER_TEMP/body.md"
+
+          state="$(gh pr view "$BRANCH" --json state --jq .state 2>/dev/null || true)"
+          if [ "$state" = "OPEN" ]; then
+            gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr create --base main --head "$BRANCH" \
+              --title "fix(deps): refresh Cargo.lock to clear RustSec advisories" \
+              --body-file "$RUNNER_TEMP/body.md"
+          fi
+          gh pr merge --auto --squash "$BRANCH"
+
+          # Pushes made with GITHUB_TOKEN do not start pull_request workflows,
+          # so the required checks are started explicitly on the branch.
+          gh workflow run ci.yml --ref "$BRANCH"
