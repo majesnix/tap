@@ -45,7 +45,7 @@ Teams that ship protobuf-based services and want a fast, code-free way to craft 
 
 ## Development setup
 
-**Prerequisites:** Node 20 LTS, pnpm, Rust stable (1.77.2+)
+**Prerequisites:** Node 24 LTS, pnpm, Rust stable (1.77.2+)
 
 ```bash
 pnpm install

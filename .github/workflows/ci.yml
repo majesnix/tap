@@ -16,6 +16,8 @@ on:
 
 jobs:
   test:
+    # Same image as build-linux in release.yml, so tests run against the
+    # system libraries the released Linux bundle is built with.
     runs-on: ubuntu-22.04
 
     # RabbitMQ broker for the Rust integration tests (TAP_INTEGRATION=1).
@@ -74,7 +76,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: pnpm
 
       - name: Install frontend dependencies
@@ -140,7 +142,7 @@ jobs:
   # version cannot merge, while an advisory published against a version main
   # already ships no longer turns every open pull request red.
   audit:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -151,7 +153,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "22"
+          node-version: "24"
 
       - name: Install cargo-audit
         uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2
@@ -191,7 +193,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: pnpm
 
       - name: Install frontend dependencies
