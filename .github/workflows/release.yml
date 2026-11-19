@@ -32,7 +32,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: pnpm
 
       - name: Install frontend dependencies
@@ -99,6 +99,11 @@ jobs:
           spctl --assess --type exec --verbose "$APP"
 
   build-linux:
+    # Deliberately the oldest supported Ubuntu image. The .deb and AppImage
+    # link against the glibc of the build host (2.35 here), so they run on
+    # Ubuntu 22.04, Debian 12 and anything newer. Building on 24.04 raises that
+    # floor to glibc 2.39. Standard support for 22.04 ends in April 2027; move
+    # this job and `test` in ci.yml together when the image is retired.
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -133,7 +138,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: pnpm
 
       - name: Install frontend dependencies
@@ -161,7 +166,8 @@ jobs:
           args: --config '{"bundle":{"createUpdaterArtifacts":true}}'
 
   build-arch:
-    runs-on: ubuntu-22.04
+    # Host image only runs the Arch container; its version does not reach the package.
+    runs-on: ubuntu-24.04
     needs: build-linux
     permissions:
       contents: write
