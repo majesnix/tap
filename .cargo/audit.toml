@@ -1,0 +1,11 @@
+# cargo-audit configuration, read when `cargo audit` runs from the repo root.
+# Single source for ignored advisories: CI (scripts/audit.mjs) and the
+# audit-fix workflow both rely on it.
+
+[advisories]
+ignore = [
+    # quick-xml, via tauri -> plist, which pins quick-xml 0.39. Drop both once
+    # plist moves to quick-xml >= 0.41.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
+]
