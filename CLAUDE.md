@@ -79,7 +79,7 @@ A Tauri desktop application (Rust backend + React frontend) that lets developers
 | `lapin` async runtime | Must use `tauri::async_runtime::spawn`, not bare `tokio::spawn` inside event listeners — causes panic in Tauri 2 on Windows |
 | `prost-reflect` + `protox` | Both use `prost_types::FileDescriptorSet` as the handoff type; ensure `prost` versions match (both should pull `prost` 0.13.x) |
 | `tauri-plugin-*` | All official Tauri plugins must be on the v2 branch; v1 plugins are incompatible with Tauri 2.x |
-| Node / npm | Use Node 20 LTS; Tailwind 4.x requires Node 18+ |
+| Node / npm | Use Node 24 LTS (CI and release builds run on it); Tailwind 4.x requires Node 18+ |
 | `reqwest` TLS | Add `features = ["json", "rustls-tls"]` to `reqwest` if targeting Linux musl or avoiding OpenSSL linking issues in cross-compilation |
 | `shadcn/ui` | Requires Tailwind CSS 4.x and Radix UI; verify Vite config for Tauri is compatible with Tailwind 4 (uses CSS `@import` rather than `tailwind.config.js` in v4) |
 | `#[tokio::main]` conflict | Do NOT add `#[tokio::main]` to the Tauri `main.rs` — Tauri manages the runtime; adding it creates a nested runtime conflict |
